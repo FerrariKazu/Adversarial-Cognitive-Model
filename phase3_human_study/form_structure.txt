@@ -1,0 +1,99 @@
+======================================================================
+GOOGLE FORMS CONSTRUCTION GUIDE
+Adversarial Cognitive Model — Human Psychophysics Study
+======================================================================
+
+--- SECTION 1: INFORMED CONSENT (Page 1) ---
+
+Title: "Informed Consent"
+Description (paste exactly):
+
+  You are invited to participate in a research study on visual perception.
+  PURPOSE: This study examines how humans classify images that have been
+  subtly modified by computer algorithms.
+  WHAT YOU WILL DO: View ~100 images and answer two questions about each.
+  Takes approximately 20-30 minutes.
+  RISKS: None. Images are everyday objects.
+  VOLUNTARY: You may stop at any time without penalty.
+  PRIVACY: Responses will be anonymized. No identifying info is linked
+  to your answers. Data used for academic research only.
+
+Question: "I consent to participate in this study."
+Options: "Yes, I consent" / "No, I do not consent"
+Required: YES
+
+--- SECTION 2: PARTICIPANT INFORMATION (Page 2) ---
+
+Q1 (Short Answer): "Enter your participant ID (e.g., P001):" — REQUIRED
+Q2 (Multiple Choice): "Normal or corrected-to-normal vision?" — Yes/No
+Q3 (Multiple Choice): "Device type?" — Desktop / Tablet / Smartphone
+
+--- SECTION 3: INSTRUCTIONS (Page 3) ---
+
+Description: "You will see images containing ONE object from these categories:
+airplane, automobile, bird, cat, deer, dog, frog, horse, ship, truck.
+For each image answer: (1) What object? (2) Confidence 1-10.
+Some images may appear noisy. Answer based on first impression.
+5 blocks of 20 images each. ~20-30 minutes total."
+
+--- SECTION 4: BLOCK 1 — Epsilon=0.00 ---
+Title: 'Block 1 of 5'
+Images from: stimuli/pgd/eps0.00/
+Select 2 images per class (20 total).
+
+For EACH image add:
+  1. Insert image (upload the PNG)
+  2. Multiple Choice: 'What object is shown?'
+     Options: airplane, automobile, bird, cat, deer, dog, frog, horse, ship, truck
+  3. Linear Scale: 'How confident?' 1(guess) to 10(certain)
+
+--- SECTION 5: BLOCK 2 — Epsilon=0.05 ---
+Title: 'Block 2 of 5'
+Images from: stimuli/pgd/eps0.05/
+Select 2 images per class (20 total).
+
+For EACH image add:
+  1. Insert image (upload the PNG)
+  2. Multiple Choice: 'What object is shown?'
+     Options: airplane, automobile, bird, cat, deer, dog, frog, horse, ship, truck
+  3. Linear Scale: 'How confident?' 1(guess) to 10(certain)
+
+--- SECTION 6: BLOCK 3 — Epsilon=0.10 ---
+Title: 'Block 3 of 5'
+Images from: stimuli/pgd/eps0.10/
+Select 2 images per class (20 total).
+
+For EACH image add:
+  1. Insert image (upload the PNG)
+  2. Multiple Choice: 'What object is shown?'
+     Options: airplane, automobile, bird, cat, deer, dog, frog, horse, ship, truck
+  3. Linear Scale: 'How confident?' 1(guess) to 10(certain)
+
+--- SECTION 7: BLOCK 4 — Epsilon=0.20 ---
+Title: 'Block 4 of 5'
+Images from: stimuli/pgd/eps0.20/
+Select 2 images per class (20 total).
+
+For EACH image add:
+  1. Insert image (upload the PNG)
+  2. Multiple Choice: 'What object is shown?'
+     Options: airplane, automobile, bird, cat, deer, dog, frog, horse, ship, truck
+  3. Linear Scale: 'How confident?' 1(guess) to 10(certain)
+
+--- SECTION 8: BLOCK 5 — Epsilon=0.30 ---
+Title: 'Block 5 of 5'
+Images from: stimuli/pgd/eps0.30/
+Select 2 images per class (20 total).
+
+For EACH image add:
+  1. Insert image (upload the PNG)
+  2. Multiple Choice: 'What object is shown?'
+     Options: airplane, automobile, bird, cat, deer, dog, frog, horse, ship, truck
+  3. Linear Scale: 'How confident?' 1(guess) to 10(certain)
+
+--- FINAL SECTION: DEBRIEF ---
+
+Title: "Thank You"
+Description: "Thank you for participating! You were shown images altered
+by adversarial perturbation algorithms. Your responses help us compare
+human and machine visual perception."
