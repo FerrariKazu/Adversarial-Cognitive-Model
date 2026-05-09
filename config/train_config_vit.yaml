@@ -1,0 +1,60 @@
+# ViT Training Configuration
+# ===========================
+#
+# EVERY value here differs from train_config.yaml (ResNet) for a reason.
+# This comment block explains why.
+#
+# epochs: 50
+#   Same as ResNet. 50 epochs is sufficient because we're fine-tuning
+#   a pretrained model, not training from scratch.
+#
+# batch_size: 64
+#   ResNet uses 64 on 32×32 images. ViT processes 224×224 images, and
+#   the attention mechanism stores a 197×197 matrix per head (12 heads).
+#   On RTX 4060 (8GB VRAM), batch_size=64 at 224×224 uses ~5-6GB.
+#   batch_size=128 would OOM.
+#
+# lr: 0.0001
+#   ResNet uses SGD with lr=0.01 — 100× higher.
+#   Transformers are EXTREMELY sensitive to learning rate because:
+#     1. Attention weights are computed via softmax(QK^T / √d_k). A small
+#        change in Q or K causes large changes in attention patterns.
+#     2. Pre-trained attention heads have learned meaningful patterns from
+#        ImageNet. A high LR would immediately destroy these patterns.
+#     3. The AdamW optimizer already adapts per-parameter LRs, so the base
+#        LR should be conservative.
+#   0.0001 (1e-4) is the standard starting point from the ViT paper
+#   (Dosovitskiy et al., 2021) for fine-tuning.
+#
+# weight_decay: 0.05
+#   ResNet uses 5e-4 — 100× lower.
+#   Transformers benefit from stronger regularization because:
+#     1. ViT-Small has ~22M parameters (vs ResNet-18's ~11M). More params
+#        = more capacity to overfit, especially on CIFAR-10's small 50k
+#        training set.
+#     2. Weight decay in AdamW is decoupled from the gradient update
+#        (unlike L2 regularization in SGD), so it doesn't interfere with
+#        the adaptive learning rates. This allows higher decay values
+#        without training instability.
+#   0.05 is the standard from the DeiT paper (Touvron et al., 2021).
+#
+# warmup_epochs: 5
+#   ResNet uses NO warmup.
+#   ViT REQUIRES warmup because:
+#     1. At initialization, the 12 attention heads produce essentially
+#        random attention patterns (uniform distribution over patches).
+#     2. If the optimizer immediately applies a full learning rate (1e-4),
+#        it amplifies these random gradients, causing the attention heads
+#        to "lock in" to arbitrary patterns.
+#     3. Warmup starts at lr=1e-6 and linearly increases to 1e-4 over 5
+#        epochs. This gives the attention heads time to settle into
+#        meaningful patterns before the optimizer pushes hard.
+#   Analogy: warming up a cold engine before flooring the accelerator.
+
+epochs: 50
+batch_size: 64
+lr: 0.0001
+weight_decay: 0.05
+warmup_epochs: 5
+num_workers: 2
+seed: 42

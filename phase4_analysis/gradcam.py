@@ -58,8 +58,8 @@ from phase1_training.model import CIFARResNet
 from phase1_training.dataset import CLASSES
 from utils.metrics import load_adv_batch
 
-CONFIG_PATH = '../config/attack_config.yaml'
-OUTPUT_DIR = 'figures/gradcam'
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config', 'attack_config.yaml')
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'figures', 'resnet', 'gradcam')
 
 
 def get_random_indices_per_class(labels, num_per_class=3):
@@ -90,7 +90,7 @@ def main():
 
     # Load Model
     model = CIFARResNet().to(device)
-    model.load_state_dict(torch.load(os.path.join('..', config['checkpoint_path']), map_location=device))
+    model.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'best.pth'), map_location=device))
     model.eval()
 
     # The target layer for ResNet-18 is usually the last basic block of layer4
@@ -99,11 +99,19 @@ def main():
     # Initialize GradCAM
     cam = GradCAM(model=model, target_layers=target_layers)
 
-    # Load clean (0.00), eps=0.10, and eps=0.20 datasets
+    # Load datasets using mmap to avoid OOM
     print("Loading datasets...")
-    clean_imgs, labels = load_adv_batch('pgd', 0.00, return_tensor=True)
-    adv10_imgs, _ = load_adv_batch('pgd', 0.10, return_tensor=True)
-    adv20_imgs, _ = load_adv_batch('pgd', 0.20, return_tensor=True)
+    lbl_path = os.path.join(os.path.dirname(__file__), '..', 'phase2_attacks', 'adv_images', 'resnet', 'labels.npy')
+    labels = torch.from_numpy(np.load(lbl_path))
+    
+    def load_mmap(eps_str):
+        path = os.path.join(os.path.dirname(__file__), '..', 'phase2_attacks', 'adv_images', 'resnet', f"pgd_eps{eps_str}_images.npy")
+        return np.load(path, mmap_mode='r')
+        
+    clean_imgs = load_mmap('0.00')
+    adv05_imgs = load_mmap('0.05')
+    adv10_imgs = load_mmap('0.10')
+    adv20_imgs = load_mmap('0.20')
 
     class_indices = get_random_indices_per_class(labels, 3)
 
@@ -115,36 +123,40 @@ def main():
         class_name = CLASSES[c_idx]
         print(f"Processing class: {class_name.upper()}")
 
-        # Plot 3 rows (one per image), 6 columns
-        fig, axes = plt.subplots(3, 6, figsize=(18, 9), dpi=150)
+        # Plot 3 rows (one per image), 8 columns
+        fig, axes = plt.subplots(3, 8, figsize=(24, 9), dpi=150)
         plt.subplots_adjust(wspace=0.1, hspace=0.3)
 
         for row, img_idx in enumerate(indices):
-            # Tensors
-            t_clean = clean_imgs[img_idx].unsqueeze(0).to(device)
-            t_adv10 = adv10_imgs[img_idx].unsqueeze(0).to(device)
-            t_adv20 = adv20_imgs[img_idx].unsqueeze(0).to(device)
+            # Tensors (load from mmap)
+            t_clean = torch.tensor(clean_imgs[img_idx]).unsqueeze(0).to(device)
+            t_adv05 = torch.tensor(adv05_imgs[img_idx]).unsqueeze(0).to(device)
+            t_adv10 = torch.tensor(adv10_imgs[img_idx]).unsqueeze(0).to(device)
+            t_adv20 = torch.tensor(adv20_imgs[img_idx]).unsqueeze(0).to(device)
 
             # Predictions
             with torch.no_grad():
                 pred_clean = CLASSES[model(t_clean).argmax().item()]
+                pred_adv05 = CLASSES[model(t_adv05).argmax().item()]
                 pred_adv10 = CLASSES[model(t_adv10).argmax().item()]
                 pred_adv20 = CLASSES[model(t_adv20).argmax().item()]
 
             # Generate CAM masks
-            # We target the TRUE class so we can see why it stopped recognizing the truth
             targets = [ClassifierOutputTarget(c_idx)]
             mask_clean = cam(input_tensor=t_clean, targets=targets)[0, :]
+            mask_adv05 = cam(input_tensor=t_adv05, targets=targets)[0, :]
             mask_adv10 = cam(input_tensor=t_adv10, targets=targets)[0, :]
             mask_adv20 = cam(input_tensor=t_adv20, targets=targets)[0, :]
 
             # Denormalize images for plotting
             vis_clean = denorm_for_display(t_clean[0])
+            vis_adv05 = denorm_for_display(t_adv05[0])
             vis_adv10 = denorm_for_display(t_adv10[0])
             vis_adv20 = denorm_for_display(t_adv20[0])
 
             # Overlay masks
             cam_clean = show_cam_on_image(vis_clean, mask_clean, use_rgb=True)
+            cam_adv05 = show_cam_on_image(vis_adv05, mask_adv05, use_rgb=True)
             cam_adv10 = show_cam_on_image(vis_adv10, mask_adv10, use_rgb=True)
             cam_adv20 = show_cam_on_image(vis_adv20, mask_adv20, use_rgb=True)
 
@@ -157,17 +169,23 @@ def main():
             axs[1].imshow(cam_clean)
             axs[1].set_title("Grad-CAM (Clean)")
             
-            axs[2].imshow(vis_adv10)
-            axs[2].set_title(f"PGD 0.10\nPred: {pred_adv10}", color='red' if pred_adv10 != class_name else 'black')
+            axs[2].imshow(vis_adv05)
+            axs[2].set_title(f"PGD 0.05\nPred: {pred_adv05}", color='red' if pred_adv05 != class_name else 'black')
             
-            axs[3].imshow(cam_adv10)
-            axs[3].set_title("Grad-CAM (0.10)")
+            axs[3].imshow(cam_adv05)
+            axs[3].set_title("Grad-CAM (0.05)")
             
-            axs[4].imshow(vis_adv20)
-            axs[4].set_title(f"PGD 0.20\nPred: {pred_adv20}", color='red' if pred_adv20 != class_name else 'black')
+            axs[4].imshow(vis_adv10)
+            axs[4].set_title(f"PGD 0.10\nPred: {pred_adv10}", color='red' if pred_adv10 != class_name else 'black')
             
-            axs[5].imshow(cam_adv20)
-            axs[5].set_title("Grad-CAM (0.20)")
+            axs[5].imshow(cam_adv10)
+            axs[5].set_title("Grad-CAM (0.10)")
+            
+            axs[6].imshow(vis_adv20)
+            axs[6].set_title(f"PGD 0.20\nPred: {pred_adv20}", color='red' if pred_adv20 != class_name else 'black')
+            
+            axs[7].imshow(cam_adv20)
+            axs[7].set_title("Grad-CAM (0.20)")
 
             for ax in axs:
                 ax.axis('off')
