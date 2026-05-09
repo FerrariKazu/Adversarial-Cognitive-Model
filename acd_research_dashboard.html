@@ -1,0 +1,304 @@
+
+<h2 class="sr-only">Adversarial Cognition Divergence — interactive research dashboard showing SDT d-prime curves, accuracy collapse, and human psychophysics data for ResNet-18, ViT-Small, and human participants across epsilon perturbation levels.</h2>
+
+<style>
+.acd-tabs{display:flex;gap:4px;margin-bottom:1rem;border-bottom:0.5px solid var(--color-border-tertiary);padding-bottom:4px}
+.acd-tab{padding:6px 14px;font-size:13px;border:none;background:transparent;cursor:pointer;color:var(--color-text-secondary);border-radius:var(--border-radius-md);transition:all .15s}
+.acd-tab.active{background:var(--color-background-secondary);color:var(--color-text-primary);font-weight:500}
+.acd-tab:hover:not(.active){background:var(--color-background-secondary)}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:1.25rem}
+.stat{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px 14px}
+.stat-label{font-size:11px;color:var(--color-text-secondary);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.stat-val{font-size:22px;font-weight:500;color:var(--color-text-primary);font-family:var(--font-mono)}
+.stat-sub{font-size:11px;color:var(--color-text-tertiary);margin-top:2px}
+.model-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1.25rem}
+.model-pill{display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:999px;border:0.5px solid var(--color-border-secondary);color:var(--color-text-secondary);background:var(--color-background-primary)}
+.model-pill .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.model-pill.done{color:var(--color-text-primary);border-color:var(--color-border-primary)}
+.panel{display:none}
+.panel.active{display:block}
+.chart-wrap{position:relative;width:100%;height:280px}
+.legend-row{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:10px;font-size:12px;color:var(--color-text-secondary)}
+.legend-item{display:flex;align-items:center;gap:5px}
+.legend-swatch{width:20px;height:3px;border-radius:2px;flex-shrink:0}
+.legend-swatch.dashed{background:repeating-linear-gradient(90deg,transparent,transparent 3px,currentColor 3px,currentColor 6px);opacity:.6}
+.insight-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:1rem}
+.insight{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px 14px;border-left:3px solid transparent}
+.insight.red{border-left-color:#E94560}
+.insight.purple{border-left-color:#7C3AED}
+.insight.green{border-left-color:#16A34A}
+.insight.amber{border-left-color:#D97706}
+.insight-title{font-size:12px;font-weight:500;color:var(--color-text-primary);margin-bottom:3px}
+.insight-body{font-size:11px;color:var(--color-text-secondary);line-height:1.5}
+.slider-wrap{margin:1rem 0;display:flex;align-items:center;gap:12px}
+.slider-wrap label{font-size:13px;color:var(--color-text-secondary);white-space:nowrap}
+.slider-wrap input{flex:1}
+.eps-val{font-size:13px;font-weight:500;font-family:var(--font-mono);min-width:36px}
+.live-table{width:100%;font-size:12px;border-collapse:collapse;margin-top:.75rem}
+.live-table th{text-align:left;color:var(--color-text-secondary);font-weight:500;padding:4px 8px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.live-table td{padding:6px 8px;border-bottom:0.5px solid var(--color-border-tertiary);font-family:var(--font-mono);color:var(--color-text-primary)}
+.live-table td:first-child{font-family:var(--font-sans)}
+.badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:999px;font-weight:500}
+.badge.green{background:#DCFCE7;color:#166534}
+.badge.red{background:#FEE2E2;color:#991B1B}
+.badge.purple{background:#EDE9FE;color:#5B21B6}
+.badge.pending{background:var(--color-background-secondary);color:var(--color-text-secondary);border:0.5px solid var(--color-border-tertiary)}
+.section-label{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--color-text-secondary);margin-bottom:8px}
+.human-bars{display:flex;flex-direction:column;gap:8px;margin-top:.75rem}
+.hbar-row{display:flex;align-items:center;gap:8px;font-size:12px}
+.hbar-label{width:60px;color:var(--color-text-secondary);font-family:var(--font-mono);text-align:right}
+.hbar-track{flex:1;height:18px;background:var(--color-background-secondary);border-radius:4px;overflow:hidden;position:relative}
+.hbar-fill{height:100%;border-radius:4px;transition:width .3s ease;display:flex;align-items:center;padding-left:6px;font-size:11px;font-weight:500}
+.hbar-val{width:42px;text-align:right;font-family:var(--font-mono);color:var(--color-text-primary)}
+.crossover-note{background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:10px 14px;font-size:12px;color:var(--color-text-secondary);margin-top:1rem;line-height:1.6}
+.crossover-note strong{color:var(--color-text-primary);font-weight:500}
+</style>
+
+<div style="padding:.5rem 0">
+
+<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px">
+  <div>
+    <div class="section-label">Cognitive Computer Science · Sadat Academy</div>
+    <div style="font-size:17px;font-weight:500;color:var(--color-text-primary)">Adversarial Cognition Divergence</div>
+    <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">5-model psychophysics study · partial results</div>
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <span class="badge green">ResNet ✓</span>
+    <span class="badge purple">ViT ✓</span>
+    <span class="badge pending">EfficientNet pending</span>
+    <span class="badge pending">Shape-ResNet pending</span>
+    <span class="badge pending">BagNet pending</span>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat"><div class="stat-label">ResNet clean acc.</div><div class="stat-val">95.82%</div><div class="stat-sub">Epoch 44 / 50</div></div>
+  <div class="stat"><div class="stat-label">ViT clean acc.</div><div class="stat-val">97.80%</div><div class="stat-sub">Epoch 41 / 50</div></div>
+  <div class="stat"><div class="stat-label">Human participants</div><div class="stat-val">18</div><div class="stat-sub">1,800 trials total</div></div>
+  <div class="stat"><div class="stat-label">Human baseline acc.</div><div class="stat-val">73.3%</div><div class="stat-sub">eps = 0.00 (pixelated)</div></div>
+  <div class="stat"><div class="stat-label">Divergence point</div><div class="stat-val">ε 0.05</div><div class="stat-sub">66.3% CNN-human gap</div></div>
+  <div class="stat"><div class="stat-label">Human d' at ε=0.30</div><div class="stat-val">1.77</div><div class="stat-sub">Never crosses 1.0</div></div>
+</div>
+
+<div class="acd-tabs">
+  <button class="acd-tab active" onclick="switchTab('sdt')">SDT d-prime</button>
+  <button class="acd-tab" onclick="switchTab('pgd')">PGD accuracy</button>
+  <button class="acd-tab" onclick="switchTab('human')">Human study</button>
+  <button class="acd-tab" onclick="switchTab('live')">Live explorer</button>
+</div>
+
+<div id="panel-sdt" class="panel active">
+  <div class="legend-row">
+    <span class="legend-item"><span class="legend-swatch" style="background:#E94560"></span>ResNet-18</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#7C3AED"></span>ViT-Small</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#16A34A"></span>Human perception</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#D97706;height:1px;border-top:2px dashed #D97706"></span>d′=1.0 threshold</span>
+  </div>
+  <div class="chart-wrap"><canvas id="sdtChart" role="img" aria-label="Line chart showing d-prime sensitivity index for ResNet-18, ViT-Small, and humans across epsilon perturbation levels from 0 to 0.30. Humans maintain high sensitivity throughout while both models collapse below 1.0 before epsilon 0.05.">ResNet d-prime: 4.43, 2.69, -0.77, -1.71, -1.91, -1.88 at epsilons 0.00 through 0.30. ViT d-prime: 4.93, 1.81, -0.15, -0.91, -1.24, -1.47. Human d-prime: 4.79, 4.57, 3.99, 3.37, 2.44, 1.77.</canvas></div>
+  <div class="insight-row">
+    <div class="insight red"><div class="insight-title">ResNet threshold</div><div class="insight-body">d′ drops below 1.0 at ε ≈ 0.030 — complete perceptual collapse in a tiny perturbation window</div></div>
+    <div class="insight purple"><div class="insight-title">ViT threshold</div><div class="insight-body">d′ drops below 1.0 at ε ≈ 0.027 — slightly more fragile at low noise due to patch embedding disruption</div></div>
+    <div class="insight green"><div class="insight-title">Human threshold</div><div class="insight-body">d′ never drops below 1.0 across any tested epsilon. At ε=0.30: d′=1.77 — still well above chance</div></div>
+    <div class="insight amber"><div class="insight-title">Crossover at ε=0.05</div><div class="insight-body">ViT d′ exceeds ResNet d′ from ε=0.05 onward — global attention provides structural resilience at high noise</div></div>
+  </div>
+</div>
+
+<div id="panel-pgd" class="panel">
+  <div class="legend-row">
+    <span class="legend-item"><span class="legend-swatch" style="background:#E94560"></span>ResNet-18 PGD</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#7C3AED"></span>ViT-Small PGD</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#E94560;opacity:.5;border-top:2px dashed #E94560;height:1px"></span>ResNet FGSM</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#7C3AED;opacity:.5;border-top:2px dashed #7C3AED;height:1px"></span>ViT FGSM</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#16A34A"></span>Human (PGD stimuli)</span>
+  </div>
+  <div class="chart-wrap"><canvas id="pgdChart" role="img" aria-label="Line chart of classification accuracy versus epsilon for ResNet, ViT, and humans. PGD attacks collapse both models near zero by epsilon 0.05 while humans maintain near 60 percent accuracy.">ResNet PGD accuracy: 95.82%, 75.52%, 2.76%, 0.17%, 0.00%, 0.01%. ViT PGD accuracy: 97.80%, 55.18%, 8.69%, 2.78%, 1.12%, 0.58%. Human accuracy at 0.00, 0.05, 0.10, 0.20, 0.30: 73.33%, 69.17%, 59.17%, 62.22%, 58.61%.</canvas></div>
+  <div class="crossover-note">
+    <strong>The two-regime finding:</strong> At ε=0.01, ResNet outperforms ViT (75.5% vs 55.2%) because local convolutions smooth imperceptible noise. At ε≥0.05, ViT outperforms ResNet (8.7% vs 2.8%) because global attention integrates uncorrupted spatial patches. The human-CNN divergence point at ε=0.05 shows a <strong>66.3% accuracy gap</strong> — the project's headline result.
+  </div>
+</div>
+
+<div id="panel-human" class="panel">
+  <div class="section-label">Accuracy per epsilon block (n=18 participants)</div>
+  <div class="human-bars" id="humanBars"></div>
+  <div style="margin-top:1.25rem">
+    <div class="section-label">Confidence calibration (mean confidence / 10)</div>
+    <div class="human-bars" id="confBars"></div>
+  </div>
+  <div class="insight-row" style="margin-top:1rem">
+    <div class="insight green"><div class="insight-title">Metacognitive calibration ✓</div><div class="insight-body">Confidence drops alongside accuracy — humans know when they're guessing. Mean conf at ε=0.00: 7.78 vs ε=0.30: 6.86</div></div>
+    <div class="insight amber"><div class="insight-title">Non-monotonicity ⚠</div><div class="insight-body">Accuracy at ε=0.20 (62.2%) > ε=0.10 (59.2%). Likely sampling variance in the 20-image block subset.</div></div>
+    <div class="insight red"><div class="insight-title">73% clean baseline</div><div class="insight-body">Lower than typical 95%+ due to CIFAR-10 32×32 pixelation. Stimuli were block-upscaled to 128×128 — inherently noisy before any attack.</div></div>
+    <div class="insight purple"><div class="insight-title">Device breakdown</div><div class="insight-body">11 smartphone · 5 desktop · 1 tablet. Smartphone display variability may partially explain inter-participant variance.</div></div>
+  </div>
+</div>
+
+<div id="panel-live" class="panel">
+  <div class="section-label">Scrub epsilon to see model state at each perturbation level</div>
+  <div class="slider-wrap">
+    <label>Epsilon (ε)</label>
+    <input type="range" min="0" max="5" step="1" value="0" id="epsSlider" oninput="updateLive(this.value)">
+    <span class="eps-val" id="epsDisplay">0.00</span>
+  </div>
+  <table class="live-table" id="liveTable">
+    <thead><tr><th>Model</th><th>PGD Accuracy</th><th>SDT d′</th><th>Status</th></tr></thead>
+    <tbody id="liveTbody"></tbody>
+  </table>
+  <div class="crossover-note" id="liveNote" style="margin-top:1rem"></div>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const EPS = [0.00,0.01,0.05,0.10,0.20,0.30];
+const EPS_LABELS = ['0.00','0.01','0.05','0.10','0.20','0.30'];
+
+const DATA = {
+  resnet: {
+    pgd:  [95.82,75.52,2.76,0.17,0.00,0.01],
+    fgsm: [95.82,80.25,42.18,33.15,28.40,22.38],
+    dprime:[4.426,2.687,-0.771,-1.707,-1.913,-1.880],
+    color:'#E94560', label:'ResNet-18'
+  },
+  vit: {
+    pgd:  [97.80,55.18,8.69,2.78,1.12,0.58],
+    fgsm: [97.80,74.17,40.47,34.48,30.47,26.83],
+    dprime:[4.931,1.814,-0.154,-0.909,-1.242,-1.469],
+    color:'#7C3AED', label:'ViT-Small'
+  },
+  human: {
+    pgd:  [73.33,null,69.17,59.17,62.22,58.61],
+    dprime:[4.790,4.567,3.985,3.368,2.440,1.769],
+    conf: [7.78,null,7.77,7.06,6.84,6.86],
+    color:'#16A34A', label:'Human'
+  }
+};
+
+function switchTab(t) {
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.acd-tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('panel-'+t).classList.add('active');
+  event.target.classList.add('active');
+}
+
+const commonOpts = {
+  responsive:true, maintainAspectRatio:false,
+  plugins:{legend:{display:false}},
+  scales:{
+    x:{grid:{color:'rgba(128,128,128,0.12)'},ticks:{font:{size:11}}},
+    y:{grid:{color:'rgba(128,128,128,0.12)'},ticks:{font:{size:11}}}
+  }
+};
+
+new Chart(document.getElementById('sdtChart'),{
+  type:'line',
+  data:{
+    labels:EPS_LABELS,
+    datasets:[
+      {label:'ResNet-18',data:DATA.resnet.dprime,borderColor:'#E94560',backgroundColor:'rgba(233,69,96,0.08)',pointBackgroundColor:'#E94560',pointRadius:4,borderWidth:2,tension:.3,fill:false},
+      {label:'ViT-Small',data:DATA.vit.dprime,borderColor:'#7C3AED',backgroundColor:'rgba(124,58,237,0.08)',pointBackgroundColor:'#7C3AED',pointRadius:4,borderWidth:2,tension:.3,fill:false},
+      {label:'Human',data:DATA.human.dprime,borderColor:'#16A34A',backgroundColor:'rgba(22,163,74,0.08)',pointBackgroundColor:'#16A34A',pointRadius:5,pointStyle:'rect',borderWidth:2.5,tension:.3,fill:false},
+      {label:'Threshold',data:EPS.map(()=>1.0),borderColor:'#D97706',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false,tension:0}
+    ]
+  },
+  options:{...commonOpts,
+    scales:{
+      x:{...commonOpts.scales.x,title:{display:true,text:'Perturbation budget (ε)',font:{size:11}}},
+      y:{...commonOpts.scales.y,title:{display:true,text:'Sensitivity index (d′)',font:{size:11}},
+        min:-2.5,max:5.5,
+        ticks:{callback:v=>v.toFixed(1),font:{size:11}}
+      }
+    },
+    plugins:{...commonOpts.plugins,
+      annotation:{annotations:{threshold:{type:'line',yMin:1,yMax:1,borderColor:'#D97706',borderWidth:1.5,borderDash:[6,4]}}}
+    }
+  }
+});
+
+new Chart(document.getElementById('pgdChart'),{
+  type:'line',
+  data:{
+    labels:EPS_LABELS,
+    datasets:[
+      {label:'ResNet PGD',data:DATA.resnet.pgd,borderColor:'#E94560',pointBackgroundColor:'#E94560',pointRadius:4,borderWidth:2.5,tension:.3,fill:false},
+      {label:'ViT PGD',data:DATA.vit.pgd,borderColor:'#7C3AED',pointBackgroundColor:'#7C3AED',pointRadius:4,borderWidth:2.5,tension:.3,fill:false},
+      {label:'ResNet FGSM',data:DATA.resnet.fgsm,borderColor:'#E94560',borderDash:[5,4],pointRadius:3,borderWidth:1.5,tension:.3,fill:false,pointStyle:'triangle'},
+      {label:'ViT FGSM',data:DATA.vit.fgsm,borderColor:'#7C3AED',borderDash:[5,4],pointRadius:3,borderWidth:1.5,tension:.3,fill:false,pointStyle:'triangle'},
+      {label:'Human',data:DATA.human.pgd,borderColor:'#16A34A',pointBackgroundColor:'#16A34A',pointRadius:5,pointStyle:'rect',borderWidth:2.5,tension:.3,fill:false,spanGaps:false}
+    ]
+  },
+  options:{...commonOpts,
+    scales:{
+      x:{...commonOpts.scales.x,title:{display:true,text:'Perturbation budget (ε)',font:{size:11}}},
+      y:{...commonOpts.scales.y,min:0,max:100,title:{display:true,text:'Classification accuracy (%)',font:{size:11}},
+        ticks:{callback:v=>v+'%',font:{size:11}}}
+    }
+  }
+});
+
+const humanEpsLabels=['0.00','0.05','0.10','0.20','0.30'];
+const humanAcc=[73.33,69.17,59.17,62.22,58.61];
+const humanConf=[7.78,7.77,7.06,6.84,6.86];
+
+function makeBars(containerId, values, labels, maxVal, colorFn, suffix) {
+  const c = document.getElementById(containerId);
+  c.innerHTML = labels.map((lbl,i)=>{
+    const pct = (values[i]/maxVal*100).toFixed(1);
+    const col = colorFn(values[i], maxVal);
+    const dispVal = suffix==='%' ? values[i].toFixed(1)+suffix : values[i].toFixed(2)+suffix;
+    return `<div class="hbar-row">
+      <span class="hbar-label">ε ${lbl}</span>
+      <div class="hbar-track">
+        <div class="hbar-fill" style="width:${pct}%;background:${col};color:${values[i]/maxVal>.4?'#fff':'var(--color-text-primary)'}">
+          ${values[i]/maxVal>.25?dispVal:''}
+        </div>
+      </div>
+      <span class="hbar-val">${dispVal}</span>
+    </div>`;
+  }).join('');
+}
+
+makeBars('humanBars', humanAcc, humanEpsLabels, 100,
+  (v)=> v>=70?'#16A34A':v>=60?'#65A30D':v>=50?'#D97706':'#E94560', '%');
+makeBars('confBars', humanConf, humanEpsLabels, 10,
+  (v)=> v>=7.5?'#7C3AED':v>=7?'#6D28D9':v>=6.5?'#8B5CF6':'#A78BFA', '/10');
+
+const NOTES = [
+  'Clean images — both models near peak performance. Humans at 73% baseline due to 32×32 pixelation.',
+  '<strong>ViT more fragile here.</strong> ResNet 75.5% vs ViT 55.2%. Local convolutions smooth imperceptible noise; ViT patch embeddings are disrupted.',
+  '<strong>Crossover point — ViT recovers relative robustness.</strong> Both models near collapse (ResNet 2.8%, ViT 8.7%) but humans hold at 69.2%. The 66.3% divergence gap is the headline finding.',
+  'Both models effectively dead (ResNet 0.17%, ViT 2.78%). Human d′=3.37 — still highly sensitive.',
+  'Models at absolute floor. ViT retains slight residual accuracy (1.1%) via global attention. Human d′=2.44.',
+  'Maximum tested perturbation. Human d′=1.77 — still above the 1.0 near-chance threshold. Neither model recovers.'
+];
+
+function updateLive(idx) {
+  idx = parseInt(idx);
+  const eps = EPS[idx];
+  document.getElementById('epsDisplay').textContent = eps.toFixed(2);
+  const models = [
+    {name:'ResNet-18', pgd:DATA.resnet.pgd[idx], dp:DATA.resnet.dprime[idx], color:'#E94560'},
+    {name:'ViT-Small', pgd:DATA.vit.pgd[idx], dp:DATA.vit.dprime[idx], color:'#7C3AED'},
+    {name:'Human', pgd:DATA.human.pgd[idx], dp:DATA.human.dprime[idx], color:'#16A34A'},
+    {name:'EfficientNet', pgd:null, dp:null, color:'#0F3460'},
+    {name:'Shape-ResNet', pgd:null, dp:null, color:'#16A34A'},
+    {name:'BagNet-33', pgd:null, dp:null, color:'#F97316'},
+  ];
+  document.getElementById('liveTbody').innerHTML = models.map(m=>{
+    const pgdStr = m.pgd!=null ? m.pgd.toFixed(2)+'%' : '—';
+    const dpStr  = m.dp!=null  ? m.dp.toFixed(3)       : '—';
+    const status = m.pgd==null ? '<span class="badge pending">pending</span>'
+      : m.dp>=1.0 ? '<span class="badge green">above threshold</span>'
+      : '<span class="badge red">collapsed (d′<1.0)</span>';
+    return `<tr>
+      <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${m.color};margin-right:6px"></span>${m.name}</td>
+      <td>${pgdStr}</td>
+      <td style="color:${m.dp!=null&&m.dp<0?'#E94560':m.dp>=1?'#16A34A':'var(--color-text-primary)'}">${dpStr}</td>
+      <td>${status}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('liveNote').innerHTML = NOTES[idx];
+}
+
+updateLive(0);
+</script>

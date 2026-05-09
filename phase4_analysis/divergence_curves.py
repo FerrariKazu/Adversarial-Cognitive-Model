@@ -59,17 +59,19 @@ import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from phase1_training.model import CIFARResNet
+from phase1_training.model_vit import CIFARViT
+from phase1_training.dataset_vit import get_dataloaders_vit
 from utils.metrics import load_adv_batch, accuracy, confidence_from_logits
 
 # Configuration
-CONFIG_PATH = '../config/attack_config.yaml'
-HUMAN_DATA_PATH = '../phase3_human_study/data/anonymized_responses.csv'
-OUTPUT_DIR = 'figures'
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config', 'attack_config.yaml')
+HUMAN_DATA_PATH = os.path.join(os.path.dirname(__file__), '..', 'phase3_human_study', 'data', 'responses_mapped.csv')
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'figures')
 
 # Colors
-COLOR_CNN = '#E94560'    # Vibrant red
-COLOR_HUMAN = '#1A1A2E'  # Deep navy
-COLOR_GAP = '#9D4EDD'    # Violet
+COLOR_CNN = '#E94560'    # Vibrant red (ResNet)
+COLOR_HUMAN = '#2E8B57'  # Sea Green (Human)
+COLOR_VIT = '#9D4EDD'    # Violet (ViT)
 
 
 def generate_mock_human_data(epsilons):
@@ -95,25 +97,30 @@ def generate_mock_human_data(epsilons):
     return pd.DataFrame(data)
 
 
-def get_cnn_performance(model, device, epsilons):
+def get_cnn_performance(model, device, epsilons, model_name='resnet'):
     """Run model on all PGD datasets and compute metrics."""
     cnn_acc = []
     cnn_conf = []
     
-    # We use PGD as the standard benchmark
-    print("\nEvaluating CNN on adversarial datasets...")
+    print(f"\nEvaluating {model_name.upper()} on adversarial datasets...")
+    
+    lbl_path = os.path.join(os.path.dirname(__file__), '..', 'phase2_attacks', 'adv_images', model_name, 'labels.npy')
+    labels_np = np.load(lbl_path)
+    
     for eps in epsilons:
-        images, labels = load_adv_batch('pgd', eps, return_tensor=True)
+        eps_str = f"{float(eps):.2f}"
+        img_path = os.path.join(os.path.dirname(__file__), '..', 'phase2_attacks', 'adv_images', model_name, f"pgd_eps{eps_str}_images.npy")
         
-        # Batch processing to avoid OOM
-        batch_size = 256
+        images_mmap = np.load(img_path, mmap_mode='r')
+        
+        batch_size = 128 if model_name == 'vit' else 256
         all_preds = []
         all_confs = []
         
         model.eval()
         with torch.no_grad():
-            for i in range(0, len(images), batch_size):
-                batch_imgs = images[i:i+batch_size].to(device)
+            for i in range(0, len(labels_np), batch_size):
+                batch_imgs = torch.tensor(images_mmap[i:i+batch_size], device=device)
                 outputs = model(batch_imgs)
                 
                 preds = outputs.argmax(dim=1).cpu().numpy()
@@ -125,7 +132,7 @@ def get_cnn_performance(model, device, epsilons):
         all_preds = np.concatenate(all_preds)
         all_confs = np.concatenate(all_confs)
         
-        acc = accuracy(all_preds, labels.numpy())
+        acc = accuracy(all_preds, labels_np)
         mean_conf = np.mean(all_confs) # Already 0-1 scale
         
         cnn_acc.append(acc)
@@ -174,18 +181,19 @@ def main():
     epsilons = config['epsilons']
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Load model
-    model = CIFARResNet().to(device)
-    model.load_state_dict(torch.load(os.path.join('..', config['checkpoint_path']), map_location=device))
+    # Load models
+    resnet = CIFARResNet().to(device)
+    resnet.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'best.pth'), map_location=device))
+    
+    vit = CIFARViT().to(device)
+    vit.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'vit_small_best.pth'), map_location=device))
     
     # Load human data
-    if os.path.exists(HUMAN_DATA_PATH):
-        df_human = pd.read_csv(HUMAN_DATA_PATH)
-    else:
-        df_human = generate_mock_human_data(epsilons)
+    df_human = pd.read_csv(HUMAN_DATA_PATH)
         
     # Get metrics
-    cnn_acc, cnn_conf = get_cnn_performance(model, device, epsilons)
+    resnet_acc, resnet_conf = get_cnn_performance(resnet, device, epsilons, model_name='resnet')
+    vit_acc, vit_conf = get_cnn_performance(vit, device, epsilons, model_name='vit')
     hum_acc, hum_conf = get_human_performance(df_human, epsilons)
     
     eps_ticks = np.array(epsilons, dtype=float)
@@ -193,31 +201,38 @@ def main():
     # -------------------------------------------------------------------------
     # Plot 1: Accuracy Divergence
     # -------------------------------------------------------------------------
-    plt.figure(figsize=(10, 6), dpi=150)
-    plt.plot(eps_ticks, cnn_acc, marker='o', lw=3, color=COLOR_CNN, label='ResNet-18 (CNN)')
+    plt.figure(figsize=(12, 7), dpi=150)
+    plt.plot(eps_ticks, resnet_acc, marker='o', lw=3, color=COLOR_CNN, label='ResNet-18')
+    plt.plot(eps_ticks, vit_acc, marker='^', lw=3, color=COLOR_VIT, label='ViT-Small')
     plt.plot(eps_ticks, hum_acc, marker='s', lw=3, color=COLOR_HUMAN, label='Human Perception')
     
-    # Shaded gap
-    plt.fill_between(eps_ticks, cnn_acc, hum_acc, where=(hum_acc > cnn_acc), 
-                     interpolate=True, color=COLOR_GAP, alpha=0.15, label='Robustness Gap')
-                     
-    plt.title('Perceptual Divergence: Human vs Machine Accuracy (PGD Attack)', fontsize=14, pad=15)
+    # Vertical Annotations
+    plt.axvline(x=0.01, color='gray', linestyle='--', alpha=0.7)
+    plt.text(0.012, 15, "ViT more vulnerable here\n(patch embedding disruption)", color='gray', fontsize=10)
+    
+    plt.axvline(x=0.05, color='gray', linestyle='--', alpha=0.7)
+    plt.text(0.052, 45, "ViT recovers relative robustness here\n(global attention)", color='gray', fontsize=10)
+
+    plt.title('Partial Results — 2/5 Models + Human (ResNet & ViT)', fontsize=15, pad=15)
     plt.xlabel('Perturbation Budget (Epsilon)', fontsize=12)
     plt.ylabel('Classification Accuracy (%)', fontsize=12)
     plt.ylim(-5, 105)
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.legend(fontsize=11)
     
-    out_acc = os.path.join(OUTPUT_DIR, 'divergence_accuracy.png')
+    combined_dir = os.path.join(OUTPUT_DIR, 'combined')
+    os.makedirs(combined_dir, exist_ok=True)
+    out_acc = os.path.join(combined_dir, 'partial_divergence_curve.png')
     plt.savefig(out_acc, bbox_inches='tight')
     plt.close()
     
     # -------------------------------------------------------------------------
     # Plot 2: Confidence Divergence
     # -------------------------------------------------------------------------
-    plt.figure(figsize=(10, 6), dpi=150)
-    plt.plot(eps_ticks, cnn_conf, marker='o', lw=3, color=COLOR_CNN, label='CNN Softmax Confidence')
-    plt.plot(eps_ticks, hum_conf, marker='s', lw=3, color=COLOR_HUMAN, label='Human Reported Confidence')
+    plt.figure(figsize=(12, 7), dpi=150)
+    plt.plot(eps_ticks, resnet_conf, marker='o', lw=3, color=COLOR_CNN, label='ResNet-18')
+    plt.plot(eps_ticks, vit_conf, marker='^', lw=3, color=COLOR_VIT, label='ViT-Small')
+    plt.plot(eps_ticks, hum_conf, marker='s', lw=3, color=COLOR_HUMAN, label='Human Confidence')
     
     plt.title('Confidence Degradation: Confidently Wrong vs Graceful Failure', fontsize=14, pad=15)
     plt.xlabel('Perturbation Budget (Epsilon)', fontsize=12)
@@ -226,7 +241,7 @@ def main():
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.legend(fontsize=11)
     
-    out_conf = os.path.join(OUTPUT_DIR, 'divergence_confidence.png')
+    out_conf = os.path.join(combined_dir, 'partial_divergence_confidence.png')
     plt.savefig(out_conf, bbox_inches='tight')
     plt.close()
     
@@ -237,7 +252,7 @@ def main():
     print("DIVERGENCE ANALYSIS SUMMARY")
     print(f"{'='*60}")
     
-    gap = hum_acc - cnn_acc
+    gap = hum_acc - resnet_acc
     divergence_idx = np.where(gap > 20.0)[0]
     
     if len(divergence_idx) > 0:
@@ -248,7 +263,7 @@ def main():
         print("\nSCIENTIFIC INTERPRETATION:")
         print(f"   At ε={div_eps:.2f}, the adversarial noise crosses a critical threshold.")
         print(f"   It becomes mathematically sufficient to shatter the CNN's local texture")
-        print(f"   features, reducing machine accuracy to {cnn_acc[divergence_idx[0]]:.1f}%. However, the noise")
+        print(f"   features, reducing machine accuracy to {resnet_acc[divergence_idx[0]]:.1f}%. However, the noise")
         print(f"   remains low enough that human global shape integration (via top-down")
         print(f"   feedback loops) easily filters it out (maintaining {hum_acc[divergence_idx[0]]:.1f}% accuracy).")
         print(f"   This proves that CNNs do not perceive objects using the same")

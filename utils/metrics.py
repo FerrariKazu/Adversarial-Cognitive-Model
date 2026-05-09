@@ -82,7 +82,7 @@ def confidence_from_logits(logits):
     return conf.cpu().numpy()
 
 
-def load_adv_batch(attack, epsilon, return_tensor=True):
+def load_adv_batch(attack, epsilon, return_tensor=True, model_name='resnet'):
     """
     Load an adversarial dataset and its true labels from disk.
 
@@ -101,8 +101,8 @@ def load_adv_batch(attack, epsilon, return_tensor=True):
         eps_str = f"{float(epsilon):.2f}"
         img_filename = f"{attack}_eps{eps_str}_images.npy"
         
-    img_path = os.path.join(ADV_DATA_DIR, img_filename)
-    lbl_path = os.path.join(ADV_DATA_DIR, 'labels.npy')
+    img_path = os.path.join(ADV_DATA_DIR, model_name, img_filename)
+    lbl_path = os.path.join(ADV_DATA_DIR, model_name, 'labels.npy')
     
     if not os.path.exists(img_path):
         raise FileNotFoundError(f"Missing stimulus file: {img_path}. Did Phase 2 finish?")

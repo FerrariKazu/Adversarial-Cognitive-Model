@@ -63,15 +63,16 @@ import torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from phase1_training.model import CIFARResNet
+from phase1_training.model_vit import CIFARViT
 from phase1_training.dataset import CLASSES
 from utils.metrics import load_adv_batch
 from phase5_sdt.sdt_core import compute_sdt_all_classes, d_prime
 
 # Configuration
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config', 'attack_config.yaml')
-HUMAN_DATA_PATH = os.path.join(os.path.dirname(__file__), '..', 'phase3_human_study', 'data', 'anonymized_responses.csv')
+HUMAN_DATA_PATH = os.path.join(os.path.dirname(__file__), '..', 'phase3_human_study', 'data', 'responses_mapped.csv')
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'results')
-OUTPUT_CSV = os.path.join(OUTPUT_DIR, 'sdt_results.csv')
+OUTPUT_CSV = os.path.join(OUTPUT_DIR, 'partial_sdt_results.csv')
 
 
 # =============================================================================
@@ -92,7 +93,7 @@ def generate_mock_human_sdt_data(epsilons):
         with real data when the human study completes.
     """
     print("⚠️  Human data not found. Generating MOCK data for demonstration.")
-    print("    Replace with real data from phase3_human_study/data/anonymized_responses.csv\n")
+    print("    Replace with real data from phase3_human_study/data/responses_mapped.csv\n")
 
     rng = np.random.default_rng(42)
 
@@ -150,7 +151,8 @@ def load_human_data_for_sdt(epsilons):
         return generate_mock_human_sdt_data(epsilons)
 
     df = pd.read_csv(HUMAN_DATA_PATH)
-    df_pgd = df[df['attack_type'] == 'pgd'].copy()
+    # Filter to PGD if available
+    df_pgd = df[df['attack_type'] == 'pgd'].copy() if 'attack_type' in df.columns else df.copy()
 
     # Map class names to indices
     class_to_idx = {name: i for i, name in enumerate(CLASSES)}
@@ -196,35 +198,41 @@ def load_human_data_for_sdt(epsilons):
 #  CNN EVALUATION
 # =============================================================================
 
-def get_cnn_predictions(model, device, epsilons):
+def get_cnn_predictions(model, device, epsilons, model_name='resnet'):
     """
     Run the CNN on all PGD adversarial datasets and return raw predictions.
-
+    Uses mmap_mode to prevent OOM.
     Returns dict[epsilon] -> (preds_array, labels_array)
     """
     all_preds = {}
     all_labels = {}
 
-    print("Computing CNN predictions on adversarial datasets...")
+    print(f"Computing {model_name.upper()} predictions on adversarial datasets...")
+    lbl_path = os.path.join(os.path.dirname(__file__), '..', 'phase2_attacks', 'adv_images', model_name, 'labels.npy')
+    labels_np = np.load(lbl_path)
+
     for eps in epsilons:
+        eps_str = f"{float(eps):.2f}"
+        img_path = os.path.join(os.path.dirname(__file__), '..', 'phase2_attacks', 'adv_images', model_name, f"pgd_eps{eps_str}_images.npy")
+        
         try:
-            images, labels = load_adv_batch('pgd', eps, return_tensor=True)
+            images_mmap = np.load(img_path, mmap_mode='r')
         except FileNotFoundError as e:
             print(f"  ⚠️  {e} — skipping ε={eps}")
             continue
 
-        batch_size = 256
+        batch_size = 128 if model_name == 'vit' else 256
         preds_list = []
 
         model.eval()
         with torch.no_grad():
-            for i in range(0, len(images), batch_size):
-                batch = images[i:i + batch_size].to(device)
+            for i in range(0, len(labels_np), batch_size):
+                batch = torch.tensor(images_mmap[i:i + batch_size], device=device)
                 outputs = model(batch)
                 preds_list.append(outputs.argmax(dim=1).cpu().numpy())
 
         all_preds[float(eps)] = np.concatenate(preds_list)
-        all_labels[float(eps)] = labels.numpy()
+        all_labels[float(eps)] = labels_np
         print(f"  ε={eps:.2f} — {len(all_preds[float(eps)])} samples processed")
 
     return all_preds, all_labels
@@ -237,30 +245,6 @@ def get_cnn_predictions(model, device, epsilons):
 def find_perceptual_threshold(epsilons, d_primes, threshold=1.0):
     """
     Find the epsilon where d' first drops below the threshold.
-
-    PLAIN LANGUAGE:
-        In psychophysics, d'=1.0 is the conventional "detection threshold."
-        Below d'=1.0, the observer is considered to be performing at
-        near-chance — they can barely tell signal from noise.
-
-        This function finds the exact epsilon where each system (CNN or human)
-        crosses that boundary. The GAP between the two crossing points is
-        the headline finding.
-
-    Parameters
-    ----------
-    epsilons : list of float
-        Epsilon values in ascending order.
-    d_primes : list of float
-        Mean d' at each epsilon.
-    threshold : float
-        The d' threshold to detect crossing (default 1.0).
-
-    Returns
-    -------
-    float or None
-        The epsilon where d' first drops below threshold, or None if it
-        never drops below.
     """
     for eps, dp in zip(epsilons, d_primes):
         if dp < threshold:
@@ -281,13 +265,16 @@ def main():
     epsilons = config['epsilons']
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # Load CNN model
-    ckpt_path = os.path.join(os.path.dirname(__file__), '..', config['checkpoint_path'])
-    model = CIFARResNet().to(device)
-    model.load_state_dict(torch.load(ckpt_path, map_location=device))
+    # Load models
+    resnet = CIFARResNet().to(device)
+    resnet.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'best.pth'), map_location=device))
+    
+    vit = CIFARViT().to(device)
+    vit.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'vit_small_best.pth'), map_location=device))
 
     # Get predictions
-    cnn_preds, cnn_labels = get_cnn_predictions(model, device, epsilons)
+    resnet_preds, resnet_labels = get_cnn_predictions(resnet, device, epsilons, model_name='resnet')
+    vit_preds, vit_labels = get_cnn_predictions(vit, device, epsilons, model_name='vit')
     human_preds, human_labels = load_human_data_for_sdt(epsilons)
 
     # =========================================================================
@@ -299,23 +286,54 @@ def main():
     print("SIGNAL DETECTION THEORY ANALYSIS")
     print("=" * 70)
 
-    # --- CNN ---
-    print("\n--- CNN d-prime per epsilon ---")
-    cnn_mean_dprimes = []
+    # --- ResNet ---
+    print("\n--- RESNET d-prime per epsilon ---")
+    resnet_mean_dprimes = []
 
     for eps in epsilons:
         eps_f = float(eps)
-        if eps_f not in cnn_preds:
+        if eps_f not in resnet_preds:
             continue
 
-        sdt_df = compute_sdt_all_classes(cnn_preds[eps_f], cnn_labels[eps_f])
+        sdt_df = compute_sdt_all_classes(resnet_preds[eps_f], resnet_labels[eps_f])
         mean_dp = sdt_df['d_prime'].mean()
-        cnn_mean_dprimes.append((eps_f, mean_dp))
+        resnet_mean_dprimes.append((eps_f, mean_dp))
 
         for _, row in sdt_df.iterrows():
             all_rows.append({
                 'epsilon': eps_f,
-                'system': 'CNN',
+                'system': 'ResNet',
+                'class': CLASSES[int(row['class_idx'])],
+                'class_idx': int(row['class_idx']),
+                'd_prime': row['d_prime'],
+                'beta': row['beta'],
+                'hit_rate': row['hit_rate'],
+                'fa_rate': row['fa_rate'],
+                'hits': row['hits'],
+                'misses': row['misses'],
+                'false_alarms': row['false_alarms'],
+                'correct_rejections': row['correct_rejections'],
+            })
+
+        print(f"  ε={eps_f:.2f} | mean d' = {mean_dp:>6.3f}")
+
+    # --- ViT ---
+    print("\n--- VIT d-prime per epsilon ---")
+    vit_mean_dprimes = []
+
+    for eps in epsilons:
+        eps_f = float(eps)
+        if eps_f not in vit_preds:
+            continue
+
+        sdt_df = compute_sdt_all_classes(vit_preds[eps_f], vit_labels[eps_f])
+        mean_dp = sdt_df['d_prime'].mean()
+        vit_mean_dprimes.append((eps_f, mean_dp))
+
+        for _, row in sdt_df.iterrows():
+            all_rows.append({
+                'epsilon': eps_f,
+                'system': 'ViT',
                 'class': CLASSES[int(row['class_idx'])],
                 'class_idx': int(row['class_idx']),
                 'd_prime': row['d_prime'],
@@ -374,17 +392,27 @@ def main():
     print("\n" + "=" * 70)
     print("SUMMARY: d-PRIME vs EPSILON")
     print("=" * 70)
-    print(f"{'Epsilon':<10} {'CNN d′':<12} {'Human d′':<12} {'Gap':<12}")
+    print(f"{'Epsilon':<10} {'ResNet d′':<12} {'ViT d′':<12} {'Human d′':<12}")
     print("-" * 46)
 
-    cnn_eps_list = [e for e, _ in cnn_mean_dprimes]
-    cnn_dp_list = [d for _, d in cnn_mean_dprimes]
+    resnet_eps_list = [e for e, _ in resnet_mean_dprimes]
+    resnet_dp_list = [d for _, d in resnet_mean_dprimes]
+    vit_dp_dict = dict(vit_mean_dprimes)
     human_dp_dict = dict(human_mean_dprimes)
+    
+    crossover_eps = None
 
-    for eps, cnn_dp in zip(cnn_eps_list, cnn_dp_list):
+    for eps, res_dp in zip(resnet_eps_list, resnet_dp_list):
+        vit_dp = vit_dp_dict.get(eps, float('nan'))
         h_dp = human_dp_dict.get(eps, float('nan'))
-        gap = h_dp - cnn_dp if not np.isnan(h_dp) else float('nan')
-        print(f"  {eps:<8.2f} {cnn_dp:<12.3f} {h_dp:<12.3f} {gap:<12.3f}")
+        
+        # Check crossover
+        if res_dp > vit_dp:
+            pass
+        elif res_dp < vit_dp and crossover_eps is None and eps > 0.00:
+            crossover_eps = eps
+            
+        print(f"  {eps:<8.2f} {res_dp:<12.3f} {vit_dp:<12.3f} {h_dp:<12.3f}")
 
     # =========================================================================
     # Perceptual Threshold Detection
@@ -393,24 +421,21 @@ def main():
     print("PERCEPTUAL THRESHOLD ANALYSIS (d' = 1.0)")
     print("=" * 70)
 
-    cnn_threshold_eps = find_perceptual_threshold(cnn_eps_list, cnn_dp_list)
+    resnet_threshold_eps = find_perceptual_threshold(resnet_eps_list, resnet_dp_list)
+    vit_eps_list = [e for e, _ in vit_mean_dprimes]
+    vit_dp_list = [d for _, d in vit_mean_dprimes]
+    vit_threshold_eps = find_perceptual_threshold(vit_eps_list, vit_dp_list)
+    
     human_eps_list = [e for e, _ in human_mean_dprimes]
     human_dp_list = [d for _, d in human_mean_dprimes]
     human_threshold_eps = find_perceptual_threshold(human_eps_list, human_dp_list)
 
-    if cnn_threshold_eps is not None:
-        print(f"  🔴 CNN perceptual threshold:   ε = {cnn_threshold_eps:.2f}")
-        print(f"     → At ε={cnn_threshold_eps:.2f}, CNN d' drops below 1.0.")
-        print(f"       The CNN can no longer reliably distinguish object classes.")
-    else:
-        print(f"  🟢 CNN d' never drops below 1.0 across tested epsilons.")
-
-    if human_threshold_eps is not None:
-        print(f"  🔵 Human perceptual threshold: ε = {human_threshold_eps:.2f}")
-        print(f"     → At ε={human_threshold_eps:.2f}, human d' drops below 1.0.")
-        print(f"       Humans also begin failing at this level.")
-    else:
-        print(f"  🟢 Human d' never drops below 1.0 across tested epsilons.")
+    print(f"  🔴 ResNet threshold: ε = {resnet_threshold_eps}")
+    print(f"  🟣 ViT threshold:    ε = {vit_threshold_eps}")
+    print(f"  🟢 Human threshold:  ε = {human_threshold_eps}")
+    
+    if crossover_eps is not None:
+        print(f"\n  ⚔️  CROSSOVER DETECTED: ViT d' exceeds ResNet d' at ε = {crossover_eps:.2f}")
 
     # =========================================================================
     # THE HEADLINE FINDING
@@ -419,9 +444,9 @@ def main():
     print("🎯 HEADLINE FINDING: PERCEPTUAL THRESHOLD GAP")
     print("=" * 70)
 
-    if cnn_threshold_eps is not None and human_threshold_eps is not None:
-        gap = human_threshold_eps - cnn_threshold_eps
-        print(f"\n  CNN loses perceptual sensitivity at ε = {cnn_threshold_eps:.2f}")
+    if resnet_threshold_eps is not None and human_threshold_eps is not None:
+        gap = human_threshold_eps - resnet_threshold_eps
+        print(f"\n  ResNet loses perceptual sensitivity at ε = {resnet_threshold_eps:.2f}")
         print(f"  Humans lose perceptual sensitivity at ε = {human_threshold_eps:.2f}")
         print(f"  ═══════════════════════════════════════")
         print(f"  THRESHOLD GAP = {gap:.2f} epsilon units")
@@ -429,13 +454,13 @@ def main():
         print()
         print(f"  INTERPRETATION:")
         print(f"  There exists a {gap:.2f}-wide epsilon range where humans can still")
-        print(f"  perceive the object identity but the CNN is effectively blind.")
+        print(f"  perceive the object identity but the models (especially ResNet) are effectively blind.")
         print(f"  This gap is a direct consequence of the CNN's feedforward,")
         print(f"  texture-biased processing: it lacks the recurrent feedback loops")
         print(f"  that allow the human visual cortex to reconstruct global shape")
         print(f"  information from noisy inputs.")
-    elif cnn_threshold_eps is not None and human_threshold_eps is None:
-        print(f"\n  CNN loses sensitivity at ε = {cnn_threshold_eps:.2f}")
+    elif resnet_threshold_eps is not None and human_threshold_eps is None:
+        print(f"\n  ResNet loses sensitivity at ε = {resnet_threshold_eps:.2f}")
         print(f"  Humans NEVER lose sensitivity across all tested epsilons.")
         print(f"  ═══════════════════════════════════════")
         print(f"  INTERPRETATION: Human perceptual robustness exceeds the entire")
@@ -446,12 +471,12 @@ def main():
         print(f"  Consider testing higher epsilon values (ε > {max(epsilons)}).")
 
     print(f"\n  ONE-SENTENCE SUMMARY FOR PROFESSOR:")
-    if cnn_threshold_eps is not None:
-        print(f'  "Signal detection analysis reveals the CNN loses perceptual')
-        print(f'   sensitivity (d′<1.0) at ε={cnn_threshold_eps:.2f}, while humans maintain')
+    if resnet_threshold_eps is not None:
+        print(f'  "Signal detection analysis reveals the ResNet loses perceptual')
+        print(f'   sensitivity (d′<1.0) at ε={resnet_threshold_eps:.2f}, while humans maintain')
         if human_threshold_eps is not None:
             print(f'   above-threshold sensitivity until ε={human_threshold_eps:.2f} — a')
-            gap = human_threshold_eps - cnn_threshold_eps
+            gap = human_threshold_eps - resnet_threshold_eps
             print(f'   {gap:.2f}-unit robustness gap attributable to the absence of')
         else:
             print(f'   above-threshold sensitivity across all tested conditions — a gap')
