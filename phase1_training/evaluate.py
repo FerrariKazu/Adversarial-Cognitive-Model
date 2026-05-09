@@ -4,28 +4,41 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
 import os
+import argparse
 
 from model import CIFARResNet
+from model_vit import CIFARViT
 from dataset import get_dataloaders, CLASSES
+from dataset_vit import get_dataloaders_vit
 
 def main():
-    # -------------------------------------------------------------------------
-    # Model Loading and VRAM profiling
-    # -------------------------------------------------------------------------
-    # 1. WHAT: Initializes the model, loads saved weights, tracks parameters.
-    # 2. WHY: We need to restore the exact state of our best model to analyze it.
-    # 3. OBSERVE: Prints total parameter count (~11 Million) and initial VRAM.
-    # -------------------------------------------------------------------------
+    parser = argparse.ArgumentParser(description='Evaluate CIFAR-10 Models')
+    parser.add_argument('--model', type=str, default='resnet', choices=['resnet', 'vit'],
+                        help='Model architecture to evaluate (default: resnet)')
+    parser.add_argument('--checkpoint', type=str, default=None,
+                        help='Path to checkpoint file (default: checkpoints/best.pth or vit_small_best.pth)')
+    args = parser.parse_args()
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    model = CIFARResNet().to(device)
-    checkpoint_path = 'checkpoints/best.pth'
+    # Model Selection
+    if args.model == 'resnet':
+        model = CIFARResNet().to(device)
+        default_checkpoint = 'checkpoints/best.pth'
+        _, testloader = get_dataloaders(batch_size=128, num_workers=4, data_dir='../data')
+    elif args.model == 'vit':
+        model = CIFARViT().to(device)
+        default_checkpoint = 'checkpoints/vit_small_best.pth'
+        _, testloader = get_dataloaders_vit(batch_size=64, num_workers=4, data_dir='../data')
+    
+    checkpoint_path = args.checkpoint if args.checkpoint else default_checkpoint
+    
     if os.path.exists(checkpoint_path):
-        model.load_state_dict(torch.load(checkpoint_path))
+        model.load_state_dict(torch.load(checkpoint_path, map_location=device))
         print(f"Loaded checkpoint from {checkpoint_path}")
     else:
-        print("Warning: No checkpoint found. Evaluating with random weights.")
+        print(f"Warning: No checkpoint found at {checkpoint_path}. Evaluating with random weights.")
         
     model.eval()
     
@@ -33,14 +46,8 @@ def main():
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Model Parameters: {total_params:,}")
     
-    _, testloader = get_dataloaders(batch_size=128, num_workers=4, data_dir='../data')
-    
     # -------------------------------------------------------------------------
     # Clean Accuracy & Confusion Matrix Data Gathering
-    # -------------------------------------------------------------------------
-    # 1. WHAT: Iterates over the test set, collecting predictions and true labels.
-    # 2. WHY: Required to calculate per-class accuracy and generate the matrix.
-    # 3. OBSERVE: VRAM usage will peak as batches are moved to the GPU.
     # -------------------------------------------------------------------------
     all_preds = []
     all_targets = []
@@ -48,6 +55,7 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
     
+    print(f"Evaluating {args.model}...")
     with torch.no_grad():
         for inputs, targets in testloader:
             inputs = inputs.to(device)
@@ -65,16 +73,9 @@ def main():
     # Global Accuracy
     correct = (all_preds == all_targets).sum()
     overall_acc = 100.0 * correct / len(all_targets)
-    print(f"\nOverall Test Accuracy: {overall_acc:.2f}%\n")
+    print(f"\nOverall {args.model.upper()} Test Accuracy: {overall_acc:.2f}%\n")
     
-    # -------------------------------------------------------------------------
     # Per-Class Accuracy
-    # -------------------------------------------------------------------------
-    # 1. WHAT: Calculates accuracy for each individual CIFAR-10 category.
-    # 2. WHY: A model might have 90% overall accuracy but completely fail on "bird"
-    #         vs "airplane". Knowing per-class vulnerabilities is crucial for SDT.
-    # 3. OBSERVE: A printed table showing accuracy per class.
-    # -------------------------------------------------------------------------
     print("Per-Class Accuracy:")
     print("-" * 25)
     for i in range(10):
@@ -84,23 +85,17 @@ def main():
         class_acc = 100.0 * class_correct / class_total
         print(f"{CLASSES[i]:>12}: {class_acc:.2f}%")
         
-    # -------------------------------------------------------------------------
     # Plotting Confusion Matrix
-    # -------------------------------------------------------------------------
-    # 1. WHAT: Visualizing exactly which classes the model confuses.
-    # 2. WHY: Essential for adversarial cognitive research. If a dog is perturbed, 
-    #         does the model think it's a cat (animal) or a truck (vehicle)?
-    # 3. OBSERVE: Creates 'confusion_matrix.png' in the current directory.
-    # -------------------------------------------------------------------------
     cm = confusion_matrix(all_targets, all_preds)
     plt.figure(figsize=(10, 8))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=CLASSES, yticklabels=CLASSES)
     plt.ylabel('True Label')
     plt.xlabel('Predicted Label')
-    plt.title('CIFAR-10 Clean Accuracy Confusion Matrix')
+    plt.title(f'CIFAR-10 Clean Accuracy Confusion Matrix ({args.model.upper()})')
     plt.tight_layout()
-    plt.savefig('confusion_matrix.png')
-    print("\nSaved confusion_matrix.png")
+    cm_path = f'confusion_matrix_{args.model}.png'
+    plt.savefig(cm_path)
+    print(f"\nSaved {cm_path}")
     
     # VRAM Usage
     if torch.cuda.is_available():

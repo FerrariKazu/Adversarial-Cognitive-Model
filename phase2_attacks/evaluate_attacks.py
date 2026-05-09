@@ -81,82 +81,79 @@ def evaluate_attack(model, testloader, attack_fn, device, **attack_kwargs):
         all_l2.append(l2)
         all_linf.append(linf)
 
+        # Free GPU memory explicitly to prevent fragmentation/OOM on long runs
+        del images, labels, adv_images, adv_preds
+        torch.cuda.empty_cache()
+
     accuracy = 100.0 * correct / total
     avg_l2 = np.mean(all_l2)
     avg_linf = np.mean(all_linf)
     return accuracy, avg_l2, avg_linf
 
 
+import argparse
+from phase1_training.model_vit import CIFARViT
+from phase1_training.dataset_vit import get_dataloaders_vit
+
+import os
+
+MODELS = {
+    'resnet': {
+        'ckpt': os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'best.pth'),
+        'class': CIFARResNet,
+        'loader_fn': get_dataloaders
+    },
+    'vit': {
+        'ckpt': os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'vit_small_best.pth'),
+        'class': CIFARViT,
+        'loader_fn': get_dataloaders_vit
+    }
+}
+
 def main():
-    # Load config
-    with open('../config/attack_config.yaml', 'r') as f:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, choices=['resnet', 'vit'], required=True)
+    args = parser.parse_args()
+
+    cfg = MODELS[args.model]
+
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'attack_config.yaml')
+    with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
-    # -------------------------------------------------------------------------
-    # Load the trained model
-    # -------------------------------------------------------------------------
-    model = CIFARResNet().to(device)
-    checkpoint_path = os.path.join('..', config['checkpoint_path'])
-    model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+    model = cfg['class']().to(device)
+    model.load_state_dict(torch.load(cfg['ckpt'], map_location=device))
     model.eval()
-    print(f"Loaded checkpoint from: {checkpoint_path}\n")
+    print(f"Loaded {args.model} checkpoint from: {cfg['ckpt']}\n")
 
-    # Get test data (no augmentation, just normalization)
-    _, testloader = get_dataloaders(batch_size=64, num_workers=4)
+    _, testloader = cfg['loader_fn'](batch_size=32, num_workers=2)
 
-    epsilons = config['epsilons']
-    pgd_steps = config['pgd_steps']
-    pgd_alpha = config['pgd_alpha']
+    epsilons = [0.00, 0.01, 0.05, 0.10, 0.20, 0.30]
+    pgd_steps = config.get('pgd_steps', 10)
+    pgd_alpha = config.get('pgd_alpha', 0.01)
 
-    # -------------------------------------------------------------------------
-    # Results Table Header
-    # -------------------------------------------------------------------------
     print(f"{'Attack':<10} | {'Epsilon':>8} | {'Accuracy':>10} | {'Avg L2':>10} | {'Avg Linf':>10}")
     print("-" * 60)
 
-    # -------------------------------------------------------------------------
-    # FGSM Evaluation
-    # -------------------------------------------------------------------------
     for eps in epsilons:
-        acc, l2, linf = evaluate_attack(
-            model, testloader, fgsm_attack, device, epsilon=eps
-        )
+        acc, l2, linf = evaluate_attack(model, testloader, fgsm_attack, device, epsilon=eps)
         print(f"{'FGSM':<10} | {eps:>8.2f} | {acc:>9.2f}% | {l2:>10.4f} | {linf:>10.4f}")
 
     print("-" * 60)
 
-    # -------------------------------------------------------------------------
-    # PGD Evaluation
-    # -------------------------------------------------------------------------
     for eps in epsilons:
-        acc, l2, linf = evaluate_attack(
-            model, testloader, pgd_attack, device,
-            epsilon=eps, alpha=pgd_alpha, steps=pgd_steps
-        )
+        acc, l2, linf = evaluate_attack(model, testloader, pgd_attack, device, epsilon=eps, alpha=pgd_alpha, steps=pgd_steps)
         print(f"{'PGD':<10} | {eps:>8.2f} | {acc:>9.2f}% | {l2:>10.4f} | {linf:>10.4f}")
 
     print("-" * 60)
 
-    # -------------------------------------------------------------------------
-    # C&W Evaluation (L2 attack — epsilon is not directly used)
-    # -------------------------------------------------------------------------
-    # NOTE: C&W minimizes L2 distortion, not L∞. We run it once (no epsilon
-    # sweep) because the attack finds the minimum perturbation automatically.
-    # We include it for comparison against the L∞ attacks at various epsilons.
-    # -------------------------------------------------------------------------
-    acc, l2, linf = evaluate_attack(
-        model, testloader, cw_attack, device
-    )
-    print(f"{'C&W-L2':<10} | {'  auto':>8} | {acc:>9.2f}% | {l2:>10.4f} | {linf:>10.4f}")
-
-    print("-" * 60)
-    print("\nDone. Compare accuracy degradation across attacks and epsilons.")
-    print("Key insight: PGD should be strictly stronger than FGSM at every epsilon.")
-    print("C&W finds the minimum-distortion adversarial — closest to human JND.")
-
+    if args.model != 'vit':
+        acc, l2, linf = evaluate_attack(model, testloader, cw_attack, device)
+        print(f"{'C&W-L2':<10} | {'  auto':>8} | {acc:>9.2f}% | {l2:>10.4f} | {linf:>10.4f}")
+        print("-" * 60)
 
 if __name__ == '__main__':
     main()

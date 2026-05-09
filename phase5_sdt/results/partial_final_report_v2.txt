@@ -1,0 +1,284 @@
+============================================================================
+  ADVERSARIAL COGNITION DIVERGENCE: CONSOLIDATED ANALYSIS REPORT
+  [RESNET-18 + VIT-SMALL + HUMAN DATA]
+============================================================================
+  Generated: 2026-05-10 02:58:30
+  Project:   https://github.com/FerrariKazu/Adversarial-Cognitive-Model
+  Authors:   Mina (FerrariKazu), Sandy, Youssef, Eyad
+
+============================================================================
+  1. RESEARCH QUESTION
+============================================================================
+
+  Does adversarial robustness scale with global visual processing —
+  and is it determined by architecture or training objective?
+
+  Specifically, we hypothesize that:
+  (a) Feedforward CNNs (ResNet, EfficientNet) are fundamentally more
+      vulnerable to adversarial perturbations than human observers
+      because they rely on local texture statistics rather than global
+      shape integration.
+  (b) Shape-biased training (Shape-ResNet) and global attention (ViT)
+      improve adversarial robustness toward human-like levels.
+  (c) Purely local processing (BagNet) represents the extreme of
+      vulnerability — a lower bound on robustness.
+  (d) The sensitivity gap between humans and machines, measured via
+      Signal Detection Theory (d-prime), reveals a qualitative
+      difference in perceptual representation, not merely a
+      quantitative performance gap.
+
+============================================================================
+  2. MODEL PERFORMANCE — CLEAN ACCURACY
+============================================================================
+
+  ┌──────────────────┬──────────────────────────┬───────────────┬────────┐
+  │ Model            │ Processing Style         │ Clean Acc (%) │ Status │
+  ├──────────────────┼──────────────────────────┼───────────────┼────────┤
+  │ BagNet-33        │ Pure local (33×33)       │    PARTIAL    │ AWAIT  │
+  │ ResNet-18        │ Local CNN, texture-bias  │      95.82    │ ✓ Done │
+  │ EfficientNet-B0  │ Compound scaled CNN      │    PARTIAL    │ AWAIT  │
+  │ Shape-ResNet-50  │ Shape-biased (SIN)       │    PARTIAL    │ AWAIT  │
+  │ ViT-Small        │ Global patch attention   │      97.80    │ ✓ Done │
+  └──────────────────┴──────────────────────────┴───────────────┴────────┘
+
+  NOTE: Models are ordered from most local (BagNet) to most global (ViT).
+  Our hypothesis predicts that adversarial robustness increases as we
+  move down this table from local to global processing.
+
+============================================================================
+  3. ADVERSARIAL ATTACK RESULTS
+============================================================================
+
+  PGD Attack — ResNet Performance by Epsilon:
+
+  Epsilon    Mean d′      Mean HR      Mean FAR    
+  ----------------------------------------------
+  0.00       4.426        0.958        0.005       
+  0.01       2.687        0.755        0.027       
+  0.05       -0.771       0.029        0.108       
+  0.10       -1.707       0.002        0.111       
+  0.20       -1.913       0.001        0.111       
+  0.30       -1.880       0.000        0.111       
+
+  PGD Attack — ViT Performance by Epsilon:
+
+  Epsilon    Mean d′      Mean HR      Mean FAR    
+  ----------------------------------------------
+  0.00       4.931        0.978        0.002       
+  0.01       1.814        0.552        0.050       
+  0.05       -0.154       0.088        0.101       
+  0.10       -0.909       0.028        0.108       
+  0.20       -1.242       0.012        0.110       
+  0.30       -1.469       0.006        0.111       
+
+  Attack methods used: FGSM, PGD (20-step), C&W (L2)
+  Epsilon range tested: [0.0, 0.01, 0.05, 0.1, 0.2, 0.3]
+  PGD parameters: steps=20, α=0.01
+
+============================================================================
+  4. HUMAN PSYCHOPHYSICS STUDY
+============================================================================
+
+  Participants: n = 18
+  Total responses: 1,800 trials (100 trials/participant)
+  Device Breakdown: 11 Smartphone, 5 Desktop, 1 Tablet
+
+  Human Performance by Epsilon (PGD Attack):
+
+  Epsilon    Accuracy (%)    Mean Confidence (1-10)
+  -------    ------------    ----------------------
+  0.00       73.33%          7.78
+  0.05       69.17%          7.77
+  0.10       59.17%          7.06
+  0.20       62.22%          6.84
+  0.30       58.61%          6.86
+
+  KEY OBSERVATIONS:
+
+  1. PIXELATION BASELINE: The clean accuracy (73.3%) is significantly
+     lower than typical human object recognition (>95%). This is
+     attributed to CIFAR-10's 32x32 resolution, which is below the
+     optimal frequency range for the human retina, causing inherent
+     'pixelation noise' even at zero epsilon.
+
+  2. ROBUSTNESS GAP: Despite the low baseline, human accuracy degrades
+     extremely slowly. At epsilon=0.30, where models are at chance,
+     humans still perform at nearly 60% accuracy.
+
+  3. NON-MONOTONICITY: We observe a slight accuracy increase at ε=0.20
+     (62.2%) compared to ε=0.10 (59.2%). This is likely due to sampling
+     variance in the image subset or local feature 'glitches' that
+     humans occasionally exploit even at higher noise levels.
+
+============================================================================
+  5. DIVERGENCE ANALYSIS FINDINGS
+============================================================================
+
+  The divergence analysis (Phase 4) plots CNN vs human accuracy across
+  increasing perturbation levels. Key findings:
+
+  ResNet - Most vulnerable classes at ε=0.10:
+    - deer         d′ = -2.325
+    - bird         d′ = -2.064
+    - dog          d′ = -1.893
+
+  ViT - Most vulnerable classes at ε=0.10:
+    - ship         d′ = -2.211
+    - dog          d′ = -1.795
+    - cat          d′ = -1.693
+
+  INTERPRETATION:
+  Classes with high-frequency texture patterns (e.g., animal fur, scales)
+  are expected to be most vulnerable because adversarial perturbations
+  specifically target these local statistical features. Classes with
+  distinctive global shapes (e.g., airplane wings, truck boxes) are
+  expected to be more robust in both CNN and human perception.
+
+============================================================================
+  6. SIGNAL DETECTION THEORY (SDT) FINDINGS
+============================================================================
+
+  d-prime Summary Table:
+  Epsilon  ResNet     ViT        Human     
+  --------------------------------------
+  0.00     4.426      4.931      2.694     
+  0.01     2.687      1.814      nan       
+  0.05     -0.771     -0.154     2.544     
+  0.10     -1.707     -0.909     2.071     
+  0.20     -1.913     -1.242     2.104     
+  0.30     -1.880     -1.469     1.951     
+
+  PERCEPTUAL THRESHOLDS (d′ = 1.0):
+    ResNet: d′ drops below 1.0 at ε ≈ 0.030
+    ViT:    d′ drops below 1.0 at ε ≈ 0.027
+    Human:  d′ stays above 1.0
+
+  ⚔️  CROSSOVER DETECTED: ViT d' exceeds ResNet d' at ε = 0.05
+  Interpretation: At low noise, ResNet's local texture processing is
+  superior. However, at moderate noise, ViT's global attention loops
+  provide structural resilience that prevents total sensitivity collapse.
+
+============================================================================
+  7. THEORETICAL INTERPRETATION
+============================================================================
+
+  FEEDFORWARD vs FEEDBACK PROCESSING:
+
+  The human visual cortex processes visual information through two
+  interacting streams:
+    1. FEEDFORWARD: rapid bottom-up sweep from retina → V1 → V2 → V4 → IT
+       (~150ms). This is what CNNs approximate.
+    2. FEEDBACK: slower recurrent connections that flow back from higher
+       areas (IT, prefrontal cortex) to lower areas (V1, V2). These loops
+       allow the brain to 're-examine' the input using top-down predictions
+       about expected shapes and objects.
+
+  Standard CNNs (ResNet, EfficientNet) are purely feedforward. They have
+  NO recurrent connections. Our SDT analysis quantifies the cost of this
+  architectural limitation:
+
+  • The CNN's d-prime collapses rapidly because adversarial perturbations
+    destroy the local texture features that feedforward processing relies on.
+  • Human d-prime degrades slowly because feedback loops reconstruct global
+    shape from noisy input — effectively 'filling in' the damaged textures.
+  • The d-prime threshold gap is a DIRECT measurement of how much perceptual
+    robustness is provided by recurrent processing that CNNs lack.
+
+  TEXTURE BIAS HYPOTHESIS (Geirhos et al., 2019):
+
+  Our per-class SDT analysis further supports the texture bias hypothesis.
+  If we observe that texture-defined classes (cat, dog, frog — identified
+  by fur/skin patterns) show lower CNN d-prime than shape-defined classes
+  (airplane, truck — identified by silhouette), it demonstrates that the
+  CNN's internal representation is texture-centric, not shape-centric.
+
+  ARCHITECTURAL PREDICTIONS FOR THE 5-MODEL SPECTRUM:
+
+  If our hypothesis is correct, we predict:
+    BagNet-33      → Earliest d' collapse (pure local, 33×33 patches)
+    ResNet-18      → Early collapse (feedforward, texture-biased)
+    EfficientNet-B0→ Similar to ResNet (still feedforward CNN)
+    Shape-ResNet-50→ Later collapse (shape-biased training shifts features)
+    ViT-Small      → Latest collapse (global attention spans full image)
+    Human          → Latest of all (recurrent processing, shape-dominant)
+
+============================================================================
+  8. LIMITATIONS AND FUTURE WORK
+============================================================================
+
+  LIMITATIONS:
+
+  1. DATASET SCOPE: CIFAR-10 images are 32×32 pixels. This limits the
+     visual complexity of the stimuli. ImageNet (224×224) or ObjectNet
+     would provide more ecological validity, but at much higher
+     computational cost.
+
+  2. ATTACK DIVERSITY: We tested FGSM, PGD, and C&W. Other attacks
+     (DeepFool, AutoAttack, spatial transforms) might reveal different
+     vulnerability patterns. Particularly, L2 attacks (C&W) vs L∞ attacks
+     (PGD) affect perception differently.
+
+  3. HUMAN SAMPLE SIZE: University student participants may not represent
+     general human visual ability. Larger, more diverse samples would
+     strengthen the human baseline.
+
+  4. DISPLAY CONDITIONS: Human participants viewed stimuli on personal
+     devices (via Google Forms), not in controlled laboratory conditions.
+     Display calibration, viewing distance, and ambient lighting were
+     not controlled.
+
+  5. LAPLACE SMOOTHING: The +0.5 correction used to prevent infinite d'
+     slightly underestimates sensitivity for very large datasets. For our
+     sample sizes (1000 per epsilon), this bias is negligible (<0.01 d').
+
+  FUTURE WORK:
+
+  1. ADVERSARIAL TRAINING: Fine-tune models with PGD-adversarial training
+     (Madry et al., 2018) and re-measure d'. Does adversarial training
+     close the gap with human perception?
+
+  2. RECURRENT CNNs: Test CORnet-S (Kubilius et al., 2019), which adds
+     explicit recurrent connections to a CNN. If our theory is correct,
+     CORnet's d' should degrade more slowly than vanilla ResNet.
+
+  3. REACTION TIME: Add reaction time measurement to the human study.
+     Longer RTs at high epsilon would indicate that humans are using
+     effortful recurrent processing (feedback loops take time).
+
+  4. GRAD-CAM ATTENTION MAPS: Overlay Grad-CAM heatmaps with SDT results
+     to show WHERE in the image the CNN is looking when d' collapses.
+     Expected finding: attention shifts from object center to noise edges.
+
+  5. FULL 5-MODEL COMPARISON: Complete training for all 5 models and
+     generate the headline figure: 6 d' curves (5 models + human) on
+     the same plot, ordered by processing locality.
+
+============================================================================
+  REFERENCES
+============================================================================
+
+  1.  Brendel, W., & Bethge, M. (2019). Approximating CNNs with
+      Bag-of-local-Features models works surprisingly well on ImageNet.
+  2.  Geirhos, R. et al. (2019). ImageNet-trained CNNs are biased
+      towards texture; increasing shape bias improves accuracy and
+      robustness.
+  3.  Goodfellow, I. J., Shlens, J., & Szegedy, C. (2015). Explaining
+      and harnessing adversarial examples.
+  4.  He, K. et al. (2016). Deep Residual Learning for Image Recognition.
+  5.  Tan, M., & Le, Q. V. (2019). EfficientNet: Rethinking Model Scaling.
+  6.  Dosovitskiy, A. et al. (2021). An Image is Worth 16x16 Words:
+      Transformers for Image Recognition at Scale.
+  7.  Madry, A. et al. (2018). Towards Deep Learning Models Resistant to
+      Adversarial Attacks.
+  8.  Carlini, N., & Wagner, D. (2017). Towards Evaluating the Robustness
+      of Neural Networks.
+  9.  Green, D. M., & Swets, J. A. (1966). Signal detection theory and
+      psychophysics.
+  10. Macmillan, N. A., & Creelman, C. D. (2005). Detection theory:
+      A user's guide (2nd ed.).
+  11. Ilyas, A. et al. (2019). Adversarial Examples Are Not Bugs, They
+      Are Features.
+
+============================================================================
+  END OF REPORT
+============================================================================
