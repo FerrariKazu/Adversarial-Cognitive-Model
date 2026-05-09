@@ -2,7 +2,7 @@
   ADVERSARIAL COGNITION DIVERGENCE: PARTIAL ANALYSIS REPORT
   [RESNET-18 + VIT-SMALL + HUMAN DATA]
 ============================================================================
-  Generated: 2026-05-09 06:25:18
+  Generated: 2026-05-09 22:33:09
   Project:   https://github.com/FerrariKazu/Adversarial-Cognitive-Model
   Authors:   Mina (FerrariKazu), Sandy, Youssef, Eyad
 
@@ -38,7 +38,7 @@
   │ ResNet-18        │ Local CNN, texture-bias  │      95.82    │ ✓ Done │
   │ EfficientNet-B0  │ Compound scaled CNN      │    PARTIAL    │ AWAIT  │
   │ Shape-ResNet-50  │ Shape-biased (SIN)       │    PARTIAL    │ AWAIT  │
-  │ ViT-Small        │ Global patch attention   │      91.20    │ ✓ Done │
+  │ ViT-Small        │ Global patch attention   │      97.80    │ ✓ Done │
   └──────────────────┴──────────────────────────┴───────────────┴────────┘
 
   NOTE: Models are ordered from most local (BagNet) to most global (ViT).
@@ -149,9 +149,9 @@
   0.30     -1.880     -1.469     1.769     
 
   PERCEPTUAL THRESHOLDS (d′ = 1.0):
-    ResNet: d′ drops below 1.0 at ε = 0.05
-    ViT:    d′ drops below 1.0 at ε = 0.05
-    Human:  d′ drops below 1.0 at ε = None
+    ResNet: d′ drops below 1.0 at ε ≈ 0.030
+    ViT:    d′ drops below 1.0 at ε ≈ 0.027
+    Human:  d′ stays above 1.0
 
   ⚔️  CROSSOVER DETECTED: ViT d' exceeds ResNet d' at ε = 0.05
   Interpretation: At low noise, ResNet's local texture processing is
