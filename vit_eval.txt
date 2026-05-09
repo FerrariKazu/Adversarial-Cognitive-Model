@@ -1,0 +1,17 @@
+Using device: cuda
+Loaded vit checkpoint from: /home/ferrarikazu/Adversarial Cognitive Model/phase2_attacks/../phase1_training/checkpoints/vit_small_best.pth
+
+Attack     |  Epsilon |   Accuracy |     Avg L2 |   Avg Linf
+------------------------------------------------------------
+FGSM       |     0.00 |     97.80% |     0.0000 |     0.0000
+FGSM       |     0.01 |     74.17% |     3.8798 |     0.0100
+FGSM       |     0.05 |     40.47% |    19.3990 |     0.0500
+FGSM       |     0.10 |     34.48% |    38.7979 |     0.1000
+FGSM       |     0.20 |     30.47% |    77.5959 |     0.2000
+FGSM       |     0.30 |     26.83% |   116.3938 |     0.3000
+------------------------------------------------------------
+PGD        |     0.00 |     97.80% |     0.0000 |     0.0000
+PGD        |     0.01 |     55.15% |     3.7836 |     0.0100
+PGD        |     0.05 |      8.69% |    15.6408 |     0.0500
+PGD        |     0.10 |      2.86% |    26.4713 |     0.1000
+PGD        |     0.20 |      1.09% |    47.2065 |     0.2000

@@ -1,0 +1,8 @@
+{
+  "profile": "openai",
+  "env": {
+    "OPENAI_BASE_URL": "http://localhost:11434/v1",
+    "OPENAI_MODEL": "qwen2.5:7b"
+  },
+  "createdAt": "2026-05-08T13:44:15.170Z"
+}
