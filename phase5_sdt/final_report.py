@@ -56,10 +56,19 @@ def load_human_data():
 
 
 def find_threshold(epsilons, d_primes, threshold=1.0):
-    """Find epsilon where d' first drops below threshold."""
-    for eps, dp in zip(epsilons, d_primes):
-        if dp < threshold:
-            return eps
+    """Find epsilon where d' first drops below threshold using linear interpolation."""
+    for i in range(len(d_primes)):
+        if d_primes[i] < threshold:
+            if i == 0:
+                return epsilons[0]
+            # Interpolate between i-1 and i
+            eps1, eps2 = epsilons[i-1], epsilons[i]
+            d1, d2 = d_primes[i-1], d_primes[i]
+            # Linear interpolation: y = y1 + (x - x1) * (y2 - y1) / (x2 - x1)
+            # Here: threshold = d1 + (t_eps - eps1) * (d2 - d1) / (eps2 - eps1)
+            # t_eps = eps1 + (threshold - d1) * (eps2 - eps1) / (d2 - d1)
+            t_eps = eps1 + (threshold - d1) * (eps2 - eps1) / (d2 - d1)
+            return t_eps
     return None
 
 
@@ -124,7 +133,7 @@ def generate_report():
     w("  │ ResNet-18        │ Local CNN, texture-bias  │      95.82    │ ✓ Done │")
     w("  │ EfficientNet-B0  │ Compound scaled CNN      │    PARTIAL    │ AWAIT  │")
     w("  │ Shape-ResNet-50  │ Shape-biased (SIN)       │    PARTIAL    │ AWAIT  │")
-    w("  │ ViT-Small        │ Global patch attention   │      91.20    │ ✓ Done │")
+    w("  │ ViT-Small        │ Global patch attention   │      97.80    │ ✓ Done │")
     w("  └──────────────────┴──────────────────────────┴───────────────┴────────┘")
     w("")
     w("  NOTE: Models are ordered from most local (BagNet) to most global (ViT).")
@@ -266,9 +275,9 @@ def generate_report():
         w("")
 
         w("  PERCEPTUAL THRESHOLDS (d′ = 1.0):")
-        w(f"    ResNet: d′ drops below 1.0 at ε = {res_threshold}")
-        w(f"    ViT:    d′ drops below 1.0 at ε = {vit_threshold}")
-        w(f"    Human:  d′ drops below 1.0 at ε = {hum_threshold}")
+        w(f"    ResNet: d′ drops below 1.0 at ε ≈ {res_threshold:.3f}" if res_threshold is not None else "    ResNet: d′ stays above 1.0")
+        w(f"    ViT:    d′ drops below 1.0 at ε ≈ {vit_threshold:.3f}" if vit_threshold is not None else "    ViT:    d′ stays above 1.0")
+        w(f"    Human:  d′ drops below 1.0 at ε ≈ {hum_threshold:.3f}" if hum_threshold is not None else "    Human:  d′ stays above 1.0")
         w("")
         
         # Check for crossover
