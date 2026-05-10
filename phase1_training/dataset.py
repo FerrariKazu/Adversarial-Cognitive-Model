@@ -39,21 +39,59 @@ class HFCIFAR10(Dataset):
             img = self.transform(img)
         return img, label
 
-def get_dataloaders(batch_size=128, num_workers=4, data_dir='data'):
+def get_dataloaders(batch_size=128, num_workers=4, data_dir='data', model_name='resnet'):
+    """
+    Returns DataLoaders with dynamically injected transforms based on the model architecture.
+    Default fallback is the standard ResNet pipeline.
+    """
+    model_name = model_name.lower()
+    
     # -------------------------------------------------------------------------
-    # Data Augmentation & Normalization
+    # Dynamic Data Augmentation & Normalization
     # -------------------------------------------------------------------------
-    transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
-
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
+    if model_name in ['efficientnet', 'vit']:
+        # EfficientNet & ViT: Require 224x224 and ImageNet normalization
+        transform_train = transforms.Compose([
+            transforms.Resize(224),
+            transforms.RandomCrop(224, padding=28),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ])
+        transform_test = transforms.Compose([
+            transforms.Resize(224),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ])
+        
+    elif model_name == 'bagnet':
+        # BagNet: Requires at least 33x33, team standard is 64x64
+        transform_train = transforms.Compose([
+            transforms.Resize(64),
+            transforms.RandomCrop(64, padding=8),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        transform_test = transforms.Compose([
+            transforms.Resize(64),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        
+    else:
+        # Standard CIFAR-10 baseline: ResNet-18 & Shape-ResNet
+        transform_train = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        transform_test = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
 
     # -------------------------------------------------------------------------
     # Dataset Loading (HuggingFace)
