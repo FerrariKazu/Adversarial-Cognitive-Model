@@ -50,19 +50,19 @@ def get_dataloaders(batch_size=128, num_workers=4, data_dir='data', model_name='
     # Dynamic Data Augmentation & Normalization
     # -------------------------------------------------------------------------
     if model_name in ['efficientnet', 'vit']:
-        # EfficientNet & ViT: Require 224x224 and ImageNet normalization
+        # EfficientNet & ViT: Require 224x224 and standard CIFAR-10 normalization
         transform_train = transforms.Compose([
             transforms.Resize(224),
             transforms.RandomCrop(224, padding=28),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
         transform_test = transforms.Compose([
             transforms.Resize(224),
             transforms.CenterCrop(224),
             transforms.ToTensor(),
-            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
         
     elif model_name == 'bagnet':

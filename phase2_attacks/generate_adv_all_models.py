@@ -41,7 +41,7 @@ MODELS = {
         'loader_fn': get_dataloaders_vit
     },
     'efficientnet': {
-        'ckpt': None, # Uses pretrained ImageNet weights directly
+        'ckpt': os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'efficientnet_best.pth'),
         'class': CIFAREfficientNet,
         'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'efficientnet'),
         'input_size': 224,

@@ -64,7 +64,7 @@ def main():
     models_to_eval = [
         ('ResNet-18', 'resnet', CIFARResNet, os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'best.pth')),
         ('ViT-Small', 'vit', CIFARViT, os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'vit_small_best.pth')),
-        ('EfficientNet', 'efficientnet', CIFAREfficientNet, None)
+        ('EfficientNet', 'efficientnet', CIFAREfficientNet, os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'efficientnet_best.pth'))
     ]
     
     results = {}
