@@ -60,6 +60,7 @@ import matplotlib.pyplot as plt
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from phase1_training.model import CIFARResNet
 from phase1_training.model_vit import CIFARViT
+from phase1_training.model_efficientnet import CIFAREfficientNet
 from phase1_training.dataset_vit import get_dataloaders_vit
 from utils.metrics import load_adv_batch, accuracy, confidence_from_logits
 
@@ -72,6 +73,7 @@ OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'figures')
 COLOR_CNN = '#E94560'    # Vibrant red (ResNet)
 COLOR_HUMAN = '#2E8B57'  # Sea Green (Human)
 COLOR_VIT = '#9D4EDD'    # Violet (ViT)
+COLOR_EFFNET = '#0F3460' # Dark Blue (EfficientNet)
 
 
 def generate_mock_human_data(epsilons):
@@ -113,7 +115,7 @@ def get_cnn_performance(model, device, epsilons, model_name='resnet'):
         
         images_mmap = np.load(img_path, mmap_mode='r')
         
-        batch_size = 128 if model_name == 'vit' else 256
+        batch_size = 64 # Use 64 as requested for memory safety
         all_preds = []
         all_confs = []
         
@@ -129,6 +131,12 @@ def get_cnn_performance(model, device, epsilons, model_name='resnet'):
                 all_preds.append(preds)
                 all_confs.append(confs)
                 
+                del batch_imgs
+                del outputs
+                del preds
+                del confs
+                
+        torch.cuda.empty_cache()
         all_preds = np.concatenate(all_preds)
         all_confs = np.concatenate(all_confs)
         
@@ -188,12 +196,25 @@ def main():
     vit = CIFARViT().to(device)
     vit.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'vit_small_best.pth'), map_location=device))
     
+    effnet = CIFAREfficientNet().to(device)
+    # effnet uses pretrained weights, so no checkpoint loading needed
+    
     # Load human data
     df_human = pd.read_csv(HUMAN_DATA_PATH)
         
     # Get metrics
     resnet_acc, resnet_conf = get_cnn_performance(resnet, device, epsilons, model_name='resnet')
+    del resnet
+    torch.cuda.empty_cache()
+    
     vit_acc, vit_conf = get_cnn_performance(vit, device, epsilons, model_name='vit')
+    del vit
+    torch.cuda.empty_cache()
+    
+    effnet_acc, effnet_conf = get_cnn_performance(effnet, device, epsilons, model_name='efficientnet')
+    del effnet
+    torch.cuda.empty_cache()
+    
     hum_acc, hum_conf = get_human_performance(df_human, epsilons)
     
     eps_ticks = np.array(epsilons, dtype=float)
@@ -204,6 +225,7 @@ def main():
     plt.figure(figsize=(12, 7), dpi=150)
     plt.plot(eps_ticks, resnet_acc, marker='o', lw=3, color=COLOR_CNN, label='ResNet-18')
     plt.plot(eps_ticks, vit_acc, marker='^', lw=3, color=COLOR_VIT, label='ViT-Small')
+    plt.plot(eps_ticks, effnet_acc, marker='D', lw=3, color=COLOR_EFFNET, label='EfficientNet-B0')
     plt.plot(eps_ticks, hum_acc, marker='s', lw=3, color=COLOR_HUMAN, label='Human Perception')
     
     # Vertical Annotations
@@ -213,7 +235,7 @@ def main():
     plt.axvline(x=0.05, color='gray', linestyle='--', alpha=0.7)
     plt.text(0.052, 45, "ViT recovers relative robustness here\n(global attention)", color='gray', fontsize=10)
 
-    plt.title('Partial Results — 2/5 Models + Human (ResNet & ViT)', fontsize=15, pad=15)
+    plt.title('3/5 Models + Human', fontsize=15, pad=15)
     plt.xlabel('Perturbation Budget (Epsilon)', fontsize=12)
     plt.ylabel('Classification Accuracy (%)', fontsize=12)
     plt.ylim(-5, 105)
@@ -222,7 +244,7 @@ def main():
     
     combined_dir = os.path.join(OUTPUT_DIR, 'combined')
     os.makedirs(combined_dir, exist_ok=True)
-    out_acc = os.path.join(combined_dir, 'partial_divergence_curve.png')
+    out_acc = os.path.join(combined_dir, 'partial_divergence_3model.png')
     plt.savefig(out_acc, bbox_inches='tight')
     plt.close()
     
@@ -232,6 +254,7 @@ def main():
     plt.figure(figsize=(12, 7), dpi=150)
     plt.plot(eps_ticks, resnet_conf, marker='o', lw=3, color=COLOR_CNN, label='ResNet-18')
     plt.plot(eps_ticks, vit_conf, marker='^', lw=3, color=COLOR_VIT, label='ViT-Small')
+    plt.plot(eps_ticks, effnet_conf, marker='D', lw=3, color=COLOR_EFFNET, label='EfficientNet-B0')
     plt.plot(eps_ticks, hum_conf, marker='s', lw=3, color=COLOR_HUMAN, label='Human Confidence')
     
     plt.title('Confidence Degradation: Confidently Wrong vs Graceful Failure', fontsize=14, pad=15)

@@ -64,6 +64,7 @@ import torch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from phase1_training.model import CIFARResNet
 from phase1_training.model_vit import CIFARViT
+from phase1_training.model_efficientnet import CIFAREfficientNet
 from phase1_training.dataset import CLASSES
 from utils.metrics import load_adv_batch
 from phase5_sdt.sdt_core import compute_sdt_all_classes, d_prime
@@ -221,7 +222,7 @@ def get_cnn_predictions(model, device, epsilons, model_name='resnet'):
             print(f"  ⚠️  {e} — skipping ε={eps}")
             continue
 
-        batch_size = 128 if model_name == 'vit' else 256
+        batch_size = 64
         preds_list = []
 
         model.eval()
@@ -229,8 +230,13 @@ def get_cnn_predictions(model, device, epsilons, model_name='resnet'):
             for i in range(0, len(labels_np), batch_size):
                 batch = torch.tensor(images_mmap[i:i + batch_size], device=device)
                 outputs = model(batch)
-                preds_list.append(outputs.argmax(dim=1).cpu().numpy())
-
+                preds = outputs.argmax(dim=1).cpu().numpy()
+                preds_list.append(preds)
+                del batch
+                del outputs
+                del preds
+        
+        torch.cuda.empty_cache()
         all_preds[float(eps)] = np.concatenate(preds_list)
         all_labels[float(eps)] = labels_np
         print(f"  ε={eps:.2f} — {len(all_preds[float(eps)])} samples processed")
@@ -272,9 +278,21 @@ def main():
     vit = CIFARViT().to(device)
     vit.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'vit_small_best.pth'), map_location=device))
 
+    effnet = CIFAREfficientNet().to(device)
+
     # Get predictions
     resnet_preds, resnet_labels = get_cnn_predictions(resnet, device, epsilons, model_name='resnet')
+    del resnet
+    torch.cuda.empty_cache()
+    
     vit_preds, vit_labels = get_cnn_predictions(vit, device, epsilons, model_name='vit')
+    del vit
+    torch.cuda.empty_cache()
+    
+    effnet_preds, effnet_labels = get_cnn_predictions(effnet, device, epsilons, model_name='efficientnet')
+    del effnet
+    torch.cuda.empty_cache()
+    
     human_preds, human_labels = load_human_data_for_sdt(epsilons)
 
     # =========================================================================
@@ -348,6 +366,37 @@ def main():
 
         print(f"  ε={eps_f:.2f} | mean d' = {mean_dp:>6.3f}")
 
+    # --- EfficientNet ---
+    print("\n--- EFFICIENTNET d-prime per epsilon ---")
+    effnet_mean_dprimes = []
+
+    for eps in epsilons:
+        eps_f = float(eps)
+        if eps_f not in effnet_preds:
+            continue
+
+        sdt_df = compute_sdt_all_classes(effnet_preds[eps_f], effnet_labels[eps_f])
+        mean_dp = sdt_df['d_prime'].mean()
+        effnet_mean_dprimes.append((eps_f, mean_dp))
+
+        for _, row in sdt_df.iterrows():
+            all_rows.append({
+                'epsilon': eps_f,
+                'system': 'EfficientNet',
+                'class': CLASSES[int(row['class_idx'])],
+                'class_idx': int(row['class_idx']),
+                'd_prime': row['d_prime'],
+                'beta': row['beta'],
+                'hit_rate': row['hit_rate'],
+                'fa_rate': row['fa_rate'],
+                'hits': row['hits'],
+                'misses': row['misses'],
+                'false_alarms': row['false_alarms'],
+                'correct_rejections': row['correct_rejections'],
+            })
+
+        print(f"  ε={eps_f:.2f} | mean d' = {mean_dp:>6.3f}")
+
     # --- Human ---
     print("\n--- Human d-prime per epsilon ---")
     human_mean_dprimes = []
@@ -392,27 +441,29 @@ def main():
     print("\n" + "=" * 70)
     print("SUMMARY: d-PRIME vs EPSILON")
     print("=" * 70)
-    print(f"{'Epsilon':<10} {'ResNet d′':<12} {'ViT d′':<12} {'Human d′':<12}")
-    print("-" * 46)
+    print(f"{'Epsilon':<8} {'ResNet d′':<10} {'ViT d′':<10} {'EffNet d′':<10} {'Human d′':<10}")
+    print("-" * 55)
 
     resnet_eps_list = [e for e, _ in resnet_mean_dprimes]
     resnet_dp_list = [d for _, d in resnet_mean_dprimes]
     vit_dp_dict = dict(vit_mean_dprimes)
+    effnet_dp_dict = dict(effnet_mean_dprimes)
     human_dp_dict = dict(human_mean_dprimes)
     
     crossover_eps = None
 
     for eps, res_dp in zip(resnet_eps_list, resnet_dp_list):
         vit_dp = vit_dp_dict.get(eps, float('nan'))
+        eff_dp = effnet_dp_dict.get(eps, float('nan'))
         h_dp = human_dp_dict.get(eps, float('nan'))
         
-        # Check crossover
+        # Check crossover (ResNet vs ViT)
         if res_dp > vit_dp:
             pass
         elif res_dp < vit_dp and crossover_eps is None and eps > 0.00:
             crossover_eps = eps
             
-        print(f"  {eps:<8.2f} {res_dp:<12.3f} {vit_dp:<12.3f} {h_dp:<12.3f}")
+        print(f"  {eps:<6.2f} {res_dp:<10.3f} {vit_dp:<10.3f} {eff_dp:<10.3f} {h_dp:<10.3f}")
 
     # =========================================================================
     # Perceptual Threshold Detection
@@ -426,13 +477,18 @@ def main():
     vit_dp_list = [d for _, d in vit_mean_dprimes]
     vit_threshold_eps = find_perceptual_threshold(vit_eps_list, vit_dp_list)
     
+    effnet_eps_list = [e for e, _ in effnet_mean_dprimes]
+    effnet_dp_list = [d for _, d in effnet_mean_dprimes]
+    effnet_threshold_eps = find_perceptual_threshold(effnet_eps_list, effnet_dp_list)
+    
     human_eps_list = [e for e, _ in human_mean_dprimes]
     human_dp_list = [d for _, d in human_mean_dprimes]
     human_threshold_eps = find_perceptual_threshold(human_eps_list, human_dp_list)
 
-    print(f"  🔴 ResNet threshold: ε = {resnet_threshold_eps}")
-    print(f"  🟣 ViT threshold:    ε = {vit_threshold_eps}")
-    print(f"  🟢 Human threshold:  ε = {human_threshold_eps}")
+    print(f"  🔴 ResNet threshold:       ε = {resnet_threshold_eps}")
+    print(f"  🟣 ViT threshold:          ε = {vit_threshold_eps}")
+    print(f"  🔵 EfficientNet threshold: ε = {effnet_threshold_eps}")
+    print(f"  🟢 Human threshold:        ε = {human_threshold_eps}")
     
     if crossover_eps is not None:
         print(f"\n  ⚔️  CROSSOVER DETECTED: ViT d' exceeds ResNet d' at ε = {crossover_eps:.2f}")

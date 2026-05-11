@@ -42,6 +42,7 @@ import seaborn as sns
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from phase1_training.model import CIFARResNet
 from phase1_training.model_vit import CIFARViT
+from phase1_training.model_efficientnet import CIFAREfficientNet
 from phase1_training.dataset import CLASSES
 from utils.metrics import load_adv_batch, per_class_accuracy
 
@@ -63,7 +64,7 @@ def get_cnn_class_matrix(model, device, epsilons, model_name='resnet'):
         img_path = os.path.join(os.path.dirname(__file__), '..', 'phase2_attacks', 'adv_images', model_name, f"pgd_eps{eps_str}_images.npy")
         images_mmap = np.load(img_path, mmap_mode='r')
         
-        batch_size = 128 if model_name == 'vit' else 256
+        batch_size = 64 # Strictly enforce 64 batch size for memory safety
         all_preds = []
         
         model.eval()
@@ -72,7 +73,9 @@ def get_cnn_class_matrix(model, device, epsilons, model_name='resnet'):
                 batch_imgs = torch.tensor(images_mmap[i:i+batch_size], device=device)
                 preds = model(batch_imgs).argmax(dim=1).cpu().numpy()
                 all_preds.append(preds)
+                del batch_imgs
                 
+        torch.cuda.empty_cache()
         all_preds = np.concatenate(all_preds)
         accs = per_class_accuracy(all_preds, labels_np, num_classes=10)
         matrix[:, j] = accs
@@ -115,13 +118,15 @@ def main():
     
     models_to_run = {
         'resnet': (CIFARResNet, 'best.pth'),
-        'vit': (CIFARViT, 'vit_small_best.pth')
+        'vit': (CIFARViT, 'vit_small_best.pth'),
+        'efficientnet': (CIFAREfficientNet, None)
     }
     
     for model_name, (ModelClass, ckpt_name) in models_to_run.items():
         print(f"\n--- Running Class Heatmap for {model_name.upper()} ---")
         model = ModelClass().to(device)
-        model.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', ckpt_name), map_location=device))
+        if ckpt_name is not None:
+            model.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', ckpt_name), map_location=device))
         
         cnn_mat = get_cnn_class_matrix(model, device, epsilons, model_name=model_name)
         
