@@ -1,63 +1,47 @@
-# Adversarial Cognition Divergence (ACD)
+# Adversarial Cognition Divergence
 
-**Research Question:** Does adversarial robustness scale with global visual processing — and is it determined by architecture or training objective?
+**Research Question:** Does adversarial robustness scale with global visual 
+processing — and is it determined by architecture or training objective?
 
-This repository contains a comprehensive 5-model + human psychophysics study investigating the divergence between human and machine perception under adversarial attack. Using CIFAR-10 as a base, we compare local texture-biased models (CNNs) against global attention models (Transformers) and human observers using Signal Detection Theory (SDT).
+A 5-model + human psychophysics study using CIFAR-10, FGSM/PGD/C&W attacks, 
+and Signal Detection Theory analysis.
 
----
+## Model Spectrum
+| Model | Processing Style | Owner | Status |
+|-------|------------------|-------|--------|
+| ResNet-18 | Local CNN, texture-biased | Mina | ✅ Complete (95.82%) |
+| ViT-Small | Global patch attention | Mina | ✅ Complete (97.80%) |
+| EfficientNet-B0 | Compound scaled CNN | Youssef | ✅ Integrated (12.51%)* |
+| Shape-ResNet-50 | Shape-biased training (SIN) | Sandy | Pending |
+| BagNet-33 | Pure local patches (33×33) | Eyad | Pending |
 
-## 🚀 Model Spectrum & Status
+*\*EfficientNet currently uses pretrained weights; fine-tuning for target accuracy (90%+) is pending.*
 
-We investigate a spectrum of processing styles, from purely local to fully global.
+## Team
+- Mina (FerrariKazu) — ResNet, ViT, pipeline architecture, human study
+- Sandy — Shape-ResNet-50, final report, presentation slides
+- Youssef — EfficientNet-B0
+- Eyad — BagNet-33
 
-| Model | Processing Style | Owner | Status | Clean Acc (%) |
-|-------|------------------|-------|--------|---------------|
-| **BagNet-33** | Pure local patches (33×33) | Eyad | ⏳ Pending | - |
-| **ResNet-18** | Local CNN, texture-biased | Mina | ✅ Complete | 95.82% |
-| **EfficientNet-B0** | Compound scaled CNN | Youssef | ⏳ Pending | - |
-| **Shape-ResNet-50** | Shape-biased training (SIN) | Sandy | ⏳ Pending | - |
-| **ViT-Small** | Global patch attention | Mina | ✅ Complete | **97.80%** |
-| **Human** | Recurrent, shape-dominant | Team | ✅ Complete | 73.33%* |
+## Core Analysis Results (3/5 Models)
 
-*\*Note: Human clean accuracy is limited by CIFAR-10's 32x32 resolution (pixelation noise).*
+### PGD Accuracy Collapse
+| Epsilon | ResNet-18 | ViT-Small | EfficientNet-B0 |
+|:---:|:---:|:---:|:---:|
+| 0.00 | 95.82% | 97.80% | 12.51% |
+| 0.05 | 2.84% | 8.80% | 10.74% |
+| 0.10 | 0.20% | 2.78% | 11.35% |
 
----
+### Signal Detection Summary ($d'$)
+| Epsilon | ResNet $d'$ | ViT $d'$ | Human $d'$ |
+|:---:|:---:|:---:|:---:|
+| 0.00 | 4.426 | 4.931 | 2.694 |
+| 0.05 | -0.771 | -0.154 | 2.544 |
+| 0.10 | -1.707 | -0.909 | 2.071 |
 
-## 🧬 Project Phases
+**Headline Finding:** At $\epsilon=0.05$, both ResNet and ViT drop below the perceptual threshold ($d' < 1.0$), while human observers maintain high sensitivity. ViT exhibits a "crossover" effect where it maintains slightly higher sensitivity than ResNet at moderate noise levels.
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| **Phase 1** | Model training & clean evaluation | ✅ ResNet / ViT Complete |
-| **Phase 2** | Adversarial attack generation (FGSM, PGD, C&W) | ✅ ResNet / ViT Complete |
-| **Phase 3** | Human psychophysics study (n=18, 1800 trials) | ✅ Data Collected & Mapped |
-| **Phase 4** | Divergence analysis (Accuracy vs Epsilon) | ✅ Core Analysis Complete |
-| **Phase 5** | Signal Detection Theory (d-prime & Thresholds) | ✅ Pipeline Complete |
-
----
-
-## 📊 Key Findings (ResNet vs ViT vs Human)
-
-Our analysis using Signal Detection Theory (SDT) has identified a qualitative shift in robustness as a function of model architecture:
-
-### 1. Perceptual Thresholds ($d' = 1.0$)
-Using linear interpolation, we precisely quantified the epsilon budget where systems lose the ability to discriminate objects:
-*   **ResNet-18**: Sensitivity collapses at **$\epsilon \approx 0.030$**.
-*   **ViT-Small**: Sensitivity collapses at **$\epsilon \approx 0.027$**.
-*   **Human**: Sensitivity **never drops below 1.0** across the entire tested range ($\epsilon=0 \rightarrow 0.3$).
-
-### 2. The Architectural Crossover
-We discovered a **robustness crossover at $\epsilon = 0.05$**. 
-*   At **low noise** ($\epsilon < 0.03$), ResNet's local texture processing provides superior discrimination.
-*   At **moderate noise** ($\epsilon \geq 0.05$), ViT's global attention mechanism allows it to maintain sensitivity longer than the ResNet, which suffers a total collapse of $d'$.
-
-### 3. Human Robustness Gap
-Human observers maintain nearly **60% accuracy** at $\epsilon=0.30$, whereas all tested machine models reach chance levels ($d' \approx 0$) by $\epsilon=0.10$. This gap is attributed to **recurrent feedback loops** in the biological visual cortex that "fill in" global shapes from noisy local textures.
-
----
-
-## 🛠️ Installation & Usage
-
-### 1. Environment Setup
+## Environment Setup
 ```bash
 git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git
 cd Adversarial-Cognitive-Model
@@ -65,49 +49,37 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Run the Analysis Pipeline
-To regenerate the SDT results, plots, and the consolidated final report:
+## Running Evaluation
+To run the memory-safe 3-model comparison:
 ```bash
-# 1. Compute d-prime metrics
-python3 phase5_sdt/sdt_analysis.py
-
-# 2. Generate visualization curves and heatmaps
-python3 phase5_sdt/sdt_plots.py
-
-# 3. Compile the consolidated report
-python3 phase5_sdt/final_report.py
+python3 phase2_attacks/eval_quick.py
 ```
+*Note: All analysis scripts now enforce a maximum batch size of 64 and periodic cache clearing to fit within 8GB VRAM.*
 
-Results are saved to `phase5_sdt/results/` and `phase5_sdt/figures/`.
+## Project Phases
+| Phase | Description | Status |
+|-------|-------------|--------|
+| Phase 1 | Model training (all 5) | 3/5 Complete |
+| Phase 2 | Adversarial attack generation | 3/5 Complete |
+| Phase 3 | Human psychophysics study | Scripts done, form building |
+| Phase 4 | 5-model divergence analysis | 3/5 Complete |
+| Phase 5 | Signal Detection Theory (SDT) | 3/5 Complete |
 
----
-
-## 📁 Repository Structure
+## Repository Structure
 ```text
 .
-├── config               # Attack and training configurations
-├── phase1_training      # Model definitions and training scripts
-├── phase2_attacks       # PGD/FGSM/C&W attack generation
-├── phase3_human_study   # Human response mapping and stimuli
-├── phase4_analysis      # Accuracy divergence curves & Grad-CAM
-├── phase5_sdt           # SDT metrics, thresholds, and reporting
-└── docs                 # Project documentation and papers
+├── phase1_training         # Model architectures and training scripts
+├── phase2_attacks          # FGSM/PGD attack generation and eval
+├── phase3_human_study      # Human baseline data and stimuli export
+├── phase4_analysis         # Divergence curves and heatmaps
+├── phase5_sdt              # Signal Detection Theory calculation
+└── utils                   # Metrics and logging utilities
 ```
 
----
-
-## 🎓 Team
-- **Mina (FerrariKazu)** — Project Lead, Pipeline Architecture, ViT/ResNet Integration.
-- **Sandy** — Shape-ResNet-50, Results Interpretation.
-- **Youssef** — EfficientNet-B0 Implementation.
-- **Eyad** — BagNet-33 Local Processing Study.
-
----
-
-## 📚 References
-1. **Brendel & Bethge (2019)**: Bag-of-local-Features models.
-2. **Geirhos et al. (2019)**: Texture bias in ImageNet-trained CNNs.
-3. **Goodfellow et al. (2015)**: Explaining adversarial examples.
-4. **He et al. (2016)**: ResNet architecture.
-5. **Dosovitskiy et al. (2021)**: Vision Transformer (ViT).
-6. **Green & Swets (1966)**: Signal Detection Theory.
+## References
+1. Brendel, W., & Bethge, M. (2019). Approximating CNNs with Bag-of-local-Features models works surprisingly well on ImageNet.
+2. Geirhos, R. et al. (2019). ImageNet-trained CNNs are biased towards texture.
+3. Goodfellow, I. J., Shlens, J., & Szegedy, C. (2015). Explaining and harnessing adversarial examples.
+4. Tan, M., & Le, Q. V. (2019). EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks.
+5. Dosovitskiy, A. et al. (2021). An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale.
+6. Green, D. M., & Swets, J. A. (1966). Signal detection theory and psychophysics.
