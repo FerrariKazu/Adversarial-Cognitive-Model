@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'phase1_trainin
 
 from phase1_training.model import CIFARResNet
 from phase1_training.model_vit import CIFARViT
+from phase1_training.model_efficientnet import CIFAREfficientNet
 from phase1_training.dataset import get_dataloaders
 from phase1_training.dataset_vit import get_dataloaders_vit
 from fgsm import fgsm_attack
@@ -38,6 +39,13 @@ MODELS = {
         'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'vit'),
         'input_size': 224,
         'loader_fn': get_dataloaders_vit
+    },
+    'efficientnet': {
+        'ckpt': None, # Uses pretrained ImageNet weights directly
+        'class': CIFAREfficientNet,
+        'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'efficientnet'),
+        'input_size': 224,
+        'loader_fn': get_dataloaders_vit # Uses same resize as ViT
     }
 }
 
@@ -72,7 +80,7 @@ def verify_file(filepath):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['resnet', 'vit'], required=True)
+    parser.add_argument('--model', type=str, choices=['resnet', 'vit', 'efficientnet'], required=True)
     args = parser.parse_args()
 
     cfg = MODELS[args.model]
@@ -86,9 +94,12 @@ def main():
 
     # Load model
     model = cfg['class']().to(device)
-    model.load_state_dict(torch.load(cfg['ckpt'], map_location=device))
+    if cfg['ckpt'] is not None:
+        model.load_state_dict(torch.load(cfg['ckpt'], map_location=device))
+        print(f"Loaded {args.model} checkpoint from: {cfg['ckpt']}")
+    else:
+        print(f"Loaded {args.model} with pretrained weights")
     model.eval()
-    print(f"Loaded {args.model} checkpoint from: {cfg['ckpt']}")
 
     # Load data
     _, testloader = cfg['loader_fn'](batch_size=32, num_workers=2) # Small batch for ViT to prevent OOM
@@ -115,11 +126,11 @@ def main():
     np.save(labels_path, all_labels)
     print(f"    ✓ labels.npy saved.")
 
-    print(f"\nFGSM Attack Generation")
-    for eps in epsilons:
-        name = f"fgsm_eps{eps:.2f}"
-        path = generate_for_attack(model, testloader, fgsm_attack, device, name, save_dir, cifar_min, cifar_max, epsilon=eps)
-        saved_files.append(path)
+    # print(f"\nFGSM Attack Generation")
+    # for eps in epsilons:
+    #     name = f"fgsm_eps{eps:.2f}"
+    #     path = generate_for_attack(model, testloader, fgsm_attack, device, name, save_dir, cifar_min, cifar_max, epsilon=eps)
+    #     saved_files.append(path)
 
     print(f"\nPGD Attack Generation")
     for eps in epsilons:
@@ -127,10 +138,10 @@ def main():
         path = generate_for_attack(model, testloader, pgd_attack, device, name, save_dir, cifar_min, cifar_max, epsilon=eps, alpha=pgd_alpha, steps=pgd_steps)
         saved_files.append(path)
 
-    if args.model != 'vit':
-        print(f"\nC&W L2 Attack Generation")
-        path = generate_for_attack(model, testloader, cw_attack, device, "cw", save_dir, cifar_min, cifar_max)
-        saved_files.append(path)
+    # if args.model != 'vit':
+    #     print(f"\nC&W L2 Attack Generation")
+    #     path = generate_for_attack(model, testloader, cw_attack, device, "cw", save_dir, cifar_min, cifar_max)
+    #     saved_files.append(path)
 
     print(f"\nVerification:")
     verify_file(labels_path)
