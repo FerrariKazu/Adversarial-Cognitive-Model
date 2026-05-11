@@ -81,6 +81,12 @@ def pgd_attack(model, images, labels, epsilon, alpha, steps, device):
     images = images.to(device)
     labels = labels.to(device)
 
+    if epsilon == 0:
+        with torch.no_grad():
+            outputs = model(images)
+            preds = outputs.argmax(dim=1)
+        return images, preds
+
     # -------------------------------------------------------------------------
     # Step 1: Random initialization within the ε-ball
     # -------------------------------------------------------------------------

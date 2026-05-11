@@ -65,6 +65,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from phase1_training.model import CIFARResNet
 from phase1_training.model_vit import CIFARViT
 from phase1_training.model_efficientnet import CIFAREfficientNet
+from phase1_training.model import CIFARResNet
+from phase1_training.model_vit import CIFARViT
 from phase1_training.dataset import CLASSES
 from utils.metrics import load_adv_batch
 from phase5_sdt.sdt_core import compute_sdt_all_classes, d_prime
@@ -98,15 +100,16 @@ def generate_mock_human_sdt_data(epsilons):
 
     rng = np.random.default_rng(42)
 
-    # Empirically plausible human accuracy per epsilon
-    # (degrades much slower than CNN — this is the hypothesis)
+    # Correct human d' values provided by user:
+    # 0.00→4.790, 0.01→4.567, 0.05→3.985, 0.10→3.368, 0.20→2.440, 0.30→1.769
+    # Accuracy = Phi(d'/2)
     human_acc_by_eps = {
-        0.00: 0.98,
-        0.01: 0.97,
-        0.05: 0.94,
-        0.10: 0.88,
-        0.20: 0.72,
-        0.30: 0.55,
+        0.00: 0.991,
+        0.01: 0.988,
+        0.05: 0.977,
+        0.10: 0.954,
+        0.20: 0.888,
+        0.30: 0.811,
     }
 
     all_preds = {}
@@ -279,6 +282,7 @@ def main():
     vit.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'vit_small_best.pth'), map_location=device))
 
     effnet = CIFAREfficientNet().to(device)
+    effnet.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'efficientnet_best.pth'), map_location=device))
 
     # Get predictions
     resnet_preds, resnet_labels = get_cnn_predictions(resnet, device, epsilons, model_name='resnet')
@@ -363,6 +367,8 @@ def main():
                 'false_alarms': row['false_alarms'],
                 'correct_rejections': row['correct_rejections'],
             })
+
+        print(f"  ε={eps_f:.2f} | mean d' = {mean_dp:>6.3f}")
 
         print(f"  ε={eps_f:.2f} | mean d' = {mean_dp:>6.3f}")
 

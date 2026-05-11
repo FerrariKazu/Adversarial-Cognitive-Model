@@ -60,7 +60,10 @@ import matplotlib.pyplot as plt
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from phase1_training.model import CIFARResNet
 from phase1_training.model_vit import CIFARViT
+from phase1_training.model import CIFARResNet
+from phase1_training.model_vit import CIFARViT
 from phase1_training.model_efficientnet import CIFAREfficientNet
+from phase1_training.dataset_vit import get_dataloaders_vit
 from phase1_training.dataset_vit import get_dataloaders_vit
 from utils.metrics import load_adv_batch, accuracy, confidence_from_logits
 
@@ -80,9 +83,9 @@ def generate_mock_human_data(epsilons):
     """Fallback if human data isn't collected yet, so the script still runs."""
     print("WARNING: Human data not found. Generating MOCK data for demonstration.")
     data = []
-    # Mock human performance: degrades slowly (robust to noise)
-    mock_acc = {0.0: 98.0, 0.01: 97.0, 0.05: 95.0, 0.10: 90.0, 0.20: 75.0, 0.30: 60.0}
-    mock_conf = {0.0: 9.5, 0.01: 9.2, 0.05: 8.5, 0.10: 7.0, 0.20: 5.5, 0.30: 4.0}
+    # Mock human performance: restored from correct d' values
+    mock_acc = {0.0: 99.1, 0.01: 98.8, 0.05: 97.7, 0.10: 95.4, 0.20: 88.8, 0.30: 81.1}
+    mock_conf = {0.0: 9.8, 0.01: 9.6, 0.05: 9.2, 0.10: 8.8, 0.20: 7.5, 0.30: 6.5}
     
     for eps in epsilons:
         eps_f = float(eps)
@@ -197,7 +200,7 @@ def main():
     vit.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'vit_small_best.pth'), map_location=device))
     
     effnet = CIFAREfficientNet().to(device)
-    # effnet uses pretrained weights, so no checkpoint loading needed
+    effnet.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'efficientnet_best.pth'), map_location=device))
     
     # Load human data
     df_human = pd.read_csv(HUMAN_DATA_PATH)
