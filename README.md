@@ -11,11 +11,11 @@ and Signal Detection Theory analysis.
 |-------|------------------|-------|--------|
 | ResNet-18 | Local CNN, texture-biased | Mina | ✅ Complete (95.82%) |
 | ViT-Small | Global patch attention | Mina | ✅ Complete (97.80%) |
-| EfficientNet-B0 | Compound scaled CNN | Youssef | ✅ Integrated (12.51%)* |
+| EfficientNet-B0 | Compound scaled CNN | Youssef | ✅ Complete (96.81%) |
 | Shape-ResNet-50 | Shape-biased training (SIN) | Sandy | Pending |
 | BagNet-33 | Pure local patches (33×33) | Eyad | Pending |
 
-*\*EfficientNet currently uses pretrained weights; fine-tuning for target accuracy (90%+) is pending.*
+
 
 ## Team
 - Mina (FerrariKazu) — ResNet, ViT, pipeline architecture, human study
@@ -28,18 +28,22 @@ and Signal Detection Theory analysis.
 ### PGD Accuracy Collapse
 | Epsilon | ResNet-18 | ViT-Small | EfficientNet-B0 |
 |:---:|:---:|:---:|:---:|
-| 0.00 | 95.82% | 97.80% | 12.51% |
-| 0.05 | 2.84% | 8.80% | 10.74% |
-| 0.10 | 0.20% | 2.78% | 11.35% |
+| 0.00 | 95.82% | 97.80% | 96.81% |
+| 0.01 | 75.57% | 55.17% | 1.14% |
+| 0.05 | 2.84% | 8.80% | 0.00% |
+| 0.10 | 0.20% | 2.78% | 0.00% |
+| 0.20 | 0.02% | 1.12% | 3.62% |
+| 0.30 | 0.00% | 0.58% | 16.49% |
 
 ### Signal Detection Summary ($d'$)
-| Epsilon | ResNet $d'$ | ViT $d'$ | Human $d'$ |
-|:---:|:---:|:---:|:---:|
-| 0.00 | 4.426 | 4.931 | 2.694 |
-| 0.05 | -0.771 | -0.154 | 2.544 |
-| 0.10 | -1.707 | -0.909 | 2.071 |
+| Epsilon | ResNet $d'$ | ViT $d'$ | EffNet $d'$ | Human $d'$ |
+|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 4.426 | 4.931 | 4.642 | 2.694 |
+| 0.01 | 2.345 | 1.120 | -1.142 | 2.650 |
+| 0.05 | -0.771 | -0.154 | -1.879 | 2.544 |
+| 0.10 | -1.707 | -0.909 | -1.526 | 2.071 |
 
-**Headline Finding:** At $\epsilon=0.05$, both ResNet and ViT drop below the perceptual threshold ($d' < 1.0$), while human observers maintain high sensitivity. ViT exhibits a "crossover" effect where it maintains slightly higher sensitivity than ResNet at moderate noise levels.
+**Headline Finding:** At $\epsilon=0.05$, all CNN models drop below the perceptual threshold ($d' < 1.0$), while human observers maintain high sensitivity. EfficientNet exhibits the most extreme collapse at low epsilon, while ViT shows a slight robustness advantage over ResNet at $\epsilon=0.05$.
 
 ## Environment Setup
 ```bash
