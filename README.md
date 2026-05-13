@@ -65,7 +65,7 @@ python3 phase2_attacks/eval_quick.py
 |-------|-------------|--------|
 | Phase 1 | Model training (all 5) | 3/5 Complete |
 | Phase 2 | Adversarial attack generation | 3/5 Complete |
-| Phase 3 | Human psychophysics study | Scripts done, form building |
+| Phase 3 | Human psychophysics study | ✅ Complete (21 participants) |
 | Phase 4 | 5-model divergence analysis | 3/5 Complete |
 | Phase 5 | Signal Detection Theory (SDT) | 3/5 Complete |
 
