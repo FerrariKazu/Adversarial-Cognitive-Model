@@ -10,6 +10,13 @@ import numpy as np
 import torch
 import argparse
 from tqdm import tqdm
+import psutil
+
+# --- Memory Monitor ---
+ram_gb = psutil.virtual_memory().available / 1e9
+if ram_gb < 4.0:
+    print(f"WARNING: Only {ram_gb:.1f}GB RAM available. High crash risk.")
+    print("Close other applications before continuing.")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'phase1_training'))
@@ -52,6 +59,22 @@ MODELS = {
 def generate_for_attack(model, testloader, attack_fn, device, attack_name, save_dir, cifar_min, cifar_max, **attack_kwargs):
     save_path = os.path.join(save_dir, f"{attack_name}_images.npy")
     
+    # --- Resume capability: skip if file already exists and is valid ---
+    if os.path.exists(save_path):
+        try:
+            existing = np.load(save_path, mmap_mode='r')
+            n_samples = len(testloader.dataset)
+            _, _, h, w = next(iter(testloader))[0].shape
+            if existing.shape == (n_samples, 3, h, w) and existing.dtype == np.float32:
+                print(f"  ⏭ {attack_name}: {save_path} already exists with correct shape {existing.shape} — skipping")
+                del existing
+                return save_path
+            else:
+                print(f"  ⚠ {attack_name}: {save_path} exists but shape {existing.shape} doesn't match expected ({n_samples}, 3, {h}, {w}) — regenerating")
+                del existing
+        except Exception as e:
+            print(f"  ⚠ {attack_name}: {save_path} exists but is corrupt ({e}) — regenerating")
+    
     # Pre-allocate memmap array to avoid OOM (10000 images * 3 * 224 * 224 * 4 bytes = ~6GB)
     n_samples = len(testloader.dataset)
     _, _, h, w = next(iter(testloader))[0].shape
@@ -69,6 +92,11 @@ def generate_for_attack(model, testloader, attack_fn, device, attack_name, save_
         batch_size = images.size(0)
         mmap_arr[start_idx:start_idx+batch_size] = adv_images.cpu().numpy()
         start_idx += batch_size
+        
+        # Memory cleanup
+        del images, labels, adv_images
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     # Flush to disk
     mmap_arr.flush()
@@ -102,13 +130,15 @@ def main():
     model.eval()
 
     # Load data
-    _, testloader = cfg['loader_fn'](batch_size=32, num_workers=2) # Small batch for ViT to prevent OOM
+    batch_size = 16 if args.model in ['vit', 'efficientnet'] else 32
+    _, testloader = cfg['loader_fn'](batch_size=batch_size, num_workers=2)
+    print(f"Using batch size: {batch_size}")
     
     save_dir = cfg['out']
     os.makedirs(save_dir, exist_ok=True)
 
-    epsilons = [0.00, 0.01, 0.05, 0.10, 0.20, 0.30]
-    pgd_steps = attack_config.get('pgd_steps', 10)
+    epsilons = attack_config['epsilons']
+    pgd_steps = attack_config.get('pgd_steps', 20)
     pgd_alpha = attack_config.get('pgd_alpha', 0.01)
 
     # CIFAR normalization stats for clamping
@@ -117,14 +147,18 @@ def main():
 
     saved_files = []
 
-    print("\nSaving true labels...")
-    all_labels = []
-    for _, labels in testloader:
-        all_labels.append(labels.numpy())
-    all_labels = np.concatenate(all_labels, axis=0)
     labels_path = os.path.join(save_dir, 'labels.npy')
-    np.save(labels_path, all_labels)
-    print(f"    ✓ labels.npy saved.")
+    if os.path.exists(labels_path):
+        print(f"\n⏭ labels.npy already exists — skipping")
+        all_labels = np.load(labels_path)
+    else:
+        print("\nSaving true labels...")
+        all_labels = []
+        for _, labels in testloader:
+            all_labels.append(labels.numpy())
+        all_labels = np.concatenate(all_labels, axis=0)
+        np.save(labels_path, all_labels)
+        print(f"    ✓ labels.npy saved.")
 
     # print(f"\nFGSM Attack Generation")
     # for eps in epsilons:

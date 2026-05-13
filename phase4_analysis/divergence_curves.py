@@ -56,14 +56,18 @@ import numpy as np
 import pandas as pd
 import torch
 import matplotlib.pyplot as plt
+import psutil
+
+# --- Memory Monitor ---
+ram_gb = psutil.virtual_memory().available / 1e9
+if ram_gb < 4.0:
+    print(f"WARNING: Only {ram_gb:.1f}GB RAM available. High crash risk.")
+    print("Close other applications before continuing.")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from phase1_training.model import CIFARResNet
 from phase1_training.model_vit import CIFARViT
-from phase1_training.model import CIFARResNet
-from phase1_training.model_vit import CIFARViT
 from phase1_training.model_efficientnet import CIFAREfficientNet
-from phase1_training.dataset_vit import get_dataloaders_vit
 from phase1_training.dataset_vit import get_dataloaders_vit
 from utils.metrics import load_adv_batch, accuracy, confidence_from_logits
 
@@ -190,6 +194,27 @@ def main():
         config = yaml.safe_load(f)
         
     epsilons = config['epsilons']
+
+    # --- Pre-flight check: verify all required .npy files exist ---
+    print("Pre-flight check: verifying required data files...")
+    missing_files = []
+    for model_name in ['resnet', 'vit', 'efficientnet']:
+        base_dir = os.path.join(os.path.dirname(__file__), '..', 'phase2_attacks', 'adv_images', model_name)
+        lbl = os.path.join(base_dir, 'labels.npy')
+        if not os.path.exists(lbl):
+            missing_files.append(lbl)
+        for eps in epsilons:
+            eps_str = f"{float(eps):.2f}"
+            img = os.path.join(base_dir, f"pgd_eps{eps_str}_images.npy")
+            if not os.path.exists(img):
+                missing_files.append(img)
+    if missing_files:
+        print("\n❌ ERROR: The following required .npy files are missing:")
+        for f in missing_files:
+            print(f"   - {f}")
+        print("\nRun 'python generate_adv_all_models.py --model <name>' to generate them.")
+        sys.exit(1)
+    print("✓ All required .npy files found.\n")
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     # Load models
