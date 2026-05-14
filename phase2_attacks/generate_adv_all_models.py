@@ -21,16 +21,16 @@ if ram_gb < 4.0:
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'phase1_training'))
 
-from phase1_training.model import CIFARResNet
-from phase1_training.model_vit import CIFARViT
-from phase1_training.model_efficientnet import CIFAREfficientNet
-from phase1_training.dataset import get_dataloaders
-from phase1_training.dataset_vit import get_dataloaders_vit
+# All model imports AFTER sys.path is set
+from model import CIFARResNet
+from model_vit import CIFARViT
+from model_efficientnet import CIFAREfficientNet
+from model_bagnet import CIFARBagNet
+from dataset import get_dataloaders
+from dataset_vit import get_dataloaders_vit
 from fgsm import fgsm_attack
 from pgd import pgd_attack
 from cw import cw_attack
-
-import os
 
 MODELS = {
     'resnet': {
@@ -53,7 +53,14 @@ MODELS = {
         'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'efficientnet'),
         'input_size': 224,
         'loader_fn': get_dataloaders_vit # Uses same resize as ViT
-    }
+    },
+    'bagnet': {
+        'ckpt': os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'bagnet_best.pth'),
+        'class': CIFARBagNet,
+        'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'bagnet'),
+        'input_size': 64,
+        'loader_fn': get_dataloaders
+    },
 }
 
 def generate_for_attack(model, testloader, attack_fn, device, attack_name, save_dir, cifar_min, cifar_max, **attack_kwargs):
@@ -108,7 +115,7 @@ def verify_file(filepath):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['resnet', 'vit', 'efficientnet'], required=True)
+    parser.add_argument('--model', type=str, choices=['resnet', 'vit', 'efficientnet', 'bagnet'], required=True)
     args = parser.parse_args()
 
     cfg = MODELS[args.model]
@@ -131,7 +138,7 @@ def main():
 
     # Load data
     batch_size = 16 if args.model in ['vit', 'efficientnet'] else 32
-    _, testloader = cfg['loader_fn'](batch_size=batch_size, num_workers=2)
+    _, testloader = cfg['loader_fn'](batch_size=batch_size, num_workers=2, model_name=args.model)
     print(f"Using batch size: {batch_size}")
     
     save_dir = cfg['out']
