@@ -13,7 +13,7 @@ from dataset_vit import get_dataloaders_vit
 
 def main():
     parser = argparse.ArgumentParser(description='Evaluate CIFAR-10 Models')
-    parser.add_argument('--model', type=str, default='resnet', choices=['resnet', 'vit'],
+    parser.add_argument('--model', type=str, default='resnet', choices=['resnet', 'vit', 'efficientnet'],
                         help='Model architecture to evaluate (default: resnet)')
     parser.add_argument('--checkpoint', type=str, default=None,
                         help='Path to checkpoint file (default: checkpoints/best.pth or vit_small_best.pth)')
@@ -31,6 +31,11 @@ def main():
         model = CIFARViT().to(device)
         default_checkpoint = 'checkpoints/vit_small_best.pth'
         _, testloader = get_dataloaders_vit(batch_size=64, num_workers=4, data_dir='../data')
+    elif args.model == 'efficientnet':
+        from model_efficientnet import CIFAREfficientNet
+        model = CIFAREfficientNet().to(device)
+        default_checkpoint = 'checkpoints/efficientnet_best.pth'
+        _, testloader = get_dataloaders_vit(batch_size=32, num_workers=4, data_dir='../data')
     
     checkpoint_path = args.checkpoint if args.checkpoint else default_checkpoint
     

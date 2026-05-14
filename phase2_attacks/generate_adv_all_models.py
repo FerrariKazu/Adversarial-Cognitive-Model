@@ -84,7 +84,11 @@ def generate_for_attack(model, testloader, attack_fn, device, attack_name, save_
     start_idx = 0
     for images, labels in pbar:
         images, labels = images.to(device), labels.to(device)
-        adv_images, _ = attack_fn(model, images, labels, device=device, **attack_kwargs)
+        adv_images, _ = attack_fn(
+            model, images, labels, device=device, 
+            clip_min=cifar_min, clip_max=cifar_max,
+            **attack_kwargs
+        )
         
         # Clamp to valid normalized pixel range before saving
         adv_images = torch.max(torch.min(adv_images, cifar_max), cifar_min)
@@ -130,7 +134,7 @@ def main():
     model.eval()
 
     # Load data
-    batch_size = 16 if args.model in ['vit', 'efficientnet'] else 32
+    batch_size = 32 if args.model in ['vit', 'efficientnet'] else 64
     _, testloader = cfg['loader_fn'](batch_size=batch_size, num_workers=2)
     print(f"Using batch size: {batch_size}")
     
@@ -147,18 +151,18 @@ def main():
 
     saved_files = []
 
+    # Save true labels first
     labels_path = os.path.join(save_dir, 'labels.npy')
     if os.path.exists(labels_path):
         print(f"\n⏭ labels.npy already exists — skipping")
         all_labels = np.load(labels_path)
     else:
-        print("\nSaving true labels...")
         all_labels = []
-        for _, labels in testloader:
+        print("\nSaving true labels...")
+        for _, labels in tqdm(testloader, desc="Labels"):
             all_labels.append(labels.numpy())
-        all_labels = np.concatenate(all_labels, axis=0)
-        np.save(labels_path, all_labels)
-        print(f"    ✓ labels.npy saved.")
+        np.save(labels_path, np.concatenate(all_labels))
+        print(f"✓ Labels saved to {labels_path}")
 
     # print(f"\nFGSM Attack Generation")
     # for eps in epsilons:
@@ -168,8 +172,23 @@ def main():
 
     print(f"\nPGD Attack Generation")
     for eps in epsilons:
-        name = f"pgd_eps{eps:.2f}"
-        path = generate_for_attack(model, testloader, pgd_attack, device, name, save_dir, cifar_min, cifar_max, epsilon=eps, alpha=pgd_alpha, steps=pgd_steps)
+        print(f"\nTargeting ε = {eps:.2f}")
+        
+        # PGD with random start is standard, but EfficientNet-B0 at 224x224
+        # is hyper-sensitive to random noise at high epsilon, causing
+        # gradient explosion and accuracy rebounds. Disabling it for
+        # EfficientNet ensures monotonic accuracy decay.
+        use_random = False if args.model == 'efficientnet' else True
+        
+        path = generate_for_attack(
+            model, testloader, pgd_attack, device, 
+            f"pgd_eps{eps:.2f}", save_dir, 
+            cifar_min, cifar_max,
+            epsilon=eps, 
+            alpha=attack_config.get('pgd_alpha', 0.01),
+            steps=attack_config.get('pgd_steps', 20),
+            random_start=use_random
+        )
         saved_files.append(path)
 
     # if args.model != 'vit':
