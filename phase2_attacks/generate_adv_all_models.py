@@ -25,6 +25,7 @@ from phase1_training.model import CIFARResNet
 from phase1_training.model_vit import CIFARViT
 from phase1_training.model_efficientnet import CIFAREfficientNet
 from phase1_training.model_shaperesnet import ShapeResNet
+from phase1_training.model_clip import CIFARClip
 from phase1_training.dataset import get_dataloaders
 from phase1_training.dataset_vit import get_dataloaders_vit
 from fgsm import fgsm_attack
@@ -61,6 +62,13 @@ MODELS = {
         'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'shaperesnet'),
         'input_size': 32,
         'loader_fn': lambda batch_size, num_workers: get_dataloaders(batch_size=batch_size, num_workers=num_workers, model_name='shaperesnet')
+    },
+    'clip': {
+        'class': CIFARClip,
+        'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'clip'),
+        'input_size': 224,
+        'zero_shot': True,
+        'loader_fn': get_dataloaders_vit
     }
 }
 
@@ -120,7 +128,7 @@ def verify_file(filepath):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['resnet', 'vit', 'efficientnet', 'shaperesnet'], required=True)
+    parser.add_argument('--model', type=str, choices=['resnet', 'vit', 'efficientnet', 'shaperesnet', 'clip'], required=True)
     args = parser.parse_args()
 
     cfg = MODELS[args.model]
@@ -133,12 +141,15 @@ def main():
     print(f"Using device: {device}")
 
     # Load model
-    if args.model == 'shaperesnet':
+    if cfg.get('zero_shot', False):
+        print(f"Instantiating {args.model} zero-shot model (no checkpoint required)...")
+        model = cfg['class']().to(device)
+    elif args.model == 'shaperesnet':
         # ShapeResNet uses its default weights path which contains the robust loading logic
         model = cfg['class']().to(device)
     else:
         model = cfg['class']().to(device)
-        if cfg['ckpt'] is not None:
+        if cfg.get('ckpt') is not None:
             model.load_state_dict(torch.load(cfg['ckpt'], map_location=device))
             print(f"Loaded {args.model} checkpoint from: {cfg['ckpt']}")
         else:
