@@ -1,9 +1,7 @@
 __pycache__
 .venv
-*.pth
 *.npy
 data/
-phase1_training/checkpoints/
 phase2_attacks/adv_images/
 phase3_human_study/stimuli/
 phase3_human_study/data/
