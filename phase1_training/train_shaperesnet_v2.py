@@ -64,8 +64,8 @@ def main():
     BATCH_SIZE = 32
     os.makedirs("checkpoints", exist_ok=True)
 
-    model = ShapeResNet(num_classes=10,
-                        weights_path='resnet50_trained_on_SIN.model').to(device)
+    model = ShapeResNet(num_classes=10, 
+                        weights_path='phase1_training/checkpoints/shaperesnet50_best_v2.pth').to(device)
 
     # Freeze all layers except FC for first 5 epochs
     for name, param in model.named_parameters():

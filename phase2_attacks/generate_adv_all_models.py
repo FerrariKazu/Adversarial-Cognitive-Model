@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'phase1_trainin
 from phase1_training.model import CIFARResNet
 from phase1_training.model_vit import CIFARViT
 from phase1_training.model_efficientnet import CIFAREfficientNet
+from phase1_training.model_shaperesnet import ShapeResNet
 from phase1_training.dataset import get_dataloaders
 from phase1_training.dataset_vit import get_dataloaders_vit
 from fgsm import fgsm_attack
@@ -53,6 +54,13 @@ MODELS = {
         'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'efficientnet'),
         'input_size': 224,
         'loader_fn': get_dataloaders_vit # Uses same resize as ViT
+    },
+    'shaperesnet': {
+        'ckpt': None, # Handled internally by ShapeResNet __init__
+        'class': ShapeResNet,
+        'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'shaperesnet'),
+        'input_size': 32,
+        'loader_fn': lambda batch_size, num_workers: get_dataloaders(batch_size=batch_size, num_workers=num_workers, model_name='shaperesnet')
     }
 }
 
@@ -112,7 +120,7 @@ def verify_file(filepath):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['resnet', 'vit', 'efficientnet'], required=True)
+    parser.add_argument('--model', type=str, choices=['resnet', 'vit', 'efficientnet', 'shaperesnet'], required=True)
     args = parser.parse_args()
 
     cfg = MODELS[args.model]
@@ -125,12 +133,16 @@ def main():
     print(f"Using device: {device}")
 
     # Load model
-    model = cfg['class']().to(device)
-    if cfg['ckpt'] is not None:
-        model.load_state_dict(torch.load(cfg['ckpt'], map_location=device))
-        print(f"Loaded {args.model} checkpoint from: {cfg['ckpt']}")
+    if args.model == 'shaperesnet':
+        # ShapeResNet uses its default weights path which contains the robust loading logic
+        model = cfg['class']().to(device)
     else:
-        print(f"Loaded {args.model} with pretrained weights")
+        model = cfg['class']().to(device)
+        if cfg['ckpt'] is not None:
+            model.load_state_dict(torch.load(cfg['ckpt'], map_location=device))
+            print(f"Loaded {args.model} checkpoint from: {cfg['ckpt']}")
+        else:
+            print(f"Loaded {args.model} with pretrained weights")
     model.eval()
 
     # Load data
