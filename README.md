@@ -1,9 +1,8 @@
 # Adversarial Cognition Divergence
 
-**Research Question:** Does adversarial robustness scale with global visual 
-processing — and is it determined by architecture or training objective?
+**Research Question:** What makes vision unbreakable — and do machines have it?
 
-A 5-model + human psychophysics study using CIFAR-10, FGSM/PGD/C&W attacks, 
+A 7-model + human psychophysics study using CIFAR-10, FGSM/PGD/C&W attacks, 
 and Signal Detection Theory analysis.
 
 ## Model Spectrum
@@ -14,26 +13,29 @@ and Signal Detection Theory analysis.
 | EfficientNet-B0 | Compound scaled CNN | Youssef | ✅ Complete (96.81%) |
 | Shape-ResNet-50 | Shape-biased training (SIN) | Sandy | ✅ Complete (91.47%) |
 | BagNet-33 | Pure local patches (33×33) | Eyad | Pending |
+| CORnet-S | Recurrent visual cortex model | Mariam | Pending |
+| CLIP ViT-B/32 | Zero-shot multi-modal contrastive | Mina | Pending |
 
 
 
 ## Team
-- Mina (FerrariKazu) — ResNet, ViT, pipeline architecture, human study
+- Mina (FerrariKazu) — ResNet, ViT, CLIP, pipeline architecture, human study
 - Sandy — Shape-ResNet-50, final report, presentation slides
 - Youssef — EfficientNet-B0
 - Eyad — BagNet-33
+- Mariam — CORnet-S
 
-## Core Analysis Results (4/5 Models)
+## Core Analysis Results (4/7 Models)
 
 ### PGD Accuracy Collapse
-| Epsilon | ResNet-18 | ViT-Small | EfficientNet-B0 | ShapeResNet |
-|:---:|:---:|:---:|:---:|:---:|
-| 0.00 | 95.82% | 97.80% | 96.81% | 91.47% |
-| 0.01 | 75.57% | 55.17% | 1.14% | 18.11% |
-| 0.05 | 2.84% | 8.80% | 0.00% | 0.01% |
-| 0.10 | 0.20% | 2.78% | 0.00% | 0.00% |
-| 0.20 | 0.02% | 1.12% | 3.62% | 0.00% |
-| 0.30 | 0.00% | 0.58% | 16.49% | 0.00% |
+| Epsilon | ResNet-18 | ViT-Small | EfficientNet-B0 | ShapeResNet | Human |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 95.82% | 97.80% | 96.81% | 91.47% | 74.25% |
+| 0.01 | 75.57% | 55.17% | 1.14% | 18.11% | N/A |
+| 0.05 | 2.84% | 8.80% | 0.00% | 0.01% | 69.00% |
+| 0.10 | 0.20% | 2.78% | 0.00% | 0.00% | 59.25% |
+| 0.20 | 0.02% | 1.12% | 3.62% | 0.00% | 64.25% |
+| 0.30 | 0.00% | 0.58% | 16.49% | 0.00% | 60.25% |
 
 ### Signal Detection Summary ($d'$)
 | Epsilon | ResNet $d'$ | ViT $d'$ | EffNet $d'$ | Human $d'$ |
@@ -63,11 +65,11 @@ python3 phase2_attacks/eval_quick.py
 ## Project Phases
 | Phase | Description | Status |
 |-------|-------------|--------|
-| Phase 1 | Model training (all 5) | 3/5 Complete |
-| Phase 2 | Adversarial attack generation | 3/5 Complete |
+| Phase 1 | Model training (all 7) | 4/7 Complete |
+| Phase 2 | Adversarial attack generation | 4/7 Complete |
 | Phase 3 | Human psychophysics study | ✅ Complete (21 participants) |
-| Phase 4 | 5-model divergence analysis | 3/5 Complete |
-| Phase 5 | Signal Detection Theory (SDT) | 3/5 Complete |
+| Phase 4 | 7-model divergence analysis | 4/7 Complete |
+| Phase 5 | Signal Detection Theory (SDT) | 4/7 Complete |
 
 ## Repository Structure
 ```text
