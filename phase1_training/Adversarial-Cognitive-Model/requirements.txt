@@ -1,0 +1,17 @@
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch
+torchvision
+torchaudio
+torchattacks==3.5.1
+grad-cam
+numpy
+scipy
+pandas
+matplotlib
+seaborn
+scikit-learn
+tqdm
+tensorboard
+Pillow
+openpyxl
+PyYAML
