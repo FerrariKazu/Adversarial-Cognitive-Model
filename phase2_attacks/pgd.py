@@ -59,24 +59,22 @@ import torch
 import torch.nn as nn
 
 
-def pgd_attack(model, images, labels, epsilon, alpha, steps, device):
+def pgd_attack(model, images, labels, epsilon, alpha, steps, device, clip_min=None, clip_max=None, random_start=True):
     """
     Perform a multi-step PGD attack with random initialization.
 
     Parameters
     ----------
-    model   : nn.Module    — Target classifier (eval mode).
-    images  : Tensor       — Clean images [B, 3, 32, 32], normalized.
-    labels  : Tensor       — True labels [B].
-    epsilon : float        — Maximum L∞ perturbation budget (normalized space).
-    alpha   : float        — Step size per iteration (typically ε/4 or 2.5*ε/steps).
-    steps   : int          — Number of PGD iterations (20 is standard).
-    device  : torch.device — 'cuda' or 'cpu'.
-
-    Returns
-    -------
-    adv_images : Tensor — Adversarial images.
-    adv_preds  : Tensor — Model predictions on adversarial images.
+    model    : nn.Module    — Target classifier (eval mode).
+    images   : Tensor       — Clean images [B, 3, 32, 32], normalized.
+    labels   : Tensor       — True labels [B].
+    epsilon  : float        — Maximum L∞ perturbation budget (normalized space).
+    alpha    : float        — Step size per iteration.
+    steps    : int          — Number of PGD iterations.
+    device   : torch.device — 'cuda' or 'cpu'.
+    clip_min : Tensor       — Optional minimum clipping bounds [1, 3, 1, 1].
+    clip_max : Tensor       — Optional maximum clipping bounds [1, 3, 1, 1].
+    random_start : bool      — Whether to add random noise before starting.
     """
     images = images.to(device)
     labels = labels.to(device)
@@ -87,58 +85,33 @@ def pgd_attack(model, images, labels, epsilon, alpha, steps, device):
             preds = outputs.argmax(dim=1)
         return images, preds
 
-    # -------------------------------------------------------------------------
-    # Step 1: Random initialization within the ε-ball
-    # -------------------------------------------------------------------------
-    # 1. WHAT: Start from x + uniform(-ε, ε) instead of x itself.
-    # 2. WHY: Random start prevents PGD from getting stuck in the same local
-    #         region every time. It's the key difference that makes PGD strictly
-    #         stronger than FGSM. Multiple random restarts can find even
-    #         stronger attacks, but one restart is standard for efficiency.
-    # 3. OBSERVE: adv_images starts as a noisy version of the clean input.
-    # -------------------------------------------------------------------------
     adv_images = images.clone().detach()
-    adv_images = adv_images + torch.empty_like(adv_images).uniform_(-epsilon, epsilon)
+    if random_start:
+        adv_images = adv_images + torch.empty_like(adv_images).uniform_(-epsilon, epsilon)
+    
+    # Initial clipping
+    if clip_min is not None and clip_max is not None:
+        adv_images = torch.max(torch.min(adv_images, clip_max), clip_min)
+    
     adv_images = adv_images.detach()
 
     for i in range(steps):
-        # ---------------------------------------------------------------------
-        # Step 2: Compute gradient (same as FGSM's core step)
-        # ---------------------------------------------------------------------
         adv_images.requires_grad_(True)
         outputs = model(adv_images)
         loss = nn.CrossEntropyLoss()(outputs, labels)
         model.zero_grad()
         loss.backward()
 
-        # ---------------------------------------------------------------------
-        # Step 3: Take a small step in the sign-of-gradient direction
-        # ---------------------------------------------------------------------
-        # 1. WHAT: x_t+1 = x_t + α · sign(∇_x J)
-        # 2. WHY: α is much smaller than ε (typically ε/4). This small step
-        #         size lets PGD navigate the loss landscape carefully, finding
-        #         better adversarial examples than FGSM's single large step.
-        # 3. OBSERVE: Each iteration slightly refines the perturbation.
-        # ---------------------------------------------------------------------
         adv_images = adv_images.detach() + alpha * adv_images.grad.sign()
 
-        # ---------------------------------------------------------------------
-        # Step 4: Project back onto the ε-ball (THE PROJECTION STEP)
-        # ---------------------------------------------------------------------
-        # 1. WHAT: Clamp the perturbation δ = (adv - original) to [-ε, +ε].
-        # 2. WHY: Without projection, iterative steps could accumulate a total
-        #         perturbation much larger than ε. The projection ensures we
-        #         stay within the threat model — the attacker's "budget".
-        #         Geometrically, this is projecting onto the L∞ ball centered
-        #         at the original image.
-        # 3. OBSERVE: After this, max(|adv_pixel - clean_pixel|) ≤ ε always.
-        # ---------------------------------------------------------------------
+        # Project back onto the ε-ball
         delta = torch.clamp(adv_images - images, min=-epsilon, max=epsilon)
         adv_images = (images + delta).detach()
 
-    # -------------------------------------------------------------------------
-    # Step 5: Get predictions on the final adversarial images
-    # -------------------------------------------------------------------------
+        # NEW: Clamp to valid normalized pixel range inside the loop
+        if clip_min is not None and clip_max is not None:
+            adv_images = torch.max(torch.min(adv_images, clip_max), clip_min)
+
     with torch.no_grad():
         adv_outputs = model(adv_images)
         adv_preds = adv_outputs.argmax(dim=1)
