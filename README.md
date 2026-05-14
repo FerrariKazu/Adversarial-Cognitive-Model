@@ -12,7 +12,7 @@ and Signal Detection Theory analysis.
 | ResNet-18 | Local CNN, texture-biased | Mina | ✅ Complete (95.82%) |
 | ViT-Small | Global patch attention | Mina | ✅ Complete (97.80%) |
 | EfficientNet-B0 | Compound scaled CNN | Youssef | ✅ Complete (96.81%) |
-| Shape-ResNet-50 | Shape-biased training (SIN) | Sandy | Pending |
+| Shape-ResNet-50 | Shape-biased training (SIN) | Sandy | ✅ Complete (91.47%) |
 | BagNet-33 | Pure local patches (33×33) | Eyad | Pending |
 
 
@@ -23,17 +23,17 @@ and Signal Detection Theory analysis.
 - Youssef — EfficientNet-B0
 - Eyad — BagNet-33
 
-## Core Analysis Results (3/5 Models)
+## Core Analysis Results (4/5 Models)
 
 ### PGD Accuracy Collapse
-| Epsilon | ResNet-18 | ViT-Small | EfficientNet-B0 |
-|:---:|:---:|:---:|:---:|
-| 0.00 | 95.82% | 97.80% | 96.81% |
-| 0.01 | 75.57% | 55.17% | 1.14% |
-| 0.05 | 2.84% | 8.80% | 0.00% |
-| 0.10 | 0.20% | 2.78% | 0.00% |
-| 0.20 | 0.02% | 1.12% | 3.62% |
-| 0.30 | 0.00% | 0.58% | 16.49% |
+| Epsilon | ResNet-18 | ViT-Small | EfficientNet-B0 | ShapeResNet |
+|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 95.82% | 97.80% | 96.81% | 91.47% |
+| 0.01 | 75.57% | 55.17% | 1.14% | 18.11% |
+| 0.05 | 2.84% | 8.80% | 0.00% | 0.01% |
+| 0.10 | 0.20% | 2.78% | 0.00% | 0.00% |
+| 0.20 | 0.02% | 1.12% | 3.62% | 0.00% |
+| 0.30 | 0.00% | 0.58% | 16.49% | 0.00% |
 
 ### Signal Detection Summary ($d'$)
 | Epsilon | ResNet $d'$ | ViT $d'$ | EffNet $d'$ | Human $d'$ |
