@@ -25,6 +25,7 @@ from phase1_training.model import CIFARResNet
 from phase1_training.model_vit import CIFARViT
 from phase1_training.model_efficientnet import CIFAREfficientNet
 from phase1_training.model_shaperesnet import ShapeResNet
+from phase1_training.model_cornets import CIFARCORnet
 from phase1_training.dataset import get_dataloaders
 from phase1_training.dataset_vit import get_dataloaders_vit
 from fgsm import fgsm_attack
@@ -61,6 +62,13 @@ MODELS = {
         'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'shaperesnet'),
         'input_size': 32,
         'loader_fn': lambda batch_size, num_workers: get_dataloaders(batch_size=batch_size, num_workers=num_workers, model_name='shaperesnet')
+    },
+    'cornets': {
+        'ckpt': os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'cornets_best.pth'),
+        'class': CIFARCORnet,
+        'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'cornets'),
+        'input_size': 224,
+        'loader_fn': get_dataloaders_vit
     }
 }
 
@@ -120,7 +128,7 @@ def verify_file(filepath):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['resnet', 'vit', 'efficientnet', 'shaperesnet'], required=True)
+    parser.add_argument('--model', type=str, choices=['resnet', 'vit', 'efficientnet', 'shaperesnet', 'cornets'], required=True)
     args = parser.parse_args()
 
     cfg = MODELS[args.model]
