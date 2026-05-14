@@ -7,15 +7,28 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'phase1_trainin
 from model import CIFARResNet
 from model_vit import CIFARViT
 from model_efficientnet import CIFAREfficientNet
+from model_shaperesnet import ShapeResNet
 
 def evaluate_model(model_name, dir_name, model_class, ckpt_path, device, epsilons):
     print(f"\nEvaluating {model_name}...")
-    model = model_class().to(device)
-    if ckpt_path:
-        model.load_state_dict(torch.load(ckpt_path, map_location=device))
+    
+    if model_class == ShapeResNet:
+        # ShapeResNet handles its own specialized loading logic in __init__
+        model = model_class(num_classes=10, weights_path=ckpt_path).to(device)
+    else:
+        model = model_class().to(device)
+        if ckpt_path and os.path.exists(ckpt_path):
+            model.load_state_dict(torch.load(ckpt_path, map_location=device))
+        else:
+            print(f"  Warning: Checkpoint NOT found at {ckpt_path}")
+    
     model.eval()
 
     labels_path = os.path.join(os.path.dirname(__file__), 'adv_images', dir_name, 'labels.npy')
+    if not os.path.exists(labels_path):
+        print(f"  Error: Labels not found at {labels_path}")
+        return [float('nan')] * len(epsilons)
+        
     labels = np.load(labels_path)
     labels_tensor = torch.tensor(labels, device=device)
     
@@ -24,6 +37,11 @@ def evaluate_model(model_name, dir_name, model_class, ckpt_path, device, epsilon
     for eps in epsilons:
         images_path = os.path.join(os.path.dirname(__file__), 'adv_images', dir_name, f"pgd_eps{eps:.2f}_images.npy")
         
+        if not os.path.exists(images_path):
+            print(f"  Missing images for eps {eps:.2f}")
+            accuracies.append(float('nan'))
+            continue
+
         # Memory-safe loading
         adv_images_np = np.load(images_path, mmap_mode='r')
         
@@ -40,7 +58,6 @@ def evaluate_model(model_name, dir_name, model_class, ckpt_path, device, epsilon
                 preds = outputs.argmax(dim=1)
                 correct += (preds == batch_labels).sum().item()
                 
-                # Explicit deletion for memory safety
                 del batch_images
                 del batch_labels
                 del outputs
@@ -62,9 +79,10 @@ def main():
     epsilons = [0.00, 0.01, 0.05, 0.10, 0.20, 0.30]
     
     models_to_eval = [
-        ('ResNet-18', 'resnet', CIFARResNet, os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'best.pth')),
-        ('ViT-Small', 'vit', CIFARViT, os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'vit_small_best.pth')),
-        ('EfficientNet', 'efficientnet', CIFAREfficientNet, os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'efficientnet_best.pth'))
+        # ('ResNet-18', 'resnet', CIFARResNet, os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'best.pth')),
+        # ('ViT-Small', 'vit', CIFARViT, os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'vit_small_best.pth')),
+        # ('EfficientNet', 'efficientnet', CIFAREfficientNet, os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'efficientnet_best.pth')),
+        ('ShapeResNet', 'shaperesnet', ShapeResNet, os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'shaperesnet50_best_v2.pth'))
     ]
     
     results = {}
@@ -72,22 +90,27 @@ def main():
         try:
             accs = evaluate_model(name, dir_name, mclass, ckpt, device, epsilons)
             results[name] = accs
-        except FileNotFoundError as e:
-            print(f"Skipping {name} due to missing files: {e}")
+        except Exception as e:
+            print(f"Skipping {name} due to error: {e}")
             results[name] = [float('nan')] * len(epsilons)
             
-    # Print the requested table
-    print("\n" + "=" * 60)
-    print("PGD ACCURACY COLLAPSE COMPARISON (3 MODELS)")
-    print("=" * 60)
-    print(f"{'Epsilon':<10} | {'ResNet-18':<12} | {'ViT-Small':<12} | {'EfficientNet-B0':<15}")
-    print("-" * 60)
+    # Print the requested table dynamically
+    print("\n" + "=" * 75)
+    print("PGD ACCURACY COLLAPSE COMPARISON")
+    print("=" * 75)
+    
+    header = f"{'Epsilon':<10}"
+    for name, _, _, _ in models_to_eval:
+        header += f" | {name:<12}"
+    print(header)
+    print("-" * len(header))
     
     for i, eps in enumerate(epsilons):
-        r_acc = results['ResNet-18'][i]
-        v_acc = results['ViT-Small'][i]
-        e_acc = results['EfficientNet'][i]
-        print(f"{eps:<10.2f} | {r_acc:<12.2f} | {v_acc:<12.2f} | {e_acc:<15.2f}")
+        row = f"{eps:<10.2f}"
+        for name, _, _, _ in models_to_eval:
+            acc = results.get(name, [float('nan')]*len(epsilons))[i]
+            row += f" | {acc:<12.2f}"
+        print(row)
 
 if __name__ == '__main__':
     main()

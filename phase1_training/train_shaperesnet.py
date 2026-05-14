@@ -67,8 +67,8 @@ def main():
     os.makedirs("checkpoints", exist_ok=True)
 
     # Model
-    model = ShapeResNet(num_classes=10,
-                        weights_path='resnet50_trained_on_SIN.model').to(device)
+    model = ShapeResNet(num_classes=10, 
+                        weights_path='phase1_training/checkpoints/shaperesnet50_best_v2.pth').to(device)
 
     # Only fine-tune FC layer first, then unfreeze all
     for name, param in model.named_parameters():
