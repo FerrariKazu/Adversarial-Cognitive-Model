@@ -36,7 +36,8 @@ def main():
     args = parser.parse_args()
 
     # Load Configuration
-    with open('../config/train_config.yaml', 'r') as f:
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'train_config.yaml')
+    with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     
     set_seed(config['seed'])
@@ -84,8 +85,11 @@ def main():
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config['epochs'])
     
     # TensorBoard setup
-    writer = SummaryWriter('../runs/phase1_training')
-    os.makedirs('checkpoints', exist_ok=True)
+    log_dir = os.path.join(os.path.dirname(__file__), '..', 'runs', 'phase1_training')
+    writer = SummaryWriter(log_dir)
+    
+    ckpt_dir = os.path.join(os.path.dirname(__file__), 'checkpoints')
+    os.makedirs(ckpt_dir, exist_ok=True)
     
     best_acc = 0.0
     
@@ -154,7 +158,8 @@ def main():
         # 3. OBSERVE: Will create/overwrite `checkpoints/best.pth`.
         # ---------------------------------------------------------------------
         if test_acc > best_acc:
-            torch.save(model.state_dict(), f'checkpoints/{args.model}_best.pth')
+            save_path = os.path.join(ckpt_dir, f'{args.model}_best.pth')
+            torch.save(model.state_dict(), save_path)
             best_acc = test_acc
             
         scheduler.step()

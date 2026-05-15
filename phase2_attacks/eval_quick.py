@@ -19,10 +19,13 @@ def evaluate_model(model_name, cfg, device, epsilons):
     ckpt_path = cfg.get('ckpt')
     
     if mclass.__name__ == 'ShapeResNet':
+        print(f"  Debug: Instantiating {mclass.__name__}")
+        print(f"  Debug: Targeted checkpoint: {ckpt_path}")
         # ShapeResNet handles its own specialized loading logic in __init__
         model = mclass(num_classes=10, weights_path=ckpt_path).to(device)
     else:
         model = mclass().to(device)
+        print(f"  Debug: Instantiating {mclass.__name__}")
         if cfg.get('zero_shot'):
             print(f"  Using zero-shot model.")
         elif ckpt_path and os.path.exists(ckpt_path):
@@ -32,13 +35,20 @@ def evaluate_model(model_name, cfg, device, epsilons):
             print(f"  Warning: Checkpoint NOT found at {ckpt_path}")
     
     model.eval()
+    print(f"  Debug: model.eval() called: {not model.training}")
 
     save_dir = cfg['out']
     labels_path = os.path.join(save_dir, 'labels.npy')
     
     if not os.path.exists(labels_path):
-        print(f"  Error: Labels not found at {labels_path}")
+        error_msg = f"ERROR: BagNet analysis files (labels.npy) MISSING in {save_dir}. " \
+                    f"Please run: python3 phase2_attacks/generate_adv_all_models.py --model bagnet"
+        print(f"  {error_msg}")
         return [float('nan')] * len(epsilons)
+    
+    if ckpt_path and not os.path.exists(ckpt_path):
+        print(f"  WARNING: BagNet checkpoint MISSING at {ckpt_path}. Accuracy will be random (~10%).")
+        print(f"  Fix: python3 phase1_training/train.py --model bagnet")
         
     labels = np.load(labels_path)
     labels_tensor = torch.tensor(labels, device=device)
@@ -67,7 +77,11 @@ def evaluate_model(model_name, cfg, device, epsilons):
                 
                 outputs = model(batch_images)
                 preds = outputs.argmax(dim=1)
-                correct += (preds == batch_labels).sum().item()
+                batch_correct = (preds == batch_labels).sum().item()
+                correct += batch_correct
+                
+                if i == 0:
+                    print(f"  Debug: First batch accuracy: {100.0 * batch_correct / batch_images.size(0):.2f}%")
                 
                 del batch_images
                 del batch_labels
