@@ -5,3 +5,12 @@ momentum: 0.9
 weight_decay: 5.0e-04
 num_workers: 4
 seed: 42
+
+models:
+  resnet:       { epochs: 50, lr: 0.01,   optimizer: SGD,  scheduler: CosineAnnealingLR }
+  efficientnet: { epochs: 50, lr: 0.01,   optimizer: SGD,  scheduler: CosineAnnealingLR }
+  vit:          { epochs: 50, lr: 0.001,  optimizer: AdamW, scheduler: CosineAnnealingLR }
+  shaperesnet:  { epochs: 30, lr: 0.001,  optimizer: SGD,  scheduler: CosineAnnealingLR }
+  cornets:      { epochs: 50, lr: 0.0001, optimizer: AdamW, scheduler: CosineAnnealingLR }
+  bagnet:       { epochs: 50, lr: 0.01,   optimizer: SGD,  scheduler: CosineAnnealingLR }
+  clip:         { note: "zero-shot — no training required" }
