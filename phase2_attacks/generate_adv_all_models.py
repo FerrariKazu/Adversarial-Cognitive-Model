@@ -57,11 +57,11 @@ MODELS = {
         'loader_fn': get_dataloaders_vit # Uses same resize as ViT
     },
     'shaperesnet': {
-        'ckpt': None, # Handled internally by ShapeResNet __init__
+        'ckpt': os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'shaperesnet50_best_v2.pth'),
         'class': ShapeResNet,
         'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'shaperesnet'),
-        'input_size': 32,
-        'loader_fn': lambda batch_size, num_workers: get_dataloaders(batch_size=batch_size, num_workers=num_workers, model_name='shaperesnet')
+        'input_size': 224,
+        'loader_fn': get_dataloaders_vit
     },
     'cornets': {
         'ckpt': os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'cornets_best.pth'),
@@ -154,26 +154,48 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
-    # Load model
+    # 1. Save true labels first (so analysis scripts have them even if generation fails)
+    save_dir = cfg['out']
+    os.makedirs(save_dir, exist_ok=True)
+    labels_path = os.path.join(save_dir, 'labels.npy')
+    
+    if os.path.exists(labels_path):
+        print(f"\n⏭ labels.npy already exists — skipping")
+    else:
+        # Load data for labels
+        batch_size = 32 if args.model in ['vit', 'efficientnet'] else 64
+        _, testloader = cfg['loader_fn'](batch_size=batch_size, num_workers=2, model_name=args.model)
+        
+        all_labels = []
+        print("\nSaving true labels...")
+        for _, labels in tqdm(testloader, desc="Labels"):
+            all_labels.append(labels.numpy())
+        np.save(labels_path, np.concatenate(all_labels))
+        print(f"✓ Labels saved to {labels_path}")
+
+    # 2. Load model
     if cfg.get('zero_shot'):
         print(f"Instantiating {args.model} zero-shot model (no checkpoint required)...")
         model = cfg['class']().to(device)
     else:
+        ckpt_path = cfg.get('ckpt')
+        if ckpt_path is None or not os.path.exists(ckpt_path):
+            error_msg = f"CRITICAL ERROR: Checkpoint for {args.model} NOT FOUND at {ckpt_path}. " \
+                        f"Cannot generate valid adversarial images. Please train the model first using " \
+                        f"python3 phase1_training/train.py --model {args.model}"
+            print(f"\n{'!'*len(error_msg)}\n{error_msg}\n{'!'*len(error_msg)}\n")
+            sys.exit(1)
+            
         model = cfg['class']().to(device)
-        if cfg.get('ckpt') is not None:
-            model.load_state_dict(torch.load(cfg['ckpt'], map_location=device))
-            print(f"Loaded {args.model} checkpoint from: {cfg['ckpt']}")
-        else:
-            print(f"Loaded {args.model} with pretrained weights")
+        model.load_state_dict(torch.load(ckpt_path, map_location=device))
+        print(f"Loaded {args.model} checkpoint from: {ckpt_path}")
+        
     model.eval()
 
-    # Load data
+    # Load data for attack
     batch_size = 32 if args.model in ['vit', 'efficientnet'] else 64
     _, testloader = cfg['loader_fn'](batch_size=batch_size, num_workers=2, model_name=args.model)
     print(f"Using batch size: {batch_size}")
-    
-    save_dir = cfg['out']
-    os.makedirs(save_dir, exist_ok=True)
 
     epsilons = attack_config['epsilons']
     pgd_steps = attack_config.get('pgd_steps', 20)
@@ -185,18 +207,8 @@ def main():
 
     saved_files = []
 
-    # Save true labels first
-    labels_path = os.path.join(save_dir, 'labels.npy')
-    if os.path.exists(labels_path):
-        print(f"\n⏭ labels.npy already exists — skipping")
-        all_labels = np.load(labels_path)
-    else:
-        all_labels = []
-        print("\nSaving true labels...")
-        for _, labels in tqdm(testloader, desc="Labels"):
-            all_labels.append(labels.numpy())
-        np.save(labels_path, np.concatenate(all_labels))
-        print(f"✓ Labels saved to {labels_path}")
+    # (Labels saved in step 1)
+    saved_files = []
 
     # print(f"\nFGSM Attack Generation")
     # for eps in epsilons:
