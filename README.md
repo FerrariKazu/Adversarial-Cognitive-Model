@@ -1,125 +1,118 @@
-# Adversarial Cognition Divergence — v4.0
+# Adversarial Cognition Divergence
+**A 7-model + human psychophysics study of adversarial robustness**
 
-**Research Question:** What makes vision unbreakable — and do machines have it?
+> Does adversarial robustness scale with global visual processing —
+> and is it determined by architecture, training objective, or recurrence?
 
-*Is the robustness of human vision a matter of architecture, training, memory,
-or meaning, and can a machine ever have it?*
+## Key Findings (Partial — 5/7 Models Complete)
 
-A 7-model + human psychophysics study using CIFAR-10, FGSM/PGD/C&W attacks,
-and Signal Detection Theory analysis.
+| System | Clean Acc | PGD 50% Threshold | d′=1.0 Threshold | Status |
+|--------|-----------|-------------------|-------------------|--------|
+| Human | 74.15% | >0.30 | >0.30 | ✅ Complete |
+| ResNet-18 | 95.82% | ε≈0.024 | ε≈0.030 | ✅ Complete |
+| ViT-Small | 97.80% | ε≈0.014 | ε≈0.026 | ✅ Complete |
+| BagNet-33 | 87.67% | ε≈0.010 | ε≈0.017 | ✅ Complete |
+| Shape-ResNet-50 | 91.47% | ε≈0.006 | ε≈0.008 | ✅ Complete |
+| EfficientNet-B0 | 96.81% | ε≈0.005 | ε≈0.006 | ✅ Complete |
+| CORnet-S | — | — | — | 🔄 Pending |
+| CLIP ViT-B/32 | — | — | — | 🔄 Pending |
 
-**Deadline: Sunday May 17, 2026**
+**Headline:** All AI models collapse before ε=0.03. Humans never cross the d′=1.0 threshold up to ε=0.30.
+
+**Counterintuitive finding:** EfficientNet-B0 (96.81% clean) is the most fragile model. ResNet-18 (95.82% clean) is the most robust. Shape-biased training did not improve robustness over standard ResNet.
 
 ## Model Spectrum
-
-```
-BagNet-33 → ResNet-18 → EfficientNet-B0 → Shape-ResNet-50 → CORnet-S → ViT-Small → CLIP ViT-B/32 → Human
-(local)                                                     (recurrent)  (global)    (language)       (biological)
-```
-
-| Model | Processing Style | Owner | Status |
-|-------|------------------|-------|--------|
-| BagNet-33 | Pure local patches (33×33) | Eyad | 🔲 Pending |
-| ResNet-18 | Local CNN, texture-biased | Mina | ✅ Complete (95.82%) |
-| EfficientNet-B0 | Compound scaled CNN | Mina | ✅ Complete (96.81%) |
-| Shape-ResNet-50 | Shape-biased training (SIN) | Sandy | ✅ Complete (91.47%) |
-| CORnet-S | Recurrent visual cortex (V1→V2→V4→IT) | Youssef + Eyad | 🔲 Pending |
-| ViT-Small | Global patch attention | Mina | ✅ Complete (97.80%) |
-| CLIP ViT-B/32 | Zero-shot vision-language contrastive | Mariam | 🔲 Pending |
-
-## Scientific Hypotheses
-
-This study tests three core hypotheses about the source of adversarial robustness:
-
-1. **Training objective** — Shape-ResNet vs ResNet-18: does training on stylized images (shape bias) improve robustness over standard texture-biased training?
-2. **Biological recurrence** — CORnet-S vs feedforward CNNs: does recurrent feedback processing (as in the primate ventral stream) provide structural defense?
-3. **Language grounding** — CLIP vs ViT: does contrastive vision-language pretraining produce more semantically robust representations than pure visual supervision?
+| Model | Processing Style | Owner | Branch |
+|-------|-----------------|-------|--------|
+| BagNet-33 | Pure local patches (33×33) | Eyad | phase/1-bagnet |
+| ResNet-18 | Local CNN, texture-biased | Mina | phase/1-resnet |
+| EfficientNet-B0 | Compound scaled CNN (BIM attack) | Mina | phase/1-efficientnet |
+| Shape-ResNet-50 | Shape-biased SIN training | Sandy | phase/1-shaperesnet |
+| ViT-Small | Global patch attention | Mina | phase/1-vit |
+| CORnet-S | Recurrent visual cortex model | Youssef + Eyad | phase/1-cornet |
+| CLIP ViT-B/32 | Vision-language contrastive | Mariam | phase/1-clip |
+| Human | Biological vision (n=18) | All | — |
 
 ## Team
-
-- **Mina** (FerrariKazu) — ResNet + EfficientNet + ViT + full pipeline + human study + Phase 4 + Phase 5
-- **Sandy** — Shape-ResNet-50 + final report + presentation slides
-- **Youssef + Eyad** — CORnet-S
-- **Eyad** — BagNet-33 + texture analysis
+- **Mina (FerrariKazu)** — ResNet ✅, ViT ✅, EfficientNet ✅, pipeline, human study, Phase 4+5
+- **Sandy** — Shape-ResNet ✅, final report, slides
+- **Eyad** — BagNet ✅, CORnet-S (co-owner)
+- **Youssef** — CORnet-S (co-owner)
 - **Mariam** — CLIP ViT-B/32
 
-## Core Analysis Results (4/7 Models)
-
-### PGD Accuracy Collapse
-| Epsilon | ResNet-18 | ViT-Small | EfficientNet-B0 | ShapeResNet | Human |
-|:---:|:---:|:---:|:---:|:---:|:---:|
-| 0.00 | 95.82% | 97.80% | 96.81% | 91.47% | 74.25% |
-| 0.01 | 75.57% | 55.17% | 1.14% | 18.11% | N/A |
-| 0.05 | 2.84% | 8.80% | 0.00% | 0.01% | 69.00% |
-| 0.10 | 0.20% | 2.78% | 0.00% | 0.00% | 59.25% |
-| 0.20 | 0.02% | 1.12% | 3.62% | 0.00% | 64.25% |
-| 0.30 | 0.00% | 0.58% | 16.49% | 0.00% | 60.25% |
-
-*Note: EfficientNet uses BIM (PGD without random start) due to gradient explosion at 224×224. It collapses to 0.93% at ε=0.01.*
-
-### Signal Detection Summary ($d'$)
-| Epsilon | ResNet $d'$ | ViT $d'$ | EffNet $d'$ | Human $d'$ |
-|:---:|:---:|:---:|:---:|:---:|
-| 0.00 | 4.426 | 4.931 | 4.642 | 2.694 |
-| 0.01 | 2.345 | 1.120 | -1.142 | 2.650 |
-| 0.05 | -0.771 | -0.154 | -1.879 | 2.544 |
-| 0.10 | -1.707 | -0.909 | -1.526 | 2.071 |
-
-**Headline Finding:** At $\epsilon=0.05$, all CNN models drop below the perceptual threshold ($d' < 1.0$), while human observers maintain high sensitivity. EfficientNet exhibits the most extreme collapse at low epsilon, while ViT shows a slight robustness advantage over ResNet at $\epsilon=0.05$.
-
-## Environment Setup
+## Setup
 ```bash
 git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git
 cd Adversarial-Cognitive-Model
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
-# Additional model-specific installs:
-pip install git+https://github.com/dicarlolab/CORnet.git    # CORnet-S
-pip install git+https://github.com/openai/CLIP.git           # CLIP ViT-B/32
 ```
 
-## Running Evaluation
+## Reproduce Results
+# Phase 2: Generate adversarial arrays (memory-safe, one model at a time)
 ```bash
-python3 phase2_attacks/eval_quick.py
+python phase2_attacks/generate_adv_all_models.py --model [resnet|vit|efficientnet|shaperesnet|bagnet]
 ```
-*Note: All analysis scripts enforce a maximum batch size of 64 and periodic cache clearing to fit within 8GB VRAM.*
 
-## Project Phases
-| Phase | Description | Status |
-|-------|-------------|--------|
-| Phase 1 | Model training (all 7) | 4/7 Complete |
-| Phase 2 | Adversarial attack generation | 4/7 Complete |
-| Phase 3 | Human psychophysics study | ✅ Complete (21 participants) |
-| Phase 4 | 7-model divergence analysis | 4/7 Complete |
-| Phase 5 | Signal Detection Theory (SDT) | 4/7 Complete |
+# Phase 4: Run all analysis
+```bash
+python phase4_analysis/generate_all_figures.py
+```
 
-## Active Branches
-| Branch | Owner | Purpose |
-|--------|-------|---------|
-| `main` | Mina | Stable release |
-| `phase/1-cornets` | Youssef + Eyad | CORnet-S model + training |
-| `phase/1-clip` | Mariam | CLIP ViT-B/32 zero-shot wrapper |
-| `phase/1-bagnet` | Eyad | BagNet-33 model + training |
+# Phase 5: SDT analysis
+```bash
+python phase5_sdt/sdt_analysis.py
+```
+
+## Human Study
+n=18 participants, 1,800 trials, 5 epsilon blocks.
+Data: `phase3_human_study/data/responses_mapped.csv`
+Mapping: `phase3_human_study/manifest.csv`
 
 ## Repository Structure
 ```text
 .
 ├── config/                 # Attack and training configuration (YAML)
 ├── phase1_training/        # Model architectures and training scripts
-├── phase2_attacks/         # FGSM/PGD attack generation and eval
-├── phase3_human_study/     # Human baseline data and stimuli export
-├── phase4_analysis/        # Divergence curves and heatmaps
-├── phase5_sdt/             # Signal Detection Theory calculation
-└── utils/                  # Metrics and logging utilities
+│   ├── model.py            # Modified ResNet-18 for CIFAR
+│   ├── model_vit.py        # ViT-Small architecture
+│   ├── model_efficientnet.py
+│   ├── model_shaperesnet.py
+│   ├── model_bagnet.py
+│   └── train.py            # Standard training loop
+├── phase2_attacks/         # FGSM/PGD attack generation
+│   ├── generate_adv_all_models.py
+│   ├── pgd.py              # Multi-step PGD implementation
+│   └── fgsm.py             # Single-step FGSM
+├── phase3_human_study/     # Human behavioral data
+│   ├── data/               # Mapped human responses
+│   └── stimuli/            # Exported adversarial stimuli
+├── phase4_analysis/        # Interpretability & Divergence
+│   ├── figures/            # All generated plots and heatmaps
+│   ├── divergence_curves.py
+│   ├── confidence_curves.py
+│   ├── confusion_matrices.py
+│   ├── latent_space_embeddings.py
+│   ├── vit_attention_maps.py
+│   └── perturbation_visuals.py
+├── phase5_sdt/             # Signal Detection Theory (SDT)
+│   ├── sdt_analysis.py     # Main d' and criterion calculation
+│   └── sdt_core.py         # SDT mathematical primitives
+└── utils/                  # Shared metrics and logging
 ```
 
 ## References
-1. Brendel, W., & Bethge, M. (2019). Approximating CNNs with Bag-of-local-Features models works surprisingly well on ImageNet.
-2. Geirhos, R. et al. (2019). ImageNet-trained CNNs are biased towards texture.
-3. Goodfellow, I. J., Shlens, J., & Szegedy, C. (2015). Explaining and harnessing adversarial examples.
-4. Tan, M., & Le, Q. V. (2019). EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks.
-5. Dosovitskiy, A. et al. (2021). An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale.
-6. Green, D. M., & Swets, J. A. (1966). Signal detection theory and psychophysics.
-7. Kubilius, J. et al. (2019). Brain-Like Object Recognition with High-Performing Shallow Recurrent ANNs (CORnet).
-8. Radford, A. et al. (2021). Learning Transferable Visual Models From Natural Language Supervision (CLIP).
+1. Brendel, W., & Bethge, M. (2019). Approximating CNNs with Bag-of-local-Features models works surprisingly well on ImageNet. ICLR 2019.
+2. Geirhos, R., et al. (2019). ImageNet-trained CNNs are biased towards texture; increasing shape bias improves accuracy and robustness. ICLR 2019.
+3. Goodfellow, I. J., Shlens, J., & Szegedy, C. (2015). Explaining and harnessing adversarial examples. ICLR 2015.
+4. Tan, M., & Le, Q. V. (2019). EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks. ICML 2019.
+5. Dosovitskiy, A., et al. (2021). An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.
+6. Green, D. M., & Swets, J. A. (1966). Signal detection theory and psychophysics. Wiley.
+7. Kubilius, J., et al. (2019). Brain-Like Object Recognition with High-Performing Shallow Recurrent ANNs (CORnet). bioRxiv.
+8. Radford, A., et al. (2021). Learning Transferable Visual Models From Natural Language Supervision (CLIP). ICML 2021.
+9. He, K., Zhang, X., Ren, S., & Sun, J. (2016). Deep Residual Learning for Image Recognition. CVPR 2016.
+10. Madry, A., et al. (2018). Towards Deep Learning Models Resistant to Adversarial Attacks. ICLR 2018.
+11. Carlini, N., & Wagner, D. (2017). Towards Evaluating the Robustness of Neural Networks. IEEE S&P 2017.
+12. Macmillan, N. A., & Creelman, C. D. (2005). Detection theory: A user's guide (2nd ed.). Lawrence Erlbaum Associates.
+13. Ilyas, A., et al. (2019). Adversarial Examples Are Not Bugs, They Are Features. NeurIPS 2019.
+14. Carter, B., et al. (2019). Exploring Statistical and Structural Properties of Feedforward and Recurrent Neural Networks. arXiv.
