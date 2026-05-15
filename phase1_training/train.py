@@ -3,23 +3,37 @@ import time
 import yaml
 import random
 import numpy as np
+import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
-from model import CIFARResNet
 from dataset import get_dataloaders
 
 # -----------------------------------------------------------------------------
-# Reproducibility Setup
+# Dynamic Model Router
 # -----------------------------------------------------------------------------
-# 1. WHAT: Fixing the random seeds for all libraries that generate randomness.
-# 2. WHY: Neural network training is highly stochastic (weight initialization, 
-#         data shuffling, augmentations). Setting seeds ensures that if you run 
-#         this script twice, you get the exact same accuracy curve. Essential for 
-#         scientific research to isolate variables.
-# 3. OBSERVE: Subsequent runs yield identical identical results.
+def get_model(name: str) -> nn.Module:
+    """Routes the --model flag to the correct architecture class."""
+    name = name.lower()
+    if name == "efficientnet":
+        from model_efficientnet import CIFAREfficientNet
+        return CIFAREfficientNet(num_classes=10)
+    if name == "resnet":
+        from torchvision.models import resnet18, ResNet18_Weights
+        m = resnet18(weights=ResNet18_Weights.DEFAULT)
+        m.fc = nn.Linear(m.fc.in_features, 10)
+        return m
+    if name == "cornets":
+        from model_cornets import CIFARCORnet 
+        return CIFARCORnet(num_classes=10)
+        
+    raise ValueError(f"Unknown model: {name!r}.")
+
+
+# -----------------------------------------------------------------------------
+# Reproducibility Setup
 # -----------------------------------------------------------------------------
 def set_seed(seed=42):
     random.seed(seed)
@@ -30,6 +44,13 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 def main():
+    # -------------------------------------------------------------------------
+    # Terminal Argument Parsing
+    # -------------------------------------------------------------------------
+    parser = argparse.ArgumentParser(description="Adversarial Cognitive Model Training")
+    parser.add_argument('--model', type=str, required=True, help="Model to train: resnet, efficientnet, cornets")
+    args = parser.parse_args()
+
     # Load Configuration
     with open('../config/train_config.yaml', 'r') as f:
         config = yaml.safe_load(f)
@@ -39,30 +60,23 @@ def main():
     # -------------------------------------------------------------------------
     # Device and Model Setup
     # -------------------------------------------------------------------------
-    # 1. WHAT: Checking for CUDA (GPU) and initializing the model.
-    # 2. WHY: We must explicitly move the model to the GPU for hardware acceleration.
-    # 3. OBSERVE: Should print "Using device: cuda".
-    # -------------------------------------------------------------------------
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
+    print(f"Initializing model: {args.model}")
     
-    model = CIFARResNet().to(device)
+    # Dynamically load the model based on the terminal flag
+    model = get_model(args.model).to(device)
+    
+    # Pass the model_name to get_dataloaders so it applies the correct Resize transforms
     trainloader, testloader = get_dataloaders(
         batch_size=config['batch_size'], 
         num_workers=config['num_workers'],
-        data_dir='../data'
+        data_dir='../data',
+        model_name=args.model
     )
     
     # -------------------------------------------------------------------------
     # Loss, Optimizer, and Scheduler
-    # -------------------------------------------------------------------------
-    # 1. WHAT: Setting up CrossEntropyLoss, SGD Optimizer, and CosineAnnealingLR.
-    # 2. WHY: 
-    #    - SGD with Momentum is standard for ResNet on CIFAR and usually generalizes 
-    #      better than Adam.
-    #    - CosineAnnealingLR smoothly decays the learning rate following a cosine 
-    #      curve, which helps the model settle into local minima at the end of training.
-    # 3. OBSERVE: Learning rate will start at `lr` and slowly decrease to 0 by `epochs`.
     # -------------------------------------------------------------------------
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=config['lr'], 
@@ -82,12 +96,6 @@ def main():
         # ---------------------------------------------------------------------
         # Training Loop
         # ---------------------------------------------------------------------
-        # 1. WHAT: The core optimization step. Iterates over batches, calculates
-        #          loss, backpropagates gradients, and updates weights.
-        # 2. WHY: This is how the neural network learns. `optimizer.zero_grad()` 
-        #         prevents gradient accumulation between batches.
-        # 3. OBSERVE: Train loss should decrease over the epoch.
-        # ---------------------------------------------------------------------
         model.train()
         train_loss = 0.0
         for inputs, targets in trainloader:
@@ -105,11 +113,6 @@ def main():
         
         # ---------------------------------------------------------------------
         # Evaluation Loop
-        # ---------------------------------------------------------------------
-        # 1. WHAT: Tests the model on unseen data.
-        # 2. WHY: We need to monitor test accuracy to prevent overfitting. 
-        #         `torch.no_grad()` saves memory/compute since we don't need gradients.
-        # 3. OBSERVE: Test accuracy should gradually climb.
         # ---------------------------------------------------------------------
         model.eval()
         correct = 0
@@ -131,16 +134,12 @@ def main():
         writer.add_scalar('Learning_Rate', current_lr, epoch)
         
         # ---------------------------------------------------------------------
-        # Checkpointing
+        # Checkpointing (Dynamically named so it doesn't overwrite teammates)
         # ---------------------------------------------------------------------
-        # 1. WHAT: Saves the model parameters if it achieves a new high score.
-        # 2. WHY: We want the absolute best version of the model for Phase 2 
-        #         (Attacks), not necessarily the one from the final epoch which 
-        #         might have overfit slightly.
-        # 3. OBSERVE: Will create/overwrite `checkpoints/best.pth`.
-        # ---------------------------------------------------------------------
+        save_path = f'checkpoints/{args.model}_best.pth'
+        
         if test_acc > best_acc:
-            torch.save(model.state_dict(), 'checkpoints/best.pth')
+            torch.save(model.state_dict(), save_path)
             best_acc = test_acc
             
         scheduler.step()
@@ -151,7 +150,8 @@ def main():
               f"LR: {current_lr:.5f} | Time: {elapsed:.1f}s")
               
     writer.close()
-    print(f"Training complete. Best Accuracy: {best_acc:.2f}%")
+    print(f"Training complete. Best Accuracy for {args.model}: {best_acc:.2f}%")
+    print(f"Checkpoint saved to: checkpoints/{args.model}_best.pth")
 
 if __name__ == '__main__':
     main()
