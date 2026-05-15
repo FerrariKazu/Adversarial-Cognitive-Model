@@ -22,10 +22,10 @@ class CIFARCORnet(nn.Module):
     def __init__(self, num_classes=10):
         super().__init__()
         
-        self.model = cornet.cornet_s(pretrained=True)
+        self.model = cornet.cornet_s(pretrained=False)
         
-        # Replace decoder.linear with nn.Linear(512, 10) for CIFAR-10
-        self.model.decoder.linear = nn.Linear(512, num_classes)
+        # Bypass the DataParallel wrapper by targeting .module first
+        self.model.module.decoder.linear = nn.Linear(512, num_classes)
         
     def forward(self, x):
         return self.model(x)
