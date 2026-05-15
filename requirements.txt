@@ -15,7 +15,7 @@ tensorboard
 Pillow
 openpyxl
 PyYAML
-# pip install git+https://github.com/dicarlolab/CORnet.git
-# pip install git+https://github.com/openai/CLIP.git
 ftfy
 regex
+# CORnet-S: pip install git+https://github.com/dicarlolab/CORnet.git
+# CLIP: pip install git+https://github.com/openai/CLIP.git
