@@ -1,6 +1,6 @@
 """
 Unified adversarial generation script for all models.
-Usage: python generate_adv_all_models.py --model [resnet|vit]
+Usage: python generate_adv_all_models.py --model [resnet|vit|efficientnet|shaperesnet|cornets|clip|bagnet]
 """
 
 import sys
@@ -27,6 +27,7 @@ from phase1_training.model_efficientnet import CIFAREfficientNet
 from phase1_training.model_shaperesnet import ShapeResNet
 from phase1_training.model_cornets import CIFARCORnet
 from phase1_training.model_clip import CIFARClip
+from phase1_training.model_bagnet import CIFARBagNet
 from phase1_training.dataset import get_dataloaders
 from phase1_training.dataset_vit import get_dataloaders_vit
 from fgsm import fgsm_attack
@@ -76,6 +77,13 @@ MODELS = {
         'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'clip'),
         'input_size': 224,
         'zero_shot': True,
+        'loader_fn': get_dataloaders_vit
+    },
+    'bagnet': {
+        'ckpt': os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'bagnet33_best.pth'),
+        'class': CIFARBagNet,
+        'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'bagnet'),
+        'input_size': 224,
         'loader_fn': get_dataloaders_vit
     }
 }
@@ -136,7 +144,7 @@ def verify_file(filepath):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['resnet', 'vit', 'efficientnet', 'shaperesnet', 'cornets', 'clip'], required=True)
+    parser.add_argument('--model', type=str, choices=['resnet', 'efficientnet', 'vit', 'shaperesnet', 'cornets', 'clip', 'bagnet'], required=True)
     args = parser.parse_args()
 
     cfg = MODELS[args.model]
@@ -149,11 +157,8 @@ def main():
     print(f"Using device: {device}")
 
     # Load model
-    if cfg.get('zero_shot', False):
+    if cfg.get('zero_shot'):
         print(f"Instantiating {args.model} zero-shot model (no checkpoint required)...")
-        model = cfg['class']().to(device)
-    elif args.model == 'shaperesnet':
-        # ShapeResNet uses its default weights path which contains the robust loading logic
         model = cfg['class']().to(device)
     else:
         model = cfg['class']().to(device)
