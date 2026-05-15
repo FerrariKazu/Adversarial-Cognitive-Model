@@ -17,14 +17,13 @@ contributes to perceptual robustness. BagNet's expected fragility under PGD
 provides the lower bound for our spectrum.
 """
 import torch.nn as nn
-import bagnets.pytorchnet as bagnets
+import bagnets.pytorchnet as bn
 
 class CIFARBagNet(nn.Module):
     def __init__(self, num_classes=10):
         super().__init__()
-        self.model = bagnets.bagnet33(pretrained=True)
-        # Replace final FC layer for CIFAR-10
-        self.model.fc = nn.Linear(self.model.fc.in_features, num_classes)
+        self.model = bn.bagnet33(pretrained=False)
+        self.model.fc = nn.Linear(2048, num_classes)
 
     def forward(self, x):
         return self.model(x)

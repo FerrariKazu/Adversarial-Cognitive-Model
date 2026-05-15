@@ -40,9 +40,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from phase1_training.model import CIFARResNet
-from phase1_training.model_vit import CIFARViT
-from phase1_training.model_efficientnet import CIFAREfficientNet
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'phase1_training'))
+
+from model import CIFARResNet
+from model_vit import CIFARViT
+from model_efficientnet import CIFAREfficientNet
+from model_bagnet import CIFARBagNet
+from dataset import CLASSES
 from phase1_training.dataset import CLASSES
 from utils.metrics import load_adv_batch, per_class_accuracy
 
@@ -57,6 +61,11 @@ def get_cnn_class_matrix(model, device, epsilons, model_name='resnet'):
     
     print(f"Computing {model_name.upper()} per-class accuracy...")
     lbl_path = os.path.join(os.path.dirname(__file__), '..', 'phase2_attacks', 'adv_images', model_name, 'labels.npy')
+    
+    if not os.path.exists(lbl_path):
+        print(f"  Attack files not found for {model_name} — skipping.")
+        return None
+
     labels_np = np.load(lbl_path)
     
     for j, eps in enumerate(epsilons):
@@ -106,29 +115,49 @@ def get_human_class_matrix(df, epsilons):
 
 
 def main():
+    # os.makedirs(OUTPUT_DIR, exist_ok=True)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    
+
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, default=None)
+    args = parser.parse_args()
+
     with open(CONFIG_PATH, 'r') as f:
         config = yaml.safe_load(f)
     epsilons = config['epsilons']
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    df_human = pd.read_csv(HUMAN_DATA_PATH)
-    hum_mat = get_human_class_matrix(df_human, epsilons)
+    # WITH this:
+    if os.path.exists(HUMAN_DATA_PATH):
+        df_human = pd.read_csv(HUMAN_DATA_PATH)
+        hum_mat = get_human_class_matrix(df_human, epsilons)
+    else:
+        print("Human data not available yet — using placeholder zeros.")
+        hum_mat = np.full((10, len(epsilons)), np.nan)
     
     models_to_run = {
         'resnet': (CIFARResNet, 'best.pth'),
         'vit': (CIFARViT, 'vit_small_best.pth'),
-        'efficientnet': (CIFAREfficientNet, None)
+        'efficientnet': (CIFAREfficientNet, None),
+        'bagnet': (CIFARBagNet, 'bagnet_best.pth'),
     }
     
     for model_name, (ModelClass, ckpt_name) in models_to_run.items():
+        ckpt_path = os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', ckpt_name) if ckpt_name else None
+        if ckpt_path and not os.path.exists(ckpt_path):
+            print(f"\n--- Skipping {model_name.upper()} — checkpoint not found ---")
+            continue
+
         print(f"\n--- Running Class Heatmap for {model_name.upper()} ---")
         model = ModelClass().to(device)
-        if ckpt_name is not None:
-            model.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', ckpt_name), map_location=device))
+        if ckpt_path is not None:
+            model.load_state_dict(torch.load(ckpt_path, map_location=device))
         
         cnn_mat = get_cnn_class_matrix(model, device, epsilons, model_name=model_name)
+
+        if cnn_mat is None:
+            continue
         
         # Calculate Delta (CNN - Human). Negative means CNN is worse.
         delta_mat = cnn_mat - hum_mat
