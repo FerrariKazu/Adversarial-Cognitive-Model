@@ -34,8 +34,6 @@ from fgsm import fgsm_attack
 from pgd import pgd_attack
 from cw import cw_attack
 
-import os
-
 MODELS = {
     'resnet': {
         'ckpt': os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'best.pth'),
@@ -80,11 +78,11 @@ MODELS = {
         'loader_fn': get_dataloaders_vit
     },
     'bagnet': {
-        'ckpt': os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'bagnet33_best.pth'),
+        'ckpt': os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'bagnet_best.pth'),
         'class': CIFARBagNet,
         'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'bagnet'),
-        'input_size': 224,
-        'loader_fn': get_dataloaders_vit
+        'input_size': 64,
+        'loader_fn': get_dataloaders
     }
 }
 
@@ -171,7 +169,7 @@ def main():
 
     # Load data
     batch_size = 32 if args.model in ['vit', 'efficientnet'] else 64
-    _, testloader = cfg['loader_fn'](batch_size=batch_size, num_workers=2)
+    _, testloader = cfg['loader_fn'](batch_size=batch_size, num_workers=2, model_name=args.model)
     print(f"Using batch size: {batch_size}")
     
     save_dir = cfg['out']

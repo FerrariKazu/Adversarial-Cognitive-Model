@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
-from model import CIFARResNet
+import argparse
 from dataset import get_dataloaders
 
 # -----------------------------------------------------------------------------
@@ -30,6 +30,11 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, default='resnet', 
+                        help='Model to train: resnet, bagnet, efficientnet, vit, shaperesnet')
+    args = parser.parse_args()
+
     # Load Configuration
     with open('../config/train_config.yaml', 'r') as f:
         config = yaml.safe_load(f)
@@ -46,11 +51,20 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    model = CIFARResNet().to(device)
+    # REPLACE with:
+    if args.model == 'bagnet':
+        from model_bagnet import CIFARBagNet
+        model = CIFARBagNet().to(device)
+    elif args.model == 'resnet':
+        from model_resnet import CIFARResNet
+        model = CIFARResNet().to(device)
+    # (other models go here when their owners add them)
+
     trainloader, testloader = get_dataloaders(
-        batch_size=config['batch_size'], 
+        batch_size=config['batch_size'],
         num_workers=config['num_workers'],
-        data_dir='../data'
+        data_dir='../data',
+        model_name=args.model       # ← this triggers the 64x64 resize for bagnet
     )
     
     # -------------------------------------------------------------------------
@@ -140,7 +154,7 @@ def main():
         # 3. OBSERVE: Will create/overwrite `checkpoints/best.pth`.
         # ---------------------------------------------------------------------
         if test_acc > best_acc:
-            torch.save(model.state_dict(), 'checkpoints/best.pth')
+            torch.save(model.state_dict(), f'checkpoints/{args.model}_best.pth')
             best_acc = test_acc
             
         scheduler.step()
