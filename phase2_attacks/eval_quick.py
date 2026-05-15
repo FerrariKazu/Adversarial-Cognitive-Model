@@ -2,29 +2,40 @@ import torch
 import numpy as np
 import sys
 import os
+import yaml
+import argparse
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'phase1_training'))
-from model import CIFARResNet
-from model_vit import CIFARViT
-from model_efficientnet import CIFAREfficientNet
-from model_shaperesnet import ShapeResNet
 
-def evaluate_model(model_name, dir_name, model_class, ckpt_path, device, epsilons):
-    print(f"\nEvaluating {model_name}...")
+# Import model registry logic (using the dict from generate_adv_all_models.py but simplified for eval)
+from phase2_attacks.generate_adv_all_models import MODELS
+
+def evaluate_model(model_name, cfg, device, epsilons):
+    print(f"\nEvaluating {model_name.upper()}...")
     
-    if model_class == ShapeResNet:
+    # Model Loading Logic (matching generate_adv_all_models.py)
+    mclass = cfg['class']
+    ckpt_path = cfg.get('ckpt')
+    
+    if mclass.__name__ == 'ShapeResNet':
         # ShapeResNet handles its own specialized loading logic in __init__
-        model = model_class(num_classes=10, weights_path=ckpt_path).to(device)
+        model = mclass(num_classes=10, weights_path=ckpt_path).to(device)
     else:
-        model = model_class().to(device)
-        if ckpt_path and os.path.exists(ckpt_path):
+        model = mclass().to(device)
+        if cfg.get('zero_shot'):
+            print(f"  Using zero-shot model.")
+        elif ckpt_path and os.path.exists(ckpt_path):
             model.load_state_dict(torch.load(ckpt_path, map_location=device))
+            print(f"  Loaded checkpoint from: {ckpt_path}")
         else:
             print(f"  Warning: Checkpoint NOT found at {ckpt_path}")
     
     model.eval()
 
-    labels_path = os.path.join(os.path.dirname(__file__), 'adv_images', dir_name, 'labels.npy')
+    save_dir = cfg['out']
+    labels_path = os.path.join(save_dir, 'labels.npy')
+    
     if not os.path.exists(labels_path):
         print(f"  Error: Labels not found at {labels_path}")
         return [float('nan')] * len(epsilons)
@@ -35,7 +46,7 @@ def evaluate_model(model_name, dir_name, model_class, ckpt_path, device, epsilon
     accuracies = []
     
     for eps in epsilons:
-        images_path = os.path.join(os.path.dirname(__file__), 'adv_images', dir_name, f"pgd_eps{eps:.2f}_images.npy")
+        images_path = os.path.join(save_dir, f"pgd_eps{eps:.2f}_images.npy")
         
         if not os.path.exists(images_path):
             print(f"  Missing images for eps {eps:.2f}")
@@ -47,7 +58,7 @@ def evaluate_model(model_name, dir_name, model_class, ckpt_path, device, epsilon
         
         correct = 0
         total = len(labels)
-        batch_size = 64
+        batch_size = 32 if model_name in ['vit', 'efficientnet', 'clip', 'bagnet'] else 64
         
         with torch.no_grad():
             for i in range(0, total, batch_size):
@@ -75,42 +86,57 @@ def evaluate_model(model_name, dir_name, model_class, ckpt_path, device, epsilon
     return accuracies
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--models', type=str, help='Comma-separated list of models to eval (default: all available)')
+    args = parser.parse_args()
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    epsilons = [0.00, 0.01, 0.05, 0.10, 0.20, 0.30]
     
-    models_to_eval = [
-        # ('ResNet-18', 'resnet', CIFARResNet, os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'best.pth')),
-        # ('ViT-Small', 'vit', CIFARViT, os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'vit_small_best.pth')),
-        # ('EfficientNet', 'efficientnet', CIFAREfficientNet, os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'efficientnet_best.pth')),
-        ('ShapeResNet', 'shaperesnet', ShapeResNet, os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'shaperesnet50_best_v2.pth'))
-    ]
+    # Load config to get epsilons
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'attack_config.yaml')
+    with open(config_path, 'r') as f:
+        attack_config = yaml.safe_load(f)
+    epsilons = attack_config['epsilons']
+    
+    if args.models:
+        selected_models = [m.strip() for m in args.models.split(',')]
+    else:
+        # Filter to models that actually have attack directories
+        selected_models = []
+        for m_name, m_cfg in MODELS.items():
+            if os.path.exists(m_cfg['out']):
+                selected_models.append(m_name)
     
     results = {}
-    for name, dir_name, mclass, ckpt in models_to_eval:
+    for name in selected_models:
+        if name not in MODELS:
+            print(f"Unknown model: {name}")
+            continue
         try:
-            accs = evaluate_model(name, dir_name, mclass, ckpt, device, epsilons)
+            accs = evaluate_model(name, MODELS[name], device, epsilons)
             results[name] = accs
         except Exception as e:
             print(f"Skipping {name} due to error: {e}")
             results[name] = [float('nan')] * len(epsilons)
             
-    # Print the requested table dynamically
-    print("\n" + "=" * 75)
-    print("PGD ACCURACY COLLAPSE COMPARISON")
-    print("=" * 75)
+    # Print the comparison table
+    print("\n" + "=" * 100)
+    print("PGD ACCURACY COLLAPSE COMPARISON (v4.0 7-MODEL SPECTRUM)")
+    print("=" * 100)
     
     header = f"{'Epsilon':<10}"
-    for name, _, _, _ in models_to_eval:
-        header += f" | {name:<12}"
+    for name in selected_models:
+        header += f" | {name[:12]:<12}"
     print(header)
     print("-" * len(header))
     
     for i, eps in enumerate(epsilons):
         row = f"{eps:<10.2f}"
-        for name, _, _, _ in models_to_eval:
+        for name in selected_models:
             acc = results.get(name, [float('nan')]*len(epsilons))[i]
             row += f" | {acc:<12.2f}"
         print(row)
+    print("-" * len(header))
 
 if __name__ == '__main__':
     main()

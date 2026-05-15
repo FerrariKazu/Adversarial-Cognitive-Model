@@ -88,7 +88,7 @@ class HFCIFAR10(Dataset):
         return img, label
 
 
-def get_dataloaders_vit(batch_size=64, num_workers=4, data_dir='data'):
+def get_dataloaders_vit(batch_size=64, num_workers=4, data_dir='data', **kwargs):
     """
     Create CIFAR-10 dataloaders with 224×224 resizing for ViT.
 

@@ -17,5 +17,7 @@ openpyxl
 PyYAML
 ftfy
 regex
+timm
+bagnets
 # CORnet-S: pip install git+https://github.com/dicarlolab/CORnet.git
 # CLIP: pip install git+https://github.com/openai/CLIP.git

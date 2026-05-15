@@ -30,9 +30,9 @@ from phase1_training.model_clip import CIFARClip
 from phase1_training.model_bagnet import CIFARBagNet
 from phase1_training.dataset import get_dataloaders
 from phase1_training.dataset_vit import get_dataloaders_vit
-from fgsm import fgsm_attack
-from pgd import pgd_attack
-from cw import cw_attack
+from phase2_attacks.fgsm import fgsm_attack
+from phase2_attacks.pgd import pgd_attack
+from phase2_attacks.cw import cw_attack
 
 MODELS = {
     'resnet': {
