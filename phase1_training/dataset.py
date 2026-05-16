@@ -66,9 +66,9 @@ def get_dataloaders(batch_size=128, num_workers=4, data_dir='data', model_name='
         ])
         
     elif model_name == 'shaperesnet':
-        # ShapeResNet: Uses custom transforms (trained on 64x64) but evaluated at 224x224
+        # ShapeResNet: Uses custom transforms (trained on 64x64) as per train_shaperesnet_v2.py
         transform_train = transforms.Compose([
-            transforms.Resize(224),
+            transforms.Resize(64),
             transforms.RandomHorizontalFlip(),
             transforms.RandomGrayscale(p=0.3),
             transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
@@ -76,7 +76,7 @@ def get_dataloaders(batch_size=128, num_workers=4, data_dir='data', model_name='
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
         transform_test = transforms.Compose([
-            transforms.Resize(224),
+            transforms.Resize(64),
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
