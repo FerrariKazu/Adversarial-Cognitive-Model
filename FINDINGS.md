@@ -1,4 +1,4 @@
-# 🔬 Key Research Findings: Adversarial Cognition Divergence
+# Key Research Findings: Adversarial Cognition Divergence
 
 This document summarizes the core scientific insights derived from our large-scale comparison of 5 AI architectures and human psychophysics data.
 
