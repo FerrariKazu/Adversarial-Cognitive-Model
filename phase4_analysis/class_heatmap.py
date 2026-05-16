@@ -19,6 +19,14 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config', 'attack_co
 HUMAN_DATA_PATH = os.path.join(os.path.dirname(__file__), '..', 'phase3_human_study', 'data', 'responses_mapped.csv')
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'figures')
 
+def get_cornet_model(device, ckpt_path):
+    """Helper to load CORnet-S with weights."""
+    from phase1_training.model_cornets import CIFARCORnet
+    model = CIFARCORnet().to(device)
+    if ckpt_path and os.path.exists(ckpt_path):
+        model.load_state_dict(torch.load(ckpt_path, map_location=device))
+    return model
+
 def get_cnn_class_matrix(model_name, m_cfg, device, epsilons):
     """Returns a 10x6 matrix of CNN accuracy."""
     matrix = np.zeros((10, len(epsilons)))
@@ -38,6 +46,8 @@ def get_cnn_class_matrix(model_name, m_cfg, device, epsilons):
     
     if mclass.__name__ == 'ShapeResNet':
         model = mclass(num_classes=10, weights_path=ckpt_path).to(device)
+    elif model_name == 'cornets' or mclass.__name__ == 'CIFARCORnet':
+        model = get_cornet_model(device, ckpt_path)
     else:
         model = mclass().to(device)
         if not m_cfg.get('zero_shot') and ckpt_path and os.path.exists(ckpt_path):
@@ -55,7 +65,7 @@ def get_cnn_class_matrix(model_name, m_cfg, device, epsilons):
             
         images_mmap = np.load(img_path, mmap_mode='r')
         
-        batch_size = 32 if model_name in ['vit', 'efficientnet', 'clip', 'bagnet'] else 64
+        batch_size = 32 if model_name in ['vit', 'efficientnet', 'clip', 'bagnet', 'cornets'] else 64
         all_preds = []
         
         with torch.no_grad():
