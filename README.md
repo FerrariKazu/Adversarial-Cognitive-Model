@@ -6,20 +6,49 @@
 
 ## Key Findings (Partial — 5/7 Models Complete)
 
-| System | Clean Acc | PGD 50% Threshold | d′=1.0 Threshold | Status |
-|--------|-----------|-------------------|-------------------|--------|
-| Human | 74.15% | >0.30 | >0.30 | ✅ Complete |
-| ResNet-18 | 95.82% | ε≈0.024 | ε≈0.030 | ✅ Complete |
-| ViT-Small | 97.80% | ε≈0.014 | ε≈0.026 | ✅ Complete |
-| BagNet-33 | 87.67% | ε≈0.010 | ε≈0.017 | ✅ Complete |
-| Shape-ResNet-50 | 91.47% | ε≈0.006 | ε≈0.008 | ✅ Complete |
-| EfficientNet-B0 | 96.81% | ε≈0.005 | ε≈0.006 | ✅ Complete |
-| CORnet-S | — | — | — | 🔄 Pending |
-| CLIP ViT-B/32 | — | — | — | 🔄 Pending |
+### Signal Detection Theory (Sensitivity)
+| System | d'(0.00) | d'(0.01) | d'(0.05) | d'(0.10) | d'(0.20) | d'(0.30) | ε threshold |
+|--------|----------|----------|----------|----------|----------|----------|-------------|
+| Human  | 4.790 | 4.567 | 3.985 | 3.368 | 2.440 | 1.769 | >0.30 |
+| ResNet-18 | 4.426 | 2.687 | -0.771 | -1.707 | -1.913 | -1.880 | ε≈0.030 |
+| ViT-Small | 4.931 | 1.814 | -0.154 | -0.909 | -1.242 | -1.469 | ε≈0.026 |
+| BagNet-33 | — | — | — | — | — | — | ε≈0.017 |
+| Shape-ResNet | — | — | — | — | — | — | ε≈0.008 |
+| EfficientNet | — | — | — | — | — | — | ε≈0.006 |
+
+### PGD Accuracy Collapse
+| Epsilon | ResNet | ViT | EfficientNet | ShapeResNet | BagNet | Human |
+|---------|--------|-----|--------------|-------------|--------|-------|
+| 0.00 | 95.82% | 97.80% | 96.81% | 91.47% | 87.67% | 73.33% |
+| 0.01 | 75.57% | 55.18% | 0.93% | 18.11% | 48.04% | N/A |
+| 0.05 | 2.84% | 8.80% | 0.00% | 0.01% | 0.12% | 69.17% |
+| 0.10 | 0.21% | 2.78% | 0.00% | 0.00% | 0.00% | 59.17% |
+| 0.20 | 0.02% | 1.12% | 0.00% | 0.00% | 0.00% | 62.22% |
+| 0.30 | 0.00% | 0.58% | 0.00% | 0.00% | 0.00% | 58.61% |
 
 **Headline:** All AI models collapse before ε=0.03. Humans never cross the d′=1.0 threshold up to ε=0.30.
 
-**Counterintuitive finding:** EfficientNet-B0 (96.81% clean) is the most fragile model. ResNet-18 (95.82% clean) is the most robust. Shape-biased training did not improve robustness over standard ResNet.
+## Overconfidence Finding
+BagNet-33 and EfficientNet-B0 reach ~100% model confidence at ε=0.30 while accuracy is 0.00% — the maximum possible "confident but wrong" state. Humans show the opposite: declining confidence tracks declining accuracy, demonstrating intact metacognitive calibration absent in all tested CNNs.
+
+## Semantic Confusion Structure
+Adversarial errors are not random — they are semantically structured:
+- **ResNet-18:** DOG→CAT (+37.2%), AUTOMOBILE→TRUCK (+34.1%)
+- **ViT-Small:** TRUCK→SHIP (+59.0%)
+- **Shape-ResNet:** HORSE→DEER (+35.4%) — most semantically coherent errors
+
+## Generated Figures (phase4_analysis/figures/)
+- `combined/partial_divergence_curve.png` — 5-model accuracy vs epsilon
+- `combined/confidence_collapse.png` — confidence degradation curves
+- `combined/confidence_accuracy_gap.png` — overconfidence gap per model
+- `combined/perturbation_atlas.png` — 10-class perturbation difference maps
+- `combined/hero_perturbation.png` — single high-impact perturbation example
+- `combined/sufficient_input_subsets.png` — minimal evidence per model (SIS)
+- `combined/vit_attention_entropy.png` — ViT attention scatter vs epsilon
+- `combined/threshold_summary/` — accuracy and SDT ranking figures
+- `combined/latent_space/` — t-SNE embeddings (ResNet + ViT)
+- `vit/attention/` — per-class ViT attention maps (20 images)
+- `{model}/confusion/` — confusion matrices clean vs adversarial
 
 ## Model Spectrum
 | Model | Processing Style | Owner | Branch |
