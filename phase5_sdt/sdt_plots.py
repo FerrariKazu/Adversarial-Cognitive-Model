@@ -1,267 +1,80 @@
-"""
-SDT Visualization: d-Prime Curves and Per-Class Sensitivity Heatmaps
-====================================================================
-
-PURPOSE:
-    Generates the two key SDT figures for the paper/presentation:
-
-    PLOT 1 — d' vs Epsilon (CNN vs Human)
-        The SDT equivalent of the accuracy divergence curve, but on a
-        bias-free sensitivity scale. The d'=1.0 detection threshold line
-        is marked, and the exact crossing points are annotated.
-
-    PLOT 2 — Per-Class d' Heatmap at ε=0.10
-        Side-by-side comparison of CNN and human perceptual sensitivity
-        for each of the 10 CIFAR-10 classes at a moderate perturbation level.
-        This reveals which specific object categories the CNN loses
-        sensitivity to first (texture-dependent classes like cats, dogs)
-        vs which categories humans maintain sensitivity on.
-
-COLOR SCHEME:
-    Matches the color palette from phase4_analysis/divergence_curves.py:
-        ResNet: #E94560 (vibrant red)
-        ViT:    #9D4EDD (violet)
-        Human:  #2E8B57 (sea green)
-        Gap:    #9D4EDD (violet)
-
-HOW TO READ THE d' CURVE:
-    • d'=1.0 dashed line is the "detection threshold" — below this line,
-      the system is at near-chance discrimination.
-    • The vertical distance between curves at any epsilon is the bias-free
-      sensitivity gap.
-    • The annotated crossing points give the exact epsilon values for the
-      headline finding.
-"""
-
 import sys
 import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 import seaborn as sns
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from phase1_training.dataset import CLASSES
+# Configuration
+RESULTS_CSV = 'phase5_sdt/results/sdt_results_v4.csv'
+OUTPUT_DIR = 'phase5_sdt/figures'
 
-# Paths
-RESULTS_CSV = os.path.join(os.path.dirname(__file__), 'results', 'partial_sdt_results.csv')
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'figures')
+# Project-wide color scheme
+COLORS = {
+    'Resnet': '#E94560',
+    'Vit': '#7C3AED',
+    'Efficientnet': '#0F3460',
+    'Shaperesnet': '#16A34A',
+    'Bagnet': '#F97316',
+    'Human': '#22C55E'
+}
 
-# Color scheme (matches Phase 4 divergence_curves.py)
-COLOR_CNN = '#E94560'     # Vibrant red (ResNet)
-COLOR_HUMAN = '#2E8B57'   # Sea Green (Human)
-COLOR_VIT = '#9D4EDD'     # Violet (ViT)
-COLOR_GAP = '#9D4EDD'     # Violet (for gap shading)
-COLOR_THRESHOLD = '#FFD700'  # Gold for the d'=1.0 line
-
-
-def load_results():
-    """Load the SDT results CSV produced by sdt_analysis.py."""
-    if not os.path.exists(RESULTS_CSV):
-        raise FileNotFoundError(
-            f"SDT results not found at {RESULTS_CSV}.\n"
-            f"Run sdt_analysis.py first to generate the results."
-        )
-    return pd.read_csv(RESULTS_CSV)
-
-
-def find_threshold_crossing(epsilons, d_primes, threshold=1.0):
-    """
-    Find the epsilon where d' crosses below a threshold.
-    Uses linear interpolation for a more precise estimate.
-    """
+def find_threshold_precise(epsilons, d_primes, threshold=1.0):
     epsilons = np.array(epsilons)
     d_primes = np.array(d_primes)
-    
-    for i in range(1, len(d_primes)):
-        if d_primes[i] < threshold and d_primes[i - 1] >= threshold:
-            # Linear interpolation for precise crossing
-            frac = (d_primes[i - 1] - threshold) / (d_primes[i - 1] - d_primes[i])
-            crossing = epsilons[i - 1] + frac * (epsilons[i] - epsilons[i - 1])
-            return crossing
-    # Check if already below at the start
-    if len(d_primes) > 0 and d_primes[0] < threshold:
-        return epsilons[0]
+    sort_idx = np.argsort(epsilons)
+    epsilons = epsilons[sort_idx]
+    d_primes = d_primes[sort_idx]
+    for i in range(len(d_primes) - 1):
+        d1, d2 = d_primes[i], d_primes[i+1]
+        e1, e2 = epsilons[i], epsilons[i+1]
+        if (d1 >= threshold and d2 <= threshold) or (d1 <= threshold and d2 >= threshold):
+            return e1 + (threshold - d1) * (e2 - e1) / (d2 - d1)
     return None
 
-
-def plot_dprime_vs_epsilon(df):
-    """
-    PLOT 1: d-prime vs Epsilon for ResNet, ViT, and Humans.
-    """
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-    # Compute mean d' across all classes
-    resnet_df = df[df['system'] == 'ResNet'].groupby('epsilon')['d_prime'].mean().reset_index()
-    vit_df = df[df['system'] == 'ViT'].groupby('epsilon')['d_prime'].mean().reset_index()
-    human_df = df[df['system'] == 'Human'].groupby('epsilon')['d_prime'].mean().reset_index()
-
-    # --- Create figure ---
-    fig, ax = plt.subplots(figsize=(12, 7), dpi=150)
-
-    # d'=1.0 threshold line
-    ax.axhline(y=1.0, color=COLOR_THRESHOLD, linestyle='--', linewidth=2.0,
-               alpha=0.8, label="Detection Threshold (d′ = 1.0)", zorder=1)
-
-    # Plot Curves
-    ax.plot(resnet_df['epsilon'], resnet_df['d_prime'], marker='o', markersize=8, linewidth=3,
-            color=COLOR_CNN, label='ResNet-18', zorder=3)
-    ax.plot(vit_df['epsilon'], vit_df['d_prime'], marker='^', markersize=8, linewidth=3,
-            color=COLOR_VIT, label='ViT-Small', zorder=3)
-    ax.plot(human_df['epsilon'], human_df['d_prime'], marker='s', markersize=8, linewidth=3,
-            color=COLOR_HUMAN, label='Human Perception', zorder=3)
-
-    # Shaded gap (ResNet vs Human)
-    common_eps = np.intersect1d(resnet_df['epsilon'], human_df['epsilon'])
-    if len(common_eps) > 0:
-        res_interp = np.interp(common_eps, resnet_df['epsilon'], resnet_df['d_prime'])
-        human_interp = np.interp(common_eps, human_df['epsilon'], human_df['d_prime'])
-        ax.fill_between(common_eps, res_interp, human_interp,
-                        where=(human_interp > res_interp),
-                        interpolate=True, color=COLOR_GAP, alpha=0.1,
-                        label='Sensitivity Gap (ResNet-Human)', zorder=2)
-
-    # --- Annotate threshold crossings ---
-    res_cross = find_threshold_crossing(resnet_df['epsilon'].values, resnet_df['d_prime'].values)
-    vit_cross = find_threshold_crossing(vit_df['epsilon'].values, vit_df['d_prime'].values)
-    hum_cross = find_threshold_crossing(human_df['epsilon'].values, human_df['d_prime'].values)
-
-    if res_cross is not None:
-        ax.annotate(f'ResNet: ε={res_cross:.3f}', xy=(res_cross, 1.0),
-                    xytext=(res_cross + 0.01, 1.5), fontsize=9, fontweight='bold', color=COLOR_CNN,
-                    arrowprops=dict(arrowstyle='->', color=COLOR_CNN, lw=1.5),
-                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor=COLOR_CNN, alpha=0.9))
-
-    if vit_cross is not None:
-        ax.annotate(f'ViT: ε={vit_cross:.3f}', xy=(vit_cross, 1.0),
-                    xytext=(vit_cross + 0.01, 0.5), fontsize=9, fontweight='bold', color=COLOR_VIT,
-                    arrowprops=dict(arrowstyle='->', color=COLOR_VIT, lw=1.5),
-                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor=COLOR_VIT, alpha=0.9))
-
-    # --- Labels and styling ---
-    ax.set_title("Signal Detection Analysis: Sensitivity Collapse Comparison",
-                 fontsize=15, fontweight='bold', pad=15)
-    ax.set_xlabel('Perturbation Budget (Epsilon)', fontsize=13)
-    ax.set_ylabel("Sensitivity Index (d′)", fontsize=13)
-    ax.set_ylim(-2.5, 6.0)
-    ax.grid(True, linestyle='--', alpha=0.4)
-    ax.legend(fontsize=11, loc='upper right')
-
-    # Shade the "below threshold" zone
-    ax.fill_between([-0.01, 0.31], -3, 1.0, color='red', alpha=0.03, zorder=0)
-    ax.text(0.3, 0.5, 'Near-chance threshold (d′=1.0)', fontsize=10,
-            ha='right', va='center', fontstyle='italic', color='red', alpha=0.6)
-
-    plt.tight_layout()
-    out_path = os.path.join(OUTPUT_DIR, 'partial_dprime_curves.png')
-    plt.savefig(out_path, bbox_inches='tight')
-    plt.close()
-    print(f"📊 Plot 1 saved: {out_path}")
-
-    return res_cross, vit_cross, hum_cross
-
-
-def plot_perclass_dprime_heatmap(df, target_epsilon=0.10):
-    """
-    PLOT 2: Per-class d-prime heatmap at a fixed epsilon, CNN vs Human side-by-side.
-    """
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-    # Filter to target epsilon
-    eps_df = df[df['epsilon'].round(2) == target_epsilon]
-    if len(eps_df) == 0:
-        available = sorted(df['epsilon'].unique())
-        target_epsilon = min(available, key=lambda x: abs(x - target_epsilon))
-        eps_df = df[df['epsilon'].round(2) == round(target_epsilon, 2)]
-        print(f"  ⚠️  Using closest epsilon: {target_epsilon:.2f}")
-
-    resnet_data = eps_df[eps_df['system'] == 'ResNet'].sort_values('class_idx')
-    vit_data = eps_df[eps_df['system'] == 'ViT'].sort_values('class_idx')
-    human_data = eps_df[eps_df['system'] == 'Human'].sort_values('class_idx')
-
-    if len(resnet_data) == 0 or len(human_data) == 0:
-        print("  ⚠️  Insufficient data for heatmap. Skipping.")
+def plot_final_dprime_curves():
+    if not os.path.exists(RESULTS_CSV):
+        print(f"Error: {RESULTS_CSV} missing. Run sdt_analysis.py first.")
         return
 
-    res_dprime = resnet_data['d_prime'].values.reshape(1, -1)
-    vit_dprime = vit_data['d_prime'].values.reshape(1, -1) if len(vit_data) > 0 else None
-    human_dprime = human_data['d_prime'].values.reshape(1, -1)
+    df = pd.read_csv(RESULTS_CSV)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    plt.figure(figsize=(12, 8), dpi=150)
+    plt.axhline(y=1.0, color='black', linestyle='--', alpha=0.5, label="Near-chance threshold (d'=1.0)")
+
+    systems = df['system'].unique()
     
-    class_labels = [CLASSES[int(i)] for i in resnet_data['class_idx'].values]
+    for sys in systems:
+        sys_df = df[df['system'] == sys].groupby('epsilon')['d_prime'].mean().reset_index()
+        eps = sys_df['epsilon'].values
+        dp = sys_df['d_prime'].values
+        
+        plt.plot(eps, dp, marker='o', label=sys, color=COLORS.get(sys, 'gray'), linewidth=2.5, markersize=7)
+        
+        # Add threshold annotation
+        thresh = find_threshold_precise(eps, dp)
+        if thresh is not None and sys != 'Human':
+            plt.axvline(x=thresh, color=COLORS.get(sys, 'gray'), linestyle=':', alpha=0.4)
+            plt.text(thresh, 0.2 + (0.3 * list(systems).index(sys)), f"ε={thresh:.3f}", 
+                     color=COLORS.get(sys, 'gray'), fontweight='bold', fontsize=9,
+                     bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
 
-    # --- Create multi-panel heatmap ---
-    num_panels = 3 if vit_dprime is not None else 2
-    fig, axes = plt.subplots(num_panels, 1, figsize=(12, 4 * num_panels), dpi=150)
+    plt.title("Signal Detection Theory: Perceptual Sensitivity Collapse (5/7 Models)", fontsize=16, pad=20)
+    plt.xlabel("Perturbation Budget (Epsilon)", fontsize=14)
+    plt.ylabel("Sensitivity Index (d')", fontsize=14)
+    plt.xlim(-0.01, 0.35)
+    plt.ylim(-0.5, 6.0)
+    plt.grid(True, alpha=0.2)
+    plt.legend(fontsize=12, loc='upper right')
+    
+    # Shade the "blind zone"
+    plt.fill_between([-0.05, 0.40], -1, 1.0, color='gray', alpha=0.05)
 
-    # Panel 1: ResNet d'
-    sns.heatmap(res_dprime, ax=axes[0], cmap='RdYlGn', vmin=0, vmax=5,
-                xticklabels=class_labels, yticklabels=['ResNet'],
-                annot=True, fmt='.2f', cbar_kws={'label': "d′"},
-                linewidths=0.5)
-    axes[0].set_title(f"ResNet Perceptual Sensitivity (d′) at ε={target_epsilon:.2f}",
-                      fontsize=13, fontweight='bold', pad=10)
-
-    curr_idx = 1
-    if vit_dprime is not None:
-        # Panel 2: ViT d'
-        sns.heatmap(vit_dprime, ax=axes[1], cmap='RdYlGn', vmin=0, vmax=5,
-                    xticklabels=class_labels, yticklabels=['ViT'],
-                    annot=True, fmt='.2f', cbar_kws={'label': "d′"},
-                    linewidths=0.5)
-        axes[1].set_title(f"ViT Perceptual Sensitivity (d′) at ε={target_epsilon:.2f}",
-                          fontsize=13, fontweight='bold', pad=10)
-        curr_idx = 2
-
-    # Panel Last: Human d'
-    sns.heatmap(human_dprime, ax=axes[curr_idx], cmap='RdYlGn', vmin=0, vmax=5,
-                xticklabels=class_labels, yticklabels=['Human'],
-                annot=True, fmt='.2f', cbar_kws={'label': "d′"},
-                linewidths=0.5)
-    axes[curr_idx].set_title(f"Human Perceptual Sensitivity (d′) at ε={target_epsilon:.2f}",
-                            fontsize=13, fontweight='bold', pad=10)
-
-    plt.suptitle("Per-Class Signal Detection Sensitivity Comparison",
-                 fontsize=16, fontweight='bold', y=1.02)
-    plt.tight_layout()
-
-    out_path = os.path.join(OUTPUT_DIR, f'perclass_dprime_eps{target_epsilon:.2f}.png')
+    out_path = os.path.join(OUTPUT_DIR, 'final_dprime_5model.png')
     plt.savefig(out_path, bbox_inches='tight')
     plt.close()
-    print(f"📊 Plot 2 saved: {out_path}")
-
-
-def main():
-    print("Loading SDT results...")
-    try:
-        df = load_results()
-    except FileNotFoundError as e:
-        print(f"❌ {e}")
-        return
-
-    print(f"  Found {len(df)} rows: {df['system'].nunique()} systems, "
-          f"{df['epsilon'].nunique()} epsilon levels, {df['class'].nunique()} classes\n")
-
-    # Plot 1: d' vs epsilon
-    res_cross, vit_cross, hum_cross = plot_dprime_vs_epsilon(df)
-
-    # Plot 2: Per-class heatmap at ε=0.10
-    plot_perclass_dprime_heatmap(df, target_epsilon=0.10)
-
-    # Print summary
-    print("\n" + "=" * 60)
-    print("VISUALIZATION SUMMARY")
-    print("=" * 60)
-    if res_cross is not None:
-        print(f"  ResNet threshold crossing: ε ≈ {res_cross:.3f}")
-    if vit_cross is not None:
-        print(f"  ViT threshold crossing:    ε ≈ {vit_cross:.3f}")
-    if hum_cross is not None:
-        print(f"  Human threshold crossing:  ε ≈ {hum_cross:.3f}")
-    else:
-        print(f"  Human: d' stays above 1.0 across all tested epsilons")
-    print(f"\n  Figures saved to: {OUTPUT_DIR}/")
-
+    print(f"📊 Final SDT figure saved: {out_path}")
 
 if __name__ == '__main__':
-    main()
+    plot_final_dprime_curves()
