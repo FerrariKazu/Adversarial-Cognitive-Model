@@ -82,21 +82,21 @@ class ConvStem(nn.Module):
         )
         # Layer 2: 32×32 → 16×16 (stride=2, first spatial downsample)
         self.conv2 = nn.Sequential(
-            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(128),
+            nn.Conv2d(64, 256, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
         )
         # Layer 3: 16×16 → 8×8 (stride=2, second spatial downsample)
         self.conv3 = nn.Sequential(
-            nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(256),
+            nn.Conv2d(256, 512, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
         )
         # Residual projection shortcut: maps input directly to output dims
         # so the stem can learn a residual delta on top of a downsampled identity
         self.shortcut = nn.Sequential(
-            nn.Conv2d(3, 256, kernel_size=1, stride=4, bias=False),
-            nn.BatchNorm2d(256),
+            nn.Conv2d(3, 512, kernel_size=1, stride=4, bias=False),
+            nn.BatchNorm2d(512),
         )
 
     def forward(self, x):
@@ -104,7 +104,7 @@ class ConvStem(nn.Module):
         Args:
             x: (B, 3, 32, 32) — raw CIFAR-10 images (normalised)
         Returns:
-            (B, 256, 8, 8) — locally smoothed feature map
+            (B, 512, 8, 8) — locally smoothed feature map
         """
         identity = self.shortcut(x)
         out = self.conv1(x)
@@ -132,7 +132,7 @@ class ConvStem(nn.Module):
 class PatchTokeniser(nn.Module):
     """Converts CNN feature maps into a sequence of tokens with positional encoding."""
 
-    def __init__(self, embed_dim=256, num_patches=64):
+    def __init__(self, embed_dim=512, num_patches=64):
         super().__init__()
         self.num_patches = num_patches
         self.embed_dim = embed_dim
@@ -150,9 +150,9 @@ class PatchTokeniser(nn.Module):
     def forward(self, feature_map):
         """
         Args:
-            feature_map: (B, 256, 8, 8) from conv stem
+            feature_map: (B, 512, 8, 8) from conv stem
         Returns:
-            (B, 65, 256) — 64 spatial tokens + 1 CLS token, with positional encoding
+            (B, 65, 512) — 64 spatial tokens + 1 CLS token, with positional encoding
         """
         B = feature_map.shape[0]
 
@@ -199,7 +199,7 @@ class PatchTokeniser(nn.Module):
 class GlobalAttention(nn.Module):
     """Two-layer pre-norm Transformer encoder for global patch attention."""
 
-    def __init__(self, embed_dim=256, num_heads=8, ff_dim=512, dropout=0.1, num_layers=2):
+    def __init__(self, embed_dim=512, num_heads=8, ff_dim=2048, dropout=0.1, num_layers=4):
         super().__init__()
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=embed_dim,
@@ -216,9 +216,9 @@ class GlobalAttention(nn.Module):
     def forward(self, tokens):
         """
         Args:
-            tokens: (B, 65, 256) — tokenised features with CLS
+            tokens: (B, 65, 512) — tokenised features with CLS
         Returns:
-            (B, 65, 256) — globally attended features
+            (B, 65, 512) — globally attended features
         """
         return self.norm(self.encoder(tokens))
 
@@ -265,7 +265,7 @@ class GlobalAttention(nn.Module):
 class RecurrentFeedback(nn.Module):
     """Recurrent top-down feedback loop: transformer outputs modulate stem features."""
 
-    def __init__(self, embed_dim=256, num_patches=64, num_recurrent_steps=2):
+    def __init__(self, embed_dim=512, num_patches=64, num_recurrent_steps=2):
         super().__init__()
         self.num_recurrent_steps = num_recurrent_steps
         self.spatial_h = int(math.sqrt(num_patches))  # 8
@@ -291,9 +291,9 @@ class RecurrentFeedback(nn.Module):
         """Convert spatial tokens (excluding CLS) back to feature map format.
 
         Args:
-            tokens: (B, 65, 256) — includes CLS at position 0
+            tokens: (B, 65, 512) — includes CLS at position 0
         Returns:
-            (B, 256, 8, 8) — spatial feature map
+            (B, 512, 8, 8) — spatial feature map
         """
         spatial_tokens = tokens[:, 1:, :]  # Remove CLS token
         B, N, C = spatial_tokens.shape
@@ -303,10 +303,10 @@ class RecurrentFeedback(nn.Module):
         """Convert spatial feature map back to tokens with CLS prepended.
 
         Args:
-            spatial: (B, 256, 8, 8)
-            cls_token: (B, 1, 256)
+            spatial: (B, 512, 8, 8)
+            cls_token: (B, 1, 512)
         Returns:
-            (B, 65, 256)
+            (B, 65, 512)
         """
         B = spatial.shape[0]
         tokens = spatial.flatten(2).transpose(1, 2)  # (B, 64, 256)
@@ -315,11 +315,11 @@ class RecurrentFeedback(nn.Module):
     def forward(self, transformer_output, stem_features, transformer_fn):
         """
         Args:
-            transformer_output: (B, 65, 256) — output from Stage 3
-            stem_features: (B, 256, 8, 8) — original output from Stage 1
+            transformer_output: (B, 65, 512) — output from Stage 3
+            stem_features: (B, 512, 8, 8) — original output from Stage 1
             transformer_fn: callable — the transformer encoder to re-run
         Returns:
-            (B, 65, 256) — refined token sequence after recurrent feedback
+            (B, 65, 512) — refined token sequence after recurrent feedback
         """
         current = transformer_output
 
@@ -384,7 +384,7 @@ class RecurrentFeedback(nn.Module):
 class SemanticProjectionHead(nn.Module):
     """CLIP-inspired cosine similarity classification with learnable prototypes."""
 
-    def __init__(self, embed_dim=256, num_classes=10):
+    def __init__(self, embed_dim=512, num_classes=10):
         super().__init__()
         # Project CLS token to the semantic embedding space
         self.projection = nn.Linear(embed_dim, embed_dim)
@@ -400,7 +400,7 @@ class SemanticProjectionHead(nn.Module):
     def forward(self, cls_token):
         """
         Args:
-            cls_token: (B, 256) — CLS token from transformer output
+            cls_token: (B, 512) — CLS token from transformer output
         Returns:
             (B, 10) — cosine similarity logits scaled by temperature
         """
@@ -422,9 +422,9 @@ class SemanticProjectionHead(nn.Module):
 # FULL ARCHITECTURE — RHAN
 # =============================================================================
 # Input (B, 3, 32, 32)
-#   → Conv Stem (B, 256, 8, 8)          [local smoothing — Regime 1]
-#   → Tokenise + CLS + PosEmbed         [B, 65, 256]
-#   → Transformer ×2                    [global attention — Regime 2]
+#   → Conv Stem (B, 512, 8, 8)          [local smoothing — Regime 1]
+#   → Tokenise + CLS + PosEmbed         [B, 65, 512]
+#   → Transformer ×4                    [global attention — Regime 2]
 #   → Recurrent Feedback ×2             [top-down modulation]
 #   → CLS token → Semantic Head         [concept anchoring]
 #   → Logits (B, 10)
@@ -437,8 +437,8 @@ class RHAN(nn.Module):
     recurrent top-down feedback, and semantic concept anchoring.
     """
 
-    def __init__(self, num_classes=10, embed_dim=256, num_heads=8,
-                 ff_dim=512, dropout=0.1, num_transformer_layers=2,
+    def __init__(self, num_classes=10, embed_dim=512, num_heads=8,
+                 ff_dim=2048, dropout=0.1, num_transformer_layers=3,
                  num_recurrent_steps=2):
         super().__init__()
 
@@ -480,23 +480,23 @@ class RHAN(nn.Module):
             (B, 10) — classification logits (cosine similarity × temperature)
         """
         # Stage 1: Local convolutional smoothing
-        stem_features = self.stem(x)  # (B, 256, 8, 8)
+        stem_features = self.stem(x)  # (B, 512, 8, 8)
 
         # Stage 2: Tokenise CNN features
-        tokens = self.tokeniser(stem_features)  # (B, 65, 256)
+        tokens = self.tokeniser(stem_features)  # (B, 65, 512)
 
         # Stage 3: Global self-attention
-        attended = self.transformer(tokens)  # (B, 65, 256)
+        attended = self.transformer(tokens)  # (B, 65, 512)
 
         # Stage 4: Recurrent feedback — re-runs transformer on modulated features
         refined = self.feedback(
             transformer_output=attended,
             stem_features=stem_features,
             transformer_fn=self.transformer,
-        )  # (B, 65, 256)
+        )  # (B, 65, 512)
 
         # Stage 5: Semantic classification via CLS token
-        cls_output = refined[:, 0, :]  # (B, 256) — CLS token
+        cls_output = refined[:, 0, :]  # (B, 512) — CLS token
         logits = self.head(cls_output)  # (B, 10)
 
         return logits
@@ -524,10 +524,10 @@ def print_architecture_summary():
     print(f"\n{'Stage':<45} {'Output Shape':<20}")
     print("-" * 65)
     print(f"{'Input':<45} {'(B, 3, 32, 32)':<20}")
-    print(f"{'Stage 1: Conv Stem (local smoothing)':<45} {'(B, 256, 8, 8)':<20}")
-    print(f"{'Stage 2: Tokenise + CLS + PosEmbed':<45} {'(B, 65, 256)':<20}")
-    print(f"{'Stage 3: Transformer ×2 (global attention)':<45} {'(B, 65, 256)':<20}")
-    print(f"{'Stage 4: Recurrent Feedback ×2 (top-down)':<45} {'(B, 65, 256)':<20}")
+    print(f"{'Stage 1: Conv Stem (local smoothing)':<45} {'(B, 512, 8, 8)':<20}")
+    print(f"{'Stage 2: Tokenise + CLS + PosEmbed':<45} {'(B, 65, 512)':<20}")
+    print(f"{'Stage 3: Transformer ×4 (global attention)':<45} {'(B, 65, 512)':<20}")
+    print(f"{'Stage 4: Recurrent Feedback ×2 (top-down)':<45} {'(B, 65, 512)':<20}")
     print(f"{'Stage 5: CLS → Semantic Head':<45} {'(B, 10)':<20}")
     print("-" * 65)
 
