@@ -19,6 +19,7 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
@@ -126,6 +127,7 @@ def main():
         # --- Training ---
         model.train()
         train_loss = 0.0
+        train_ortho_loss = 0.0
         train_correct = 0
         train_total = 0
 
@@ -134,7 +136,19 @@ def main():
 
             optimizer.zero_grad()
             outputs = model(inputs)
-            loss = criterion(outputs, targets)
+            ce_loss = criterion(outputs, targets)
+
+            # Encourage class prototypes to be orthogonal (spread in feature space)
+            # This prevents prototype collapse in the cosine similarity head
+            prototypes = model.head.class_prototypes  # shape: (10, 512)
+            proto_norm = F.normalize(prototypes, dim=1)
+            similarity_matrix = proto_norm @ proto_norm.T  # (10, 10)
+            # Penalize off-diagonal similarity (want identity matrix)
+            identity = torch.eye(10, device=device)
+            ortho_loss = ((similarity_matrix - identity) ** 2).sum()
+            ortho_weight = 0.01  # small weight — don't let it dominate
+
+            loss = ce_loss + ortho_weight * ortho_loss
             loss.backward()
 
             # Gradient clipping for stability (recurrent architectures benefit)
@@ -143,11 +157,13 @@ def main():
             optimizer.step()
 
             train_loss += loss.item() * inputs.size(0)
+            train_ortho_loss += ortho_loss.item() * inputs.size(0)
             _, predicted = outputs.max(1)
             train_total += targets.size(0)
             train_correct += predicted.eq(targets).sum().item()
 
         train_loss /= len(trainloader.dataset)
+        train_ortho_loss /= len(trainloader.dataset)
         train_acc = 100.0 * train_correct / train_total
 
         # --- Evaluation ---
@@ -166,6 +182,7 @@ def main():
 
         # TensorBoard logging
         writer.add_scalar('Loss/Train', train_loss, epoch)
+        writer.add_scalar('Loss/Train_Ortho', train_ortho_loss, epoch)
         writer.add_scalar('Accuracy/Train', train_acc, epoch)
         writer.add_scalar('Accuracy/Test', test_acc, epoch)
         writer.add_scalar('Learning_Rate', current_lr, epoch)
