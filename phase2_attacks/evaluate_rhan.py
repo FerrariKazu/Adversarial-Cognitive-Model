@@ -75,8 +75,8 @@ def main():
         config = yaml.safe_load(f)
     epsilons = config['epsilons']
 
-    # Load model
-    ckpt_path = os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'rhan_best.pth')
+        # Load model
+    ckpt_path = os.path.join(os.path.dirname(__file__), '..', 'checkpoints', 'rhan_best.pth')
     if not os.path.exists(ckpt_path):
         print(f"ERROR: Checkpoint not found at {ckpt_path}")
         print("Please train RHAN first: python3 phase1_training/train_rhan.py")
@@ -88,7 +88,7 @@ def main():
     print(f"Loaded RHAN checkpoint from: {ckpt_path}")
 
     # Load data — native 32×32
-    _, testloader = get_dataloaders(batch_size=64, num_workers=4, model_name='resnet')
+    _, testloader = get_dataloaders(batch_size=256, num_workers=4, model_name='resnet')
 
     # CIFAR normalisation bounds
     cifar_min = torch.tensor([-2.4291, -2.4181, -2.2194]).view(1, 3, 1, 1).to(device)
@@ -153,9 +153,9 @@ def main():
     # Comparison Table
     # =========================================================================
     # Known baselines from our study
-    resnet_pgd = {0.00: 95.82, 0.01: 50.49, 0.05: 6.14, 0.10: 5.44, 0.20: 8.04, 0.30: 8.65}
-    vit_pgd = {0.00: 97.80, 0.01: 32.29, 0.05: 10.48, 0.10: 10.00, 0.20: 10.00, 0.30: 10.00}
-    human = {0.00: 74.15, 0.01: 72.50, 0.05: 68.00, 0.10: 62.00, 0.20: 55.00, 0.30: 48.00}
+    resnet_pgd = {0.00: 95.82, 0.01: 75.57, 0.05: 2.76, 0.10: 0.17, 0.20: 0.00, 0.30: 0.01}
+    vit_pgd = {0.00: 97.80, 0.01: 55.18, 0.05: 8.69, 0.10: 2.86, 0.20: 1.09, 0.30: 0.63}
+    human = {0.00: 74.15, 0.01: float('nan'), 0.05: 68.54, 0.10: 59.02, 0.20: 63.90, 0.30: 60.00}
 
     print("\n" + "=" * 80)
     print("COMPARISON: PGD ACCURACY — RHAN vs ResNet-18 vs ViT-Small vs Human")
@@ -171,7 +171,12 @@ def main():
         row += f" {pgd_results.get(eps, 0):>11.2f}%"
         row += f" {resnet_pgd.get(eps, 0):>11.2f}%"
         row += f" {vit_pgd.get(eps, 0):>11.2f}%"
-        row += f" {human.get(eps, 0):>11.2f}%"
+        
+        hum_val = human.get(eps, 0)
+        if hum_val is not None and not np.isnan(hum_val):
+            row += f" {hum_val:>11.2f}%"
+        else:
+            row += f" {'N/A':>12}"
         print(row)
 
     print("=" * 80)
