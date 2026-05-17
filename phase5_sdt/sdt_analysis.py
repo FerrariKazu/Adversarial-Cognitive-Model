@@ -26,7 +26,7 @@ OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'results')
 OUTPUT_CSV = os.path.join(OUTPUT_DIR, 'sdt_results_v4.csv')
 
 # Target models for this final update
-TARGET_MODELS = ['resnet', 'vit', 'efficientnet', 'shaperesnet', 'bagnet']
+TARGET_MODELS = ['resnet', 'vit', 'efficientnet', 'shaperesnet', 'bagnet', 'cornets']
 
 def get_cnn_predictions(model_name, cfg, device, epsilons):
     """Returns dict[epsilon] -> (preds_array, labels_array)"""
