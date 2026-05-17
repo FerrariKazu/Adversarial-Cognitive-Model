@@ -439,8 +439,9 @@ class RHAN(nn.Module):
 
     def __init__(self, num_classes=10, embed_dim=512, num_heads=8,
                  ff_dim=2048, dropout=0.1, num_transformer_layers=3,
-                 num_recurrent_steps=2):
+                 num_recurrent_steps=2, head_type='cosine'):
         super().__init__()
+        self.head_type = head_type
 
         # Stage 1: Convolutional stem — local smoothing (Regime 1 defence)
         self.stem = ConvStem()
@@ -464,11 +465,20 @@ class RHAN(nn.Module):
             num_recurrent_steps=num_recurrent_steps,
         )
 
-        # Stage 5: Semantic projection head (concept anchoring)
-        self.head = SemanticProjectionHead(
-            embed_dim=embed_dim,
-            num_classes=num_classes,
-        )
+        # Stage 5: Classification head
+        if head_type == 'linear':
+            # Standard linear head — gives honest gradients for PGD
+            self.head = nn.Sequential(
+                nn.LayerNorm(embed_dim),
+                nn.Dropout(0.1),
+                nn.Linear(embed_dim, num_classes),
+            )
+        else:
+            # Cosine similarity head (original RHAN design)
+            self.head = SemanticProjectionHead(
+                embed_dim=embed_dim,
+                num_classes=num_classes,
+            )
 
     def forward(self, x):
         """
@@ -477,7 +487,7 @@ class RHAN(nn.Module):
         Args:
             x: (B, 3, 32, 32) — normalised CIFAR-10 images
         Returns:
-            (B, 10) — classification logits (cosine similarity × temperature)
+            (B, 10) — classification logits
         """
         # Stage 1: Local convolutional smoothing
         stem_features = self.stem(x)  # (B, 512, 8, 8)
@@ -495,7 +505,7 @@ class RHAN(nn.Module):
             transformer_fn=self.transformer,
         )  # (B, 65, 512)
 
-        # Stage 5: Semantic classification via CLS token
+        # Stage 5: Classification via CLS token
         cls_output = refined[:, 0, :]  # (B, 512) — CLS token
         logits = self.head(cls_output)  # (B, 10)
 
