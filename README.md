@@ -4,7 +4,7 @@
 > Does adversarial robustness scale with global visual processing —
 > and is it determined by architecture, training objective, or recurrence?
 
-## Key Findings (Partial — 5/7 Models Complete)
+## Key Findings (6/7 Models Complete)
 
 | System | Clean Acc | PGD 50% Threshold | d′=1.0 Threshold | Status |
 |--------|-----------|-------------------|-------------------|--------|
@@ -12,9 +12,9 @@
 | ResNet-18 | 95.82% | ε≈0.024 | ε≈0.030 | ✅ Complete |
 | ViT-Small | 97.80% | ε≈0.014 | ε≈0.026 | ✅ Complete |
 | BagNet-33 | 87.67% | ε≈0.010 | ε≈0.017 | ✅ Complete |
+| CORnet-S | 91.48% | ε≈0.006 | ε≈0.009 | ✅ Complete |
 | Shape-ResNet-50 | 91.47% | ε≈0.006 | ε≈0.008 | ✅ Complete |
 | EfficientNet-B0 | 96.81% | ε≈0.005 | ε≈0.006 | ✅ Complete |
-| CORnet-S | — | — | — | 🔄 Pending |
 | CLIP ViT-B/32 | — | — | — | 🔄 Pending |
 
 **Headline:** All AI models collapse before ε=0.03. Humans never cross the d′=1.0 threshold up to ε=0.30.

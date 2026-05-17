@@ -7,7 +7,7 @@ from datetime import datetime
 
 # Configuration
 SDT_RESULTS = 'phase5_sdt/results/sdt_results_v4.csv'
-OUTPUT_PATH = 'phase5_sdt/results/final_report_5model.txt'
+OUTPUT_PATH = 'phase5_sdt/results/final_report_6model.txt'
 
 def find_threshold_precise(epsilons, d_primes, threshold=1.0):
     epsilons = np.array(epsilons)
@@ -32,7 +32,7 @@ def generate_report():
     w = lines.append
 
     w("=" * 80)
-    w("  ADVERSARIAL COGNITION DIVERGENCE: PHASE 5 CONSOLIDATED REPORT (5/7 MODELS)")
+    w("  ADVERSARIAL COGNITION DIVERGENCE: PHASE 5 CONSOLIDATED REPORT (6/7 MODELS)")
     w("=" * 80)
     w(f"  Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     w(f"  Project:   https://github.com/FerrariKazu/Adversarial-Cognitive-Model")
@@ -47,7 +47,7 @@ def generate_report():
     systems = df['system'].unique()
     summary_data = []
     
-    for sys in systems:
+    for sys in sorted(systems):
         sys_df = df[df['system'] == sys].groupby('epsilon')['d_prime'].mean().reset_index()
         eps = sys_df['epsilon'].values
         dp = sys_df['d_prime'].values
@@ -89,7 +89,14 @@ def generate_report():
     w("      accuracy at ε=0.30, suggesting global attention provides a structural")
     w("      safety net that local CNNs lack.")
     w("")
-    w("  [5] HUMAN BASELINE:")
+    w("  [5] CORNET-S (RECURRENT VISUAL CORTEX):")
+    w("      CORnet-S adds recurrent connections to mimic biological vision but")
+    w("      still collapses rapidly (ε_thresh = 0.009). While recurrence holds")
+    w("      theoretical promise for robust shape restoration, feedforward-style")
+    w("      pretraining without explicit training-time regularizations or")
+    w("      robust objective constraints fails to closed the robustness gap.")
+    w("")
+    w("  [6] HUMAN BASELINE:")
     w("      Human d' remains stable (~2.0) across the entire tested range.")
     w("      The baseline 73% accuracy is a result of CIFAR-10 pixelation, not")
     w("      perceptual failure. The non-monotonicity observed at ε=0.20 is a")
@@ -97,9 +104,9 @@ def generate_report():
     w("")
 
     w("=" * 80)
-    w("  3. STATUS: PARTIAL")
+    w("  3. STATUS")
     w("=" * 80)
-    w("  - CORnet-S:   PENDING (Integration ongoing by Youssef + Eyad)")
+    w("  - CORnet-S:   ✅ COMPLETE")
     w("  - CLIP ViT:   PENDING (Integration ongoing by Mariam)")
     w("")
     w("=" * 80)

@@ -1,0 +1,70 @@
+================================================================================
+  ADVERSARIAL COGNITION DIVERGENCE: PHASE 5 CONSOLIDATED REPORT (6/7 MODELS)
+================================================================================
+  Generated: 2026-05-17 20:27:53
+  Project:   https://github.com/FerrariKazu/Adversarial-Cognitive-Model
+
+================================================================================
+  1. ROBUSTNESS RANKING (d' = 1.0 Perceptual Threshold)
+================================================================================
+  System          | Clean dprime    | Threshold Epsilon
+--------------------------------------------------------------------------------
+  Bagnet          | 3.435           | 0.0165         
+  Cornets         | 3.808           | 0.0087         
+  Efficientnet    | 4.642           | 0.0062         
+  Human           | 2.734           | >0.30          
+  Resnet          | 4.426           | 0.0295         
+  Shaperesnet     | 3.788           | 0.0082         
+  Vit             | 4.931           | 0.0264         
+
+================================================================================
+  2. KEY SCIENTIFIC FINDINGS
+================================================================================
+  [1] EFFICIENTNET FRAGILITY:
+      EfficientNet-B0 achieved the highest clean accuracy (96.8%) but proved
+      the most fragile under attack (ε_thresh = 0.006). This supports the
+      hypothesis that architectural scaling for clean accuracy often
+      comes at the cost of over-reliance on brittle local features.
+
+  [2] RESNET ROBUSTNESS:
+      ResNet-18 is the most robust of the tested models (ε_thresh = 0.030).
+      Despite being the oldest architecture, its simpler residual blocks
+      seem to preserve signal more effectively than the complex scaling
+      of EfficientNet or the local patch-binding of BagNet.
+
+  [3] SHAPE-RESNET NEGATIVE RESULT:
+      Shape-ResNet-50 (trained on Stylized-ImageNet) did NOT outperform the
+      standard ResNet-18 (ε_thresh = 0.008 vs 0.030). This suggests that
+      texture-bias is not the only factor in adversarial vulnerability;
+      increased depth and filter complexity in the ResNet-50 backbone
+      may introduce new vulnerabilities that negate the shape-bias gains.
+
+  [4] ViT LATENT RESILIENCE:
+      ViT-Small shows a unique decay curve: rapid initial drop but a very
+      long 'tail' of sensitivity at high epsilon. While its threshold is
+      lower than ResNet (0.026 vs 0.030), it maintains higher absolute
+      accuracy at ε=0.30, suggesting global attention provides a structural
+      safety net that local CNNs lack.
+
+  [5] CORNET-S (RECURRENT VISUAL CORTEX):
+      CORnet-S adds recurrent connections to mimic biological vision but
+      still collapses rapidly (ε_thresh = 0.009). While recurrence holds
+      theoretical promise for robust shape restoration, feedforward-style
+      pretraining without explicit training-time regularizations or
+      robust objective constraints fails to closed the robustness gap.
+
+  [6] HUMAN BASELINE:
+      Human d' remains stable (~2.0) across the entire tested range.
+      The baseline 73% accuracy is a result of CIFAR-10 pixelation, not
+      perceptual failure. The non-monotonicity observed at ε=0.20 is a
+      known sampling limitation in the 100-trial subset.
+
+================================================================================
+  3. STATUS
+================================================================================
+  - CORnet-S:   ✅ COMPLETE
+  - CLIP ViT:   PENDING (Integration ongoing by Mariam)
+
+================================================================================
+  END OF REPORT
+================================================================================
