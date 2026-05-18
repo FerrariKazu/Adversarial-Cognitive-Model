@@ -70,30 +70,28 @@ def main():
     # === Data ===
     from torch.utils.data import DataLoader
     trainloader_raw, testloader_raw = get_dataloaders(
-        batch_size=64, num_workers=6, model_name='resnet'
+        batch_size=256, num_workers=6, model_name='resnet'
     )
     trainloader = DataLoader(
-        trainloader_raw.dataset, batch_size=64, shuffle=True,
+        trainloader_raw.dataset, batch_size=256, shuffle=True,
         num_workers=6, pin_memory=True, persistent_workers=True,
         prefetch_factor=3,
     )
     testloader = DataLoader(
-        testloader_raw.dataset, batch_size=256, shuffle=False,
+        testloader_raw.dataset, batch_size=512, shuffle=False,
         num_workers=4, pin_memory=True, persistent_workers=False,
         prefetch_factor=3,
     )
 
     # === Training setup ===
-    optimizer = optim.AdamW(model.parameters(), lr=0.00005, weight_decay=0.05)
-    epochs = 25
-    accumulate_steps = 2
+    optimizer = optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.05)
+    epochs = 3
+    accumulate_steps = 1
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
     scaler = GradScaler()
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
-    # Adversarial params
-    eps = 0.031      # 8/255 — standard CIFAR adversarial budget
-    alpha = 0.01     # PGD step size
+    # Adversarial params (now dynamically scheduled per curriculum)
     pgd_steps = 5    # PGD-5 for training speed
 
     # CIFAR bounds
@@ -104,21 +102,35 @@ def main():
     best_acc = 0.0
 
     print(f"\n{'='*70}")
-    print(f"RHAN Adversarial Fine-Tuning (PGD-5, ε=8/255)")
+    print(f"RHAN Curriculum Adversarial Fine-Tuning (PGD-5)")
     print(f"{'='*70}")
     print(f"  Base checkpoint:  {clean_ckpt}")
-    print(f"  Optimizer:        AdamW (lr=0.00005, wd=0.05)")
+    print(f"  Optimizer:        AdamW (lr=0.0001, wd=0.05)")
     print(f"  Scheduler:        CosineAnnealingLR (T_max={epochs})")
-    print(f"  Batch size:       64 × {accumulate_steps} accumulation = 128 effective")
+    print(f"  Batch size:       {trainloader.batch_size} (effective batch size)")
     print(f"  Epochs:           {epochs}")
     print(f"  PGD steps:        {pgd_steps}")
-    print(f"  Epsilon:          {eps:.4f} (8/255)")
+    print(f"  Curriculum (Express):")
+    print(f"    - Epoch 1: ε = 0.031, α = 0.01")
+    print(f"    - Epoch 2: ε = 0.062, α = 0.02")
+    print(f"    - Epoch 3: ε = 0.100, α = 0.03")
     print(f"  Mixed training:   50% adversarial + 50% clean")
     print(f"  AMP:              Yes")
     print(f"  torch.compile:    Yes")
     print(f"{'='*70}\n")
 
     for epoch in range(epochs):
+        # Dynamic express curriculum adversarial training
+        if epoch == 0:
+            eps = 0.031
+            alpha = 0.01
+        elif epoch == 1:
+            eps = 0.062
+            alpha = 0.02
+        else:
+            eps = 0.10
+            alpha = 0.03
+
         start_time = time.time()
         model.train()
         train_loss = 0.0
@@ -216,13 +228,17 @@ def main():
               f"Loss: {train_loss:.4f} | "
               f"Train: {train_acc:.1f}% | "
               f"Test: {test_acc:.2f}% | "
+              f"ε: {eps:.3f} | "
               f"LR: {current_lr:.7f} | "
               f"Time: {elapsed:.1f}s{marker}", flush=True)
 
+    # Save the final epoch model (representing the fully completed curriculum)
+    raw_model = model._orig_mod if hasattr(model, '_orig_mod') else model
+    torch.save(raw_model.state_dict(), ckpt_path)
+
     total_elapsed = time.time() - total_start
     print(f"\n{'='*70}")
-    print(f"Adversarial training complete. Best Clean Accuracy: {best_acc:.2f}%")
-    print(f"Checkpoint saved to: {ckpt_path}")
+    print(f"Adversarial training complete. Final model saved successfully to: {ckpt_path}")
     print(f"Total training time: {total_elapsed/60:.1f} minutes")
     print(f"{'='*70}")
 

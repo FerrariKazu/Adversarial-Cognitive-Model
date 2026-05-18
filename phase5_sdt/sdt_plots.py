@@ -16,6 +16,8 @@ COLORS = {
     'Efficientnet': '#0F3460',
     'Shaperesnet': '#16A34A',
     'Bagnet': '#F97316',
+    'Cornets': '#DB2777',
+    'Rhan-adv': '#2563EB',
     'Human': '#22C55E'
 }
 
@@ -60,7 +62,7 @@ def plot_final_dprime_curves():
                      color=COLORS.get(sys, 'gray'), fontweight='bold', fontsize=9,
                      bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
 
-    plt.title("Signal Detection Theory: Perceptual Sensitivity Collapse (5/7 Models)", fontsize=16, pad=20)
+    plt.title("Signal Detection Theory: Perceptual Sensitivity Collapse", fontsize=16, pad=20)
     plt.xlabel("Perturbation Budget (Epsilon)", fontsize=14)
     plt.ylabel("Sensitivity Index (d')", fontsize=14)
     plt.xlim(-0.01, 0.35)
@@ -71,7 +73,7 @@ def plot_final_dprime_curves():
     # Shade the "blind zone"
     plt.fill_between([-0.05, 0.40], -1, 1.0, color='gray', alpha=0.05)
 
-    out_path = os.path.join(OUTPUT_DIR, 'final_dprime_5model.png')
+    out_path = os.path.join(OUTPUT_DIR, 'final_dprime_with_rhan.png')
     plt.savefig(out_path, bbox_inches='tight')
     plt.close()
     print(f"📊 Final SDT figure saved: {out_path}")
