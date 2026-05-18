@@ -56,18 +56,25 @@ class CIFARClip(nn.Module):
             mean=(0.48145466, 0.4578275, 0.40821073),
             std=(0.26862954, 0.26130258, 0.27577711)
         )
+        
+        # CIFAR-10 un-normalization parameters
+        self.register_buffer('cifar_mean', torch.tensor([0.4914, 0.4822, 0.4465]).view(1, 3, 1, 1))
+        self.register_buffer('cifar_std', torch.tensor([0.2023, 0.1994, 0.2010]).view(1, 3, 1, 1))
 
     def predict(self, images):
-        # Resize to 224x224 and normalize using CLIP's specific mean/std
+        # 1. Revert CIFAR-10 normalization to get back to [0, 1] range
+        images = images * self.cifar_std + self.cifar_mean
+        
+        # 2. Resize to 224x224 and normalize using CLIP's specific mean/std
         images = F.interpolate(images, size=(224, 224), mode='bicubic', align_corners=False)
         images = self.normalize(images)
         
-        with torch.no_grad():
-            image_features = self.model.encode_image(images)
-            image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-            
-            logit_scale = self.model.logit_scale.exp()
-            logits = logit_scale * image_features @ self.text_features.t()
+        # DO NOT use torch.no_grad() here, otherwise adversarial attacks (PGD) will fail!
+        image_features = self.model.encode_image(images)
+        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+        
+        logit_scale = self.model.logit_scale.exp()
+        logits = logit_scale * image_features @ self.text_features.t()
             
         return logits
         

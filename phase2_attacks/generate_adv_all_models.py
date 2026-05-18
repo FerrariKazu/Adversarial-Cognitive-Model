@@ -28,6 +28,7 @@ from phase1_training.model_shaperesnet import ShapeResNet
 from phase1_training.model_cornets import CIFARCORnet
 from phase1_training.model_clip import CIFARClip
 from phase1_training.model_bagnet import CIFARBagNet
+from phase1_training.model_rhan import RHAN
 from phase1_training.dataset import get_dataloaders
 from phase1_training.dataset_vit import get_dataloaders_vit
 from phase2_attacks.fgsm import fgsm_attack
@@ -82,6 +83,13 @@ MODELS = {
         'class': CIFARBagNet,
         'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'bagnet'),
         'input_size': 64,
+        'loader_fn': get_dataloaders
+    },
+    'rhan': {
+        'ckpt': os.path.join(os.path.dirname(__file__), '..', 'phase1_training', 'checkpoints', 'rhan_best.pth'),
+        'class': RHAN,
+        'out': os.path.join(os.path.dirname(__file__), 'adv_images', 'rhan'),
+        'input_size': 32,
         'loader_fn': get_dataloaders
     }
 }
@@ -142,7 +150,7 @@ def verify_file(filepath):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['resnet', 'efficientnet', 'vit', 'shaperesnet', 'cornets', 'clip', 'bagnet'], required=True)
+    parser.add_argument('--model', type=str, choices=['resnet', 'efficientnet', 'vit', 'shaperesnet', 'cornets', 'clip', 'bagnet', 'rhan'], required=True)
     args = parser.parse_args()
 
     cfg = MODELS[args.model]
