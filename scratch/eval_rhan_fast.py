@@ -1,5 +1,6 @@
 import os
 import sys
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,16 +15,19 @@ from phase2_attacks.pgd import pgd_attack
 def eval_pgd_fast(model, loader, eps_val, device, cifar_min, cifar_max, steps=100, max_samples=512):
     if eps_val == 0:
         correct = total = 0
+        confs = []
         with torch.no_grad():
             for images, labels in loader:
                 if total >= max_samples:
                     break
                 images, labels = images.to(device), labels.to(device)
                 outputs = model(images)
-                _, predicted = outputs.max(1)
+                probs = F.softmax(outputs, dim=1)
+                max_probs, predicted = probs.max(1)
                 total += labels.size(0)
                 correct += predicted.eq(labels).sum().item()
-        return 100. * correct / total
+                confs.extend(max_probs.cpu().numpy())
+        return 100. * correct / total, np.mean(confs)
 
     # Disable all parameter gradients to avoid huge backward graph overhead and OOM/thrashing!
     for p in model.parameters():
@@ -31,6 +35,7 @@ def eval_pgd_fast(model, loader, eps_val, device, cifar_min, cifar_max, steps=10
 
     a = max(eps_val / 10, 0.001)
     correct = total = 0
+    confs = []
     for images, labels in loader:
         if total >= max_samples:
             break
@@ -40,11 +45,17 @@ def eval_pgd_fast(model, loader, eps_val, device, cifar_min, cifar_max, steps=10
             epsilon=eps_val, alpha=a, steps=steps,
             device=device, clip_min=cifar_min, clip_max=cifar_max,
         )
+        with torch.no_grad():
+            outputs = model(adv_images)
+            probs = F.softmax(outputs, dim=1)
+            max_probs, _ = probs.max(1)
+            confs.extend(max_probs.cpu().numpy())
         total += labels.size(0)
         correct += predicted.eq(labels).sum().item()
-    return 100. * correct / total
+    return 100. * correct / total, np.mean(confs)
 
 def main():
+    import numpy as np
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -79,13 +90,13 @@ def main():
 
     print("\nEvaluating RHAN-clean (v2) Fast...")
     for eps_val in epsilons:
-        acc = eval_pgd_fast(clean_model, testloader, eps_val, device, cifar_min, cifar_max)
-        print(f"  ε={eps_val:.2f} → {acc:.2f}%")
+        acc, conf = eval_pgd_fast(clean_model, testloader, eps_val, device, cifar_min, cifar_max)
+        print(f"  ε={eps_val:.2f} → Acc: {acc:.2f}%, Conf: {conf:.4f}")
 
     print("\nEvaluating RHAN-adv Fast...")
     for eps_val in epsilons:
-        acc = eval_pgd_fast(adv_model, testloader, eps_val, device, cifar_min, cifar_max)
-        print(f"  ε={eps_val:.2f} → {acc:.2f}%")
+        acc, conf = eval_pgd_fast(adv_model, testloader, eps_val, device, cifar_min, cifar_max)
+        print(f"  ε={eps_val:.2f} → Acc: {acc:.2f}%, Conf: {conf:.4f}")
 
 if __name__ == '__main__':
     main()
