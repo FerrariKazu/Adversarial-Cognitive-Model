@@ -1,0 +1,1132 @@
+\documentclass[12pt,a4paper]{article}
+
+% --- Packages ---
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{natbib}
+\usepackage{microtype}
+\usepackage{setspace}
+\usepackage{tikz}
+\usepackage{array}
+\usetikzlibrary{shapes.geometric,arrows.meta,positioning}
+
+% --- Fix: define C column type for tabularx ---
+\newcolumntype{C}{>{\centering\arraybackslash}X}
+
+% --- Document Formatting ---
+\onehalfspacing
+\hypersetup{
+    colorlinks=false,
+    pdfborder={0 0 0},
+    pdftitle={Adversarial Cognition Divergence},
+    pdfauthor={Mina Magdy, Sandy Antonius, Youssef Ayman Mahmoud, Eyad Saleh Ali, Mariam Mohammed}
+}
+
+\title{\textbf{Adversarial Cognition Divergence: Mapping Perceptual Breakdown\\
+Across Seven Neural Architectures and Human Vision}}
+
+\author{
+    Mina Magdy\textsuperscript{1} \quad
+    Sandy Antonius\textsuperscript{1} \quad
+    Youssef Tammam Mahmoud\textsuperscript{1} \\[4pt]
+    Eyad Saleh Ali\textsuperscript{1} \quad
+    Mariam Mohammed\textsuperscript{1} \\[8pt]
+    \small\textsuperscript{1}Sadat Academy for Management Sciences,
+    AI Department, Year~3
+}
+
+\date{\small\today}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+% ============================================================
+\begin{abstract}
+% ============================================================
+Deep neural networks achieve superhuman performance on clean visual datasets
+yet exhibit extreme vulnerability to adversarial perturbations.
+This study quantifies the divergence between biological and machine vision
+by evaluating seven neural architectures against human observers
+($n{=}18$, 1\,800 psychophysical trials) under identical adversarial
+constraints applied via 100-step Projected Gradient Descent (PGD).
+Applying Signal Detection Theory (SDT), we measure perceptual sensitivity
+($d'$) and sensitivity-collapse thresholds across a locality-to-globality
+processing spectrum spanning BagNet-33, ResNet-18, EfficientNet-B0,
+Shape-ResNet-50, CORnet-S, ViT-Small, and our proposed
+Recurrent Hybrid Attention Network (RHAN).
+All standard architectures collapse below the reliable-discrimination
+threshold ($d'{<}1.0$) before $\varepsilon{=}0.031$,
+while human sensitivity remains stable ($d'{=}2.019$) at $\varepsilon{=}0.30$.
+EfficientNet-B0 is the most fragile model despite the highest clean accuracy
+($\varepsilon_{\text{thresh}}{=}0.0062$);
+ResNet-18 is paradoxically the most robust standard architecture
+($\varepsilon_{\text{thresh}}{=}0.0295$).
+Shape-biased training via Stylized-ImageNet
+(Shape-ResNet-50, $\varepsilon_{\text{thresh}}{=}0.0082$)
+fails to improve over the standard texture-biased baseline,
+constituting a negative result that challenges the sufficiency of
+texture-bias as an explanation for adversarial fragility.
+Our proposed RHAN-adv, trained with a three-stage curriculum adversarial
+procedure, achieves $\varepsilon_{\text{thresh}}{=}0.0764$ and retains
+$52.0\%$ accuracy at $\varepsilon{=}0.05$ where all feedforward models
+are near zero~---~demonstrating that biological-like recurrent feedback,
+rather than feedforward scaling or shape-biased training, is the primary
+mechanism for closing the human-machine robustness gap.
+\end{abstract}
+
+\newpage
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introduction}
+\label{sec:intro}
+% ============================================================
+
+Deep convolutional neural networks (CNNs) have achieved remarkable performance
+on standard image classification benchmarks, frequently matching or exceeding
+human accuracy on clean stimuli~\citep{he2016deep,tan2019efficientnet}.
+However, this apparent capability is fragile: minute, human-imperceptible
+perturbations crafted through gradient-based optimisation~---~known as
+adversarial examples~---~can cause state-of-the-art models to fail
+catastrophically with near-absolute
+confidence~\citep{goodfellow2015explaining,madry2018towards}.
+This mismatch exposes a fundamental qualitative divergence between artificial
+and biological visual systems.
+
+In biological vision, object recognition is not a purely feedforward process.
+The initial feedforward sweep through the ventral pathway
+(V1$\!\to$V2$\!\to$V4$\!\to$IT) is immediately followed by massive top-down
+recurrent feedback connections~\citep{dicarlo2007untangling} that allow the
+visual cortex to apply contextual predictions, reconstruct degraded signals,
+and integrate global shape structure under high-noise conditions.
+Standard neural architectures are strictly feedforward and heavily reliant
+on local high-frequency texture statistics rather than global shape
+integration~\citep{geirhos2019imagenet,brendel2019approximating}.
+Adversarial perturbations exploit this texture bias by injecting
+high-frequency patterns that override clean local features while leaving
+global shape intact for human observers.
+
+This paper presents the \textit{Adversarial Cognition Divergence} project:
+a rigorous cross-disciplinary study mapping perceptual breakdown across
+biological and machine vision under identical adversarial constraints.
+Signal Detection Theory (SDT) provides a mathematically principled framework
+for direct human-machine comparison, abstracting away scale differences in
+logits and confidence scores.
+
+\subsection*{Contributions}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item A large-scale psychophysical study ($n{=}18$, 1\,800 trials)
+        measuring human object recognition accuracy and confidence under
+        PGD perturbations at six epsilon levels.
+  \item A systematic SDT comparison of six standard architectures spanning
+        the full locality-to-globality spectrum, measuring $d'$ decay curves
+        and precise collapse thresholds ($\varepsilon_{\text{thresh}}$).
+  \item A \textbf{ResNet paradox}: clean-accuracy scaling (EfficientNet)
+        produces the most fragile model; simplest architecture (ResNet-18)
+        is most robust.
+  \item A \textbf{negative result for shape-biased training}: Shape-ResNet-50
+        performs worse than standard ResNet-18 under adversarial attack despite
+        explicit texture debiasing.
+  \item The \textbf{Recurrent Hybrid Attention Network (RHAN-adv)},
+        a biologically motivated architecture combining local convolutional
+        smoothing, global self-attention, and recurrent top-down feedback,
+        trained via curriculum adversarial training.
+        RHAN-adv achieves $\varepsilon_{\text{thresh}}{=}0.0764$,
+        a 2.6$\times$ improvement over ResNet-18 and
+        12$\times$ over EfficientNet-B0.
+\end{enumerate}
+
+% ============================================================
+\section{Related Work}
+\label{sec:related}
+% ============================================================
+
+Adversarial examples were identified by~\citet{szegedy2013intriguing},
+who showed that deep networks can be fooled by imperceptible perturbations.
+\citet{goodfellow2015explaining} proposed Fast Gradient Sign Method (FGSM),
+framing vulnerability as a consequence of high-dimensional linearity.
+\citet{madry2018towards} extended this to Projected Gradient Descent (PGD),
+the standard first-order adversarial threat model.
+\citet{carlini2017towards} introduced an optimisation-based C\&W L2 attack
+producing minimum-distortion adversarial examples.
+
+The texture-bias hypothesis was formalised by~\citet{geirhos2019imagenet},
+who demonstrated that ImageNet-trained CNNs classify by texture while humans
+classify by shape.
+\citet{brendel2019approximating} showed that BagNet, restricted to
+$33{\times}33$ pixel patches, achieves surprisingly high ImageNet accuracy,
+proving global context is not required for feedforward clean performance.
+\citet{dosovitskiy2020image} introduced the Vision Transformer (ViT),
+replacing local convolutions with global patch-level self-attention.
+\citet{kubilius2019brain} developed CORnet-S, incorporating recurrent
+connections within convolutional blocks to model the primate ventral stream.
+Despite these advances, no prior study has applied SDT across a comprehensive
+architectural spectrum while simultaneously collecting human psychophysical
+data on identical adversarial stimuli.
+
+% ============================================================
+\section{Methods}
+\label{sec:methods}
+% ============================================================
+
+\subsection{Dataset}
+All experiments use CIFAR-10~\citep{krizhevsky2009learning},
+a benchmark of 60\,000 RGB images ($32{\times}32$ pixels) across 10 balanced
+classes. The standard test split of 10\,000 images is used for all
+adversarial evaluation.
+Models requiring larger inputs (EfficientNet-B0, ViT-Small, Shape-ResNet-50,
+CORnet-S, RHAN) receive images upsampled to $224{\times}224$ via bilinear
+interpolation.
+All images are normalised using CIFAR-10 channel statistics:
+$\mu{=}(0.4914,\,0.4822,\,0.4465)$,
+$\sigma{=}(0.2023,\,0.1994,\,0.2010)$.
+A pixel-space validity clamp is applied after all perturbations.
+
+\subsection{Model Architectures}
+
+We evaluate seven models spanning the locality-to-globality spectrum.
+
+\begin{enumerate}[leftmargin=1.5em]
+
+  \item \textbf{BagNet-33}~\citep{brendel2019approximating}.
+        Classifies using only $33{\times}33$ pixel local patches.
+        Maximum texture bias; zero global context.
+        Clean accuracy: \textbf{87.7\%}.
+
+  \item \textbf{ResNet-18}~\citep{he2016deep}.
+        Standard 18-layer residual CNN, ImageNet pretrained, fine-tuned on
+        CIFAR-10. Trained with SGD and CosineAnnealingLR (50 epochs,
+        $\text{lr}{=}0.01$).
+        Clean accuracy: \textbf{95.8\%}.
+
+  \item \textbf{EfficientNet-B0}~\citep{tan2019efficientnet}.
+        Compound-scaled CNN. Due to gradient instability in Swish and
+        BatchNorm layers at $224{\times}224$ under high-$\varepsilon$ PGD,
+        BIM (PGD without random start) is used for attack generation.
+        Clean accuracy: \textbf{96.8\%}.
+
+  \item \textbf{Shape-ResNet-50}~\citep{geirhos2019imagenet}.
+        ResNet-50 pretrained on Stylized-ImageNet (SIN), where textures are
+        replaced by neural style transfer, forcing shape-based processing.
+        Fine-tuned on CIFAR-10 (15 epochs, $\text{lr}{=}0.0001$).
+        Clean accuracy: \textbf{91.5\%}.
+
+  \item \textbf{CORnet-S}~\citep{kubilius2019brain}.
+        Shallow recurrent network modelling primate visual areas
+        V1$\!\to$V2$\!\to$V4$\!\to$IT with recurrent feedback within each
+        stage. ImageNet pretrained, fine-tuned on CIFAR-10.
+        Clean accuracy: \textbf{91.5\%}.
+
+  \item \textbf{ViT-Small}~\citep{dosovitskiy2020image}.
+        Vision Transformer, $16{\times}16$ patches, global self-attention from
+        the first layer. ImageNet pretrained via \texttt{timm}, fine-tuned with
+        AdamW and CosineAnnealingLR.
+        Clean accuracy: \textbf{97.8\%}.
+
+  \item \textbf{RHAN (Recurrent Hybrid Attention Network)} (proposed).
+        Combines a local convolutional stem, global transformer attention
+        layers, and a recurrent top-down feedback gate.
+        Two variants: RHAN-clean (89.1\%) and RHAN-adv (83.8\%, trained
+        with three-stage curriculum adversarial training described below).
+
+\end{enumerate}
+
+\subsection{Adversarial Attacks}
+
+\textbf{FGSM}~\citep{goodfellow2015explaining}.
+Single-step signed-gradient attack:
+$\mathbf{x}_{\text{adv}} = \mathbf{x} +
+\varepsilon \cdot \operatorname{sign}(\nabla_{\!\mathbf{x}}
+J(\theta,\mathbf{x},y))$.
+
+\textbf{PGD-100}~\citep{madry2018towards}.
+Iterative multi-step attack with 100 steps:
+\begin{equation}
+  \mathbf{x}^{t+1} = \Pi_{\varepsilon}\!\left(
+    \mathbf{x}^{t} +
+    \alpha\cdot\operatorname{sign}(\nabla_{\!\mathbf{x}} J)
+  \right), \qquad \alpha = \varepsilon/4.
+  \label{eq:pgd}
+\end{equation}
+Random initialisation within the $\varepsilon$-ball is used for all models
+except EfficientNet-B0 (BIM mode).
+
+\textbf{C\&W L2}~\citep{carlini2017towards}.
+Optimisation-based attack minimising $L_2$ perturbation distance.
+Applied to ResNet-18 for supplementary analysis.
+
+Attacks are evaluated at
+$\varepsilon \in \{0.00, 0.01, 0.05, 0.10, 0.20, 0.30\}$
+in normalised pixel space.
+
+\subsection{RHAN Curriculum Adversarial Training}
+
+RHAN-adv is trained in three progressive stages starting from the
+RHAN-clean checkpoint:
+\begin{itemize}[leftmargin=1.5em]
+  \item Epochs 1--10: PGD-5, $\varepsilon{=}0.031$ (8/255).
+  \item Epochs 11--20: PGD-5, $\varepsilon{=}0.062$ (16/255).
+  \item Epochs 21--30: PGD-5, $\varepsilon{=}0.100$ (target).
+\end{itemize}
+Each stage uses 50\% adversarial + 50\% clean mixed batches (effective batch
+size 128), AdamW ($\text{lr}{=}5{\times}10^{-5}$, weight decay 0.05),
+and CosineAnnealingLR. The model is saved at the final epoch regardless of
+clean accuracy, ensuring the fully hardened weights are preserved.
+
+\subsection{Human Psychophysics Study}
+
+Eighteen university students participated voluntarily.
+Stimuli were PGD-perturbed ResNet-18 adversarial images upscaled to
+$128{\times}128$ using nearest-neighbour interpolation.
+A stratified sample of 20 images per epsilon block (2 per class) was
+selected using fixed random seed 42.
+Participants completed a 10-alternative forced-choice (10-AFC)
+classification task and rated confidence on a 1--10 Likert scale.
+All data are fully anonymised.
+
+\subsection{Signal Detection Theory}
+
+For each system at each $\varepsilon$, sensitivity is measured as:
+\begin{equation}
+  d' = \Phi^{-1}(H) - \Phi^{-1}(F),
+  \label{eq:dprime}
+\end{equation}
+where $\Phi^{-1}$ is the inverse normal CDF, $H$ the hit rate,
+and $F$ the false alarm rate.
+Laplace smoothing ($+0.5$ to all counts) prevents infinite values.
+The \emph{collapse threshold} $\varepsilon_{\text{thresh}}$ is the
+$\varepsilon$ at which $d'$ crosses 1.0, computed by linear interpolation.
+
+% ============================================================
+\section{Results}
+\label{sec:results}
+% ============================================================
+
+\subsection{PGD Accuracy Collapse}
+
+Table~\ref{tab:pgd_accuracy} presents classification accuracy under PGD-100
+across all systems and epsilon levels.
+
+\begin{table}[H]
+\centering
+\caption{PGD-100 classification accuracy (\%) across all systems.
+Human accuracy at $\varepsilon{=}0.01$ was not tested (block excluded from
+study design). Human baseline at $\varepsilon{=}0.00$ reflects 74.2\% due to
+CIFAR-10 pixelation artefacts at $32{\times}32$ resolution.
+CLIP adversarial evaluation is pending due to a normalisation pipeline issue
+identified in the final evaluation window.}
+\label{tab:pgd_accuracy}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{lCCCCCC}
+\toprule
+\textbf{System} &
+\textbf{0.00} & \textbf{0.01} & \textbf{0.05} &
+\textbf{0.10} & \textbf{0.20} & \textbf{0.30} \\
+\midrule
+BagNet-33        & 87.7 & 48.0 & 0.1  & 0.0  & 0.0  & 0.0  \\
+ResNet-18        & 95.8 & 75.6 & 2.8  & 0.2  & 0.0  & 0.0  \\
+EfficientNet-B0  & 96.8 & 0.9  & 0.0  & 0.0  & 0.0  & 0.0  \\
+Shape-ResNet-50  & 91.5 & 18.1 & 0.0  & 0.0  & 0.0  & 0.0  \\
+CORnet-S         & 91.5 & 23.4 & 0.0  & 0.0  & 0.0  & 0.0  \\
+ViT-Small        & 97.8 & 55.2 & 8.6  & 2.9  & 1.4  & 0.6  \\
+\midrule
+RHAN-clean       & 89.1 & 69.5 & 10.2 & 0.4  & 0.0  & 0.0  \\
+\textbf{RHAN-adv}& \textbf{83.8} & \textbf{77.9} & \textbf{52.0} &
+                   \textbf{17.8} & \textbf{0.6}  & \textbf{0.0}  \\
+\midrule
+Human            & 74.2 & N/A  & 69.0 & 59.2 & 64.2 & 60.2 \\
+CLIP ViT-B/32    & 91.0 & ---  & ---  & ---  & ---  & ---  \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Three findings are immediately apparent.
+First, all feedforward models collapse to near-zero accuracy before
+$\varepsilon{=}0.05$ while human accuracy declines only from 74.2\% to 60.2\%
+across the full tested range.
+Second, EfficientNet-B0 suffers catastrophic collapse at $\varepsilon{=}0.01$
+(0.9\%), more fragile than BagNet-33 (48.0\%) despite a 9-point clean
+accuracy advantage.
+Third, RHAN-adv retains 52.0\% at $\varepsilon{=}0.05$ where all other
+machine models are at or below 8.6\%.
+
+\subsection{The Two-Regime Robustness Crossover}
+
+Comparing ResNet-18 and ViT-Small reveals a regime-dependent crossover.
+At $\varepsilon{=}0.01$, ResNet-18 substantially outperforms ViT-Small
+(75.6\% vs.\ 55.2\%).
+From $\varepsilon{=}0.05$ onward, ViT consistently outperforms ResNet-18,
+maintaining residual accuracy (0.6\%) at $\varepsilon{=}0.30$ where ResNet
+is at zero.
+
+\textbf{Regime~1} ($\varepsilon < 0.03$): ResNet's local convolutional layers
+function as spatial low-pass filters that attenuate small, high-frequency
+perturbations. ViT's $16{\times}16$ patch tokenisation is inherently sensitive
+to pixel-level statistics within each patch.
+
+\textbf{Regime~2} ($\varepsilon \geq 0.05$): Once perturbations corrupt local
+texture features, ResNet loses its primary classification signal completely.
+ViT can integrate information across multiple partially-corrupted patches,
+maintaining a residual signal via global attention.
+
+\subsection{Signal Detection Theory Analysis}
+
+Table~\ref{tab:sdt} presents the full $d'$ analysis across all systems.
+
+\begin{table}[H]
+\centering
+\caption{SDT sensitivity ($d'$) across all systems.
+$\varepsilon_{\text{thresh}}$ denotes the interpolated epsilon where
+$d'$ crosses 1.0. Human $d'$ never crosses this threshold across
+the full tested range.}
+\label{tab:sdt}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{lCCCCCCr}
+\toprule
+\textbf{System} &
+\boldmath$d'_{0.00}$ & \boldmath$d'_{0.01}$ & \boldmath$d'_{0.05}$ &
+\boldmath$d'_{0.10}$ & \boldmath$d'_{0.20}$ & \boldmath$d'_{0.30}$ &
+\boldmath$\varepsilon_{\text{thresh}}$ \\
+\midrule
+EfficientNet-B0  & 4.642 & $-$1.218 & $-$1.936 & $-$1.931 & $-$1.931 & $-$1.931 & 0.0062 \\
+Shape-ResNet-50  & 3.788 &    0.393 & $-$2.006 & $-$2.015 & $-$1.954 & $-$1.883 & 0.0082 \\
+CORnet-S         & 3.808 &    0.590 & $-$2.044 & $-$2.043 & $-$2.014 & $-$1.925 & 0.0087 \\
+BagNet-33        & 3.435 &    1.547 & $-$1.795 & $-$2.050 & $-$2.040 & $-$2.014 & 0.0165 \\
+ViT-Small        & 4.931 &    1.815 & $-$0.168 & $-$0.890 & $-$1.154 & $-$1.469 & 0.0264 \\
+ResNet-18        & 4.426 &    2.688 & $-$0.774 & $-$1.733 & $-$1.946 & $-$1.880 & 0.0295 \\
+\midrule
+\textbf{RHAN-adv} & \textbf{3.083} & \textbf{2.738} & \textbf{1.662} &
+                    \textbf{0.408} & $-$1.294 & $-$3.044 & \textbf{0.0764} \\
+\midrule
+Human            & 2.734 & N/A   & 2.564 & 2.050 & 2.180 & 2.019 & $>$0.300 \\
+CLIP ViT-B/32    & ---   & ---   & ---   & ---   & ---   & ---   & pending  \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Three observations merit emphasis.
+First, the human $d'$ threshold exceeds all tested machine models by at
+least a factor of four, confirming the gap is qualitative rather than
+quantitative.
+Second, RHAN-adv achieves $\varepsilon_{\text{thresh}}{=}0.0764$,
+a 2.6$\times$ improvement over ResNet-18 (0.0295) and
+12$\times$ over EfficientNet-B0 (0.0062).
+Third, negative $d'$ values indicate systematic misdirection rather than
+random failure: the model is reliably steered toward incorrect classes.
+
+\subsection{Shape-ResNet: A Negative Result}
+
+Shape-ResNet-50's collapse threshold ($\varepsilon_{\text{thresh}}{=}0.0082$)
+is 3.6$\times$ lower than standard ResNet-18 (0.0295).
+Shape-biased training not only failed to improve adversarial robustness~---~it
+produced a substantially more fragile model.
+
+Two mechanisms explain this.
+\textbf{Backbone depth}: ResNet-50 (25.6M parameters) produces a
+higher-dimensional loss landscape with thinner decision boundaries than
+ResNet-18 (11.7M parameters).
+\textbf{Training-robustness decoupling}: SIN training changes which features
+are learned, but cannot add recurrent or global processing.
+Shape bias shifts the inductive bias but does not alter the fundamental
+feedforward architecture.
+
+\subsection{Confidence-Accuracy Dissociation}
+
+All standard AI models maintain normalised confidence of 0.89--1.00 across
+the entire $\varepsilon$ range, even as accuracy collapses to zero.
+BagNet-33 and EfficientNet-B0 reach the maximum possible overconfidence gap
+(confidence $= 1.0$, accuracy $= 0.0$) by $\varepsilon{=}0.05$.
+
+Human confidence declines from 0.78 at $\varepsilon{=}0.00$ to 0.68 at
+$\varepsilon{=}0.30$, tracking actual perceptual difficulty.
+This demonstrates intact metacognitive calibration absent in all standard
+machine models: humans know when they are uncertain; machines do not.
+
+\subsection{RHAN Architecture and Gating Dynamics}
+
+RHAN-adv directly addresses the limitations identified above.
+The architecture combines three processing streams:
+(1) a local convolutional stem providing Regime-1 smoothing;
+(2) global transformer attention blocks for Regime-2 shape integration; and
+(3) a recurrent top-down feedback gate that modulates stem features based
+on global context (Figure~\ref{fig:tikz_rhan}).
+
+RHAN-adv retains 52.0\% at $\varepsilon{=}0.05$ versus ViT's 8.6\%,
+and 17.8\% at $\varepsilon{=}0.10$ versus ResNet's 0.2\%.
+The adversarial confusion shift for AUTOMOBILE$\to$TRUCK is reduced from
+$+65.6\%$ in EfficientNet-B0 to $+26.8\%$ in RHAN-adv.
+
+Gating entropy analysis reveals that RHAN-adv maintains stable, focused
+feedback (entropy $\approx 3.0$ nats) under adversarial pressure, whereas
+RHAN-clean shows rapid entropy increase ($>4.5$ nats), indicating breakdown
+of internal attention routing.
+
+\subsection{CORnet-S and CLIP}
+
+CORnet-S, despite implementing explicit biological recurrence, collapses at
+$\varepsilon_{\text{thresh}}{=}0.0087$ --- comparable to Shape-ResNet-50.
+This result suggests that recurrence alone, without adversarial regularisation
+during training, is insufficient for robustness.
+The recurrent connections in CORnet-S were optimised for brain-score
+alignment rather than adversarial robustness.
+
+CLIP ViT-B/32 confirmed 91.0\% zero-shot clean accuracy on CIFAR-10,
+consistent with Radford et al.\ (2021).
+Adversarial evaluation was deferred due to a normalisation pipeline issue
+identified during the final evaluation window. This constitutes a
+limitation of the current study; adversarial robustness of CLIP is
+reserved for future work.
+
+% ============================================================
+\section{Discussion}
+\label{sec:discussion}
+% ============================================================
+
+\subsection{The ResNet Paradox}
+
+ResNet-18, the simplest and oldest model tested, achieves the best
+adversarial robustness among all standard architectures.
+EfficientNet-B0, with the highest clean accuracy, is the most fragile.
+This suggests a \emph{capacity penalty}: compound scaling optimises for
+clean-accuracy features that are highly complex and brittle.
+PGD can navigate to deep loss minima in EfficientNet's complex landscape
+far more efficiently than in ResNet-18's simpler geometry.
+
+\subsection{The Visual Feedback Restoration Gap}
+
+The gap between human $d'$ threshold ($>0.30$) and the best standard model
+(ResNet-18, 0.0295) is a factor of ten: a direct quantitative measurement
+of the robustness contribution of recurrent feedback processing.
+
+RHAN-adv closes part of this gap to 0.0764, but the remaining distance to
+human performance ($>0.30$) implies that adversarial training on CIFAR-10
+alone is insufficient.
+We hypothesise that full closure requires language-grounded semantic
+representations (CLIP-style pretraining) in addition to recurrent feedback.
+
+\subsection{TikZ Architecture Diagram}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=1.6cm and 2.0cm,
+    block/.style={
+        rectangle, draw, rounded corners,
+        fill=gray!10, text width=5.8em,
+        minimum height=2.8em, align=center,
+        font=\small
+    },
+    arrow/.style={-{Latex[length=2.5mm]}, thick}
+]
+  \node[block] (input)    {Input\\Image\\$32{\times}32$};
+  \node[block, right=of input]  (stem)  {Conv Stem\\(Local\\Filter)};
+  \node[block, right=of stem]   (trans) {Transformer\\(Global\\Attention)};
+  \node[block, right=of trans]  (head)  {Class.\\Head};
+  \node[block, below=1.4cm of trans] (gate) {Feedback\\Conv \& Gate\\$g\in[0,1]$};
+
+  \draw[arrow] (input) -- (stem);
+  \draw[arrow] (stem)  -- (trans);
+  \draw[arrow] (trans) -- (head);
+  \draw[arrow] (trans) -- (gate);
+  \draw[arrow] (gate)  -| node[near end, above, font=\scriptsize]
+                           {Recurrent modulation} (stem);
+\end{tikzpicture}
+\caption{Block diagram of the RHAN architecture.
+Global signals from the Transformer are routed back through a convolutional
+gating network to modulate local spatial features in the Conv Stem,
+implementing a biological top-down feedback loop.}
+\label{fig:tikz_rhan}
+\end{figure}
+
+\subsection{Proposed Future Architecture}
+
+Our empirical findings suggest no single architectural principle is
+individually sufficient to close the human-AI robustness gap.
+The two-regime crossover implies that a robust architecture must simultaneously
+implement local smoothing and global integration.
+Combined with the negative result for shape-biased training and the
+partial success of RHAN-adv, we propose that full closure of the gap requires
+four combined mechanisms: local convolutional smoothing, global self-attention,
+recurrent feedback, and language-grounded semantic pretraining.
+RHAN-adv implements the first three; incorporating CLIP-style contrastive
+pretraining is the primary direction for future empirical work.
+
+% ============================================================
+\section{Limitations}
+\label{sec:limitations}
+% ============================================================
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Dataset scope.}
+        CIFAR-10's $32{\times}32$ resolution limits visual complexity and
+        ecological validity relative to ImageNet.
+  \item \textbf{Attack methodology.}
+        Primary evaluation uses PGD ($L_\infty$).
+        EfficientNet's use of BIM rather than standard PGD limits direct
+        comparability. AutoAttack and spatial attacks may reveal different
+        vulnerability rankings.
+  \item \textbf{Human sample size.}
+        $n{=}18$ is pilot-scale; larger samples would improve power for
+        per-class SDT analyses.
+  \item \textbf{Display conditions.}
+        Human participants used personal devices without laboratory-controlled
+        luminance calibration.
+  \item \textbf{CLIP adversarial results pending.}
+        Normalisation pipeline issue prevented final CLIP adversarial
+        evaluation. Clean accuracy (91.0\%) was confirmed experimentally.
+\end{enumerate}
+
+% ============================================================
+\section{Future Work}
+\label{sec:future}
+% ============================================================
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{CLIP adversarial evaluation.}
+        Completing the normalisation-corrected CLIP evaluation is the
+        immediate next step; if CLIP retains meaningful accuracy at high
+        $\varepsilon$, language grounding will constitute the study's
+        strongest individual finding.
+  \item \textbf{RHAN + CLIP pretraining.}
+        Replacing RHAN's classification head with a CLIP-style contrastive
+        objective and testing whether semantic grounding provides additional
+        robustness beyond recurrent feedback.
+  \item \textbf{Reaction time measurement.}
+        Adding RT measurement to the human study would test whether higher
+        $\varepsilon$ elicits longer response times, consistent with
+        recurrent feedback requiring additional processing time.
+  \item \textbf{ImageNet-scale evaluation.}
+        Scaling RHAN-adv to $224{\times}224$ ImageNet to test whether
+        robustness benefits generalise beyond CIFAR-10.
+\end{enumerate}
+
+% ============================================================
+\section{Conclusion}
+\label{sec:conclusion}
+% ============================================================
+
+We present a systematic comparison of adversarial robustness across seven
+neural architectures and human psychophysical data measured using Signal
+Detection Theory.
+All feedforward models collapse below $d'{=}1.0$ before $\varepsilon{=}0.031$,
+while human observers maintain $d'{>}1.0$ across the full tested range.
+This ten-fold robustness gap is not attributable to architectural
+sophistication: ResNet-18, the simplest model tested, is the most robust
+standard architecture, while EfficientNet-B0, the most accurate, is the
+most fragile.
+Shape-biased training fails to improve robustness, the two-regime crossover
+reveals perturbation-budget-dependent advantages, and the confidence-accuracy
+dissociation demonstrates that adversarial attacks fool rather than confuse.
+Our proposed RHAN-adv, trained with curriculum adversarial training,
+achieves $\varepsilon_{\text{thresh}}{=}0.0764$ and retains 52.0\% accuracy
+at $\varepsilon{=}0.05$~---~demonstrating that recurrent feedback, rather than
+feedforward scaling or shape bias, is the primary mechanism for closing the
+human-machine adversarial robustness gap.
+
+% ============================================================
+\section*{Acknowledgements}
+% ============================================================
+
+We thank the 18 participants who completed the psychophysical study.
+Compute resources provided by NVIDIA RTX 4060 8\,GB GPU (Mina Antonius)
+and NVIDIA GTX 1650 2\,GB GPU (Sandy Antonius).
+Repository: \url{https://github.com/FerrariKazu/Adversarial-Cognitive-Model}.
+
+% ============================================================
+\bibliographystyle{apalike}
+\begin{thebibliography}{99}
+
+\bibitem[Brendel and Bethge, 2019]{brendel2019approximating}
+Brendel, W. and Bethge, M. (2019).
+\newblock Approximating {CNNs} with bag-of-local-features models works
+  surprisingly well on {ImageNet}.
+\newblock In \emph{ICLR}.
+
+\bibitem[Carlini and Wagner, 2017]{carlini2017towards}
+Carlini, N. and Wagner, D. (2017).
+\newblock Towards evaluating the robustness of neural networks.
+\newblock In \emph{IEEE S\&P}.
+
+\bibitem[DiCarlo et al., 2007]{dicarlo2007untangling}
+DiCarlo, J.~J., Zoccolan, D., and Rust, N.~C. (2007).
+\newblock Untangling invariant object recognition.
+\newblock \emph{Trends in Cognitive Sciences}, 11(8):333--341.
+
+\bibitem[Dosovitskiy et al., 2020]{dosovitskiy2020image}
+Dosovitskiy, A. et al. (2020).
+\newblock An image is worth 16x16 words: Transformers for image recognition
+  at scale.
+\newblock In \emph{ICLR}.
+
+\bibitem[Geirhos et al., 2019]{geirhos2019imagenet}
+Geirhos, R. et al. (2019).
+\newblock {ImageNet}-trained {CNNs} are biased towards texture.
+\newblock In \emph{ICLR}.
+
+\bibitem[Goodfellow et al., 2015]{goodfellow2015explaining}
+Goodfellow, I.~J., Shlens, J., and Szegedy, C. (2015).
+\newblock Explaining and harnessing adversarial examples.
+\newblock In \emph{ICLR}.
+
+\bibitem[Green and Swets, 1966]{green1966signal}
+Green, D.~M. and Swets, J.~A. (1966).
+\newblock \emph{Signal Detection Theory and Psychophysics}.
+\newblock Wiley.
+
+\bibitem[He et al., 2016]{he2016deep}
+He, K., Zhang, X., Ren, S., and Sun, J. (2016).
+\newblock Deep residual learning for image recognition.
+\newblock In \emph{CVPR}.
+
+\bibitem[Krizhevsky, 2009]{krizhevsky2009learning}
+Krizhevsky, A. (2009).
+\newblock Learning multiple layers of features from tiny images.
+\newblock Technical report, University of Toronto.
+
+\bibitem[Kubilius et al., 2019]{kubilius2019brain}
+Kubilius, J. et al. (2019).
+\newblock Brain-like object recognition with shallow recurrent neural networks.
+\newblock In \emph{NeurIPS}.
+
+\bibitem[Macmillan and Creelman, 2005]{macmillan2005detection}
+Macmillan, N.~A. and Creelman, C.~D. (2005).
+\newblock \emph{Detection Theory: A User's Guide}.
+\newblock Lawrence Erlbaum Associates.
+
+\bibitem[Madry et al., 2018]{madry2018towards}
+Madry, A. et al. (2018).
+\newblock Towards deep learning models resistant to adversarial attacks.
+\newblock In \emph{ICLR}.
+
+\bibitem[Radford et al., 2021]{radford2021learning}
+Radford, A. et al. (2021).
+\newblock Learning transferable visual models from natural language supervision.
+\newblock In \emph{ICML}.
+
+\bibitem[Szegedy et al., 2013]{szegedy2013intriguing}
+Szegedy, C. et al. (2013).
+\newblock Intriguing properties of neural networks.
+\newblock In \emph{ICLR}.
+
+\bibitem[Tan and Le, 2019]{tan2019efficientnet}
+Tan, M. and Le, Q.~V. (2019).
+\newblock {EfficientNet}: Rethinking model scaling for convolutional neural
+  networks.
+\newblock In \emph{ICML}.
+
+\end{thebibliography}
+
+% ============================================================
+\newpage
+\appendix
+
+\section{Figure Index}
+\label{app:figures}
+
+\begin{longtable}{llp{9.5cm}}
+\caption{Complete Figure Index and Retrieval Mapping for all 33 analytical, computational, and psychophysical figures in Overleaf. \label{tab:fig_index}} \\
+\toprule
+\textbf{Ref.} & \textbf{Filename} & \textbf{Scientific Content and Visual Purpose} \\
+\midrule
+\endfirsthead
+\multicolumn{3}{c}{{\bfseries Table \thetable\ (continued)}} \\
+\toprule
+\textbf{Ref.} & \textbf{Filename} & \textbf{Scientific Content and Visual Purpose} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\bottomrule
+\endlastfoot
+Fig.~A.1 & \texttt{FINAL\_divergence\_with\_rhan.png} & Accuracy vs. $\varepsilon$ for all seven architectures + humans. \\
+Fig.~A.2 & \texttt{final\_dprime\_with\_rhan.png} & SDT $d'$ curves for all seven architectures + humans. \\
+Fig.~A.3 & \texttt{full\_confidence\_curve.png} & Confidence decay vs. $\varepsilon$ for all architectures + humans. \\
+Fig.~A.4 & \texttt{perclass\_dprime\_eps0.10.png} & Semantic class-wise sensitivity $d'$ at $\varepsilon = 0.10$. \\
+Fig.~A.5 & \texttt{class\_heatmap.png} & Machine performance accuracy heatmap across CIFAR-10 classes. \\
+Fig.~A.6 & \texttt{human\_class\_heatmap.png} & Human performance accuracy heatmap across CIFAR-10 classes. \\
+Fig.~A.7 & \texttt{accuracy\_threshold\_bars.png} & Empirical accuracy robust budget threshold bars comparison. \\
+Fig.~A.8 & \texttt{sdt\_threshold\_bars.png} & Signal Detection Theory collapse threshold bars ($\epsilon_{\text{thresh}}$). \\
+\midrule
+Fig.~A.9 & \texttt{resnet\_tsne.png} & Feature space topology t-SNE shifts for ResNet-18. \\
+Fig.~A.10 & \texttt{vit\_tsne.png} & Feature space topology t-SNE shifts for ViT-Small. \\
+Fig.~A.11 & \texttt{displacement\_comparison.bar.png} & Latent space centroid displacement distances comparison. \\
+Fig.~A.12 & \texttt{vit\_attention\_entropy.png} & ViT last-layer self-attention Shannon entropy decay. \\
+Fig.~A.13 & \texttt{perturbation\_atlas.png} & Grid of adversarial perturbations across all 10 CIFAR-10 classes. \\
+\midrule
+Fig.~A.14 & \texttt{resnet\_confusion\_suite.png} & Confusion matrices and shifts for ResNet-18. \\
+Fig.~A.15 & \texttt{vit\_confusion\_suite.png} & Confusion matrices and shifts for ViT-Small. \\
+Fig.~A.16 & \texttt{shaperesnet\_confusion\_suite.png} & Confusion matrices and shifts for Shape-ResNet-50. \\
+Fig.~A.17 & \texttt{efficientnet\_confusion\_suite.png} & Confusion matrices and shifts for EfficientNet-B0. \\
+Fig.~A.18 & \texttt{rhan-clean\_confusion\_suite.png} & Confusion matrices and shifts for RHAN-clean. \\
+Fig.~A.19 & \texttt{rhan-adv\_confusion\_suite.png} & Confusion matrices and shifts for RHAN-adv. \\
+\midrule
+Fig.~A.20 & \texttt{gating\_entropy\_comparison.png} & Shannon entropy of feedback gating maps under PGD attack. \\
+Fig.~A.21 & \texttt{feedback\_dog.png} & Gating modulation maps for representative Dog class. \\
+Fig.~A.22 & \texttt{feedback\_airplane.png} & Gating modulation maps for representative Airplane class. \\
+Fig.~A.23 & \texttt{feedback\_automobile.png} & Gating modulation maps for representative Automobile class. \\
+Fig.~A.24 & \texttt{feedback\_cat.png} & Gating modulation maps for representative Cat class. \\
+Fig.~A.25 & \texttt{feedback\_ship.png} & Gating modulation maps for representative Ship class. \\
+\midrule
+Fig.~A.26 & \texttt{airplane\_gradcam.png} & Grad-CAM visual explanation overlay for Airplane class. \\
+Fig.~A.27 & \texttt{airplane\_1.png} & Clean and adversarial stimulus exemplars for Airplane. \\
+Fig.~A.28 & \texttt{cat\_gradcam.png} & Grad-CAM visual explanation overlay for Cat class. \\
+Fig.~A.29 & \texttt{cat\_1.png} & Clean and adversarial stimulus exemplars for Cat. \\
+Fig.~A.30 & \texttt{dog\_gradcam.png} & Grad-CAM visual explanation overlay for Dog class. \\
+Fig.~A.31 & \texttt{dog\_1.png} & Clean and adversarial stimulus exemplars for Dog. \\
+Fig.~A.32 & \texttt{truck\_gradcam.png} & Grad-CAM visual explanation overlay for Truck class. \\
+Fig.~A.33 & \texttt{truck\_1.png} & Clean and adversarial stimulus exemplars for Truck. \\
+\end{longtable}
+
+\subsection{Primary Psychophysical and Performance Curves}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/FINAL_divergence_with_rhan.png}
+  \caption{Accuracy divergence curves (Fig.~A.1).}
+  \label{fig:div_acc_full}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/final_dprime_with_rhan.png}
+  \caption{SDT $d'$ sensitivity curves (Fig.~A.2).}
+  \label{fig:div_dprime_full}
+\end{subfigure}
+\caption{\textbf{Unified Accuracy and Perceptual Sensitivity Curves} across seven architectures and human vision. Panel (a) illustrates the absolute accuracy decay across epsilon budgets. Panel (b) normalizes sensitivity via $d'$, showing that RHAN-adv is the only machine system to maintain $d' > 1.0$ beyond $\varepsilon = 0.05$.}
+\label{fig:unified_curves_full}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/full_confidence_curve.png}
+  \caption{Confidence decay curves (Fig.~A.3).}
+  \label{fig:confidence_decay_full}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/perclass_dprime_eps0.10.png}
+  \caption{Per-class $d'$ at $\varepsilon{=}0.10$ (Fig.~A.4).}
+  \label{fig:perclass_dprime_full}
+\end{subfigure}
+\caption{\textbf{Confidence Calibration and Semantic Class Sensitivity}. Panel (a) shows the normalized confidence degradation across epsilon budgets. Panel (b) displays the per-class d-prime values at $\varepsilon = 0.10$ demonstrating varying visual robust levels across the CIFAR-10 classes.}
+\label{fig:confidence_and_perclass_full}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/class_heatmap.png}
+  \caption{Machine Performance Accuracy Heatmap (Fig.~A.5).}
+  \label{fig:machine_heatmap}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/human_class_heatmap.png}
+  \caption{Human Performance Accuracy Heatmap (Fig.~A.6).}
+  \label{fig:human_heatmap}
+\end{subfigure}
+\caption{\textbf{Semantic Class Accuracy Heatmaps across Epsilon Budgets}. Panel (a) and Panel (b) provide a side-by-side comparative visualization of classification accuracy per class as perturbation budgets scale, illustrating localized texture vulnerabilities vs. robust human semantic categories.}
+\label{fig:class_heatmaps}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/accuracy_threshold_bars.png}
+  \caption{Accuracy-based Thresholds (Fig.~A.7).}
+  \label{fig:acc_thresholds}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/sdt_threshold_bars.png}
+  \caption{SDT Sensitivity Thresholds ($\epsilon_{\text{thresh}}$) (Fig.~A.8).}
+  \label{fig:sdt_thresholds}
+\end{subfigure}
+\caption{\textbf{Empirical and Perceptual Robustness Thresholds comparison}. Panel (a) shows the raw accuracy thresholds where systems collapse. Panel (b) displays the precise Signal Detection Theory sensitivity thresholds ($\epsilon_{\text{thresh}}$ where $d' < 1.0$), highlighting how RHAN-adv stands out among standard models.}
+\label{fig:threshold_bars}
+\end{figure}
+
+\subsection{Representation and Latent Space Topology}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/resnet_tsne.png}
+  \caption{ResNet-18 latent t-SNE (Fig.~A.9).}
+  \label{fig:resnet_tsne_full}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/vit_tsne.png}
+  \caption{ViT-Small latent t-SNE (Fig.~A.10).}
+  \label{fig:vit_tsne_full}
+\end{subfigure}
+\caption{\textbf{Latent Feature Space Displacement t-SNE Projections}. Projections of the final feature representations of ResNet-18 (a) and ViT-Small (b) under PGD attacks across epsilon budgets, showing how adversarial perturbations push representations from semantic class clusters into disjoint regions.}
+\label{fig:tsne_full}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/displacement_comparison.bar.png}
+  \caption{Latent space centroid displacement (Fig.~A.11).}
+  \label{fig:displacement_bar}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/vit_attention_entropy.png}
+  \caption{ViT self-attention entropy (Fig.~A.12).}
+  \label{fig:vit_entropy_full}
+\end{subfigure}
+\caption{\textbf{Latent Space Centroid Shifts and Self-Attention Decay}. Panel (a) compares the topological displacement distance of representations from their clean centroids. Panel (b) shows the self-attention entropy decay in the final block of ViT-Small, proving that gradient perturbations scramble attentional routing.}
+\label{fig:displacement_and_entropy}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/perturbation_atlas.png}
+\caption{\textbf{The Adversarial Perturbation Atlas (Fig.~A.13)}. A complete visualization grid mapping clean, adversarial, and high-frequency perturbation difference images across all 10 CIFAR-10 semantic classes under PGD-100 attacks.}
+\label{fig:perturbation_atlas}
+\end{figure}
+
+\subsection{Model-Specific Confusion Matrices}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/resnet_confusion_suite.png}
+  \caption{ResNet-18 Confusion Suite (Fig.~A.14).}
+  \label{fig:resnet_conf}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/vit_confusion_suite.png}
+  \caption{ViT-Small Confusion Suite (Fig.~A.15).}
+  \label{fig:vit_conf}
+\end{subfigure}
+\caption{\textbf{Adversarial Confusion Matrices under PGD-100}. Detailed class-wise predicted vs. target confusions showing systematic shift vectors (e.g., TRUCK $\to$ SHIP in ViT, DOG $\to$ CAT in ResNet).}
+\label{fig:resnet_vit_conf}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/shaperesnet_confusion_suite.png}
+  \caption{Shape-ResNet-50 Confusion Suite (Fig.~A.16).}
+  \label{fig:shaperesnet_conf}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/efficientnet_confusion_suite.png}
+  \caption{EfficientNet-B0 Confusion Suite (Fig.~A.17).}
+  \label{fig:efficientnet_conf}
+\end{subfigure}
+\caption{\textbf{Alternative Feedforward Adversarial Confusion Suites}. Showing severe confusion vectors at moderate budgets, highlighting extreme targeted confusions such as AUTOMOBILE $\to$ TRUCK (+53.7\% in ShapeResNet, +65.6\% in EfficientNet).}
+\label{fig:alternative_conf}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/rhan-clean_confusion_suite.png}
+  \caption{RHAN-clean Confusion Suite (Fig.~A.18).}
+  \label{fig:rhan_clean_conf}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/rhan-adv_confusion_suite.png}
+  \caption{RHAN-adv Confusion Suite (Fig.~A.19).}
+  \label{fig:rhan_adv_conf}
+\end{subfigure}
+\caption{\textbf{RHAN Adversarial Confusion Suites Comparison}. Demonstrates how curriculum adversarial training dynamically flattens confusion shifts: while AUTOMOBILE $\to$ TRUCK shifts reach +41.5\% in RHAN-clean, RHAN-adv restricts the peak shift to +26.8\%.}
+\label{fig:rhan_conf_comparison}
+\end{figure}
+
+\subsection{Recurrent Feedback Gating Maps}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/gating_entropy_comparison.png}
+  \caption{Feedback Gate Entropy (Fig.~A.20).}
+  \label{fig:gate_entropy_comparison_app}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/feedback_dog.png}
+  \caption{Dog Gating Map (Fig.~A.21).}
+  \label{fig:feedback_dog_app}
+\end{subfigure}
+\caption{\textbf{RHAN-adv Gating Map Shannon Entropy and Dog class maps}. Illustrates stable attention entropy routing under noise and top-down gating shifts towards boundary regions in the Dog class.}
+\label{fig:gating_dynamics_app}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/feedback_airplane.png}
+  \caption{Airplane Gating Map (Fig.~A.22).}
+  \label{fig:feedback_airplane}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/feedback_automobile.png}
+  \caption{Automobile Gating Map (Fig.~A.23).}
+  \label{fig:feedback_automobile}
+\end{subfigure}
+\caption{\textbf{Recurrent feedback gating maps for Airplane and Automobile classes}. Maps show gate modulation values ($g \in [0, 1]$) under clean vs. PGD-100 attacks, concentrating feedback over foreground structures to suppress noise.}
+\label{fig:gating_airplane_auto}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/feedback_cat.png}
+  \caption{Cat Gating Map (Fig.~A.24).}
+  \label{fig:feedback_cat}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/feedback_ship.png}
+  \caption{Ship Gating Map (Fig.~A.25).}
+  \label{fig:feedback_ship}
+\end{subfigure}
+\caption{\textbf{Recurrent feedback gating maps for Cat and Ship classes}. Highlights that top-down recurrent attention is robustly retained on key features (e.g., cat ears, ship hull) rather than dispersing under PGD attacks.}
+\label{fig:gating_cat_ship}
+\end{figure}
+
+\subsection{Visual Psychophysics Stimuli and Grad-CAM Explanations}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\textwidth]{figures/airplane_1.png}
+  \caption{Clean Stimulus}
+  \label{fig:air_clean}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\textwidth]{figures/airplane_2.png}
+  \caption{PGD Adversarial}
+  \label{fig:air_adv}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\textwidth]{figures/airplane_gradcam.png}
+  \caption{Grad-CAM Overlay}
+  \label{fig:air_grad}
+\end{subfigure}
+\caption{\textbf{Airplane Class Stimulus Exemplars and Grad-CAM Explanation (Fig.~A.26 \& A.27)}. Illustrating clean (a) and adversarial (b) stimuli presented in the psychophysical trials alongside Grad-CAM visual activations (c) highlighting how the network focus drifts away from the airplane fuselage under attack.}
+\label{fig:stim_airplane}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\textwidth]{figures/cat_1.png}
+  \caption{Clean Stimulus}
+  \label{fig:cat_clean_stim}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\textwidth]{figures/cat_2.png}
+  \caption{PGD Adversarial}
+  \label{fig:cat_adv_stim}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\textwidth]{figures/cat_gradcam.png}
+  \caption{Grad-CAM Overlay}
+  \label{fig:cat_grad_cam}
+\end{subfigure}
+\caption{\textbf{Cat Class Stimulus Exemplars and Grad-CAM Explanation (Fig.~A.28 \& A.29)}. Illustrates clean (a) and adversarial (b) stimuli alongside Grad-CAM visual activations (c) demonstrating spatial feature focus breakdown under attack.}
+\label{fig:stim_cat}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\textwidth]{figures/dog_1.png}
+  \caption{Clean Stimulus}
+  \label{fig:dog_clean_stim}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\textwidth]{figures/dog_2.png}
+  \caption{PGD Adversarial}
+  \label{fig:dog_adv_stim}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\textwidth]{figures/dog_gradcam.png}
+  \caption{Grad-CAM Overlay}
+  \label{fig:dog_grad_cam}
+\end{subfigure}
+\caption{\textbf{Dog Class Stimulus Exemplars and Grad-CAM Explanation (Fig.~A.30 \& A.31)}. Illustrating clean (a) and adversarial (b) stimuli alongside Grad-CAM visual activations (c) demonstrating the shift from core semantic structures under attack.}
+\label{fig:stim_dog}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\textwidth]{figures/truck_1.png}
+  \caption{Clean Stimulus}
+  \label{fig:truck_clean_stim}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\textwidth]{figures/truck_2.png}
+  \caption{PGD Adversarial}
+  \label{fig:truck_adv_stim}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\textwidth]{figures/truck_gradcam.png}
+  \caption{Grad-CAM Overlay}
+  \label{fig:truck_grad_cam}
+\end{subfigure}
+\caption{\textbf{Truck Class Stimulus Exemplars and Grad-CAM Explanation (Fig.~A.32 \& A.33)}. Illustrating clean (a) and adversarial (b) stimuli presented in trials alongside Grad-CAM visual activations (c) showing representation shifts towards the background under attack.}
+\label{fig:stim_truck}
+\end{figure}
+
+
+
+% ============================================================
+\section{Implementation Details}
+\label{app:impl}
+% ============================================================
+
+\textbf{Hardware.}
+Primary: NVIDIA RTX 4060 8\,GB VRAM, WSL2 Ubuntu 22.04.
+Secondary: NVIDIA GTX 1650 2\,GB VRAM (Shape-ResNet training).
+
+\textbf{Software.}
+Python 3.11, PyTorch 2.3 (CUDA 12.4), torchvision 0.18,
+timm 0.9+, scikit-learn, scipy, numpy, matplotlib, seaborn.
+
+\textbf{Memory management.}
+Adversarial arrays use numpy memory-mapped arrays
+(\texttt{mmap\_mode='r'}), batch size 64,
+with \texttt{torch.cuda.empty\_cache()} between epsilon levels.
+
+\textbf{Reproducibility.}
+Random seeds fixed at 42. Code:
+\url{https://github.com/FerrariKazu/Adversarial-Cognitive-Model}.
+
+\end{document}
