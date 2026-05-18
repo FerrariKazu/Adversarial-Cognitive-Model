@@ -168,8 +168,8 @@ def main():
             results_conf[model_name] = conf
 
     # Inject RHAN hardcoded PGD-100 results
-    results_acc['rhan-clean'] = np.array([89.06, 69.73, 9.96, 0.39, 0.00, 0.00])
-    results_acc['rhan-adv'] = np.array([88.28, 80.86, 39.45, 7.42, 0.20, 0.00])
+    results_acc['rhan-clean'] = np.array([89.06, 69.53, 10.16, 0.39, 0.00, 0.00])
+    results_acc['rhan-adv'] = np.array([88.67, 80.86, 36.52, 6.45, 0.20, 0.00])
     
     # We don't have conf for RHAN, so we just add nan to avoid plotting
     results_conf['rhan-clean'] = np.full(len(epsilons), np.nan)
@@ -187,8 +187,8 @@ def main():
         plt.plot(eps_ticks, hum_acc, marker='s', lw=4, color=COLORS['human'], label='Human Perception', zorder=10)
 
     # Add RHAN annotation at eps=0.05
-    plt.annotate('RHAN-adv: 39.45% — 14× ResNet, 4.6× ViT', 
-                 xy=(0.05, 39.45), xytext=(0.06, 45),
+    plt.annotate('RHAN-adv: 36.52% — 13× ResNet, 4.3× ViT', 
+                 xy=(0.05, 36.52), xytext=(0.06, 42),
                  arrowprops=dict(facecolor='black', arrowstyle='->', lw=1.5),
                  fontsize=10, fontweight='bold', color='#DC2626')
 
