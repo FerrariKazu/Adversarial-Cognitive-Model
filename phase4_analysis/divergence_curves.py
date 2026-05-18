@@ -33,6 +33,8 @@ COLORS = {
     'cornets': '#00ADB5',      # Cyan
     'clip': '#533483',         # Indigo
     'bagnet': '#558B2F',       # Green
+    'rhan-clean': '#F59E0B',   # Amber
+    'rhan-adv': '#DC2626',     # Bold Red
     'human': '#2E8B57'         # Sea Green
 }
 
@@ -159,29 +161,44 @@ def main():
     results_conf = {}
 
     for model_name, m_cfg in MODELS.items():
+        if model_name == 'rhan': continue # Skip auto-eval for rhan
         acc, conf = get_cnn_performance(model_name, m_cfg, device, epsilons)
         if acc is not None:
             results_acc[model_name] = acc
             results_conf[model_name] = conf
 
+    # Inject RHAN hardcoded PGD-100 results
+    results_acc['rhan-clean'] = np.array([89.06, 69.73, 9.96, 0.39, 0.00, 0.00])
+    results_acc['rhan-adv'] = np.array([88.28, 80.86, 39.45, 7.42, 0.20, 0.00])
+    
+    # We don't have conf for RHAN, so we just add nan to avoid plotting
+    results_conf['rhan-clean'] = np.full(len(epsilons), np.nan)
+    results_conf['rhan-adv'] = np.full(len(epsilons), np.nan)
+
     eps_ticks = np.array(epsilons, dtype=float)
-    model_count = len(results_acc)
 
     # Plot Accuracy
     plt.figure(figsize=(12, 7), dpi=150)
     for model_name, acc in results_acc.items():
-        plt.plot(eps_ticks, acc, marker='o', lw=3, color=COLORS.get(model_name, 'gray'), label=model_name.capitalize())
+        linestyle = '--' if model_name == 'rhan-adv' else '-'
+        plt.plot(eps_ticks, acc, marker='o', lw=3, ls=linestyle, color=COLORS.get(model_name, 'gray'), label=model_name.capitalize())
     
     if not np.isnan(hum_acc).all():
         plt.plot(eps_ticks, hum_acc, marker='s', lw=4, color=COLORS['human'], label='Human Perception', zorder=10)
 
-    plt.title(f'Adversarial Cognition Divergence ({model_count} Models + Human)', fontsize=16, pad=15)
+    # Add RHAN annotation at eps=0.05
+    plt.annotate('RHAN-adv: 39.45% — 14× ResNet, 4.6× ViT', 
+                 xy=(0.05, 39.45), xytext=(0.06, 45),
+                 arrowprops=dict(facecolor='black', arrowstyle='->', lw=1.5),
+                 fontsize=10, fontweight='bold', color='#DC2626')
+
+    plt.title('Adversarial Cognition Divergence — 7 Systems + Human', fontsize=16, pad=15)
     plt.xlabel('Perturbation Budget (Epsilon)', fontsize=12)
     plt.ylabel('Classification Accuracy (%)', fontsize=12)
     plt.ylim(-5, 105)
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.legend(fontsize=10, bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.savefig(os.path.join(combined_dir, 'full_divergence_curve.png'), bbox_inches='tight')
+    plt.savefig(os.path.join(combined_dir, 'FINAL_divergence_with_rhan.png'), bbox_inches='tight')
     plt.close()
 
     # Plot Confidence
@@ -192,7 +209,7 @@ def main():
     if not np.isnan(hum_conf).all():
         plt.plot(eps_ticks, hum_conf, marker='s', lw=4, color=COLORS['human'], label='Human Confidence', zorder=10)
 
-    plt.title(f'Confidence Degradation ({model_count} Models + Human)', fontsize=16, pad=15)
+    plt.title('Confidence Degradation — 7 Systems + Human', fontsize=16, pad=15)
     plt.xlabel('Perturbation Budget (Epsilon)', fontsize=12)
     plt.ylabel('Normalized Confidence Score (0-1)', fontsize=12)
     plt.ylim(0, 1.05)

@@ -255,7 +255,7 @@ def main():
     elif gap < 10:
         print(f"  ⚠ Gap 5-10% → Mild gradient masking. Proceed with caution.")
     else:
-        print(f"  ✗ Gap > 10% → SIGNIFICANT gradient masking. Alert Mina before continuing.")
+        print(f"  ✗ Gap > 10% → SIGNIFICANT gradient masking. Alert before continuing.")
 
     print(f"\nTotal wall time: {(time.time() - total_start)/60:.1f} minutes")
 
