@@ -89,33 +89,91 @@ def plot_model_suite(model_name, cm_clean, cm_adv, cm_diff):
 def main():
     os.makedirs(OUTPUT_DIR_COMBINED, exist_ok=True)
     
-    target_models = ['resnet', 'vit', 'efficientnet', 'shaperesnet']
+    target_models = ['resnet', 'vit', 'efficientnet', 'shaperesnet', 'rhan-clean', 'rhan-adv']
     all_top_3 = {}
 
     for m_name in target_models:
         print(f"\nAnalyzing Confusions for {m_name.upper()}...")
-        cfg = MODELS[m_name]
         
-        # Load Model
-        mclass = cfg['class']
-        ckpt_path = cfg.get('ckpt')
-        if mclass.__name__ == 'ShapeResNet':
-            model = mclass(num_classes=10, weights_path=ckpt_path).to(DEVICE)
+        if m_name.startswith('rhan'):
+            from phase1_training.model_rhan import RHAN
+            from phase1_training.dataset import get_dataloaders
+            from phase2_attacks.pgd import pgd_attack
+            
+            # Load RHAN
+            model = RHAN(num_classes=10, head_type='linear').to(DEVICE)
+            ckpt = os.path.join(os.path.dirname(__file__), '..', 'checkpoints', 'rhan_v2_best.pth' if m_name == 'rhan-clean' else 'rhan_adv_best.pth')
+            model.load_state_dict(torch.load(ckpt, map_location=DEVICE))
+            model.eval()
+            
+            # Use dataloader to evaluate on 512 test samples (to match speed/VRAM safety)
+            _, testloader_raw = get_dataloaders(batch_size=256, num_workers=2, model_name='resnet')
+            from torch.utils.data import DataLoader
+            testloader = DataLoader(testloader_raw.dataset, batch_size=256, shuffle=False, num_workers=2)
+            
+            cifar_min = torch.tensor([-2.4291, -2.4181, -2.2194]).view(1, 3, 1, 1).to(DEVICE)
+            cifar_max = torch.tensor([2.6400, 2.6210, 2.7615]).view(1, 3, 1, 1).to(DEVICE)
+            
+            labels_list = []
+            preds_clean = []
+            preds_adv = []
+            
+            # Disable gradients
+            for p in model.parameters():
+                p.requires_grad = False
+                
+            total = 0
+            max_samples = 512
+            
+            for images, labels_val in testloader:
+                if total >= max_samples:
+                    break
+                images, labels_val = images.to(DEVICE), labels_val.to(DEVICE)
+                
+                # Clean preds
+                with torch.no_grad():
+                    logits_clean = model(images)
+                    p_clean = torch.argmax(logits_clean, dim=1)
+                    preds_clean.extend(p_clean.cpu().numpy())
+                
+                # Adv preds (PGD ε=0.10)
+                a = max(0.10 / 10, 0.001)
+                adv_images, p_adv = pgd_attack(
+                    model, images, labels_val,
+                    epsilon=0.10, alpha=a, steps=100,
+                    device=DEVICE, clip_min=cifar_min, clip_max=cifar_max,
+                )
+                preds_adv.extend(p_adv.cpu().numpy())
+                labels_list.extend(labels_val.cpu().numpy())
+                total += labels_val.size(0)
+                
+            labels = np.array(labels_list)
+            preds_clean = np.array(preds_clean)
+            preds_adv = np.array(preds_adv)
+            
         else:
-            model = mclass().to(DEVICE)
-            model.load_state_dict(torch.load(ckpt_path, map_location=DEVICE))
-        
-        # Load Data
-        img_dir = cfg['out']
-        labels = np.load(os.path.join(img_dir, 'labels.npy'))
-        clean_imgs = np.load(os.path.join(img_dir, 'pgd_eps0.00_images.npy'), mmap_mode='r')
-        adv_imgs = np.load(os.path.join(img_dir, 'pgd_eps0.10_images.npy'), mmap_mode='r')
-        
-        # Get Predictions
-        print("  Running inference (clean)...")
-        preds_clean = get_predictions(model, clean_imgs, DEVICE)
-        print("  Running inference (adversarial)...")
-        preds_adv = get_predictions(model, adv_imgs, DEVICE)
+            cfg = MODELS[m_name]
+            
+            # Load Model
+            mclass = cfg['class']
+            ckpt_path = cfg.get('ckpt')
+            if mclass.__name__ == 'ShapeResNet':
+                model = mclass(num_classes=10, weights_path=ckpt_path).to(DEVICE)
+            else:
+                model = mclass().to(DEVICE)
+                model.load_state_dict(torch.load(ckpt_path, map_location=DEVICE))
+            
+            # Load Data
+            img_dir = cfg['out']
+            labels = np.load(os.path.join(img_dir, 'labels.npy'))
+            clean_imgs = np.load(os.path.join(img_dir, 'pgd_eps0.00_images.npy'), mmap_mode='r')
+            adv_imgs = np.load(os.path.join(img_dir, 'pgd_eps0.10_images.npy'), mmap_mode='r')
+            
+            # Get Predictions
+            print("  Running inference (clean)...")
+            preds_clean = get_predictions(model, clean_imgs, DEVICE)
+            print("  Running inference (adversarial)...")
+            preds_adv = get_predictions(model, adv_imgs, DEVICE)
         
         # Compute Matrices (normalized by true class)
         cm_clean = confusion_matrix(labels, preds_clean, labels=np.arange(10), normalize='true') * 100.0

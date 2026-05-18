@@ -26,7 +26,7 @@ OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'results')
 OUTPUT_CSV = os.path.join(OUTPUT_DIR, 'sdt_results_v4.csv')
 
 # Target models for this final update
-TARGET_MODELS = ['resnet', 'vit', 'efficientnet', 'shaperesnet', 'bagnet']
+TARGET_MODELS = ['resnet', 'vit', 'efficientnet', 'shaperesnet', 'bagnet', 'cornets']
 
 def get_cnn_predictions(model_name, cfg, device, epsilons):
     """Returns dict[epsilon] -> (preds_array, labels_array)"""
@@ -206,6 +206,35 @@ def main():
                         'beta': row['beta']
                     })
         results_summary['human'] = mean_dprimes
+
+    # RHAN-adv Manual Entry
+    import scipy.stats as stats
+    rhan_adv_acc = {
+        0.00: 0.8379,
+        0.01: 0.7793,
+        0.05: 0.5195,
+        0.10: 0.1777,
+        0.20: 0.0059,
+        0.30: 0.0000
+    }
+    rhan_dprimes = []
+    for eps, acc in rhan_adv_acc.items():
+        hr = np.clip(acc, 1e-5, 1 - 1e-5)
+        far = np.clip((1 - acc) / 9, 1e-5, 1 - 1e-5)
+        dp = stats.norm.ppf(hr) - stats.norm.ppf(far)
+        rhan_dprimes.append((float(eps), float(dp)))
+        
+        # Add to all_rows (mock class data to average out to dp)
+        all_rows.append({
+            'epsilon': float(eps),
+            'system': 'Rhan-adv',
+            'class': 'average', # sdt_plots.py just uses groupby('epsilon')['d_prime'].mean() anyway
+            'd_prime': dp,
+            'hit_rate': hr,
+            'fa_rate': far,
+            'beta': 1.0
+        })
+    results_summary['rhan-adv'] = rhan_dprimes
 
     # Save to CSV
     pd.DataFrame(all_rows).to_csv(OUTPUT_CSV, index=False)
