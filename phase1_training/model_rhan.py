@@ -480,6 +480,30 @@ class RHAN(nn.Module):
                 num_classes=num_classes,
             )
 
+    def get_feature_vector(self, x):
+        """
+        Extract the 512-dimensional CLS token feature vector post recurrent feedback.
+        """
+        # Stage 1: Local convolutional smoothing
+        stem_features = self.stem(x)  # (B, 512, 8, 8)
+
+        # Stage 2: Tokenise CNN features
+        tokens = self.tokeniser(stem_features)  # (B, 65, 512)
+
+        # Stage 3: Global self-attention
+        attended = self.transformer(tokens)  # (B, 65, 512)
+
+        # Stage 4: Recurrent feedback — re-runs transformer on modulated features
+        refined = self.feedback(
+            transformer_output=attended,
+            stem_features=stem_features,
+            transformer_fn=self.transformer,
+        )  # (B, 65, 512)
+
+        # Extract CLS token
+        cls_output = refined[:, 0, :]  # (B, 512) — CLS token
+        return cls_output
+
     def forward(self, x):
         """
         Full forward pass through all five stages.
