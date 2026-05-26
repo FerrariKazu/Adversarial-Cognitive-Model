@@ -10,6 +10,7 @@
 | System | Clean Acc | PGD 50% Threshold | d′=1.0 Threshold | Status |
 |--------|-----------|-------------------|-------------------|--------|
 | Human | 74.15% | >0.30 | >0.30 | ✅ Complete |
+| **RHAN-v3 (Unified Recurrent)** | **91.41%** | **ε≈0.066** | **ε≈0.090** | ✅ Complete |
 | **RHAN-adv (Recurrent)** | **83.79%** | **ε≈0.053** | **ε≈0.076** | ✅ Complete |
 | RHAN-clean | 89.06% | ε≈0.023 | ε≈0.033 | ✅ Complete |
 | ResNet-18 | 95.82% | ε≈0.024 | ε≈0.030 | ✅ Complete |
@@ -20,9 +21,9 @@
 | EfficientNet-B0 | 96.81% | ε≈0.005 | ε≈0.006 | ✅ Complete |
 | CLIP ViT-B/32 | — | — | — | 🔄 Pending |
 
-**Headline:** All standard feedforward AI models collapse before ε=0.03. RHAN-adv, utilizing top-down recurrent feedback, extends robustness to **ε≈0.076** (a **2.5× improvement** over ResNet-18 and **2.9× improvement** over ViT-Small), significantly narrowing the massive gap to Human visual cognition.
+**Headline:** All standard feedforward AI models collapse before ε=0.03. RHAN-v3, utilizing a Ventral/Dorsal visual stream split combined with adversarial representation alignment, extends robustness to **ε≈0.090** (a **3.0× improvement** over ResNet-18 and **3.4× improvement** over ViT-Small), significantly narrowing the massive gap to Human visual cognition.
 
-**Counterintuitive finding:** EfficientNet-B0 (96.81% clean) is the most fragile model. ResNet-18 (95.82% clean) is the most robust feedforward model. Shape-biased training did not improve robustness over standard ResNet. Recurrent top-down feedback (`RHAN`) is the single most effective architectural mechanism for securing adversarial robustness.
+**Counterintuitive finding:** EfficientNet-B0 (96.81% clean) is the most fragile model. ResNet-18 (95.82% clean) is the most robust feedforward model. Shape-biased training did not improve robustness over standard ResNet. Top-down recurrent feedback (`RHAN`) combined with a Ventral/Dorsal split and adversarial alignment (RHAN-v3) represents the first combination to simultaneously improve both clean accuracy and adversarial robustness.
 
 ---
 
@@ -30,6 +31,8 @@
 | System | d'(0.00) | d'(0.01) | d'(0.05) | d'(0.10) | d'(0.20) | d'(0.30) | ε threshold |
 |--------|----------|----------|----------|----------|----------|----------|-------------|
 | Human  | 4.790 | 4.567 | 3.985 | 3.368 | 2.440 | 1.769 | >0.30 |
+| **RHAN-v3** | **3.710** | **3.189** | **1.983** | **0.753** | **-1.039** | **-3.044** | **ε≈0.090** |
+| **RHAN-adv** | **3.083** | **2.738** | **1.662** | **0.408** | **-1.294** | **-3.044** | **ε≈0.076** |
 | ResNet-18 | 4.426 | 2.687 | -0.771 | -1.707 | -1.913 | -1.880 | ε≈0.030 |
 | ViT-Small | 4.931 | 1.814 | -0.154 | -0.909 | -1.242 | -1.469 | ε≈0.026 |
 | BagNet-33 | — | — | — | — | — | — | ε≈0.017 |
@@ -37,14 +40,14 @@
 | EfficientNet | — | — | — | — | — | — | ε≈0.006 |
 
 ### PGD Accuracy Collapse
-| Epsilon | ResNet | ViT | EfficientNet | ShapeResNet | BagNet | Human |
-|---------|--------|-----|--------------|-------------|--------|-------|
-| 0.00 | 95.82% | 97.80% | 96.81% | 91.47% | 87.67% | 73.33% |
-| 0.01 | 75.57% | 55.18% | 0.93% | 18.11% | 48.04% | N/A |
-| 0.05 | 2.84% | 8.80% | 0.00% | 0.01% | 0.12% | 69.17% |
-| 0.10 | 0.21% | 2.78% | 0.00% | 0.00% | 0.00% | 59.17% |
-| 0.20 | 0.02% | 1.12% | 0.00% | 0.00% | 0.00% | 62.22% |
-| 0.30 | 0.00% | 0.58% | 0.00% | 0.00% | 0.00% | 58.61% |
+| Epsilon | RHAN-v3 | RHAN-adv | ResNet | ViT | EfficientNet | ShapeResNet | BagNet | Human |
+|---------|---------|----------|--------|-----|--------------|-------------|--------|-------|
+| 0.00 | 91.41% | 83.79% | 95.82% | 97.80% | 96.81% | 91.47% | 87.67% | 73.33% |
+| 0.01 | 85.35% | 77.93% | 75.57% | 55.18% | 0.93% | 18.11% | 48.04% | N/A |
+| 0.05 | 60.74% | 51.95% | 2.84% | 8.80% | 0.00% | 0.01% | 0.12% | 69.17% |
+| 0.10 | 26.17% | 17.77% | 0.21% | 2.78% | 0.00% | 0.00% | 0.00% | 59.17% |
+| 0.20 | 1.17% | 0.59% | 0.02% | 1.12% | 0.00% | 0.00% | 0.00% | 62.22% |
+| 0.30 | 0.00% | 0.00% | 0.00% | 0.58% | 0.00% | 0.00% | 0.00% | 58.61% |
 
 ---
 
@@ -81,6 +84,7 @@ Adversarial errors are not random — they are semantically structured:
 | CORnet-S | Recurrent visual cortex model | Youssef + Eyad | phase/1-cornet |
 | CLIP ViT-B/32 | Vision-language contrastive | Mariam | phase/1-clip |
 | **RHAN-adv** | **Recurrent top-down visual feedback** | **Mina** | **dev** |
+| **RHAN-v3** | **Ventral/Dorsal split + adversarial alignment** | **Mina** | **phase/rhan-v2** |
 | Human | Biological vision (n=18) | All | — |
 
 ## Team
