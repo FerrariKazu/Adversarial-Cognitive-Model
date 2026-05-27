@@ -97,7 +97,7 @@ def info_nce_loss(clean_feat, adv_feat, temperature=0.07):
 
     # Mask self-similarity
     mask = torch.eye(2 * B, device=clean_feat.device).bool()
-    sim.masked_fill_(mask, -1e9)
+    sim.masked_fill_(mask, -1e4)
 
     loss = F.cross_entropy(sim, labels)
     return loss
