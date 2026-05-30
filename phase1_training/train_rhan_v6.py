@@ -102,6 +102,11 @@ def get_curriculum(epoch):
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="RHAN-v6 Curriculum Training")
+    parser.add_argument('--resume', action='store_true', help='Resume training from checkpoints/rhan_v6_checkpoint.pth')
+    args = parser.parse_args()
+
     set_seed(42)
     total_start = time.time()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -116,26 +121,55 @@ def main():
     noise_est_ckpt = os.path.join(ckpt_dir, 'noise_estimator_pretrained.pth')
     cornet_ckpt = os.path.join(script_dir, 'checkpoints', 'cornets_best.pth')
     output_ckpt = os.path.join(ckpt_dir, 'rhan_v6_best.pth')
+    checkpoint_path = os.path.join(ckpt_dir, 'rhan_v6_checkpoint.pth')
 
-    if not os.path.exists(clip_init_ckpt):
-        print(f"ERROR: Phase 1 CLIP init checkpoint not found at {clip_init_ckpt}")
-        print("Run pretrain_rhan_v6_clip.py first!")
-        return
-    if not os.path.exists(noise_est_ckpt):
-        print(f"ERROR: Phase 0 Noise Estimator checkpoint not found at {noise_est_ckpt}")
-        print("Run pretrain_noise_estimator.py first!")
-        return
     if not os.path.exists(cornet_ckpt):
         print(f"ERROR: CORnet-S checkpoint not found at {cornet_ckpt}")
         return
 
-    # ── Model: RHANv6 — load from Phase 1 CLIP pretraining ──
+    # ── Model: RHANv6 ──
     model = RHANv6(head_type='cosine').to(device)
-    model.load_state_dict(torch.load(clip_init_ckpt, map_location=device))
-    print(f"RHANv6 loaded from CLIP initialization checkpoint: {clip_init_ckpt}")
 
-    # Load Noise Estimator weights into backbone
-    model.load_noise_estimator_weights(noise_est_ckpt, device=device)
+    start_epoch = 0
+    best_test_acc = 0.0
+    loss_history = {
+        'l_adv': [],
+        'l_clean': [],
+        'l_align': [],
+        'l_freq': [],
+        'l_ponder': [],
+        'l_total': [],
+        'train_acc': [],
+        'test_acc': []
+    }
+
+    # Load weights conditionally
+    is_resumed = False
+    if args.resume and os.path.exists(checkpoint_path):
+        print(f"Resuming from checkpoint: {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        best_test_acc = checkpoint.get('best_test_acc', 0.0)
+        if 'loss_history' in checkpoint:
+            loss_history = checkpoint['loss_history']
+        is_resumed = True
+        print(f"Successfully resumed at Epoch {start_epoch} (next to run: {start_epoch+1})")
+    else:
+        if args.resume:
+            print(f"WARNING: Checkpoint {checkpoint_path} not found. Starting from CLIP init.")
+        if not os.path.exists(clip_init_ckpt):
+            print(f"ERROR: Phase 1 CLIP init checkpoint not found at {clip_init_ckpt}")
+            print("Run pretrain_rhan_v6_clip.py first!")
+            return
+        if not os.path.exists(noise_est_ckpt):
+            print(f"ERROR: Phase 0 Noise Estimator checkpoint not found at {noise_est_ckpt}")
+            print("Run pretrain_noise_estimator.py first!")
+            return
+        
+        model.load_state_dict(torch.load(clip_init_ckpt, map_location=device))
+        print(f"RHANv6 loaded from CLIP initialization checkpoint: {clip_init_ckpt}")
+        model.load_noise_estimator_weights(noise_est_ckpt, device=device)
 
     # ── CORnet-S teacher (frozen) ──
     teacher = CIFARCORnet().to(device)
@@ -163,6 +197,10 @@ def main():
     scaler = GradScaler('cuda')
     tb_writer = SummaryWriter(log_dir=os.path.join(script_dir, '..', 'runs', 'rhan_v6'))
 
+    if is_resumed:
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scaler.load_state_dict(checkpoint['scaler_state_dict'])
+
     # Base loss weights (A-E)
     W_ADV = 0.40; W_CLEAN = 0.15; W_ALIGN = 0.25; W_FREQ = 0.10; W_PONDER = 0.10
 
@@ -178,9 +216,7 @@ def main():
     print(f"  Save to:         {output_ckpt}")
     print(f"{'='*70}\n")
 
-    best_test_acc = 0.0
-
-    for epoch in range(epochs):
+    for epoch in range(start_epoch, epochs):
         epoch_start = time.time()
         current_lr = scheduler.step(epoch)
         pgd_steps, pgd_eps, pgd_alpha, phase_name, is_phase_f = get_curriculum(epoch)
@@ -327,6 +363,31 @@ def main():
             best_test_acc = test_acc; marker = ' ★ BEST'
         else:
             marker = ''
+
+        # Record loss history
+        loss_history['l_adv'].append(l_adv)
+        loss_history['l_clean'].append(l_clean)
+        loss_history['l_align'].append(l_align)
+        loss_history['l_freq'].append(l_freq_val)
+        loss_history['l_ponder'].append(l_ponder_val)
+        loss_history['l_total'].append(l_total)
+        loss_history['train_acc'].append(train_acc)
+        loss_history['test_acc'].append(test_acc)
+
+        # Save rolling checkpoint
+        raw_model = model._orig_mod if hasattr(model, '_orig_mod') else model
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': raw_model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scaler_state_dict': scaler.state_dict(),
+            'scheduler_state_dict': {},
+            'phase_name': phase_name,
+            'epsilon': pgd_eps,
+            'best_test_acc': best_test_acc,
+            'loss_history': loss_history
+        }, checkpoint_path)
+        print(f"Saved rolling checkpoint to: {checkpoint_path}")
 
         print(f"Epoch {epoch+1:03d}/{epochs} [{phase_name}] ε={pgd_eps:.3f} | "
               f"Adv:{l_adv:.4f} Cln:{l_clean:.4f} Alg:{l_align:.4f} Frq:{l_freq_val:.4f} Pnd:{l_ponder_val:.4f} | "
