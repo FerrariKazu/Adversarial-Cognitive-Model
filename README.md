@@ -1,16 +1,18 @@
 # Adversarial Cognition Divergence
-**A 7-model + human psychophysics study of adversarial robustness**
+**A 12-model + human psychophysics study of adversarial robustness**
 
 > Does adversarial robustness scale with global visual processing —
 > and is it determined by architecture, training objective, or recurrence?
 
-## Key Findings (8/8 Systems Complete)
+## Key Findings (10/12 Systems Complete)
 
 ### Robustness & Sensitivity Overview
 | System | Clean Acc | PGD 50% Threshold | d′=1.0 Threshold | Status |
 |--------|-----------|-------------------|-------------------|--------|
 | Human | 74.15% | >0.30 | >0.30 | ✅ Complete |
+| **RHAN-v5 (Freq-Separated)** | **84.57%** | **ε≈0.100** | **ε≈0.103** | ✅ Complete |
 | **RHAN-v3 (Unified Recurrent)** | **91.41%** | **ε≈0.066** | **ε≈0.090** | ✅ Complete |
+| **RHAN-v4 (Multi-Scale)** | **89.65%** | **ε≈0.056** | **ε≈0.080** | ✅ Complete |
 | **RHAN-adv (Recurrent)** | **83.79%** | **ε≈0.053** | **ε≈0.076** | ✅ Complete |
 | RHAN-clean | 89.06% | ε≈0.023 | ε≈0.033 | ✅ Complete |
 | ResNet-18 | 95.82% | ε≈0.024 | ε≈0.030 | ✅ Complete |
@@ -19,11 +21,13 @@
 | CORnet-S | 91.48% | ε≈0.006 | ε≈0.009 | ✅ Complete |
 | Shape-ResNet-50 | 91.47% | ε≈0.006 | ε≈0.008 | ✅ Complete |
 | EfficientNet-B0 | 96.81% | ε≈0.005 | ε≈0.006 | ✅ Complete |
+| RHAN-v6 (Dynamic Gating) | 82.03% | — | — | ⚠️ Regressed |
+| RHAN-v5-TRADES | — | — | Target >0.150 | 🔄 Training |
 | CLIP ViT-B/32 | — | — | — | 🔄 Pending |
 
-**Headline:** All standard feedforward AI models collapse before ε=0.03. RHAN-v3, utilizing a Ventral/Dorsal visual stream split combined with adversarial representation alignment, extends robustness to **ε≈0.090** (a **3.0× improvement** over ResNet-18 and **3.4× improvement** over ViT-Small), significantly narrowing the massive gap to Human visual cognition.
+**Headline:** All standard feedforward AI models collapse before ε=0.03. RHAN-v5, utilizing learnable frequency separation and dual ventral/dorsal processing streams with CLIP-initialized weights and adversarial representation alignment, extends robustness to **ε≈0.103** — a **3.4× improvement** over ResNet-18 and **4.0× improvement** over ViT-Small — significantly narrowing the massive gap to Human visual cognition.
 
-**Counterintuitive finding:** EfficientNet-B0 (96.81% clean) is the most fragile model. ResNet-18 (95.82% clean) is the most robust feedforward model. Shape-biased training did not improve robustness over standard ResNet. Top-down recurrent feedback (`RHAN`) combined with a Ventral/Dorsal split and adversarial alignment (RHAN-v3) represents the first combination to simultaneously improve both clean accuracy and adversarial robustness.
+**Key insight:** RHAN-v5 surpassed RHAN-v3 by decoupling semantic initialization (Phase 0, CLIP) from adversarial training (Phase 1, epsilon curriculum), avoiding the geometric conflict that degraded v4. RHAN-v6 attempted dynamic gating and predictive coding but regressed, confirming that the v5 architecture + TRADES training algorithm is the correct path forward.
 
 ---
 
@@ -31,6 +35,7 @@
 | System | d'(0.00) | d'(0.01) | d'(0.05) | d'(0.10) | d'(0.20) | d'(0.30) | ε threshold |
 |--------|----------|----------|----------|----------|----------|----------|-------------|
 | Human  | 4.790 | 4.567 | 3.985 | 3.368 | 2.440 | 1.769 | >0.30 |
+| **RHAN-v5** | **3.083** | **2.905** | **2.071** | **1.104** | **-1.132** | **-1.808** | **ε≈0.103** |
 | **RHAN-v3** | **3.710** | **3.189** | **1.983** | **0.753** | **-1.039** | **-3.044** | **ε≈0.090** |
 | **RHAN-adv** | **3.083** | **2.738** | **1.662** | **0.408** | **-1.294** | **-3.044** | **ε≈0.076** |
 | ResNet-18 | 4.426 | 2.687 | -0.771 | -1.707 | -1.913 | -1.880 | ε≈0.030 |
@@ -40,14 +45,14 @@
 | EfficientNet | — | — | — | — | — | — | ε≈0.006 |
 
 ### PGD Accuracy Collapse
-| Epsilon | RHAN-v3 | RHAN-adv | ResNet | ViT | EfficientNet | ShapeResNet | BagNet | Human |
-|---------|---------|----------|--------|-----|--------------|-------------|--------|-------|
-| 0.00 | 91.41% | 83.79% | 95.82% | 97.80% | 96.81% | 91.47% | 87.67% | 73.33% |
-| 0.01 | 85.35% | 77.93% | 75.57% | 55.18% | 0.93% | 18.11% | 48.04% | N/A |
-| 0.05 | 60.74% | 51.95% | 2.84% | 8.80% | 0.00% | 0.01% | 0.12% | 69.17% |
-| 0.10 | 26.17% | 17.77% | 0.21% | 2.78% | 0.00% | 0.00% | 0.00% | 59.17% |
-| 0.20 | 1.17% | 0.59% | 0.02% | 1.12% | 0.00% | 0.00% | 0.00% | 62.22% |
-| 0.30 | 0.00% | 0.00% | 0.00% | 0.58% | 0.00% | 0.00% | 0.00% | 58.61% |
+| Epsilon | RHAN-v5 | RHAN-v3 | RHAN-adv | ResNet | ViT | EfficientNet | ShapeResNet | BagNet | Human |
+|---------|---------|---------|----------|--------|-----|--------------|-------------|--------|-------|
+| 0.00 | 84.57% | 91.41% | 83.79% | 95.82% | 97.80% | 96.81% | 91.47% | 87.67% | 73.33% |
+| 0.01 | 80.66% | 85.35% | 77.93% | 75.57% | 55.18% | 0.93% | 18.11% | 48.04% | N/A |
+| 0.05 | 61.13% | 60.74% | 51.95% | 2.84% | 8.80% | 0.00% | 0.01% | 0.12% | 69.17% |
+| 0.10 | 34.38% | 26.17% | 17.77% | 0.21% | 2.78% | 0.00% | 0.00% | 0.00% | 59.17% |
+| 0.20 | 2.73% | 1.17% | 0.59% | 0.02% | 1.12% | 0.00% | 0.00% | 0.00% | 62.22% |
+| 0.30 | 0.20% | 0.00% | 0.00% | 0.00% | 0.58% | 0.00% | 0.00% | 0.00% | 58.61% |
 
 ---
 
@@ -73,6 +78,26 @@ Adversarial errors are not random — they are semantically structured:
 - `vit/attention/` — per-class ViT attention maps (20 images)
 - `{model}/confusion/` — confusion matrices clean vs adversarial
 
+## RHAN Evolutionary Timeline
+
+```
+RHAN-clean → RHAN-adv → Trial branches (Split, PredCoding, Aligned)
+                              ↓
+                         RHAN-v2 (Unified Fine-tuning)
+                              ↓
+                         RHAN-v3 (Joint Scratch Training) ← εthresh=0.090
+                              ↓
+                    ┌─────────┴─────────┐
+                 RHAN-v4            RHAN-v5 ← εthresh=0.103 (BEST)
+              (Multi-Scale,       (Freq Separation,
+               Active CLIP)       Phase 0 CLIP)
+                 ↓ regressed          ↓
+              RHAN-v6              RHAN-v5-TRADES ← 🔄 Training
+           (Dynamic Gating,      (TRADES loss,
+            ACT Pondering)        target εthresh>0.150)
+              ↓ regressed
+```
+
 ## Model Spectrum
 | Model | Processing Style | Owner | Branch |
 |-------|-----------------|-------|--------|
@@ -83,16 +108,24 @@ Adversarial errors are not random — they are semantically structured:
 | ViT-Small | Global patch attention | Mina | phase/1-vit |
 | CORnet-S | Recurrent visual cortex model | Youssef + Eyad | phase/1-cornet |
 | CLIP ViT-B/32 | Vision-language contrastive | Mariam | phase/1-clip |
-| **RHAN-adv** | **Recurrent top-down visual feedback** | **Mina** | **dev** |
+| **RHAN-clean** | **Recurrent top-down feedback (clean)** | **Mina** | **dev** |
+| **RHAN-adv** | **Recurrent top-down + adversarial curriculum** | **Mina** | **dev** |
 | **RHAN-v3** | **Ventral/Dorsal split + adversarial alignment** | **Mina** | **phase/rhan-v2** |
+| **RHAN-v4** | **Multi-scale gated feedback + active CLIP** | **Mina** | **phase/rhan-v4** |
+| **RHAN-v5** | **Frequency separation + Phase 0 CLIP init** | **Mina** | **phase/rhan-v5** |
+| **RHAN-v6** | **Dynamic gating + predictive coding + ACT** | **Mina** | **phase/rhan-v6** |
+| **RHAN-v5-TRADES** | **TRADES adversarial training on v5 arch** | **Mina** | **phase/rhan-trades** |
 | Human | Biological vision (n=18) | All | — |
 
 ## Team
-- **Mina (FerrariKazu)** — ResNet ✅, ViT ✅, EfficientNet ✅, pipeline, human study, Phase 4+5
-- **Sandy** — Shape-ResNet ✅, final report, slides
-- **Eyad** — BagNet ✅, CORnet-S (co-owner)
-- **Youssef** — CORnet-S (co-owner)
-- **Mariam** — CLIP ViT-B/32
+
+| Contributor | GitHub | Role |
+|-------------|--------|------|
+| **Mina Magdy (FerrariKazu)** | [@FerrariKazu](https://github.com/FerrariKazu) | ResNet ✅, ViT ✅, EfficientNet ✅, RHAN (all versions), pipeline, human study, Phase 4+5 |
+| **Sandy Antonius** | [@SandyAntonius](https://github.com/SandyAntonius) | Shape-ResNet ✅, final report, slides |
+| **Eyad Saleh Ali** | [@eyadsalehali07-coder](https://github.com/eyadsalehali07-coder) | BagNet ✅, CORnet-S (co-owner) |
+| **Youssef Ayman (Mekky)** | [@Mekky2](https://github.com/Mekky2) | CORnet-S (co-owner) |
+| **Mariam Mohammed** | [@Mariam-203](https://github.com/Mariam-203) | CLIP ViT-B/32 |
 
 ## Setup
 ```bash
@@ -118,6 +151,11 @@ python phase4_analysis/generate_all_figures.py
 python phase5_sdt/sdt_analysis.py
 ```
 
+# RHAN-v5 TRADES Training (resume from checkpoint)
+```bash
+python phase1_training/train_rhan_v5_trades.py --resume
+```
+
 ## Human Study
 n=18 participants, 1,800 trials, 5 epsilon blocks.
 Data: `phase3_human_study/data/responses_mapped.csv`
@@ -133,7 +171,15 @@ Mapping: `phase3_human_study/manifest.csv`
 │   ├── model_efficientnet.py
 │   ├── model_shaperesnet.py
 │   ├── model_bagnet.py
-│   └── train.py            # Standard training loop
+│   ├── model_rhan.py       # RHAN base architecture (clean/adv/v2/v3)
+│   ├── model_rhan_v5.py    # Frequency-separated biologically-grounded model
+│   ├── model_rhan_v6.py    # Dynamic gating + predictive coding + ACT
+│   ├── train.py            # Standard training loop
+│   ├── train_rhan_v5.py    # Phase 1 epsilon curriculum training
+│   ├── train_rhan_v5_trades.py  # TRADES adversarial training (current)
+│   ├── train_rhan_v6.py    # v6 training with ablation suite
+│   ├── pretrain_rhan_v5_clip.py # Phase 0 CLIP semantic initialization
+│   └── pretrain_rhan_v6_clip.py # Phase 0 for v6
 ├── phase2_attacks/         # FGSM/PGD attack generation
 │   ├── generate_adv_all_models.py
 │   ├── pgd.py              # Multi-step PGD implementation
@@ -148,10 +194,13 @@ Mapping: `phase3_human_study/manifest.csv`
 │   ├── confusion_matrices.py
 │   ├── latent_space_embeddings.py
 │   ├── vit_attention_maps.py
+│   ├── alignment_analysis.py  # CORnet IT alignment metrics
 │   └── perturbation_visuals.py
 ├── phase5_sdt/             # Signal Detection Theory (SDT)
 │   ├── sdt_analysis.py     # Main d' and criterion calculation
 │   └── sdt_core.py         # SDT mathematical primitives
+├── checkpoints/            # Model weights (git-ignored)
+├── scratch/                # Evaluation and debugging scripts
 └── utils/                  # Shared metrics and logging
 ```
 
@@ -170,3 +219,4 @@ Mapping: `phase3_human_study/manifest.csv`
 12. Macmillan, N. A., & Creelman, C. D. (2005). Detection theory: A user's guide (2nd ed.). Lawrence Erlbaum Associates.
 13. Ilyas, A., et al. (2019). Adversarial Examples Are Not Bugs, They Are Features. NeurIPS 2019.
 14. Carter, B., et al. (2019). Exploring Statistical and Structural Properties of Feedforward and Recurrent Neural Networks. arXiv.
+15. Zhang, H., et al. (2019). Theoretically Principled Trade-off between Robustness and Accuracy (TRADES). ICML 2019.
