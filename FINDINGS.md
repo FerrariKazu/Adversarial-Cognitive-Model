@@ -1,6 +1,6 @@
 # Key Research Findings: Adversarial Cognition Divergence
 
-This document summarizes the core scientific insights derived from our large-scale comparison of 5 AI architectures and human psychophysics data.
+This document summarizes the core scientific insights derived from our large-scale comparison of 12 AI architectures and human psychophysics data.
 
 ---
 
@@ -8,7 +8,7 @@ This document summarizes the core scientific insights derived from our large-sca
 **The divergence between biological and artificial vision is not a matter of degree — it is a categorical shift in processing mode.**
 
 > [!IMPORTANT]
-> Every AI model tested crosses the **$d' < 1.0$** perceptual collapse threshold before **$\epsilon = 0.03$**. 
+> Every standard feedforward AI model tested crosses the **$d' < 1.0$** perceptual collapse threshold before **$\epsilon = 0.03$**. 
 > **Humans never cross this threshold**, maintaining stable sensitivity up to **$\epsilon = 0.30$**.
 
 This **10x gap** in robustness suggests that human vision employs a fundamentally different computational strategy — likely involving recurrent feedback loops that "clean" noisy inputs — which purely feedforward CNNs and ViTs lack.
@@ -19,7 +19,7 @@ This **10x gap** in robustness suggests that human vision employs a fundamentall
 **High performance on clean data does not predict, and may actually penalize, adversarial resilience.**
 
 *   **EfficientNet-B0** achieved the highest clean accuracy (**96.81%**) but is the **most fragile** model in the study ($\epsilon_{thresh} = 0.006$).
-*   **ResNet-18**, the oldest and simplest architecture, is the **most robust** AI system ($\epsilon_{thresh} = 0.030$).
+*   **ResNet-18** (95.82% clean), the oldest and simplest architecture, is the **most robust** feedforward AI system ($\epsilon_{thresh} = 0.030$).
 
 This contradicts the naive assumption that "better" models are inherently more robust. Scaling for accuracy appears to create "brittle" features that are easily exploited.
 
@@ -65,3 +65,32 @@ The distinction between being *wrong-with-certainty* versus *uncertain-and-wrong
 
 > [!TIP]
 > If CLIP's adversarial collapse is shallower than ViT-Small, it will become the headline finding of the entire study, suggesting that robustness is an emergent property of cross-modal semantic grounding.
+
+---
+
+## 🧠 Finding 7: Recurrent Biological Priors Close the Gap (RHAN Series)
+**Incorporating neuroscientific priors into model architecture produces a 3.4× improvement in adversarial robustness over the best feedforward model.**
+
+| System | εthresh (d'=1.0) | Improvement over ResNet |
+| :--- | :--- | :--- |
+| **RHAN-v5** ★ | **0.1030** | **3.4×** |
+| **RHAN-v3** | 0.0900 | 3.0× |
+| **RHAN-v4** | 0.0800 | 2.7× |
+| **RHAN-adv** | 0.0764 | 2.6× |
+| RHAN-clean | 0.0330 | 1.1× |
+| ResNet-18 | 0.0295 | 1.0× (baseline) |
+
+The RHAN series demonstrates that three biological principles — recurrent feedback, ventral/dorsal pathway separation, and neural representation alignment — combine synergistically to produce robustness qualitatively superior to any single-principle model.
+
+### Key Sub-Findings:
+1. **Phase decoupling matters**: CLIP semantic alignment during adversarial training degrades geometry (v4 < v3). Applying it strictly as initialization (v5 Phase 0) preserves both semantics and robustness.
+2. **Frequency separation is biologically valid**: RHAN-v5's learnable frequency weights converge to M-pathway dominance (wL > wH), confirming the primate V1 shape-over-texture hypothesis computationally.
+3. **Architecture has diminishing returns**: RHAN-v6 added dynamic gating, predictive coding, and ACT — and regressed. The v5 architecture is sufficient; the training algorithm is now the bottleneck.
+4. **TRADES is the next frontier**: The ongoing RHAN-v5-TRADES experiment applies a theoretically principled robustness-accuracy trade-off (Zhang et al., 2019) to the proven v5 architecture, targeting εthresh > 0.150.
+
+---
+
+## 🔬 Finding 8: The Remaining Gap Points to Semantic Grounding
+**The gap between RHAN-v5 (εthresh=0.103) and Human (εthresh>0.300) is a 3× factor that likely requires genuine semantic grounding — not just architectural improvements.**
+
+> "Human visual robustness is not a single mechanism — it is an emergent property of a system that combines local frequency filtering, global shape integration, recurrent top-down feedback, and semantic language grounding, operating together across a strict processing hierarchy. Our results show that implementing even three of these four principles in a unified architecture produces robustness qualitatively superior to any single-principle model, while the remaining gap to human performance points precisely to the fourth missing principle: genuine semantic grounding of visual representations in conceptual knowledge."
