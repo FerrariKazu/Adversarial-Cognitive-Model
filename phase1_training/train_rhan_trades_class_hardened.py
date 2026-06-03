@@ -1,23 +1,39 @@
 #!/usr/bin/env python3
 """
-RHAN-v5: TRADES Adversarial Training with Biological Neural Alignment
-===================================================================
-Loads CLIP-pretrained weights from checkpoints/rhan_v5_clip_init.pth.
+RHAN-v5: Class-Hardened TRADES Fine-Tuning
+===========================================
+Loads trained weights from checkpoints/rhan_adv_trades_best.pth.
 Reuses the exact model_rhan_v5.py architecture.
 
+Key Innovation: Class-hardened TRADES applies stronger attacks to the
+vulnerable class pairs identified by AutoAttack:
+  vulnerable_pairs = {
+      'automobile': 1,
+      'truck': 9,
+      'horse': 7,
+      'dog': 5,
+      'cat': 3,
+  }
+Base epsilon: 0.031
+Hard epsilon: 0.055
+
 Loss formulation:
-  total_loss = L_trades + 0.2 * L_align
+  total_loss = L_trades + 0.15 * L_align + 0.20 * L_margin
   where L_trades = CE(f(x_clean), y) + beta * KL(f(x_clean) || f(x_adv))
-  and L_align is computed on the representations of x_adv vs CORnet-S IT.
+  L_align is computed on representations of x_adv vs CORnet-S IT
+  L_margin is the inter-class margin loss between centroids of vulnerable pairs:
+    - Automobile (1) vs Truck (9)
+    - Horse (7) vs Dog (5)
+    - Dog (5) vs Cat (3)
 
 Training settings:
-  Epochs: 120
+  Epochs: 30
   Batch size: 128
-  Optimizer: SGD (lr=0.1, momentum=0.9, weight_decay=5e-4)
-  Scheduler: MultiStepLR (milestones=[75, 100], gamma=0.1)
+  Optimizer: SGD(lr=0.005, momentum=0.9, weight_decay=5e-4)
+  Scheduler: CosineAnnealingLR (lr: 0.005 -> 5e-5)
   AMP: Yes (mixed precision)
   TRADES beta: 6.0
-  TRADES attack: L_inf epsilon=0.031, step_size=0.007, perturb_steps=10
+  APGD-style adaptive step: steps=20, milestones=[5, 10, 15]
 """
 
 import os
@@ -65,62 +81,146 @@ def get_it_features(teacher_model, x):
     return out
 
 
-def generate_trades_adv(model, x_natural, step_size, epsilon, perturb_steps, clip_min, clip_max):
+def apgd_attack(model, x_natural, labels, eps, steps=20):
     """
-    Generate adversarial examples for TRADES using KL divergence in FP32.
-    Uses BN-only freezing instead of full model.eval() to avoid
-    torch.compile recompilation on mode switches.
+    APGD-style adaptive step attack for TRADES.
+    Uses KL divergence to find adversarial directions.
     """
     x_natural = x_natural.detach()
+    device = x_natural.device
+    B = x_natural.size(0)
+    eps = eps.view(B, 1, 1, 1)
 
     # Freeze BN stats for adversarial generation without full eval mode
     bn_modules = [m for m in model.modules() if isinstance(m, nn.BatchNorm2d)]
     for m in bn_modules:
         m.eval()
 
+    # CIFAR bounds
+    cifar_min = torch.tensor([-2.4291, -2.4181, -2.2194]).view(1, 3, 1, 1).to(device)
+    cifar_max = torch.tensor([2.6400, 2.6210, 2.7615]).view(1, 3, 1, 1).to(device)
+
     # Initialize x_adv with random noise inside L_inf epsilon ball
     x_adv = x_natural.clone().detach() + 0.001 * torch.randn_like(x_natural)
-    x_adv = torch.max(torch.min(x_adv, clip_max), clip_min).detach()
+    x_adv = torch.max(torch.min(x_adv, cifar_max), cifar_min).detach()
 
-    # Compute clean predictions once to avoid redundant model passes
+    # Precompute clean predictions once
     with torch.no_grad():
         logits_clean = model(x_natural)
         logits_clean = logits_clean[0] if isinstance(logits_clean, tuple) else logits_clean
         probs_clean = F.softmax(logits_clean, dim=1).detach()
 
-    for _ in range(perturb_steps):
+    # APGD parameters
+    step_size = 2.0 * eps
+    x_best = x_adv.clone()
+
+    # Initialize best and previous loss
+    with torch.no_grad():
+        logits_adv = model(x_adv)
+        logits_adv = logits_adv[0] if isinstance(logits_adv, tuple) else logits_adv
+        kl_div = F.kl_div(
+            F.log_softmax(logits_adv, dim=1),
+            probs_clean,
+            reduction='none'
+        ).sum(dim=1)
+
+    loss_best = kl_div.clone()
+    loss_best_milestone = kl_div.clone()
+    loss_prev = kl_div.clone()
+
+    milestones = [5, 10, 15]
+    n_succ = torch.zeros(B, device=device)
+
+    for step in range(steps):
         x_adv.requires_grad_(True)
         with torch.enable_grad():
             logits_adv = model(x_adv)
             logits_adv = logits_adv[0] if isinstance(logits_adv, tuple) else logits_adv
-
-            # KL divergence from clean predictions
-            loss_kl = F.kl_div(
+            kl_div = F.kl_div(
                 F.log_softmax(logits_adv, dim=1),
                 probs_clean,
-                reduction='batchmean'
-            )
-        # Compute gradient of KL divergence w.r.t. x_adv
-        grad = torch.autograd.grad(loss_kl, [x_adv])[0]
-        # Gradient step
-        x_adv = x_adv.detach() + step_size * torch.sign(grad.detach())
-        # Projection back onto epsilon ball
-        delta = torch.clamp(x_adv - x_natural, min=-epsilon, max=epsilon)
-        x_adv = (x_natural + delta).detach()
-        # Clip to valid normalized image bounds
-        x_adv = torch.max(torch.min(x_adv, clip_max), clip_min).detach()
+                reduction='none'
+            ).sum(dim=1)
+
+        grad = torch.autograd.grad(kl_div.sum(), [x_adv])[0]
+
+        with torch.no_grad():
+            # Update best-performing adversarial examples
+            improved = kl_div > loss_best
+            loss_best[improved] = kl_div[improved]
+            x_best[improved] = x_adv[improved]
+
+            # Count success: step is successful if kl_div > loss_prev
+            if step > 0:
+                n_succ += (kl_div > loss_prev).float()
+            else:
+                n_succ += 1.0
+            loss_prev = kl_div.clone()
+
+            # APGD step (sign of gradient)
+            x_next = x_adv.detach() + step_size * torch.sign(grad.detach())
+
+            # Projection onto L_inf ball with per-image epsilon
+            delta = torch.clamp(x_next - x_natural, min=-eps, max=eps)
+            x_adv = torch.max(torch.min(x_natural + delta, cifar_max), cifar_min).detach()
+
+            # Milestone step-size adaptation
+            if step + 1 in milestones:
+                prev_milestone = 0 if step + 1 == 5 else milestones[milestones.index(step + 1) - 1]
+                interval_len = (step + 1) - prev_milestone
+
+                # Check condition for each image:
+                # (1) best loss didn't improve compared to the beginning of the interval, OR
+                # (2) successful updates count is less than 0.75 * interval_len
+                condition = (loss_best <= loss_best_milestone) | (n_succ < 0.75 * interval_len)
+
+                # Halve step size for those that met the condition
+                step_size[condition] /= 2.0
+                # Fallback to the best x for those that met the condition
+                x_adv[condition] = x_best[condition]
+
+                # Reset milestone statistics
+                loss_best_milestone = loss_best.clone()
+                n_succ.zero_()
 
     # Restore BN modules to train mode
     for m in bn_modules:
         m.train()
 
-    return x_adv
+    return x_best
 
 
-def run_autoattack(model, loader, epsilon, device, max_samples=500):
+def inter_class_margin_loss(features, labels, margin=0.5):
+    """
+    Minimize similarity between centroids of vulnerable class pairs.
+    Pairs:
+      - (1, 9): Automobile vs Truck
+      - (7, 5): Horse vs Dog
+      - (5, 3): Dog vs Cat
+    """
+    loss = 0
+    pairs = [(1, 9), (7, 5), (5, 3)]  # auto/truck, horse/dog, dog/cat
+    for cls_a, cls_b in pairs:
+        feat_a = features[labels == cls_a]
+        feat_b = features[labels == cls_b]
+        if len(feat_a) == 0 or len(feat_b) == 0:
+            continue
+        # Minimize similarity between class centroids
+        centroid_a = feat_a.mean(0)
+        centroid_b = feat_b.mean(0)
+        similarity = F.cosine_similarity(
+            centroid_a.unsqueeze(0),
+            centroid_b.unsqueeze(0)
+        )
+        loss += F.relu(similarity - margin)
+    return loss
+
+
+def run_autoattack(model, loader, epsilon, device, max_samples=1000):
     try:
         from autoattack import AutoAttack
         print(f"\nRunning AutoAttack (standard) at ε={epsilon:.4f} on {max_samples} samples...")
+        
         class AAWrapper(nn.Module):
             def __init__(self, m):
                 super().__init__()
@@ -132,8 +232,13 @@ def run_autoattack(model, loader, epsilon, device, max_samples=500):
         wrapper = AAWrapper(model)
         adversary = AutoAttack(wrapper, norm='Linf', eps=epsilon, version='standard', device=device, verbose=False)
         
+        class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+        class_correct = {i: 0 for i in range(10)}
+        class_total = {i: 0 for i in range(10)}
+        
         correct = 0
         total = 0
+        
         for images, labels in loader:
             if total >= max_samples:
                 break
@@ -144,8 +249,23 @@ def run_autoattack(model, loader, epsilon, device, max_samples=500):
                 _, preds = outputs.max(1)
                 correct += preds.eq(labels).sum().item()
                 total += labels.size(0)
+                
+                # Per-class stats
+                for i in range(labels.size(0)):
+                    lbl = labels[i].item()
+                    pred = preds[i].item()
+                    class_total[lbl] += 1
+                    if pred == lbl:
+                        class_correct[lbl] += 1
+                        
         aa_acc = 100.0 * correct / max(total, 1)
-        print(f"AutoAttack standard ε={epsilon:.3f} Accuracy: {aa_acc:.2f}%")
+        print(f"\nAutoAttack standard ε={epsilon:.3f} Overall Accuracy: {aa_acc:.2f}%")
+        
+        print("\nPer-class Robust Accuracy under AutoAttack:")
+        for i in range(10):
+            acc = 100.0 * class_correct[i] / max(class_total[i], 1)
+            print(f"  {class_names[i]:>10}: {acc:.2f}% (n={class_total[i]})")
+            
         return aa_acc
     except ImportError:
         print("\nAutoAttack is not installed. Attempting to install autoattack...")
@@ -164,7 +284,7 @@ def run_autoattack(model, loader, epsilon, device, max_samples=500):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='RHAN-v5 TRADES Adversarial Training')
+    parser = argparse.ArgumentParser(description='RHAN-v5 Class-Hardened TRADES Fine-Tuning')
     parser.add_argument('--resume', action='store_true', help='Resume training from checkpoint')
     args = parser.parse_args()
 
@@ -178,13 +298,13 @@ def main():
     ckpt_dir = os.path.join(script_dir, '..', 'checkpoints')
     os.makedirs(ckpt_dir, exist_ok=True)
 
-    clip_init_ckpt = os.path.join(ckpt_dir, 'rhan_v5_clip_init.pth')
+    start_ckpt = os.path.join(ckpt_dir, 'rhan_adv_trades_best.pth')
     cornet_ckpt = os.path.join(script_dir, 'checkpoints', 'cornets_best.pth')
-    output_ckpt = os.path.join(ckpt_dir, 'rhan_adv_trades_best.pth')
-    checkpoint_path = os.path.join(ckpt_dir, 'rhan_adv_trades_checkpoint.pth')
+    output_ckpt = os.path.join(ckpt_dir, 'rhan_trades_hardened_best.pth')
+    checkpoint_path = os.path.join(ckpt_dir, 'rhan_trades_hardened_checkpoint.pth')
 
-    if not os.path.exists(clip_init_ckpt):
-        print(f"ERROR: Phase 0 CLIP init checkpoint not found at {clip_init_ckpt}")
+    if not os.path.exists(start_ckpt):
+        print(f"ERROR: Starting checkpoint not found at {start_ckpt}")
         return
     if not os.path.exists(cornet_ckpt):
         print(f"ERROR: CORnet-S checkpoint not found at {cornet_ckpt}")
@@ -193,19 +313,31 @@ def main():
     # ── Model: RHANv5 ──
     model = RHANv5(head_type='cosine').to(device)
 
-    # ── Training configuration ──
-    epochs = 120
+    # ── Fine-tuning configuration ──
+    epochs = 30
     batch_size = 128
     beta = 6.0
-    epsilon = 0.031
-    step_size = 0.007
-    perturb_steps = 10
-    align_weight = 0.2
+    
+    # Vulnerable class epsilon scaling configuration
+    vulnerable_pairs = {
+        'automobile': 1,
+        'truck': 9,
+        'horse': 7,
+        'dog': 5,
+        'cat': 3,
+    }
+    vulnerable_indices = list(vulnerable_pairs.values())
+    base_eps = 0.031
+    hard_eps = 0.055
+    
+    align_weight = 0.15
+    margin_weight = 0.20
 
-    optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[75, 100], gamma=0.1)
+    optimizer = optim.SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=5e-4)
+    # Cosine annealing decay from 0.005 to 5e-5 for stable fine-tuning
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=5e-5)
     scaler = GradScaler('cuda')
-    tb_writer = SummaryWriter(log_dir=os.path.join(script_dir, '..', 'runs', 'rhan_v5_trades'))
+    tb_writer = SummaryWriter(log_dir=os.path.join(script_dir, '..', 'runs', 'rhan_trades_hardened'))
 
     start_epoch = 0
     best_test_acc = 0.0
@@ -213,6 +345,7 @@ def main():
         'clean_loss': [],
         'robust_loss': [],
         'align_loss': [],
+        'margin_loss': [],
         'total_loss': [],
         'train_acc': [],
         'test_acc': [],
@@ -235,9 +368,9 @@ def main():
         print(f"Successfully resumed at Epoch {start_epoch} (next to run: {start_epoch+1})")
     else:
         if args.resume:
-            print(f"WARNING: Checkpoint {checkpoint_path} not found. Starting from CLIP init.")
-        model.load_state_dict(torch.load(clip_init_ckpt, map_location=device, weights_only=False))
-        print(f"RHANv5 loaded from CLIP initialization checkpoint: {clip_init_ckpt}")
+            print(f"WARNING: Checkpoint {checkpoint_path} not found. Starting from best TRADES checkpoint.")
+        model.load_state_dict(torch.load(start_ckpt, map_location=device, weights_only=False))
+        print(f"RHANv5 loaded from starting checkpoint: {start_ckpt}")
 
     # ── CORnet-S teacher (frozen) ──
     teacher = CIFARCORnet().to(device)
@@ -256,24 +389,23 @@ def main():
     cifar_min = torch.tensor([-2.4291, -2.4181, -2.2194]).view(1, 3, 1, 1).to(device)
     cifar_max = torch.tensor([2.6400, 2.6210, 2.7615]).view(1, 3, 1, 1).to(device)
 
-    # NOTE: torch.compile is intentionally NOT used here.
-    # It recompiles on every train/eval mode switch inside the TRADES
-    # inner loop, doubling epoch time (~2100s -> would be ~1035s).
-    # AMP (autocast + GradScaler) provides the real speedup safely.
     compiled_model = model
 
     print(f"\n{'='*70}")
-    print("RHAN-v5 · TRADES Adversarial Training")
+    print("RHAN-v5 · Class-Hardened TRADES Training")
     print(f"{'='*70}")
-    print(f"  Architecture:    RHANv5 (freq-separated, ventral/dorsal)")
-    print(f"  Initialization:  Phase 0 CLIP checkpoint")
-    print(f"  Optimizer:       SGD (lr=0.1, momentum=0.9, wd=5e-4)")
-    print(f"  Scheduler:       MultiStepLR (milestones=[75, 100], gamma=0.1)")
-    print(f"  Batch size:      {batch_size}")
-    print(f"  Epochs:          {epochs}")
-    print(f"  TRADES parameters: beta={beta}, eps={epsilon}, steps={perturb_steps}")
-    print(f"  Neural alignment weight: {align_weight}")
-    print(f"  Save to:         {output_ckpt}")
+    print(f"  Architecture:     RHANv5 (freq-separated, ventral/dorsal)")
+    print(f"  Initialization:   checkpoints/rhan_adv_trades_best.pth")
+    print(f"  Optimizer:        SGD (lr=0.005, momentum=0.9, wd=5e-4)")
+    print(f"  Scheduler:        CosineAnnealingLR (T_max={epochs}, eta_min=5e-5)")
+    print(f"  Batch size:       {batch_size}")
+    print(f"  Epochs:           {epochs}")
+    print(f"  TRADES beta:      {beta}")
+    print(f"  Epsilon scaling:  Base={base_eps:.4f}, Hardened={hard_eps:.4f}")
+    print(f"  Vulnerable cls:   {list(vulnerable_pairs.keys())}")
+    print(f"  Neural alignment: weight={align_weight}")
+    print(f"  Margin loss:      weight={margin_weight}, margin=0.5")
+    print(f"  Save to:          {output_ckpt}")
     print(f"{'='*70}\n")
 
     for epoch in range(start_epoch, epochs):
@@ -281,7 +413,7 @@ def main():
         current_lr = optimizer.param_groups[0]['lr']
 
         compiled_model.train()
-        s_clean = s_robust = s_align = s_total = 0.0
+        s_clean = s_robust = s_align = s_margin = s_total = 0.0
         train_correct = train_total = 0
 
         for step, (imgs, labels) in enumerate(trainloader):
@@ -289,18 +421,22 @@ def main():
             labels = labels.to(device, non_blocking=True)
             B = imgs.size(0)
 
-            # 1. Generate adversarial examples (x_adv) in FP32
-            # Save parameter gradients to protect them from the attack backward passes
+            # Assign epsilon per-image based on class
+            eps_per_image = torch.full((B,), base_eps, device=device)
+            for cls_idx in vulnerable_indices:
+                mask = (labels == cls_idx)
+                eps_per_image[mask] = hard_eps
+
+            # 1. Generate adversarial examples (x_adv) using APGD-style adaptive attack
             saved_grads = [p.grad.clone() if p.grad is not None else None for p in model.parameters()]
-            x_adv = generate_trades_adv(
-                compiled_model, imgs, 
-                step_size=step_size, epsilon=epsilon, perturb_steps=perturb_steps,
-                clip_min=cifar_min, clip_max=cifar_max
+            x_adv = apgd_attack(
+                compiled_model, imgs, labels,
+                eps=eps_per_image, steps=20
             )
             for p, g in zip(model.parameters(), saved_grads):
                 p.grad = g
 
-            # 2. Compute TRADES and alignment losses in autocast (AMP)
+            # 2. Compute losses under AMP (mixed precision)
             optimizer.zero_grad(set_to_none=True)
             with autocast('cuda'):
                 # forward passes in train mode
@@ -321,8 +457,11 @@ def main():
                     cornet_it = get_it_features(teacher, x_adv)
                 loss_align = 1.0 - F.cosine_similarity(adv_features, cornet_it, dim=-1).mean()
 
+                # Inter-class margin loss on adversarial features
+                loss_margin = inter_class_margin_loss(adv_features, labels, margin=0.5)
+
                 # Joint Loss
-                total_loss = loss_trades + align_weight * loss_align
+                total_loss = loss_trades + align_weight * loss_align + margin_weight * loss_margin
 
             scaler.scale(total_loss).backward()
             scaler.unscale_(optimizer)
@@ -334,6 +473,7 @@ def main():
             s_clean += loss_natural.item() * B
             s_robust += loss_robust.item() * B
             s_align += loss_align.item() * B
+            s_margin += loss_margin.item() * B
             s_total += total_loss.item() * B
 
             # Track clean train accuracy
@@ -341,7 +481,7 @@ def main():
             train_total += B
             train_correct += pred.eq(labels).sum().item()
 
-        # Step the learning rate scheduler
+        # Step learning rate
         scheduler.step()
 
         # Epoch metrics
@@ -349,6 +489,7 @@ def main():
         l_clean_epoch = s_clean / N
         l_robust_epoch = s_robust / N
         l_align_epoch = s_align / N
+        l_margin_epoch = s_margin / N
         l_total_epoch = s_total / N
         train_acc = 100.0 * train_correct / train_total
 
@@ -374,6 +515,7 @@ def main():
         loss_history['clean_loss'].append(l_clean_epoch)
         loss_history['robust_loss'].append(l_robust_epoch)
         loss_history['align_loss'].append(l_align_epoch)
+        loss_history['margin_loss'].append(l_margin_epoch)
         loss_history['total_loss'].append(l_total_epoch)
         loss_history['train_acc'].append(train_acc)
         loss_history['test_acc'].append(test_acc)
@@ -384,6 +526,7 @@ def main():
         tb_writer.add_scalar('Loss/Clean_CE', l_clean_epoch, epoch)
         tb_writer.add_scalar('Loss/Robust_KL', l_robust_epoch, epoch)
         tb_writer.add_scalar('Loss/Align', l_align_epoch, epoch)
+        tb_writer.add_scalar('Loss/Margin', l_margin_epoch, epoch)
         tb_writer.add_scalar('Loss/Total', l_total_epoch, epoch)
         tb_writer.add_scalar('Accuracy/Train_Clean', train_acc, epoch)
         tb_writer.add_scalar('Accuracy/Test_Clean', test_acc, epoch)
@@ -411,7 +554,7 @@ def main():
             'loss_history': loss_history
         }, checkpoint_path)
 
-        print(f"Epoch {epoch+1:03d}/{epochs} | ClnLoss:{l_clean_epoch:.4f} RobLoss:{l_robust_epoch:.4f} Align:{l_align_epoch:.4f} | "
+        print(f"Epoch {epoch+1:02d}/{epochs} | ClnLoss:{l_clean_epoch:.4f} RobLoss:{l_robust_epoch:.4f} Margin:{l_margin_epoch:.4f} | "
               f"TrainClean:{train_acc:.1f}% TestClean:{test_acc:.2f}% | "
               f"wL:{w_lo:.3f} wH:{w_hi:.3f} | LR:{current_lr:.6f} | "
               f"{time.time()-epoch_start:.1f}s{marker}", flush=True)
@@ -447,7 +590,6 @@ def main():
 
     # ── Step 1: Gradient masking check ──
     print(f"\n{'='*70}\nGradient Masking Check\n{'='*70}")
-    # Random noise vs PGD-100 at ε=0.05
     rn_correct = rn_total = 0
     with torch.no_grad():
         for images, lbls in testloader:
@@ -463,7 +605,6 @@ def main():
     rn_acc = 100.0 * rn_correct / max(rn_total, 1)
     print(f"  Random noise ε=0.05: {rn_acc:.2f}%")
 
-    # PGD-20 at ε=0.05
     p20_correct = p20_total = 0
     for images, lbls in testloader:
         if p20_total >= max_samples:
@@ -518,13 +659,6 @@ def main():
     else:
         print(f"  ✓ No gradient masking (gap {pgd_gap:.2f}% < 8%)")
 
-    random_noise_gap = rn_acc - p100_05
-    print(f"Random noise vs PGD-100 gap at ε=0.05: {random_noise_gap:.2f}%")
-    if random_noise_gap > 20.0:
-        print(f"  ✓ Strong decision boundary difference (gap {random_noise_gap:.2f}% > 20%)")
-    else:
-        print(f"  ⚠ Narrow gap between random noise and optimization attack.")
-
     # ── Step 3: SDT d-prime & εthresh ──
     trades_dprimes = []
     for acc_pct in trades_accs:
@@ -545,46 +679,16 @@ def main():
         eps_thresh = epsilons[0]
     thresh_str = f"{eps_thresh:.4f}" if eps_thresh is not None else ">0.30"
 
-    # ── Step 4: Final comparison table ──
-    human = {0.00: 73.33, 0.01: 'N/A', 0.05: 69.17, 0.10: 59.17, 0.20: 62.22, 0.30: 58.61}
-    rhan_v5 = {0.00: 84.57, 0.01: 80.66, 0.05: 61.13, 0.10: 34.38, 0.20: 2.73, 0.30: 0.20}
-    rhan_v3 = {0.00: 91.41, 0.01: 85.35, 0.05: 60.74, 0.10: 26.17, 0.20: 1.17, 0.30: 0.00}
-    rhan_adv = {0.00: 83.79, 0.01: 77.93, 0.05: 51.95, 0.10: 17.77, 0.20: 0.59, 0.30: 0.00}
-    resnet = {0.00: 95.82, 0.01: 75.57, 0.05: 2.84, 0.10: 0.21, 0.20: 0.02, 0.30: 0.00}
-    vit = {0.00: 97.80, 0.01: 55.18, 0.05: 8.80, 0.10: 2.78, 0.20: 1.12, 0.30: 0.58}
-
-    print(f"\n{'='*95}\nRHAN-TRADES FINAL COMPARISON\n{'='*95}")
-    print(f"{'ε':<8} | {'Human':>8} | {'RHAN-TRADES':>11} | {'RHAN-v5':>8} | {'RHAN-v3':>8} | {'RHAN-adv':>8} | {'ResNet':>8} | {'ViT':>8}")
-    print("-" * 95)
-    for i, eps in enumerate(epsilons):
-        h = human[eps]
-        h_str = f"{h:.2f}%" if isinstance(h, float) else h
-        print(f"{eps:<8.2f} | {h_str:>8} | {trades_accs[i]:>10.2f}% | {rhan_v5[eps]:>7.2f}% | {rhan_v3[eps]:>7.2f}% | {rhan_adv[eps]:>7.2f}% | {resnet[eps]:>7.2f}% | {vit[eps]:>7.2f}%")
-    print("=" * 95)
-
     print(f"\n--- SDT d-prime ---")
     for i, eps in enumerate(epsilons):
         print(f"  ε={eps:.2f}: d'={trades_dprimes[i]:.4f}")
     print(f"\nε_thresh (d'=1.0): {thresh_str}")
 
-    print(f"\n{'='*70}")
-    print("ROBUSTNESS RANKING (SDT ε_thresh)")
-    print(f"{'='*70}")
-    print(f"  {'System':<20} | {'ε_thresh':>10}")
-    print(f"  {'-'*35}")
-    print(f"  {'Human':<20} | {'> 0.3000':>10}")
-    print(f"  {'RHAN-TRADES':<20} | {thresh_str:>10}")
-    print(f"  {'RHAN-v5':<20} | {'0.1030':>10}")
-    print(f"  {'RHAN-v3':<20} | {'0.0900':>10}")
-    print(f"  {'RHAN-adv':<20} | {'0.0764':>10}")
-    print(f"  {'ResNet-18':<20} | {'0.0295':>10}")
-    print(f"  {'ViT-Small':<20} | {'0.0264':>10}")
-    print(f"{'='*70}\n")
+    # ── Step 4: AutoAttack Sweep on 1000 images with Class Breakdown ──
+    print(f"\n{'='*70}\nAutoAttack Evaluation\n{'='*70}")
+    run_autoattack(eval_model, testloader, epsilon=0.031, device=device, max_samples=1000)
 
-    # ── Step 5: AutoAttack Sweep ──
-    run_autoattack(eval_model, testloader, epsilon=0.031, device=device, max_samples=500)
-
-    # ── Step 6: M-Pathway Dominance Check ──
+    # ── Step 5: M-Pathway Dominance Check ──
     w_lo_final = torch.sigmoid(eval_model.freq_weight_low).item()
     w_hi_final = torch.sigmoid(eval_model.freq_weight_high).item()
     print(f"\n{'='*70}\nFrequency Gating Weight Analysis\n{'='*70}")
