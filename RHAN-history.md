@@ -32,23 +32,25 @@ graph TD
 | System / Model | Clean Acc | PGD 50% Threshold | $d'=1.0$ Threshold | Training Style | Key Mechanism |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Human** | 74.15% | >0.30 | >0.30 | Biological | Biological Vision (n=18) |
-| **RHAN-v5** ★ BEST | **84.57%** | **ε≈0.100** | **ε≈0.103** | Phase 0 CLIP + Phase 1 Curriculum | Learnable Freq Separation, Dual Stems, Split-Stream |
-| **RHAN-v3** | **91.41%** | **ε≈0.066** | **ε≈0.090** | Joint Scratch (100 Ep) | Ventral/Dorsal Split + Adv IT-Alignment |
-| **RHAN-v4** | 89.65% | ε≈0.056 | ε≈0.080 | Scratch (100 Ep) | Multi-Scale Feedback, Active CLIP loss, InfoNCE |
-| **RHAN-adv** | 83.79% | ε≈0.053 | ε≈0.076 | Adv Curriculum | Recurrent Top-Down Gated Feedback |
-| **RHAN-clean**| 89.06% | ε≈0.023 | ε≈0.033 | Clean Only | Recurrent Top-Down Gated Feedback |
+| **RHAN-TRADES-Hardened** ★ BEST | **86.33%** | **ε≈0.086** | **ε≈0.1246** | SGD Fine-tuning (30 Ep) | Class-hardened TRADES + IT align + inter-class margin |
+| **RHAN-v5-TRADES** | 87.30% | ε≈0.078 | ε≈0.1151 | SGD Scratch (120 Ep) | Standard TRADES + IT alignment |
+| **RHAN-v5** | 84.57% | ε≈0.071 | ε≈0.1030 | Phase 0 CLIP + Phase 1 Curriculum | Learnable Freq Separation, Dual Stems, Split-Stream |
+| **RHAN-v3** | 91.41% | ε≈0.066 | ε≈0.0900 | Joint Scratch (100 Ep) | Ventral/Dorsal Split + Adv IT-Alignment |
+| **RHAN-v4** | 89.65% | ε≈0.056 | ε≈0.0800 | Scratch (100 Ep) | Multi-Scale Feedback, Active CLIP loss, InfoNCE |
+| **RHAN-adv** | 83.79% | ε≈0.053 | ε≈0.0764 | Adv Curriculum | Recurrent Top-Down Gated Feedback |
+| **RHAN-clean**| 89.06% | ε≈0.023 | ε≈0.0330 | Clean Only | Recurrent Top-Down Gated Feedback |
 | **RHAN-v6** ⚠️ | 82.03% | — | Regressed | Phase 0 + 6-Phase Curriculum | Dynamic Gating, PredCoding Error, ACT Pondering |
-| **RHAN-v5-TRADES** 🔄 | *Training* | — | *Target >0.150* | TRADES on v5 arch | TRADES loss + CORnet IT alignment |
+| **RHAN-trades-curriculum** 🔄 | *Training* | — | *Target >0.150* | SGD 3-Phase Curriculum (60 Ep) | Multi-stage epsilon curriculum (0.062->0.100->0.150) |
 
-### RHAN-v5 PGD Accuracy Table (Verified)
-| Epsilon | RHAN-v5 | RHAN-v3 | RHAN-adv | ResNet-18 | ViT-Small |
-|---------|---------|---------|----------|-----------|-----------|
-| 0.00 | 84.57% | 91.41% | 83.79% | 95.82% | 97.80% |
-| 0.01 | 80.66% | 85.35% | 77.93% | 75.57% | 55.18% |
-| 0.05 | 61.13% | 60.74% | 51.95% | 2.84% | 8.80% |
-| 0.10 | 34.38% | 26.17% | 17.77% | 0.21% | 2.78% |
-| 0.20 | 2.73% | 1.17% | 0.59% | 0.02% | 1.12% |
-| 0.30 | 0.20% | 0.00% | 0.00% | 0.00% | 0.58% |
+### RHAN Series PGD Accuracy Table (Verified)
+| Epsilon | Hardened | TRADES | RHAN-v5 | RHAN-v3 | RHAN-adv | ResNet-18 | ViT-Small |
+|---------|----------|--------|---------|---------|----------|-----------|-----------|
+| 0.00 | 86.33% | 87.30% | 84.57% | 91.41% | 83.79% | 95.82% | 97.80% |
+| 0.01 | 83.01% | 84.77% | 80.66% | 85.35% | 77.93% | 75.57% | 55.18% |
+| 0.05 | 67.19% | 65.82% | 61.13% | 60.74% | 51.95% | 2.84% | 8.80% |
+| 0.10 | 43.16% | 37.89% | 34.38% | 26.17% | 17.77% | 0.21% | 2.78% |
+| 0.20 | 8.59%  | 5.47%  | 2.73%  | 1.17%  | 0.59%  | 0.02% | 1.12% |
+| 0.30 | 0.20%  | 0.20%  | 0.20%  | 0.00%  | 0.00%  | 0.00% | 0.58% |
 
 ---
 
@@ -134,27 +136,32 @@ The 6-phase epsilon curriculum ($0.015 \to 0.031 \to 0.062 \to 0.100 \to 0.150 \
 
 ---
 
-## 6. RHAN-v5-TRADES: Current Experiment (In Progress)
+## 6. RHAN-v5-TRADES and TRADES Hardening Experiments
 
-Instead of adding architectural complexity, we changed the **training algorithm** while keeping the exact RHAN-v5 architecture:
+Instead of adding architectural complexity, we focused on refining the **training objective** and **adversarial constraints** on the proven RHAN-v5 architecture.
 
-### TRADES Loss Formulation
-$$\mathcal{L}_{\text{total}} = \underbrace{\text{CE}(f(x), y)}_{\text{clean accuracy}} + \beta \cdot \underbrace{\text{KL}(f(x) \| f(x_{\text{adv}}))}_{\text{robustness}} + 0.2 \cdot \underbrace{\mathcal{L}_{\text{align}}}_{\text{CORnet IT alignment}}$$
+### A. RHAN-v5-TRADES Baseline
+Optimized using the standard TRADES loss (KL divergence formulation, $\beta=6.0$) and IT alignment (0.2 weight).
+- **Initialization**: CLIP zero-shot weights (`rhan_v5_clip_init.pth`)
+- **Epsilon**: $\epsilon=0.031$
+- **Epochs**: 120 epochs
+- **Results**: Clean test accuracy reached **87.30%**, and robustness threshold $\epsilon_{\text{thresh}}$ reached **0.1151** (d'=1.0 boundary), a significant step up from standard RHAN-v5.
 
-- **Architecture**: model_rhan_v5.py (exact same, no changes)
-- **Initialization**: checkpoints/rhan_v5_clip_init.pth (Phase 0 CLIP)
-- **TRADES parameters**: β=6.0, ε=0.031, 10-step PGD, step_size=0.007
-- **Optimizer**: SGD (lr=0.1, momentum=0.9, wd=5e-4)
-- **Scheduler**: MultiStepLR (milestones=[75, 100], γ=0.1)
-- **Target**: εthresh > 0.150
+### B. RHAN-TRADES-Hardened
+To combat class collapses where similar categories (such as automobile/truck) fell to 0.00% under AutoAttack, we designed class-hardened training:
+- **Epsilon Scaling**: Base $\epsilon=0.031$ scaled to $\epsilon=0.055$ (1.77×) for vulnerable classes (`automobile`=1, `truck`=9, `horse`=7, `dog`=5, `cat`=3).
+- **APGD inner loop**: Generated adversarial examples using a custom 20-step adaptive APGD step with milestone-based halving and backtracking.
+- **Inter-class margin loss**: Added centroid distance penalty ($\text{margin}=0.5$) with 0.20 weight on adversarial features.
+- **Results**: Fine-tuned for 30 epochs, pushing $\epsilon_{\text{thresh}}$ to **0.1246** (a **4.2×** improvement over ResNet-18). However, AutoAttack standard evaluation revealed that `automobile` and `truck` robust accuracies remained at 0.00%, showing that boundary geometry near these classes is a deep representational problem.
 
-### Early Results (Epochs 1-5)
-Training shows promising convergence:
-- Clean loss dropping: 1.003 → 0.897
-- Robust KL loss converging: 0.104 → 0.038
-- Alignment loss dropping: 0.746 → 0.339
-- Test accuracy improving: 71.93% → 72.77%
-- M-pathway dominance maintained: wL > wH
+### C. RHAN-trades-curriculum (Current Experiment - In Progress)
+To push boundaries across all classes and achieve the target $\epsilon_{\text{thresh}} > 0.150$, we launched the Extended Curriculum training script starting from the hardened checkpoint:
+- **Schedule**: 3 phases of 20 epochs each (60 epochs total):
+  - **Phase A**: $\epsilon = 0.062$, step_size = 0.015, beta = 6.0 (Epochs 1-20)
+  - **Phase B**: $\epsilon = 0.100$, step_size = 0.025, beta = 6.0 (Epochs 21-40)
+  - **Phase C**: $\epsilon = 0.150$, step_size = 0.030, beta = 5.0 (Epochs 41-60)
+- **Joint Loss**: $\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{trades}} + 0.15 \cdot \mathcal{L}_{\text{align}} + 0.10 \cdot \mathcal{L}_{\text{margin}}$.
+- **Goal**: Expand boundary margins across the board, utilizing Cosine Annealing learning rate (0.01 -> 0.0001) for robust parameter updates.
 
 ---
 
