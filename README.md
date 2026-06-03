@@ -10,24 +10,26 @@
 | System | Clean Acc | PGD 50% Threshold | d′=1.0 Threshold | Status |
 |--------|-----------|-------------------|-------------------|--------|
 | Human | 74.15% | >0.30 | >0.30 | ✅ Complete |
-| **RHAN-v5 (Freq-Separated)** | **84.57%** | **ε≈0.100** | **ε≈0.103** | ✅ Complete |
-| **RHAN-v3 (Unified Recurrent)** | **91.41%** | **ε≈0.066** | **ε≈0.090** | ✅ Complete |
-| **RHAN-v4 (Multi-Scale)** | **89.65%** | **ε≈0.056** | **ε≈0.080** | ✅ Complete |
-| **RHAN-adv (Recurrent)** | **83.79%** | **ε≈0.053** | **ε≈0.076** | ✅ Complete |
-| RHAN-clean | 89.06% | ε≈0.023 | ε≈0.033 | ✅ Complete |
-| ResNet-18 | 95.82% | ε≈0.024 | ε≈0.030 | ✅ Complete |
-| ViT-Small | 97.80% | ε≈0.014 | ε≈0.026 | ✅ Complete |
-| BagNet-33 | 87.67% | ε≈0.010 | ε≈0.017 | ✅ Complete |
-| CORnet-S | 91.48% | ε≈0.006 | ε≈0.009 | ✅ Complete |
-| Shape-ResNet-50 | 91.47% | ε≈0.006 | ε≈0.008 | ✅ Complete |
-| EfficientNet-B0 | 96.81% | ε≈0.005 | ε≈0.006 | ✅ Complete |
+| **RHAN-TRADES-Hardened** | **86.33%** | **ε≈0.086** | **ε≈0.1246** | ✅ Complete |
+| **RHAN-v5-TRADES** | **87.30%** | **ε≈0.078** | **ε≈0.1151** | ✅ Complete |
+| **RHAN-v5 (Freq-Separated)** | **84.57%** | **ε≈0.071** | **ε≈0.1030** | ✅ Complete |
+| **RHAN-v3 (Unified Recurrent)** | **91.41%** | **ε≈0.066** | **ε≈0.0900** | ✅ Complete |
+| **RHAN-v4 (Multi-Scale)** | **89.65%** | **ε≈0.056** | **ε≈0.0800** | ✅ Complete |
+| **RHAN-adv (Recurrent)** | **83.79%** | **ε≈0.053** | **ε≈0.0764** | ✅ Complete |
+| RHAN-clean | 89.06% | ε≈0.023 | ε≈0.0330 | ✅ Complete |
+| ResNet-18 | 95.82% | ε≈0.024 | ε≈0.0300 | ✅ Complete |
+| ViT-Small | 97.80% | ε≈0.014 | ε≈0.0264 | ✅ Complete |
+| BagNet-33 | 87.67% | ε≈0.010 | ε≈0.0170 | ✅ Complete |
+| CORnet-S | 91.48% | ε≈0.006 | ε≈0.0090 | ✅ Complete |
+| Shape-ResNet-50 | 91.47% | ε≈0.006 | ε≈0.0080 | ✅ Complete |
+| EfficientNet-B0 | 96.81% | ε≈0.005 | ε≈0.0060 | ✅ Complete |
 | RHAN-v6 (Dynamic Gating) | 82.03% | — | — | ⚠️ Regressed |
-| RHAN-v5-TRADES | — | — | Target >0.150 | 🔄 Training |
+| RHAN-trades-curriculum | — | — | Target >0.150 | 🔄 Training |
 | CLIP ViT-B/32 | — | — | — | 🔄 Pending |
 
-**Headline:** All standard feedforward AI models collapse before ε=0.03. RHAN-v5, utilizing learnable frequency separation and dual ventral/dorsal processing streams with CLIP-initialized weights and adversarial representation alignment, extends robustness to **ε≈0.103** — a **3.4× improvement** over ResNet-18 and **4.0× improvement** over ViT-Small — significantly narrowing the massive gap to Human visual cognition.
+**Headline:** All standard feedforward AI models collapse before ε=0.03. The class-hardened TRADES model, `RHAN-TRADES-Hardened`, extends visual robustness to **ε≈0.1246** (a **4.2× improvement** over ResNet-18), while `RHAN-v5-TRADES` reaches **ε≈0.1151**, significantly narrowing the gap to Human visual cognition.
 
-**Key insight:** RHAN-v5 surpassed RHAN-v3 by decoupling semantic initialization (Phase 0, CLIP) from adversarial training (Phase 1, epsilon curriculum), avoiding the geometric conflict that degraded v4. RHAN-v6 attempted dynamic gating and predictive coding but regressed, confirming that the v5 architecture + TRADES training algorithm is the correct path forward.
+**Key insight:** Integrating standard TRADES objective functions with visual cortex IT alignment and class-hardened margin loss is extremely effective for geometric robustness. However, AutoAttack standard evaluations reveal that the vulnerable class pairs (automobile/truck) still collapse to 0.00% under direct target maximization. The newly launched `RHAN-trades-curriculum` experiment implements an aggressive 3-stage epsilon curriculum ($0.062 \to 0.100 \to 0.150$) over 60 epochs to expand margins across all classes, starting from the hardened checkpoint.
 
 ---
 
@@ -35,6 +37,8 @@
 | System | d'(0.00) | d'(0.01) | d'(0.05) | d'(0.10) | d'(0.20) | d'(0.30) | ε threshold |
 |--------|----------|----------|----------|----------|----------|----------|-------------|
 | Human  | 4.790 | 4.567 | 3.985 | 3.368 | 2.440 | 1.769 | >0.30 |
+| **RHAN-TRADES-Hardened** | **3.260** | **3.032** | **2.238** | **1.357** | **-0.094** | **-1.664** | **ε≈0.125** |
+| **RHAN-v5-TRADES** | **3.383** | **3.186** | **2.230** | **1.231** | **-0.291** | **-1.602** | **ε≈0.115** |
 | **RHAN-v5** | **3.083** | **2.905** | **2.071** | **1.104** | **-1.132** | **-1.808** | **ε≈0.103** |
 | **RHAN-v3** | **3.710** | **3.189** | **1.983** | **0.753** | **-1.039** | **-3.044** | **ε≈0.090** |
 | **RHAN-adv** | **3.083** | **2.738** | **1.662** | **0.408** | **-1.294** | **-3.044** | **ε≈0.076** |
@@ -45,14 +49,14 @@
 | EfficientNet | — | — | — | — | — | — | ε≈0.006 |
 
 ### PGD Accuracy Collapse
-| Epsilon | RHAN-v5 | RHAN-v3 | RHAN-adv | ResNet | ViT | EfficientNet | ShapeResNet | BagNet | Human |
-|---------|---------|---------|----------|--------|-----|--------------|-------------|--------|-------|
-| 0.00 | 84.57% | 91.41% | 83.79% | 95.82% | 97.80% | 96.81% | 91.47% | 87.67% | 73.33% |
-| 0.01 | 80.66% | 85.35% | 77.93% | 75.57% | 55.18% | 0.93% | 18.11% | 48.04% | N/A |
-| 0.05 | 61.13% | 60.74% | 51.95% | 2.84% | 8.80% | 0.00% | 0.01% | 0.12% | 69.17% |
-| 0.10 | 34.38% | 26.17% | 17.77% | 0.21% | 2.78% | 0.00% | 0.00% | 0.00% | 59.17% |
-| 0.20 | 2.73% | 1.17% | 0.59% | 0.02% | 1.12% | 0.00% | 0.00% | 0.00% | 62.22% |
-| 0.30 | 0.20% | 0.00% | 0.00% | 0.00% | 0.58% | 0.00% | 0.00% | 0.00% | 58.61% |
+| Epsilon | Hardened | TRADES | RHAN-v5 | RHAN-v3 | RHAN-adv | ResNet | ViT | EfficientNet | ShapeResNet | BagNet | Human |
+|---------|----------|--------|---------|---------|----------|--------|-----|--------------|-------------|--------|-------|
+| 0.00 | 86.33% | 87.30% | 84.57% | 91.41% | 83.79% | 95.82% | 97.80% | 96.81% | 91.47% | 87.67% | 73.33% |
+| 0.01 | 83.01% | 84.77% | 80.66% | 85.35% | 77.93% | 75.57% | 55.18% | 0.93%  | 18.11% | 48.04% | N/A |
+| 0.05 | 67.19% | 65.82% | 61.13% | 60.74% | 51.95% | 2.84%  | 8.80%  | 0.00%  | 0.01%  | 0.12%  | 69.17% |
+| 0.10 | 43.16% | 37.89% | 34.38% | 26.17% | 17.77% | 0.21%  | 2.78%  | 0.00%  | 0.00%  | 0.00%  | 59.17% |
+| 0.20 | 8.59%  | 5.47%  | 2.73%  | 1.17%  | 0.59%  | 0.02%  | 1.12%  | 0.00%  | 0.00%  | 0.00%  | 62.22% |
+| 0.30 | 0.20%  | 0.20%  | 0.20%  | 0.00%  | 0.00%  | 0.00%  | 0.58%  | 0.00%  | 0.00%  | 0.00%  | 58.61% |
 
 ---
 
@@ -87,15 +91,16 @@ RHAN-clean → RHAN-adv → Trial branches (Split, PredCoding, Aligned)
                               ↓
                          RHAN-v3 (Joint Scratch Training) ← εthresh=0.090
                               ↓
-                    ┌─────────┴─────────┐
-                 RHAN-v4            RHAN-v5 ← εthresh=0.103 (BEST)
-              (Multi-Scale,       (Freq Separation,
-               Active CLIP)       Phase 0 CLIP)
-                 ↓ regressed          ↓
-              RHAN-v6              RHAN-v5-TRADES ← 🔄 Training
-           (Dynamic Gating,      (TRADES loss,
-            ACT Pondering)        target εthresh>0.150)
-              ↓ regressed
+                     ┌─────────┴─────────┐
+                  RHAN-v4            RHAN-v5 ← εthresh=0.1030
+               (Multi-Scale,       (Freq Separation,
+                Active CLIP)       Phase 0 CLIP)
+                  ↓ regressed          ↓
+               RHAN-v6              RHAN-v5-TRADES ← εthresh=0.1151
+            (Dynamic Gating,           ↓
+             ACT Pondering)         RHAN-TRADES-Hardened ← εthresh=0.1246 (BEST)
+              ↓ regressed              ↓
+                                    RHAN-trades-curriculum ← 🔄 Training
 ```
 
 ## Model Spectrum
@@ -114,7 +119,9 @@ RHAN-clean → RHAN-adv → Trial branches (Split, PredCoding, Aligned)
 | **RHAN-v4** | **Multi-scale gated feedback + active CLIP** | **Mina** | **phase/rhan-v4** |
 | **RHAN-v5** | **Frequency separation + Phase 0 CLIP init** | **Mina** | **phase/rhan-v5** |
 | **RHAN-v6** | **Dynamic gating + predictive coding + ACT** | **Mina** | **phase/rhan-v6** |
-| **RHAN-v5-TRADES** | **TRADES adversarial training on v5 arch** | **Mina** | **phase/rhan-trades** |
+| **RHAN-v5-TRADES** | **Standard TRADES adversarial training** | **Mina** | **phase/rhan-trades** |
+| **RHAN-TRADES-Hardened** | **Class-hardened TRADES with margin loss** | **Mina** | **phase/rhan-trades** |
+| **RHAN-trades-curriculum** | **TRADES 3-Phase Extended Curriculum** | **Mina** | **phase/rhan-trades-curriculum** |
 | Human | Biological vision (n=18) | All | — |
 
 ## Team
@@ -154,6 +161,16 @@ python phase5_sdt/sdt_analysis.py
 # RHAN-v5 TRADES Training (resume from checkpoint)
 ```bash
 python phase1_training/train_rhan_v5_trades.py --resume
+```
+
+# RHAN-TRADES-Hardened Training
+```bash
+python phase1_training/train_rhan_trades_class_hardened.py --resume
+```
+
+# RHAN-TRADES-Curriculum Training (Current)
+```bash
+python phase1_training/train_rhan_trades_curriculum.py --resume
 ```
 
 ## Human Study
