@@ -491,6 +491,8 @@ def main():
         # Evaluate clean test accuracy
         compiled_model.eval()
         test_correct = test_total = 0
+        test_class_correct = {i: 0 for i in [1, 9, 7, 5, 3]}
+        test_class_total = {i: 0 for i in [1, 9, 7, 5, 3]}
         with torch.no_grad():
             for inputs, targets in testloader:
                 inputs = inputs.to(device, non_blocking=True)
@@ -500,7 +502,18 @@ def main():
                 _, pred = outputs.max(1)
                 test_total += targets.size(0)
                 test_correct += pred.eq(targets).sum().item()
+
+                # Track per-class correctness for vulnerable classes
+                for i in range(targets.size(0)):
+                    tgt = targets[i].item()
+                    if tgt in test_class_correct:
+                        test_class_total[tgt] += 1
+                        if pred[i].item() == tgt:
+                            test_class_correct[tgt] += 1
+
         test_acc = 100.0 * test_correct / test_total
+        vul_accs = {k: 100.0 * test_class_correct[k] / max(test_class_total[k], 1) for k in [1, 9, 7, 5, 3]}
+        vul_str = f"Cln(auto:{vul_accs[1]:.1f}%,truck:{vul_accs[9]:.1f}%,horse:{vul_accs[7]:.1f}%,dog:{vul_accs[5]:.1f}%,cat:{vul_accs[3]:.1f}%)"
 
         # Save frequency weights details
         w_lo = torch.sigmoid(model.freq_weight_low).item()
@@ -563,6 +576,7 @@ def main():
         print(f"Epoch {epoch+1:02d}/{epochs} | Phase: {phase_name} (ε={eps_val:.3f}, β={beta_val:.1f}) | "
               f"ClnLoss:{l_clean_epoch:.4f} RobLoss:{l_robust_epoch:.4f} Margin:{l_margin_epoch:.4f} Align:{l_align_epoch:.4f} | "
               f"TrainClean:{train_acc:.1f}% TestClean:{test_acc:.2f}% | "
+              f"{vul_str} | "
               f"wL:{w_lo:.3f} wH:{w_hi:.3f} | LR:{current_lr:.6f} | "
               f"{time.time()-epoch_start:.1f}s{marker}", flush=True)
 
@@ -647,6 +661,61 @@ def main():
     for p in best_model.parameters():
         p.requires_grad = False
 
+    class BestWrapper(nn.Module):
+        def __init__(self, m):
+            super().__init__()
+            self.m = m
+        def forward(self, x):
+            out = self.m(x)
+            return out[0] if isinstance(out, tuple) else out
+    best_wrapper = BestWrapper(best_model)
+
+    print("\n" + "="*70)
+    print("Gradient Masking Check on Best Checkpoint")
+    print("="*70)
+    
+    rn_correct = rn_total = 0
+    with torch.no_grad():
+        for images, lbls in eval_loader:
+            if rn_total >= 500:
+                break
+            images, lbls = images.to(device), lbls.to(device)
+            noise = torch.empty_like(images).uniform_(-0.05, 0.05)
+            noisy = torch.max(torch.min(images + noise, cifar_max), cifar_min)
+            outputs = best_wrapper(noisy)
+            _, preds = outputs.max(1)
+            rn_correct += preds.eq(lbls).sum().item()
+            rn_total += lbls.size(0)
+    rn_acc = 100.0 * rn_correct / max(rn_total, 1)
+    print(f"  Random noise ε=0.05: {rn_acc:.2f}%")
+
+    from phase2_attacks.pgd import pgd_attack
+    p20_correct = p20_total = 0
+    for images, lbls in eval_loader:
+        if p20_total >= 500:
+            break
+        images, lbls = images.to(device), lbls.to(device)
+        adv_images, _ = pgd_attack(
+            best_wrapper, images, lbls, epsilon=0.05, alpha=0.005,
+            steps=20, device=device, clip_min=cifar_min, clip_max=cifar_max, random_start=True
+        )
+        with torch.no_grad():
+            outputs = best_wrapper(adv_images)
+            _, preds = outputs.max(1)
+            p20_correct += preds.eq(lbls).sum().item()
+            p20_total += lbls.size(0)
+    p20_acc_05 = 100.0 * p20_correct / max(p20_total, 1)
+    print(f"  PGD-20 ε=0.05: {p20_acc_05:.2f}%")
+
+    # Compare with PGD-100 at ε=0.05
+    p100_05 = best_ckpt_data['pgd'][0.05]
+    pgd_gap = p20_acc_05 - p100_05
+    print(f"\nPGD-20 vs PGD-100 gap at ε=0.05: {pgd_gap:.2f}%")
+    if pgd_gap >= 8.0:
+        print("  ⚠ Potential gradient masking!")
+    else:
+        print(f"  ✓ No gradient masking (gap {pgd_gap:.2f}% < 8%)")
+
     print("\n" + "="*70)
     print("AutoAttack Evaluation on Best Checkpoint")
     print("="*70)
@@ -674,7 +743,7 @@ def main():
             if name == "Hardened":
                 baseline_pgd_results[name] = {0.00: 86.33, 0.01: 83.01, 0.05: 67.19, 0.10: 43.16, 0.20: 8.59, 0.30: 0.20}
             else:
-                baseline_pgd_results[name] = {0.00: 84.77, 0.01: 80.00, 0.05: 55.00, 0.10: 20.00, 0.20: 1.00, 0.30: 0.10} # placeholder/approx
+                baseline_pgd_results[name] = {0.00: 87.30, 0.01: 84.77, 0.05: 65.82, 0.10: 37.89, 0.20: 5.47, 0.30: 0.20}
 
     # Historical Baselines
     human_accs = {0.00: 73.33, 0.01: 73.33, 0.05: 69.17, 0.10: 59.17, 0.20: 62.22, 0.30: 58.61}
