@@ -106,6 +106,53 @@ class RHANv5(nn.Module):
                 num_classes=num_classes,
             )
 
+        # --- Concept Bottleneck Model Additions ---
+        self.concepts = [
+            'has_wings',        # airplane, bird
+            'has_wheels',       # automobile, truck, bicycle
+            'has_fur',          # cat, dog, horse, deer
+            'has_feathers',     # bird
+            'is_metallic',      # automobile, truck, ship, airplane
+            'is_organic',       # animals
+            'carries_cargo',    # truck (distinguishes from automobile)
+            'is_small_vehicle', # automobile (distinguishes from truck)
+            'lives_in_water',   # ship, frog
+            'has_four_legs',    # cat, dog, horse, deer
+            'has_rigid_body',   # automobile, truck, ship, airplane
+            'is_elongated',     # ship, airplane
+            'has_spotted_coat', # cat, dog
+            'is_large_animal',  # horse, deer (not cat/dog)
+            'has_hooves',       # horse, deer (not dog/cat)
+        ]
+        
+        concept_labels = torch.tensor([
+            # airplane: wings, metallic, rigid, elongated
+            [1,0,0,0,1,0,0,0,0,0,1,1,0,0,0],
+            # automobile: wheels, metallic, small_vehicle, rigid
+            [0,1,0,0,1,0,0,1,0,0,1,0,0,0,0],
+            # bird: wings, feathers, organic
+            [1,0,0,1,0,1,0,0,0,0,0,0,0,0,0],
+            # cat: fur, organic, four_legs, spotted
+            [0,0,1,0,0,1,0,0,0,1,0,0,1,0,0],
+            # deer: fur, organic, four_legs, large, hooves
+            [0,0,1,0,0,1,0,0,0,1,0,0,0,1,1],
+            # dog: fur, organic, four_legs, spotted
+            [0,0,1,0,0,1,0,0,0,1,0,0,1,0,0],
+            # frog: organic, water
+            [0,0,0,0,0,1,0,0,1,0,0,0,0,0,0],
+            # horse: fur, organic, four_legs, large, hooves
+            [0,0,1,0,0,1,0,0,0,1,0,0,0,1,1],
+            # ship: metallic, water, rigid, elongated
+            [0,0,0,0,1,0,0,0,1,0,1,1,0,0,0],
+            # truck: wheels, metallic, cargo, rigid
+            [0,1,0,0,1,0,1,0,0,0,1,0,0,0,0],
+        ], dtype=torch.float32)
+        self.register_buffer('concept_labels', concept_labels)
+        
+        self.concept_layer = nn.Linear(512, 15)  # features -> concepts
+        self.concept_bn = nn.BatchNorm1d(15)
+        self.concept_classifier = nn.Linear(15, 10)
+
     def _make_gaussian_kernel(self, sigma, size):
         """Creates a 2D Gaussian kernel for frequency separation."""
         coords = torch.arange(size).float() - size // 2
@@ -185,6 +232,19 @@ class RHANv5(nn.Module):
     def forward(self, x):
         logits, _ = self.forward_with_features(x)
         return logits
+
+    def forward_with_concepts(self, x):
+        # Get RHAN features (all existing processing unchanged)
+        features = self.get_feature_vector(x)  # (B, 512)
+        
+        # Concept bottleneck
+        concepts = torch.sigmoid(self.concept_bn(
+                       self.concept_layer(features)))  # (B, 15)
+        
+        # Classify from concepts
+        logits = self.concept_classifier(concepts)  # (B, 10)
+        
+        return logits, concepts
 
 
 if __name__ == '__main__':
