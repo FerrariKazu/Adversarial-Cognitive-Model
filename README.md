@@ -10,8 +10,9 @@
 | System | Clean Acc | PGD 50% Threshold | d′=1.0 Threshold | Status |
 |--------|-----------|-------------------|-------------------|--------|
 | Human | 74.15% | >0.30 | >0.30 | ✅ Complete |
+| **RHAN-trades-curriculum** ★ | **78.12%** | **ε≈0.113** | **ε≈0.1850** | ✅ Complete |
 | **RHAN-TRADES-Hardened** | **86.33%** | **ε≈0.086** | **ε≈0.1246** | ✅ Complete |
-| **RHAN-v5-TRADES** | **87.30%** | **ε≈0.078** | **ε≈0.1151** | ✅ Complete |
+| **RHAN-v5-TRADES** | **87.30%** | **ε≈0.078** | **ε≈0.1113** | ✅ Complete |
 | **RHAN-v5 (Freq-Separated)** | **84.57%** | **ε≈0.071** | **ε≈0.1030** | ✅ Complete |
 | **RHAN-v3 (Unified Recurrent)** | **91.41%** | **ε≈0.066** | **ε≈0.0900** | ✅ Complete |
 | **RHAN-v4 (Multi-Scale)** | **89.65%** | **ε≈0.056** | **ε≈0.0800** | ✅ Complete |
@@ -24,12 +25,11 @@
 | Shape-ResNet-50 | 91.47% | ε≈0.006 | ε≈0.0080 | ✅ Complete |
 | EfficientNet-B0 | 96.81% | ε≈0.005 | ε≈0.0060 | ✅ Complete |
 | RHAN-v6 (Dynamic Gating) | 82.03% | — | — | ⚠️ Regressed |
-| RHAN-trades-curriculum | — | — | Target >0.150 | 🔄 Training |
 | CLIP ViT-B/32 | — | — | — | 🔄 Pending |
 
-**Headline:** All standard feedforward AI models collapse before ε=0.03. The class-hardened TRADES model, `RHAN-TRADES-Hardened`, extends visual robustness to **ε≈0.1246** (a **4.2× improvement** over ResNet-18), while `RHAN-v5-TRADES` reaches **ε≈0.1151**, significantly narrowing the gap to Human visual cognition.
+**Headline:** All standard feedforward AI models collapse before ε=0.03. The curriculum-trained TRADES model, `RHAN-trades-curriculum`, extends visual robustness to **ε≈0.1850** (a **6.3× improvement** over ResNet-18), while `RHAN-TRADES-Hardened` reaches **ε≈0.1246** and `RHAN-v5-TRADES` reaches **ε≈0.1113**, significantly narrowing the gap to Human visual cognition.
 
-**Key insight:** Integrating standard TRADES objective functions with visual cortex IT alignment and class-hardened margin loss is extremely effective for geometric robustness. However, AutoAttack standard evaluations reveal that the vulnerable class pairs (automobile/truck) still collapse to 0.00% under direct target maximization. The newly launched `RHAN-trades-curriculum` experiment implements an aggressive 3-stage epsilon curriculum ($0.062 \to 0.100 \to 0.150$) over 60 epochs to expand margins across all classes, starting from the hardened checkpoint.
+**Key insight:** Integrating standard TRADES objective functions with visual cortex IT alignment and class-hardened margin loss is extremely effective for geometric robustness. The 3-stage epsilon curriculum (`RHAN-trades-curriculum`) successfully pushed the robustness threshold to **ε≈0.1850**. However, AutoAttack standard evaluations ($\epsilon=0.031$) reveal that the vulnerable class pairs (automobile, horse, truck) still collapse to 0.00% under direct target maximization, resulting in a robust accuracy of 21.88% (compared to 28.22% for the hardened model). This confirms that high curriculum regularization (up to $\epsilon=0.150$) pushes the d' threshold further, but compromises clean accuracy and lower-epsilon robust generalization under adaptive attacks.
 
 ---
 
@@ -37,8 +37,9 @@
 | System | d'(0.00) | d'(0.01) | d'(0.05) | d'(0.10) | d'(0.20) | d'(0.30) | ε threshold |
 |--------|----------|----------|----------|----------|----------|----------|-------------|
 | Human  | 4.790 | 4.567 | 3.985 | 3.368 | 2.440 | 1.769 | >0.30 |
+| **RHAN-trades-curriculum** | **2.748** | **2.589** | **2.159** | **1.696** | **0.877** | **0.010** | **ε≈0.185** |
 | **RHAN-TRADES-Hardened** | **3.260** | **3.032** | **2.238** | **1.357** | **-0.094** | **-1.664** | **ε≈0.125** |
-| **RHAN-v5-TRADES** | **3.383** | **3.186** | **2.230** | **1.231** | **-0.291** | **-1.602** | **ε≈0.115** |
+| **RHAN-v5-TRADES** | **3.383** | **3.186** | **2.230** | **1.231** | **-0.291** | **-1.602** | **ε≈0.111** |
 | **RHAN-v5** | **3.083** | **2.905** | **2.071** | **1.104** | **-1.132** | **-1.808** | **ε≈0.103** |
 | **RHAN-v3** | **3.710** | **3.189** | **1.983** | **0.753** | **-1.039** | **-3.044** | **ε≈0.090** |
 | **RHAN-adv** | **3.083** | **2.738** | **1.662** | **0.408** | **-1.294** | **-3.044** | **ε≈0.076** |
@@ -49,14 +50,14 @@
 | EfficientNet | — | — | — | — | — | — | ε≈0.006 |
 
 ### PGD Accuracy Collapse
-| Epsilon | Hardened | TRADES | RHAN-v5 | RHAN-v3 | RHAN-adv | ResNet | ViT | EfficientNet | ShapeResNet | BagNet | Human |
-|---------|----------|--------|---------|---------|----------|--------|-----|--------------|-------------|--------|-------|
-| 0.00 | 86.33% | 87.30% | 84.57% | 91.41% | 83.79% | 95.82% | 97.80% | 96.81% | 91.47% | 87.67% | 73.33% |
-| 0.01 | 83.01% | 84.77% | 80.66% | 85.35% | 77.93% | 75.57% | 55.18% | 0.93%  | 18.11% | 48.04% | N/A |
-| 0.05 | 67.19% | 65.82% | 61.13% | 60.74% | 51.95% | 2.84%  | 8.80%  | 0.00%  | 0.01%  | 0.12%  | 69.17% |
-| 0.10 | 43.16% | 37.89% | 34.38% | 26.17% | 17.77% | 0.21%  | 2.78%  | 0.00%  | 0.00%  | 0.00%  | 59.17% |
-| 0.20 | 8.59%  | 5.47%  | 2.73%  | 1.17%  | 0.59%  | 0.02%  | 1.12%  | 0.00%  | 0.00%  | 0.00%  | 62.22% |
-| 0.30 | 0.20%  | 0.20%  | 0.20%  | 0.00%  | 0.00%  | 0.00%  | 0.58%  | 0.00%  | 0.00%  | 0.00%  | 58.61% |
+| Epsilon | Curriculum | Hardened | TRADES | RHAN-v5 | RHAN-v3 | RHAN-adv | ResNet | ViT | EfficientNet | ShapeResNet | BagNet | Human |
+|---------|------------|----------|--------|---------|---------|----------|--------|-----|--------------|-------------|--------|-------|
+| 0.00 | 78.12% | 86.33% | 87.30% | 84.57% | 91.41% | 83.79% | 95.82% | 97.80% | 96.81% | 91.47% | 87.67% | 73.33% |
+| 0.01 | 75.00% | 83.01% | 84.77% | 80.66% | 85.35% | 77.93% | 75.57% | 55.18% | 0.93%  | 18.11% | 48.04% | N/A |
+| 0.05 | 65.23% | 67.19% | 65.82% | 61.13% | 60.74% | 51.95% | 2.84%  | 8.80%  | 0.00%  | 0.01%  | 0.12%  | 69.17% |
+| 0.10 | 52.93% | 43.16% | 37.89% | 34.38% | 26.17% | 17.77% | 0.21%  | 2.78%  | 0.00%  | 0.00%  | 0.00%  | 59.17% |
+| 0.20 | 29.49% | 8.59%  | 5.47%  | 2.73%  | 1.17%  | 0.59%  | 0.02%  | 1.12%  | 0.00%  | 0.00%  | 0.00%  | 62.22% |
+| 0.30 | 10.16% | 0.20%  | 0.20%  | 0.20%  | 0.00%  | 0.00%  | 0.00%  | 0.58%  | 0.00%  | 0.00%  | 0.00%  | 58.61% |
 
 ---
 
@@ -96,11 +97,11 @@ RHAN-clean → RHAN-adv → Trial branches (Split, PredCoding, Aligned)
                (Multi-Scale,       (Freq Separation,
                 Active CLIP)       Phase 0 CLIP)
                   ↓ regressed          ↓
-               RHAN-v6              RHAN-v5-TRADES ← εthresh=0.1151
+               RHAN-v6              RHAN-v5-TRADES ← εthresh=0.1113
             (Dynamic Gating,           ↓
-             ACT Pondering)         RHAN-TRADES-Hardened ← εthresh=0.1246 (BEST)
+             ACT Pondering)         RHAN-TRADES-Hardened ← εthresh=0.1246
               ↓ regressed              ↓
-                                    RHAN-trades-curriculum ← 🔄 Training
+                                    RHAN-trades-curriculum ← εthresh=0.1850 (BEST)
 ```
 
 ## Model Spectrum
@@ -168,9 +169,14 @@ python phase1_training/train_rhan_v5_trades.py --resume
 python phase1_training/train_rhan_trades_class_hardened.py --resume
 ```
 
-# RHAN-TRADES-Curriculum Training (Current)
+# RHAN-TRADES-Curriculum Training
 ```bash
-python phase1_training/train_rhan_trades_curriculum.py --resume
+python phase1_training/train_rhan_trades_curriculum.py
+```
+
+# Compare Curriculum Phase B vs Phase C AutoAttack
+```bash
+.venv/bin/python3 phase2_attacks/eval_autoattack_curriculum.py
 ```
 
 ## Human Study

@@ -69,12 +69,13 @@ The distinction between being *wrong-with-certainty* versus *uncertain-and-wrong
 ---
 
 ## 🟢 Finding 7: Recurrent Biological Priors Close the Gap (RHAN Series)
-**Incorporating neuroscientific priors into model architecture produces up to a 4.2× improvement in adversarial robustness over the best feedforward model.**
+**Incorporating neuroscientific priors into model architecture produces up to a 6.3× improvement in adversarial robustness over the best feedforward model.**
 
 | System | εthresh (d'=1.0) | Improvement over ResNet |
 | :--- | :--- | :--- |
-| **RHAN-TRADES-Hardened** ★ | **0.1246** | **4.2×** |
-| **RHAN-v5-TRADES** | **0.1151** | **3.9×** |
+| **RHAN-trades-curriculum** ★ | **0.1850** | **6.3×** |
+| **RHAN-TRADES-Hardened** | **0.1246** | **4.2×** |
+| **RHAN-v5-TRADES** | **0.1113** | **3.8×** |
 | **RHAN-v5** | 0.1030 | 3.4× |
 | **RHAN-v3** | 0.0900 | 3.0× |
 | **RHAN-v4** | 0.0800 | 2.7× |
@@ -88,9 +89,9 @@ The RHAN series demonstrates that three biological principles — recurrent feed
 1. **Phase decoupling matters**: CLIP semantic alignment during adversarial training degrades geometry (v4 < v3). Applying it strictly as initialization (v5 Phase 0) preserves both semantics and robustness.
 2. **Frequency separation is biologically valid**: RHAN-v5's learnable frequency weights converge to M-pathway dominance (wL > wH), confirming the primate V1 shape-over-texture hypothesis computationally.
 3. **Architecture has diminishing returns**: RHAN-v6 added dynamic gating, predictive coding, and ACT — and regressed. The v5 architecture is sufficient; the training algorithm is now the bottleneck.
-4. **TRADES establishes a stronger baseline**: The baseline `RHAN-v5-TRADES` model achieved $\epsilon_{\text{thresh}} = 0.1151$, significantly outperforming standard `RHAN-v5` (0.1030) and showing the value of a theoretically principled objective.
+4. **TRADES establishes a stronger baseline**: The baseline `RHAN-v5-TRADES` model achieved $\epsilon_{\text{thresh}} = 0.1113$, significantly outperforming standard `RHAN-v5` (0.1030) and showing the value of a theoretically principled objective.
 5. **Class-hardening targets vulnerable geometry**: Applying class-hardened attacks during TRADES training (`RHAN-TRADES-Hardened`) pushes $\epsilon_{\text{thresh}}$ to **0.1246** (a **4.2×** baseline improvement). However, AutoAttack results show that `automobile` and `truck` robust accuracies still collapsed to 0.00%, proving that feature space proximity is a deep geometric problem requiring stronger training.
-6. **Curriculum learning is the next frontier**: The newly launched `RHAN-TRADES-Curriculum` experiment implements a 3-phase curriculum ($0.062 \to 0.100 \to 0.150$ over 60 epochs) to scale up robustness boundaries across the board, targeting $\epsilon_{\text{thresh}} > 0.150$.
+6. **Curriculum learning scales boundary margins**: The 3-phase curriculum (`RHAN-trades-curriculum`) successfully scaled up the robustness boundary to **εthresh = 0.1850** (a **6.3×** baseline improvement). However, AutoAttack standard evaluations ($\epsilon=0.031$) show that the clean/robust trade-off is compromised (robust accuracy of 21.88% vs 28.22% for the hardened model), and vulnerable class pairs (automobile, horse, truck) still collapse to 0.00% under adaptive attacks, demonstrating that high-strength curriculum regularization pushes the overall sensitivity threshold ($d'$) but drifts clean representation margins.
 
 ---
 
