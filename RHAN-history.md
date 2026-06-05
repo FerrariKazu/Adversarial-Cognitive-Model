@@ -32,25 +32,25 @@ graph TD
 | System / Model | Clean Acc | PGD 50% Threshold | $d'=1.0$ Threshold | Training Style | Key Mechanism |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Human** | 74.15% | >0.30 | >0.30 | Biological | Biological Vision (n=18) |
-| **RHAN-TRADES-Hardened** ★ BEST | **86.33%** | **ε≈0.086** | **ε≈0.1246** | SGD Fine-tuning (30 Ep) | Class-hardened TRADES + IT align + inter-class margin |
-| **RHAN-v5-TRADES** | 87.30% | ε≈0.078 | ε≈0.1151 | SGD Scratch (120 Ep) | Standard TRADES + IT alignment |
+| **RHAN-trades-curriculum** ★ BEST | **78.12%** | **ε≈0.113** | **ε≈0.1850** | SGD 3-Phase Curriculum (60 Ep) | Multi-stage epsilon curriculum (0.062->0.100->0.150) |
+| **RHAN-TRADES-Hardened** | 86.33% | ε≈0.086 | ε≈0.1246 | SGD Fine-tuning (30 Ep) | Class-hardened TRADES + IT align + inter-class margin |
+| **RHAN-v5-TRADES** | 87.30% | ε≈0.078 | ε≈0.1113 | SGD Scratch (120 Ep) | Standard TRADES + IT alignment |
 | **RHAN-v5** | 84.57% | ε≈0.071 | ε≈0.1030 | Phase 0 CLIP + Phase 1 Curriculum | Learnable Freq Separation, Dual Stems, Split-Stream |
 | **RHAN-v3** | 91.41% | ε≈0.066 | ε≈0.0900 | Joint Scratch (100 Ep) | Ventral/Dorsal Split + Adv IT-Alignment |
 | **RHAN-v4** | 89.65% | ε≈0.056 | ε≈0.0800 | Scratch (100 Ep) | Multi-Scale Feedback, Active CLIP loss, InfoNCE |
 | **RHAN-adv** | 83.79% | ε≈0.053 | ε≈0.0764 | Adv Curriculum | Recurrent Top-Down Gated Feedback |
 | **RHAN-clean**| 89.06% | ε≈0.023 | ε≈0.0330 | Clean Only | Recurrent Top-Down Gated Feedback |
 | **RHAN-v6** ⚠️ | 82.03% | — | Regressed | Phase 0 + 6-Phase Curriculum | Dynamic Gating, PredCoding Error, ACT Pondering |
-| **RHAN-trades-curriculum** 🔄 | *Training* | — | *Target >0.150* | SGD 3-Phase Curriculum (60 Ep) | Multi-stage epsilon curriculum (0.062->0.100->0.150) |
 
 ### RHAN Series PGD Accuracy Table (Verified)
-| Epsilon | Hardened | TRADES | RHAN-v5 | RHAN-v3 | RHAN-adv | ResNet-18 | ViT-Small |
-|---------|----------|--------|---------|---------|----------|-----------|-----------|
-| 0.00 | 86.33% | 87.30% | 84.57% | 91.41% | 83.79% | 95.82% | 97.80% |
-| 0.01 | 83.01% | 84.77% | 80.66% | 85.35% | 77.93% | 75.57% | 55.18% |
-| 0.05 | 67.19% | 65.82% | 61.13% | 60.74% | 51.95% | 2.84% | 8.80% |
-| 0.10 | 43.16% | 37.89% | 34.38% | 26.17% | 17.77% | 0.21% | 2.78% |
-| 0.20 | 8.59%  | 5.47%  | 2.73%  | 1.17%  | 0.59%  | 0.02% | 1.12% |
-| 0.30 | 0.20%  | 0.20%  | 0.20%  | 0.00%  | 0.00%  | 0.00% | 0.58% |
+| Epsilon | Curriculum | Hardened | TRADES | RHAN-v5 | RHAN-v3 | RHAN-adv | ResNet-18 | ViT-Small |
+|---------|------------|----------|--------|---------|---------|----------|-----------|-----------|
+| 0.00 | 78.12% | 86.33% | 87.30% | 84.57% | 91.41% | 83.79% | 95.82% | 97.80% |
+| 0.01 | 75.00% | 83.01% | 84.77% | 80.66% | 85.35% | 77.93% | 75.57% | 55.18% |
+| 0.05 | 65.23% | 67.19% | 65.82% | 61.13% | 60.74% | 51.95% |  2.84% |  8.80% |
+| 0.10 | 52.93% | 43.16% | 37.89% | 34.38% | 26.17% | 17.77% |  0.21% |  2.78% |
+| 0.20 | 29.49% |  8.59% |  5.47% |  2.73% |  1.17% |  0.59% |  0.02% |  1.12% |
+| 0.30 | 10.16% |  0.20% |  0.20% |  0.20% |  0.00% |  0.00% |  0.00% |  0.58% |
 
 ---
 
@@ -154,14 +154,18 @@ To combat class collapses where similar categories (such as automobile/truck) fe
 - **Inter-class margin loss**: Added centroid distance penalty ($\text{margin}=0.5$) with 0.20 weight on adversarial features.
 - **Results**: Fine-tuned for 30 epochs, pushing $\epsilon_{\text{thresh}}$ to **0.1246** (a **4.2×** improvement over ResNet-18). However, AutoAttack standard evaluation revealed that `automobile` and `truck` robust accuracies remained at 0.00%, showing that boundary geometry near these classes is a deep representational problem.
 
-### C. RHAN-trades-curriculum (Current Experiment - In Progress)
-To push boundaries across all classes and achieve the target $\epsilon_{\text{thresh}} > 0.150$, we launched the Extended Curriculum training script starting from the hardened checkpoint:
+### C. RHAN-trades-curriculum (Completed)
+To push boundaries across all classes and scale robustness, we executed the Extended Curriculum training script starting from the hardened checkpoint.
 - **Schedule**: 3 phases of 20 epochs each (60 epochs total):
   - **Phase A**: $\epsilon = 0.062$, step_size = 0.015, beta = 6.0 (Epochs 1-20)
   - **Phase B**: $\epsilon = 0.100$, step_size = 0.025, beta = 6.0 (Epochs 21-40)
   - **Phase C**: $\epsilon = 0.150$, step_size = 0.030, beta = 5.0 (Epochs 41-60)
 - **Joint Loss**: $\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{trades}} + 0.15 \cdot \mathcal{L}_{\text{align}} + 0.10 \cdot \mathcal{L}_{\text{margin}}$.
-- **Goal**: Expand boundary margins across the board, utilizing Cosine Annealing learning rate (0.01 -> 0.0001) for robust parameter updates.
+- **Results**: Pushed the robustness boundary threshold to **εthresh = 0.1850** (d'=1.0 boundary), a **6.3×** improvement over the ResNet-18 baseline.
+  - Phase A Final: $\epsilon_{\text{thresh}} = 0.1409$ (Clean: 79.88%, PGD-100 Acc at $\epsilon=0.05$: 65.23%)
+  - Phase B Final: $\epsilon_{\text{thresh}} = 0.1676$ (Clean: 79.49%, PGD-100 Acc at $\epsilon=0.05$: 65.82%)
+  - Phase C Final (Best): $\epsilon_{\text{thresh}} = 0.1850$ (Clean: 78.12%, PGD-100 Acc at $\epsilon=0.05$: 65.23%, $\epsilon=0.30$: 10.16%)
+  - **AutoAttack standard evaluation**: Achieved **21.88%** robust accuracy at $\epsilon=0.031$ on 1000 images, with zero robust accuracy on `automobile`, `horse`, and `truck`, confirming that extremely high-strength curriculum regularization pushes the boundary sensitivity threshold ($d'$) but degrades lower-epsilon generalization and clean features.
 
 ---
 
