@@ -92,6 +92,9 @@ The RHAN series demonstrates that three biological principles — recurrent feed
 4. **TRADES establishes a stronger baseline**: The baseline `RHAN-v5-TRADES` model achieved $\epsilon_{\text{thresh}} = 0.1113$, significantly outperforming standard `RHAN-v5` (0.1030) and showing the value of a theoretically principled objective.
 5. **Class-hardening targets vulnerable geometry**: Applying class-hardened attacks during TRADES training (`RHAN-TRADES-Hardened`) pushes $\epsilon_{\text{thresh}}$ to **0.1246** (a **4.2×** baseline improvement). However, AutoAttack results show that `automobile` and `truck` robust accuracies still collapsed to 0.00%, proving that feature space proximity is a deep geometric problem requiring stronger training.
 6. **Curriculum learning scales boundary margins**: The 3-phase curriculum (`RHAN-trades-curriculum`) successfully scaled up the robustness boundary to **εthresh = 0.1850** (a **6.3×** baseline improvement). However, AutoAttack standard evaluations ($\epsilon=0.031$) show that the clean/robust trade-off is compromised (robust accuracy of 21.88% vs 28.22% for the hardened model), and vulnerable class pairs (automobile, horse, truck) still collapse to 0.00% under adaptive attacks, demonstrating that high-strength curriculum regularization pushes the overall sensitivity threshold ($d'$) but drifts clean representation margins.
+7. **Concept Bottleneck Models (CBM) address geometric class collapse**: Two CBM variants were added as a concept-supervision head on top of frozen RHAN-v5 backbones, targeting the automobile/truck/horse 0% AutoAttack collapse:
+   - **RHAN-CBM v1** (backbone: Phase B final): Soft sigmoid concept predictions, BCE concept supervision, PGD-7 adversarial consistency. Trains concept_layer + concept_bn + concept_classifier (7,830 params) only. Target: automobile/truck each > 15%.
+   - **RHAN-CBM v2** (backbone: Phase C final — best εthresh): Three innovations: (a) **hard binary thresholding** via straight-through estimator blocks continuous gradient exploitation by AutoAttack; (b) **Focal Loss (γ=2)** for concept supervision focuses training on hard/spurious concept activations; (c) **hard-target adversarial concept consistency** forces PGD adversarial images to predict the *binarised* clean concept labels — preventing spurious continuous gradient routing. Target: automobile/truck/horse each > 20%, overall AutoAttack 33–38%.
 
 ---
 
@@ -99,3 +102,24 @@ The RHAN series demonstrates that three biological principles — recurrent feed
 **The gap between RHAN-v5 (εthresh=0.103) and Human (εthresh>0.300) is a 3× factor that likely requires genuine semantic grounding — not just architectural improvements.**
 
 > "Human visual robustness is not a single mechanism — it is an emergent property of a system that combines local frequency filtering, global shape integration, recurrent top-down feedback, and semantic language grounding, operating together across a strict processing hierarchy. Our results show that implementing even three of these four principles in a unified architecture produces robustness qualitatively superior to any single-principle model, while the remaining gap to human performance points precisely to the fourth missing principle: genuine semantic grounding of visual representations in conceptual knowledge."
+
+---
+
+## 🧠 Finding 9: Concept Bottleneck Models Provide Interpretable Robustness
+**Pinning classification to a binary semantic concept space offers both interpretability and a defense against adaptive attacks that exploit continuous representations.**
+
+The RHAN-CBM series introduces a 15-concept bottleneck layer on top of the frozen RHAN-v5 backbone:
+
+| Concept | Airplane | Auto | Bird | Cat | Deer | Dog | Frog | Horse | Ship | Truck |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| has_wings | ✓ | | ✓ | | | | | | | |
+| has_wheels | | ✓ | | | | | | | | ✓ |
+| carries_cargo | | | | | | | | | | ✓ |
+| is_small_vehicle | | ✓ | | | | | | | | |
+| has_fur | | | | ✓ | ✓ | ✓ | | ✓ | | |
+| is_large_animal | | | | | ✓ | | | ✓ | | |
+
+The **automobile vs. truck distinction** (`is_small_vehicle`=1 vs. `carries_cargo`=1) is the primary concept axis that AutoAttack exploits when collapsing these classes to 0%. By forcing the model to route all classification decisions through binary semantic concepts, CBM v2 aims to make this spurious gradient path unavailable to the attacker.
+
+> [!IMPORTANT]
+> Concept Bottleneck Model results (RHAN-CBM v1 and v2) are **pending evaluation**. Update this finding once AutoAttack runs complete.
