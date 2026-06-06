@@ -112,12 +112,31 @@ class RHANv7(nn.Module):
             nn.Linear(latent_dim, num_classes)
         )
         
+        # ── ALIGNMENT PROJECTION ────────────────────────────
+        # Projects latent_dim (256) to bio_dim (512) for CORnet-S IT alignment
+        self.alignment_proj = nn.Sequential(
+            nn.Linear(latent_dim, embed_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(embed_dim, embed_dim),
+        )
+        
         # ── PERCEPTUAL CRITIC (frozen) ─────────────────────
         # Frozen copy of stem_low used as feature extractor for
         # perceptual reconstruction loss. Never trains.
         self.perceptual_critic = copy.deepcopy(self.stem_low)
         for p in self.perceptual_critic.parameters():
             p.requires_grad = False
+
+        # ── DECODER WEIGHT INIT (Case B: prevent collapse) ──
+        for m in self.decoder.modules():
+            if isinstance(m, nn.ConvTranspose2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     def _make_gaussian_kernel(self, sigma, size):
         coords = torch.arange(size).float() - size // 2
@@ -155,6 +174,17 @@ class RHANv7(nn.Module):
             return mu + eps * std
         return mu
 
+    @staticmethod
+    def safe_normalize(x, eps=1e-8):
+        """L2 normalize with epsilon guard to prevent NaN when norm ≈ 0.
+        
+        F.normalize divides by max(norm, eps) internally, but only when
+        norm is exactly 0. When norm is 1e-7 (near-zero but non-zero),
+        F.normalize still divides and produces enormous values that then
+        produce NaN in mixed-precision. This adds eps unconditionally.
+        """
+        return x / (x.norm(dim=1, keepdim=True) + eps)
+
     def perceptual_reconstruction_loss(self, x_original, x_reconstructed):
         """
         Measures reconstruction quality in FEATURE space, not pixel space.
@@ -173,9 +203,10 @@ class RHANv7(nn.Module):
         feats_orig  = self.perceptual_critic(x_low_orig)   # (B,512,8,8)
         feats_recon = self.perceptual_critic(x_low_recon)  # (B,512,8,8)
         
-        # Normalize before MSE to focus on feature patterns not magnitude
-        feats_orig  = F.normalize(feats_orig.flatten(1), dim=1)
-        feats_recon = F.normalize(feats_recon.flatten(1), dim=1)
+        # safe_normalize: eps guard prevents NaN when Gaussian low-pass
+        # produces near-zero x_low from tanh-bounded decoder output
+        feats_orig  = self.safe_normalize(feats_orig.flatten(1))
+        feats_recon = self.safe_normalize(feats_recon.flatten(1))
         
         return F.mse_loss(feats_recon, feats_orig)
 

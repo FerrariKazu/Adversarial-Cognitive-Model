@@ -148,7 +148,19 @@ def train_phase1_4(device, args):
     model = RHANv7(head_type='cosine').to(device)
     warm_ckpt = os.path.join(args.ckpt_dir, 'rhan_v7_decoder_warm.pth')
     if os.path.exists(warm_ckpt):
-        model.load_state_dict(torch.load(warm_ckpt, map_location=device, weights_only=False))
+        missing, unexpected = model.load_state_dict(
+            torch.load(warm_ckpt, map_location=device, weights_only=False), strict=False)
+        # Re-initialize perceptual_critic from loaded stem_low weights
+        import copy
+        model.perceptual_critic = copy.deepcopy(model.stem_low).to(device)
+        for p in model.perceptual_critic.parameters():
+            p.requires_grad = False
+        if missing:
+            # Filter out expected new-module keys (perceptual_critic, alignment_proj)
+            ignore_keys = ['perceptual_critic', 'alignment_proj']
+            real_missing = [k for k in missing if not any(x in k for x in ignore_keys)]
+            if real_missing:
+                print(f"WARNING: Unexpected missing keys: {real_missing}")
         print(f"Loaded warmup checkpoint from {warm_ckpt}")
     else:
         print(f"ERROR: {warm_ckpt} not found! Run --phase 0 first.")
@@ -201,6 +213,54 @@ def train_phase1_4(device, args):
     prev_test_acc = 100. * test_correct / test_total
     print(f"Initial test accuracy of loaded checkpoint: {prev_test_acc:.2f}%")
         
+    # DIAGNOSTIC — run once before epoch 1
+    model.eval()
+    with torch.no_grad():
+        # Case C check: perceptual_critic weight sum must be non-zero
+        critic_wsum = sum(p.sum().item() for p in model.perceptual_critic.parameters())
+        print(f"[DIAG] Perceptual critic weight sum: {critic_wsum:.2f}  (should be non-zero)")
+        if abs(critic_wsum) < 1.0:
+            print("  WARNING Case C: critic may be zero-initialized! Re-copying stem_low weights.")
+            import copy as _copy
+            model.perceptual_critic.load_state_dict(_copy.deepcopy(model.stem_low.state_dict()))
+            for p in model.perceptual_critic.parameters():
+                p.requires_grad = False
+
+        x_test = next(iter(trainloader))[0][:4].to(device)
+        x_adv_test = generate_trades_adv(model, x_test, step_size=0.062/4, epsilon=0.062,
+                                         perturb_steps=10, clip_min=cifar_min, clip_max=cifar_max)
+        _, x_recon_a, _, _ = model(x_adv_test)
+
+        # Check what the decoder is actually outputting
+        print(f"[DIAG] Decoder output range: {x_recon_a.min():.4f} to {x_recon_a.max():.4f}")
+        print(f"[DIAG] Decoder output mean: {x_recon_a.mean():.4f}  std: {x_recon_a.std():.4f}")
+
+        # Check frequency separation output on decoder result
+        x_low_recon, _ = model.separate_frequencies(x_recon_a)
+        print(f"[DIAG] x_low_recon range: {x_low_recon.min():.4f} to {x_low_recon.max():.4f}")
+
+        # Check perceptual critic output
+        feats_recon = model.perceptual_critic(x_low_recon)
+        raw_norm = feats_recon.flatten(1).norm(dim=1).mean()
+        print(f"[DIAG] Critic features range: {feats_recon.min():.4f} to {feats_recon.max():.4f}")
+        print(f"[DIAG] Critic features norm:  {raw_norm:.4f}  (>0.01 required for safe_normalize)")
+
+        # Check with safe_normalize (matches fixed model)
+        feats_norm = model.safe_normalize(feats_recon.flatten(1))
+        print(f"[DIAG] After safe_normalize - NaN count: {torch.isnan(feats_norm).sum()}")
+        print(f"[DIAG] After safe_normalize - norm: {feats_norm.norm(dim=1).mean():.4f}")
+
+        # Compute FR loss manually using safe_normalize
+        x_low_orig, _ = model.separate_frequencies(x_test)
+        feats_orig = model.perceptual_critic(x_low_orig)
+        feats_orig_norm = model.safe_normalize(feats_orig.flatten(1))
+        fr_manual = F.mse_loss(feats_norm, feats_orig_norm)
+        print(f"[DIAG] FR loss (manual, safe_normalize): {fr_manual:.6f}  (target: 0.05-0.30)")
+        if fr_manual < 1e-6:
+            print("  WARNING: FR loss is still ~0 — check critic weight sum above.")
+
+    model.train()
+
     for epoch in range(1, 81):
         if epoch <= 20:
             phase, eps, beta, steps = 1, 0.062, 6.0, 10
@@ -234,7 +294,7 @@ def train_phase1_4(device, args):
             optimizer.zero_grad(set_to_none=True)
             with autocast('cuda'):
                 logits_c, _, mu_c, lv_c = model(imgs)
-                logits_a, x_recon_a, mu_a, lv_a = model(x_adv)
+                logits_a, x_recon_a, mu_a, lv_a, features_a = model.forward_full(x_adv)
                 
                 # 1. TRADES loss (50%)
                 l_trades = ce_loss(logits_c, lbls) + beta * F.kl_div(
@@ -254,7 +314,8 @@ def train_phase1_4(device, args):
                 # 4. Neural alignment on adversarial images (15%)
                 with torch.no_grad():
                     cornet_it = get_it_features(teacher, x_adv)
-                l_align = 1.0 - F.cosine_similarity(mu_a, cornet_it, dim=-1).mean()
+                mu_a_aligned = model.alignment_proj(mu_a)
+                l_align = 1.0 - F.cosine_similarity(mu_a_aligned, cornet_it, dim=-1).mean()
                 
                 loss = 0.50*l_trades + 0.15*l_feat_recon + 0.20*l_kl + 0.15*l_align
             
