@@ -150,9 +150,22 @@ def train_phase1_4(device, args):
     if os.path.exists(warm_ckpt):
         missing, unexpected = model.load_state_dict(
             torch.load(warm_ckpt, map_location=device, weights_only=False), strict=False)
-        # Re-initialize perceptual_critic from loaded stem_low weights
-        import copy
-        model.perceptual_critic = copy.deepcopy(model.stem_low).to(device)
+        # Perceptual critic: fresh stem_low with random init (NOT copied from
+        # trained stem_low, whose channels collapsed from low-pass training).
+        # Random convolutional features still capture meaningful image structure
+        # and provide a stable training signal for the generative prior.
+        from model_rhan import ConvStem
+        model.perceptual_critic = nn.Sequential(
+            nn.Conv2d(3, 64, 3, 1, 1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 256, 3, 2, 1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 512, 3, 2, 1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+        ).to(device)
         for p in model.perceptual_critic.parameters():
             p.requires_grad = False
         if missing:
@@ -235,12 +248,8 @@ def train_phase1_4(device, args):
         print(f"[DIAG] Decoder output range: {x_recon_a.min():.4f} to {x_recon_a.max():.4f}")
         print(f"[DIAG] Decoder output mean: {x_recon_a.mean():.4f}  std: {x_recon_a.std():.4f}")
 
-        # Check frequency separation output on decoder result
-        x_low_recon, _ = model.separate_frequencies(x_recon_a)
-        print(f"[DIAG] x_low_recon range: {x_low_recon.min():.4f} to {x_low_recon.max():.4f}")
-
-        # Check perceptual critic output
-        feats_recon = model.perceptual_critic(x_low_recon)
+        # Check perceptual critic output on raw decoder output
+        feats_recon = model.perceptual_critic(x_recon_a)
         raw_norm = feats_recon.flatten(1).norm(dim=1).mean()
         print(f"[DIAG] Critic features range: {feats_recon.min():.4f} to {feats_recon.max():.4f}")
         print(f"[DIAG] Critic features norm:  {raw_norm:.4f}  (>0.01 required for safe_normalize)")
@@ -250,14 +259,15 @@ def train_phase1_4(device, args):
         print(f"[DIAG] After safe_normalize - NaN count: {torch.isnan(feats_norm).sum()}")
         print(f"[DIAG] After safe_normalize - norm: {feats_norm.norm(dim=1).mean():.4f}")
 
-        # Compute FR loss manually using safe_normalize
-        x_low_orig, _ = model.separate_frequencies(x_test)
-        feats_orig = model.perceptual_critic(x_low_orig)
+        # Compute FR loss manually using cosine distance (matches fixed model)
+        feats_orig = model.perceptual_critic(x_test)
         feats_orig_norm = model.safe_normalize(feats_orig.flatten(1))
-        fr_manual = F.mse_loss(feats_norm, feats_orig_norm)
-        print(f"[DIAG] FR loss (manual, safe_normalize): {fr_manual:.6f}  (target: 0.05-0.30)")
-        if fr_manual < 1e-6:
-            print("  WARNING: FR loss is still ~0 — check critic weight sum above.")
+        cos_sim_manual = (feats_norm * feats_orig_norm).sum(dim=1)
+        fr_manual = (1.0 - cos_sim_manual).mean()
+        print(f"[DIAG] Cosine similarity (adv recon vs orig): {cos_sim_manual.mean():.4f}")
+        print(f"[DIAG] FR loss (cosine distance): {fr_manual:.6f}  (target: 0.40-0.60)")
+        if fr_manual < 1e-4:
+            print("  WARNING: FR loss is still ~0 — critic may be degenerate.")
 
     model.train()
 
@@ -276,8 +286,7 @@ def train_phase1_4(device, args):
             step_size = eps / 4
             
         model.train()
-        # Keep perceptual_critic in eval always
-        model.perceptual_critic.eval()
+        # perceptual_critic stays in train mode (uses batch stats, not stale running stats)
         train_loss = 0; train_correct = 0; total = 0
         l_trades_s=0; l_fr_s=0; l_kl_s=0; l_align_s=0
         kl_raw_sum = 0.0

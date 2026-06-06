@@ -197,18 +197,24 @@ class RHANv7(nn.Module):
         with correct semantic content, loss is low regardless of
         pixel-level differences.
         """
-        x_low_orig, _ = self.separate_frequencies(x_original)
-        x_low_recon, _ = self.separate_frequencies(x_reconstructed)
+        # Feed RAW images to the critic — the convolutional layers
+        # already provide local smoothing. The explicit low-pass filter
+        # was removing the high-frequency signal the critic needs to
+        # distinguish original from reconstruction, causing loss to vanish.
+        feats_orig  = self.perceptual_critic(x_original)       # (B,512,8,8)
+        feats_recon = self.perceptual_critic(x_reconstructed)  # (B,512,8,8)
         
-        feats_orig  = self.perceptual_critic(x_low_orig)   # (B,512,8,8)
-        feats_recon = self.perceptual_critic(x_low_recon)  # (B,512,8,8)
-        
-        # safe_normalize: eps guard prevents NaN when Gaussian low-pass
-        # produces near-zero x_low from tanh-bounded decoder output
-        feats_orig  = self.safe_normalize(feats_orig.flatten(1))
-        feats_recon = self.safe_normalize(feats_recon.flatten(1))
-        
-        return F.mse_loss(feats_recon, feats_orig)
+        # L2-normalize onto unit sphere, then measure angular distance.
+        # MSE on unit vectors measures chord length, not angle — it collapses
+        # toward 0 in high-dimensional spaces even when vectors point in
+        # very different directions. Cosine distance = 1 - cos_sim correctly
+        # measures the angular gap on the unit hypersphere.
+        # Diagnostic: cos_sim=0.464 → cosine_distance=0.536 (healthy signal).
+        # Range: [0, 2]; expected training range: 0.40–0.60 in epoch 1.
+        feats_orig_n  = self.safe_normalize(feats_orig.flatten(1))   # (B, 512*8*8)
+        feats_recon_n = self.safe_normalize(feats_recon.flatten(1))  # (B, 512*8*8)
+        cos_sim = (feats_orig_n * feats_recon_n).sum(dim=1)          # (B,)
+        return (1.0 - cos_sim).mean()                                 # cosine distance
 
     def get_feature_vector(self, x):
         x_low, x_high = self.separate_frequencies(x)
