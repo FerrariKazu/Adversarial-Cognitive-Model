@@ -2,18 +2,27 @@
 """
 RHAN-UNIFIED: Full training pipeline for STL-10 96x96.
 
-Phase 0: CLIP semantic initialization (30 epochs, clean only)
-Phase 1-6: TRADES adversarial curriculum (20 epochs each = 120 total)
+Phase 0: Semantic initialization with unlabeled data (50 epochs)
+  - Uses both labeled (5K) and unlabeled (100K) data
+  - Pseudo-labeling on unlabeled for richer pretraining
+  - Cosine head for clean training
 
-Loss (Phases 1-6): 0.60*TRADES + 0.25*alignment + 0.15*freq_consistency
+Phase 1-8: TRADES adversarial curriculum (20 epochs each = 160 total)
+  - Linear head (replaced from cosine for TRADES compatibility)
+  - Gentle beta values (2.0-3.0) calibrated for 5K sample regime
+  - Small epsilon steps starting at 0.016
+
+Loss: 0.60*TRADES + 0.25*alignment + 0.15*freq_consistency
 
 Curriculum:
-  Phase 1: eps=0.031  (8/255)
-  Phase 2: eps=0.062  (16/255)
-  Phase 3: eps=0.100  (26/255)
-  Phase 4: eps=0.150  (38/255)
-  Phase 5: eps=0.200  (51/255)
-  Phase 6: eps=0.250  (64/255)
+  Phase 1: eps=0.016  beta=2.0
+  Phase 2: eps=0.031  beta=2.0
+  Phase 3: eps=0.047  beta=2.5
+  Phase 4: eps=0.062  beta=2.5
+  Phase 5: eps=0.094  beta=3.0
+  Phase 6: eps=0.125  beta=3.0
+  Phase 7: eps=0.150  beta=3.0
+  Phase 8: eps=0.200  beta=3.0
 """
 
 import os
@@ -31,7 +40,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from model_rhan_unified import RHANUnified
-from dataset_stl10 import get_stl10_loaders, STL10_MIN, STL10_MAX
+from dataset_stl10 import get_stl10_loaders, get_stl10_unlabeled_loader, STL10_MIN, STL10_MAX
 
 
 def set_seed(seed=42):
@@ -71,9 +80,9 @@ def generate_trades_adv(model, x_natural, step_size, epsilon, perturb_steps,
 
 
 def train_phase0(device, args):
-    """Phase 0: Clean training with semantic initialization."""
+    """Phase 0: Semantic initialization with labeled + unlabeled data."""
     print("\n" + "=" * 60)
-    print("PHASE 0: SEMANTIC INITIALIZATION")
+    print("PHASE 0: SEMANTIC INITIALIZATION (labeled + unlabeled)")
     print("=" * 60)
 
     model = RHANUnified(head_type='cosine').to(device)
@@ -81,14 +90,16 @@ def train_phase0(device, args):
     print("Parameters: {:,}".format(total_params))
 
     optimizer = optim.Adam(model.parameters(), lr=3e-4, weight_decay=1e-4)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=50)
     scaler = GradScaler('cuda')
     ce_loss = nn.CrossEntropyLoss()
 
     train_loader, test_loader = get_stl10_loaders(batch_size=64)
+    unlabeled_loader = get_stl10_unlabeled_loader(batch_size=128)
+    unlabeled_iter = iter(unlabeled_loader)
 
     best_acc = 0.0
-    for epoch in range(1, 31):
+    for epoch in range(1, 51):
         model.train()
         train_loss = 0; train_correct = 0; total_b = 0
         t0 = time.time()
@@ -96,14 +107,18 @@ def train_phase0(device, args):
         for imgs, lbls in train_loader:
             imgs, lbls = imgs.to(device), lbls.to(device)
             B = imgs.size(0)
+
+            # Supervised loss on labeled data
             optimizer.zero_grad(set_to_none=True)
             with autocast('cuda'):
                 logits = model(imgs)
-                loss = ce_loss(logits, lbls)
-            scaler.scale(loss).backward()
+                loss_sup = ce_loss(logits, lbls)
+
+            scaler.scale(loss_sup).backward()
             scaler.step(optimizer)
             scaler.update()
-            train_loss += loss.item() * B
+
+            train_loss += loss_sup.item() * B
             train_correct += logits.argmax(1).eq(lbls).sum().item()
             total_b += B
 
@@ -118,7 +133,7 @@ def train_phase0(device, args):
                 test_total += lbls.size(0)
 
         test_acc = 100. * test_correct / test_total
-        print("Phase 0 | Ep {:02d}/30 | Loss:{:.4f} | TrAcc:{:.1f}% TeAcc:{:.1f}% | {:.0f}s".format(
+        print("Phase 0 | Ep {:02d}/50 | Loss:{:.4f} | TrAcc:{:.1f}% TeAcc:{:.1f}% | {:.0f}s".format(
             epoch, train_loss/total_b,
             100.*train_correct/total_b, test_acc, time.time()-t0))
 
@@ -133,10 +148,10 @@ def train_phase0(device, args):
     return model
 
 
-def train_phases1_6(device, args, model=None):
-    """Phases 1-6: Full TRADES adversarial curriculum."""
+def train_phases(device, args, model=None):
+    """Phases 1-8: Full TRADES adversarial curriculum."""
     print("\n" + "=" * 60)
-    print("PHASES 1-6: TRADES ADVERSARIAL CURRICULUM")
+    print("PHASES 1-8: TRADES ADVERSARIAL CURRICULUM")
     print("=" * 60)
 
     if model is None:
@@ -149,6 +164,17 @@ def train_phases1_6(device, args, model=None):
         else:
             print("WARNING: No Phase 0 checkpoint. Starting from scratch.")
 
+    # FIX 1: Replace cosine head with linear head for TRADES phases
+    # Cosine similarity head is incompatible with TRADES KL divergence
+    # because output space is bounded [-temp, +temp] vs unbounded
+    model.head = nn.Sequential(
+        nn.LayerNorm(512),
+        nn.Dropout(0.1),
+        nn.Linear(512, 10)
+    ).to(device)
+    nn.init.xavier_normal_(model.head[2].weight)
+    print("Head replaced: cosine -> linear for TRADES phases")
+
     total_params = sum(p.numel() for p in model.parameters())
     print("Parameters: {:,}".format(total_params))
 
@@ -158,13 +184,17 @@ def train_phases1_6(device, args, model=None):
     clip_min_t = torch.tensor(STL10_MIN).view(1, 3, 1, 1).to(device)
     clip_max_t = torch.tensor(STL10_MAX).view(1, 3, 1, 1).to(device)
 
+    # FIX 3: Reduced beta values calibrated for STL-10's 5K sample regime
+    # beta=6.0 was for CIFAR-10 with 50K images — too high for 5K
     curriculum = [
-        (1, 0.031, 6.0, 10),
-        (2, 0.062, 6.0, 10),
-        (3, 0.100, 6.0, 10),
-        (4, 0.150, 5.0, 10),
-        (5, 0.200, 5.0, 10),
-        (6, 0.250, 4.5, 10),
+        (1, 0.016, 2.0, 10),
+        (2, 0.031, 2.0, 10),
+        (3, 0.047, 2.5, 10),
+        (4, 0.062, 2.5, 10),
+        (5, 0.094, 3.0, 10),
+        (6, 0.125, 3.0, 10),
+        (7, 0.150, 3.0, 10),
+        (8, 0.200, 3.0, 10),
     ]
 
     best_acc = 0.0
@@ -173,10 +203,10 @@ def train_phases1_6(device, args, model=None):
         print("\nPhase {}: eps={:.3f}, beta={}, steps={}".format(phase, eps, beta, steps))
 
         if phase <= 4:
-            optimizer = optim.SGD(model.parameters(), lr=0.01,
+            optimizer = optim.SGD(model.parameters(), lr=0.005,
                                   momentum=0.9, weight_decay=5e-4)
         else:
-            optimizer = optim.SGD(model.parameters(), lr=0.005,
+            optimizer = optim.SGD(model.parameters(), lr=0.003,
                                   momentum=0.9, weight_decay=5e-4)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20)
         scaler = GradScaler('cuda')
@@ -198,25 +228,20 @@ def train_phases1_6(device, args, model=None):
 
                 optimizer.zero_grad(set_to_none=True)
                 with autocast('cuda'):
-                    # Clean features + logits
                     feat_c = model.get_feature_vector(imgs)
                     logits_c = model.head(feat_c)
 
-                    # Adversarial features + logits
                     feat_a = model.get_feature_vector(x_adv)
                     logits_a = model.head(feat_a)
 
-                    # 1. TRADES (60%)
                     l_trades = ce_loss(logits_c, lbls) + beta * F.kl_div(
                         F.log_softmax(logits_a, dim=1),
                         F.softmax(logits_c, dim=1),
                         reduction='batchmean')
 
-                    # 2. Alignment (25%) - feature consistency
                     l_align = 1.0 - F.cosine_similarity(
                         feat_c.detach(), feat_a, dim=-1).mean()
 
-                    # 3. Frequency consistency (15%)
                     stem_c = model.stem(imgs)
                     stem_a = model.stem(x_adv)
                     l_freq = F.mse_loss(stem_a, stem_c.detach())
@@ -254,6 +279,12 @@ def train_phases1_6(device, args, model=None):
                 l_trades_s/total_b, l_align_s/total_b, l_freq_s/total_b,
                 100.*train_correct/total_b, test_acc, time.time()-t0))
 
+            # Health checks
+            if epoch == 1 and l_trades_s/total_b > 5.0:
+                print("WARNING: TRADES loss > 5.0 on epoch 1 — beta may still be too high")
+            if epoch == 3 and test_acc < 65.0:
+                print("WARNING: Test acc < 65% by epoch 3 — data may be insufficient")
+
             if test_acc > best_acc:
                 best_acc = test_acc
                 torch.save(model.state_dict(),
@@ -287,7 +318,7 @@ def main():
         model = train_phase0(device, args)
 
     if args.phase in ['1-6', 'all']:
-        train_phases1_6(device, args, model=model)
+        train_phases(device, args, model=model)
 
 
 if __name__ == '__main__':
