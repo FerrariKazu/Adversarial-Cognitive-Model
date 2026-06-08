@@ -123,3 +123,71 @@ The **automobile vs. truck distinction** (`is_small_vehicle`=1 vs. `carries_carg
 
 > [!IMPORTANT]
 > Concept Bottleneck Model results (RHAN-CBM v1 and v2) are **pending evaluation**. Update this finding once AutoAttack runs complete.
+
+---
+
+## 🔬 Finding 10: RHAN-v7 Generative World-Model — Lessons Learned
+**A generative prior (VAE decoder) provides a manifold constraint on adversarial attacks, but only when the perceptual critic is properly initialized.**
+
+RHAN-v7 introduced a VAE decoder that forces adversarial examples to remain reconstructible — adding a second constraint beyond classification. Key findings:
+
+1. **Frozen perceptual critic must be fresh random init**: Copying a trained `stem_low` as the critic causes BatchNorm channel collapse (near-zero variance in many channels), making the FR loss vanish to ~0.000032. A randomly initialized critic captures meaningful image structure.
+
+2. **Pixel-level reconstruction conflicts with adversarial training**: MSE between decoder output and original pixels fights against TRADES, which wants to change features. Feature-level reconstruction (comparing stem features) is compatible.
+
+3. **Online feature comparison is the right approach**: Instead of a frozen critic, using the model's own current `stem_low` output as the target (detached) provides a moving reference that shifts with the backbone during training.
+
+4. **Cosine head is compatible with TRADES at low beta**: The TRADES loss explosion (T:13.965) was caused by beta=6.0, not the cosine head. At beta=2.0, the cosine head works fine.
+
+5. **Head replacement destroys learned representations**: Replacing the Phase 0 cosine head with a random linear head for TRADES phases destroyed the carefully learned feature calibration, dropping test accuracy from 72.94% to 13%. The cosine head must be preserved.
+
+---
+
+## 🚀 Finding 11: RHAN-UNIFIED on STL-10 — Current Work
+**Training RHAN from scratch on 96×96 STL-10 with all proven components unified.**
+
+RHAN-UNIFIED combines all lessons from the CIFAR-10 RHAN series into a single architecture trained from scratch on higher-resolution 96×96 STL-10:
+
+- **Architecture**: Conv stem (4 layers, 96→12×12) → 144 tokens → transformer → recurrent feedback → cosine head
+- **Phase 0**: Labeled (5K) + unlabeled (100K) pretraining with pseudo-labeling → 72.94% clean accuracy
+- **Phases 1-8**: TRADES curriculum with beta=2.0-3.0, epsilon 0.016→0.200, linear head replacement removed (cosine head preserved)
+- **Key insight**: STL-10's higher resolution (96×96 vs 32×32) provides 9× more pixels, enabling better shape discrimination and potentially closing the human-AI robustness gap further
+
+### What's scientifically novel in our findings:
+
+- M-pathway dominance emerges spontaneously under adversarial training — not trained to appear
+- Joint biological alignment + adversarial training from scratch resolves the clean-robustness tradeoff
+- Representational robustness (εthresh) and decision boundary robustness (AutoAttack) dissociate under concept bottleneck architectures
+- Automobile/truck collapse is a CIFAR-10 dataset geometry problem, not an architecture problem
+- Training epsilon sets the robustness ceiling — training at ε=0.150 produces εthresh≈0.185, a near-linear relationship
+- Unlabeled data (100K images) significantly improves Phase 0 pretraining for small labeled datasets (5K)
+- Cosine head + low beta (2.0) is the correct configuration for TRADES with limited data
+
+---
+
+Here is what our research has empirically established, organized by what failed and what succeeded:
+
+**What definitively doesn't work:**
+
+- Fine-tuning a robust model with biological priors (every trial 1-8): always hurts high-epsilon robustness
+- CLIP as an ongoing loss term (v4): smooth semantic manifolds are exploitable
+- Phase F curriculum (ε=0.250): collapses representations beyond the model's learning capacity
+- Concept bottlenecks without ground truth annotations: spurious concepts become attack surfaces
+- Ensembling models with the same geometric failures: averages don't create new separations
+- Replacing the cosine head before TRADES phases: destroys learned feature calibration
+- Pixel-level reconstruction loss for generative prior: conflicts with adversarial training
+- Frozen perceptual critic copied from trained backbone: BatchNorm channel collapse kills FR loss
+- Beta=6.0 for STL-10 with 5K samples: KL term over-penalizes, TRADES loss explodes
+
+**What definitively works:**
+
+- Joint training from scratch with all objectives simultaneously (v3): the key methodological finding
+- Frequency separation with learnable M-pathway gates (v5): confirmed biological hypothesis
+- TRADES loss over PGD training: +20% relative εthresh improvement
+- Extended curriculum with phase-specific epsilons: directly sets the robustness ceiling
+- CLIP as initialization only, not ongoing loss (v5): semantic prior without conflict
+- Neural alignment on adversarial images specifically (v3, not clean images): the critical distinction
+- Ventral/dorsal stream split (v3): persistent improvement across all variants
+- Online feature comparison for generative prior: moving reference shifts with backbone
+- Unlabeled data pseudo-labeling for Phase 0: 20× more visual diversity
+- Beta=2.0 with cosine head: stable TRADES training for limited-data regime

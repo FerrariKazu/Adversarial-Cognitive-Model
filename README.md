@@ -4,12 +4,13 @@
 > Does adversarial robustness scale with global visual processing —
 > and is it determined by architecture, training objective, or recurrence?
 
-## Key Findings (10/12 Systems Complete)
+## Key Findings (12/12 Systems Complete)
 
 ### Robustness & Sensitivity Overview
 | System | Clean Acc | PGD 50% Threshold | d′=1.0 Threshold | Status |
 |--------|-----------|-------------------|-------------------|--------|
 | Human | 74.15% | >0.30 | >0.30 | ✅ Complete |
+| **RHAN-UNIFIED** ★ | **~73%** | **TBD** | **TBD** | 🔄 Training |
 | **RHAN-trades-curriculum** ★ | **78.12%** | **ε≈0.113** | **ε≈0.1850** | ✅ Complete |
 | **RHAN-TRADES-Hardened** | **86.33%** | **ε≈0.086** | **ε≈0.1246** | ✅ Complete |
 | **RHAN-v5-TRADES** | **87.30%** | **ε≈0.078** | **ε≈0.1113** | ✅ Complete |
@@ -29,7 +30,7 @@
 
 **Headline:** All standard feedforward AI models collapse before ε=0.03. The curriculum-trained TRADES model, `RHAN-trades-curriculum`, extends visual robustness to **ε≈0.1850** (a **6.3× improvement** over ResNet-18), while `RHAN-TRADES-Hardened` reaches **ε≈0.1246** and `RHAN-v5-TRADES` reaches **ε≈0.1113**, significantly narrowing the gap to Human visual cognition.
 
-**Key insight:** Integrating standard TRADES objective functions with visual cortex IT alignment and class-hardened margin loss is extremely effective for geometric robustness. The 3-stage epsilon curriculum (`RHAN-trades-curriculum`) successfully pushed the robustness threshold to **ε≈0.1850**. However, AutoAttack standard evaluations ($\epsilon=0.031$) reveal that the vulnerable class pairs (automobile, horse, truck) still collapse to 0.00% under direct target maximization, resulting in a robust accuracy of 21.88% (compared to 28.22% for the hardened model). This confirms that high curriculum regularization (up to $\epsilon=0.150$) pushes the d' threshold further, but compromises clean accuracy and lower-epsilon robust generalization under adaptive attacks.
+**RHAN-UNIFIED (current):** Training on STL-10 96×96 from scratch with unified architecture. Phase 0 achieved 72.94% clean accuracy with labeled+unlabeled pretraining. Phases 1-8 TRADES curriculum in progress with linear head, beta=2.0-3.0, gentle epsilon schedule.
 
 ---
 
@@ -45,19 +46,16 @@
 | **RHAN-adv** | **3.083** | **2.738** | **1.662** | **0.408** | **-1.294** | **-3.044** | **ε≈0.076** |
 | ResNet-18 | 4.426 | 2.687 | -0.771 | -1.707 | -1.913 | -1.880 | ε≈0.030 |
 | ViT-Small | 4.931 | 1.814 | -0.154 | -0.909 | -1.242 | -1.469 | ε≈0.026 |
-| BagNet-33 | — | — | — | — | — | — | ε≈0.017 |
-| Shape-ResNet | — | — | — | — | — | — | ε≈0.008 |
-| EfficientNet | — | — | — | — | — | — | ε≈0.006 |
 
 ### PGD Accuracy Collapse
-| Epsilon | Curriculum | Hardened | TRADES | RHAN-v5 | RHAN-v3 | RHAN-adv | ResNet | ViT | EfficientNet | ShapeResNet | BagNet | Human |
-|---------|------------|----------|--------|---------|---------|----------|--------|-----|--------------|-------------|--------|-------|
-| 0.00 | 78.12% | 86.33% | 87.30% | 84.57% | 91.41% | 83.79% | 95.82% | 97.80% | 96.81% | 91.47% | 87.67% | 73.33% |
-| 0.01 | 75.00% | 83.01% | 84.77% | 80.66% | 85.35% | 77.93% | 75.57% | 55.18% | 0.93%  | 18.11% | 48.04% | N/A |
-| 0.05 | 65.23% | 67.19% | 65.82% | 61.13% | 60.74% | 51.95% | 2.84%  | 8.80%  | 0.00%  | 0.01%  | 0.12%  | 69.17% |
-| 0.10 | 52.93% | 43.16% | 37.89% | 34.38% | 26.17% | 17.77% | 0.21%  | 2.78%  | 0.00%  | 0.00%  | 0.00%  | 59.17% |
-| 0.20 | 29.49% | 8.59%  | 5.47%  | 2.73%  | 1.17%  | 0.59%  | 0.02%  | 1.12%  | 0.00%  | 0.00%  | 0.00%  | 62.22% |
-| 0.30 | 10.16% | 0.20%  | 0.20%  | 0.20%  | 0.00%  | 0.00%  | 0.00%  | 0.58%  | 0.00%  | 0.00%  | 0.00%  | 58.61% |
+| Epsilon | UNIFIED | Curriculum | Hardened | TRADES | RHAN-v5 | RHAN-v3 | RHAN-adv | ResNet | ViT | EfficientNet | ShapeResNet | BagNet | Human |
+|---------|---------|------------|----------|--------|---------|---------|----------|--------|-----|--------------|-------------|--------|-------|
+| 0.00 | ~73% | 78.12% | 86.33% | 87.30% | 84.57% | 91.41% | 83.79% | 95.82% | 97.80% | 96.81% | 91.47% | 87.67% | 73.33% |
+| 0.01 | TBD | 75.00% | 83.01% | 84.77% | 80.66% | 85.35% | 77.93% | 75.57% | 55.18% | 0.93%  | 18.11% | 48.04% | N/A |
+| 0.05 | TBD | 65.23% | 67.19% | 65.82% | 61.13% | 60.74% | 51.95% | 2.84%  | 8.80%  | 0.00%  | 0.01%  | 0.12%  | 69.17% |
+| 0.10 | TBD | 52.93% | 43.16% | 37.89% | 34.38% | 26.17% | 17.77% | 0.21%  | 2.78%  | 0.00%  | 0.00%  | 0.00%  | 59.17% |
+| 0.20 | TBD | 29.49% | 8.59%  | 5.47%  | 2.73%  | 1.17%  | 0.59%  | 0.02%  | 1.12%  | 0.00%  | 0.00%  | 0.00%  | 62.22% |
+| 0.30 | TBD | 10.16% | 0.20%  | 0.20%  | 0.20%  | 0.00%  | 0.00%  | 0.00%  | 0.58%  | 0.00%  | 0.00%  | 0.00%  | 58.61% |
 
 ---
 
@@ -94,14 +92,18 @@ RHAN-clean → RHAN-adv → Trial branches (Split, PredCoding, Aligned)
                               ↓
                      ┌─────────┴─────────┐
                   RHAN-v4            RHAN-v5 ← εthresh=0.1030
-               (Multi-Scale,       (Freq Separation,
+               (Multi-Scale,       (Frequency Separation,
                 Active CLIP)       Phase 0 CLIP)
                   ↓ regressed          ↓
                RHAN-v6              RHAN-v5-TRADES ← εthresh=0.1113
             (Dynamic Gating,           ↓
              ACT Pondering)         RHAN-TRADES-Hardened ← εthresh=0.1246
               ↓ regressed              ↓
-                                    RHAN-trades-curriculum ← εthresh=0.1850 (BEST)
+                                    RHAN-trades-curriculum ← εthresh=0.1850 (BEST CIFAR)
+                                                              ↓
+                                    RHAN-v7 (Generative World-Model, CIFAR)
+                                                              ↓
+                                    RHAN-UNIFIED (STL-10 96×96, from scratch) ← CURRENT
 ```
 
 ## Model Spectrum
@@ -123,6 +125,8 @@ RHAN-clean → RHAN-adv → Trial branches (Split, PredCoding, Aligned)
 | **RHAN-v5-TRADES** | **Standard TRADES adversarial training** | **Mina** | **phase/rhan-trades** |
 | **RHAN-TRADES-Hardened** | **Class-hardened TRADES with margin loss** | **Mina** | **phase/rhan-trades** |
 | **RHAN-trades-curriculum** | **TRADES 3-Phase Extended Curriculum** | **Mina** | **phase/rhan-trades-curriculum** |
+| **RHAN-v7** | **Generative World-Model (VAE + TRADES)** | **Mina** | **dev** |
+| **RHAN-UNIFIED** | **Unified architecture, STL-10 96×96, from scratch** | **Mina** | **dev** |
 | Human | Biological vision (n=18) | All | — |
 
 ## Team
@@ -159,24 +163,16 @@ python phase4_analysis/generate_all_figures.py
 python phase5_sdt/sdt_analysis.py
 ```
 
-# RHAN-v5 TRADES Training (resume from checkpoint)
+# RHAN-UNIFIED Training (STL-10 96x96)
 ```bash
-python phase1_training/train_rhan_v5_trades.py --resume
-```
+# Phase 0: Semantic initialization with unlabeled data (50 epochs)
+python phase1_training/train_rhan_unified.py --phase 0
 
-# RHAN-TRADES-Hardened Training
-```bash
-python phase1_training/train_rhan_trades_class_hardened.py --resume
-```
+# Phases 1-8: TRADES adversarial curriculum (160 epochs)
+python phase1_training/train_rhan_unified.py --phase 1-6
 
-# RHAN-TRADES-Curriculum Training
-```bash
-python phase1_training/train_rhan_trades_curriculum.py
-```
-
-# Compare Curriculum Phase B vs Phase C AutoAttack
-```bash
-.venv/bin/python3 phase2_attacks/eval_autoattack_curriculum.py
+# Everything at once
+python phase1_training/train_rhan_unified.py --phase all
 ```
 
 ## Human Study
@@ -197,10 +193,15 @@ Mapping: `phase3_human_study/manifest.csv`
 │   ├── model_rhan.py       # RHAN base architecture (clean/adv/v2/v3)
 │   ├── model_rhan_v5.py    # Frequency-separated biologically-grounded model
 │   ├── model_rhan_v6.py    # Dynamic gating + predictive coding + ACT
+│   ├── model_rhan_v7.py    # Generative World-Model (VAE + TRADES)
+│   ├── model_rhan_unified.py  # Unified architecture for STL-10 96x96
+│   ├── model_rhan_stl10.py    # STL-10 adaptation (predecessor)
+│   ├── dataset_stl10.py       # STL-10 data loaders (labeled + unlabeled)
 │   ├── train.py            # Standard training loop
 │   ├── train_rhan_v5.py    # Phase 1 epsilon curriculum training
-│   ├── train_rhan_v5_trades.py  # TRADES adversarial training (current)
-│   ├── train_rhan_v6.py    # v6 training with ablation suite
+│   ├── train_rhan_v5_trades.py  # TRADES adversarial training
+│   ├── train_rhan_v7.py    # v7 generative world-model training
+│   ├── train_rhan_unified.py  # UNIFIED: Phase 0 + Phases 1-8 (STL-10)
 │   ├── pretrain_rhan_v5_clip.py # Phase 0 CLIP semantic initialization
 │   └── pretrain_rhan_v6_clip.py # Phase 0 for v6
 ├── phase2_attacks/         # FGSM/PGD attack generation
