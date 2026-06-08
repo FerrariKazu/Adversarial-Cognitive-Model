@@ -102,19 +102,36 @@ def train_phase0(device, args):
     for epoch in range(1, 51):
         model.train()
         train_loss = 0; train_correct = 0; total_b = 0
+        unl_loss_s = 0; unl_batches = 0
         t0 = time.time()
 
         for imgs, lbls in train_loader:
             imgs, lbls = imgs.to(device), lbls.to(device)
             B = imgs.size(0)
 
-            # Supervised loss on labeled data
             optimizer.zero_grad(set_to_none=True)
             with autocast('cuda'):
                 logits = model(imgs)
                 loss_sup = ce_loss(logits, lbls)
+                loss = loss_sup
 
-            scaler.scale(loss_sup).backward()
+                # Unlabeled pseudo-labeling step
+                try:
+                    unl_imgs, _ = next(unlabeled_iter)
+                except StopIteration:
+                    unlabeled_iter = iter(unlabeled_loader)
+                    unl_imgs, _ = next(unlabeled_iter)
+                unl_imgs = unl_imgs.to(device)
+                with torch.no_grad():
+                    pseudo_logits = model(unl_imgs)
+                    pseudo_labels = F.softmax(pseudo_logits / 2.0, dim=1)
+                unl_logits = model(unl_imgs)
+                loss_unl = (-pseudo_labels * F.log_softmax(unl_logits, dim=1)).sum(1).mean()
+                loss = loss_sup + 0.3 * loss_unl
+                unl_loss_s += loss_unl.item() * unl_imgs.size(0)
+                unl_batches += 1
+
+            scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
 
@@ -133,8 +150,9 @@ def train_phase0(device, args):
                 test_total += lbls.size(0)
 
         test_acc = 100. * test_correct / test_total
-        print("Phase 0 | Ep {:02d}/50 | Loss:{:.4f} | TrAcc:{:.1f}% TeAcc:{:.1f}% | {:.0f}s".format(
-            epoch, train_loss/total_b,
+        unl_avg = unl_loss_s / (unl_batches * 128) if unl_batches else 0
+        print("Phase 0 | Ep {:02d}/50 | Sup:{:.4f} Unl:{:.4f} | TrAcc:{:.1f}% TeAcc:{:.1f}% | {:.0f}s".format(
+            epoch, train_loss/total_b, unl_avg,
             100.*train_correct/total_b, test_acc, time.time()-t0))
 
         if test_acc > best_acc:
