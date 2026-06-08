@@ -188,3 +188,77 @@ Analysis revealed that *active CLIP semantic loss during adversarial training* a
 
 ### Architecture vs. Algorithm (RHAN-v6 → TRADES)
 **RHAN-v6** proved that adding architectural complexity (dynamic gating, predictive coding, ACT) to an already-effective architecture produces diminishing or negative returns when the training regime is not carefully calibrated. The pivot to TRADES represents a fundamental insight: **the training algorithm, not the architecture, is now the bottleneck for further robustness gains**.
+
+---
+
+## 7. RHAN-v7: Generative World-Model (CIFAR-10)
+
+**RHAN-v7** extended the v7 architecture with a VAE decoder that forces adversarial examples to remain reconstructible — adding a second constraint beyond classification.
+
+### Architecture
+- Dual-stream transformer (ventral 256-dim + dorsal 256-dim)
+- VAE encoder head (μ, log_var) → latent_dim=256
+- VAE decoder: 256 → 512×1×1 → ConvTranspose2d → 32×32 RGB output
+- Generative classifier (latent → 10 classes)
+- Perceptual critic: fresh random ConvStem (not copied from trained backbone)
+
+### Loss Function
+```
+total = 0.50*TRADES + 0.15*feature_recon + 0.20*KL_freebits + 0.10*alignment
+```
+
+### Key Findings
+1. **FR loss must use raw images, not low-pass filtered**: The Gaussian low-pass filter removes the high-frequency signal the critic needs to distinguish original from reconstruction, causing FR loss to vanish
+2. **Fresh random perceptual critic, not copied**: Copying trained stem_low causes BatchNorm channel collapse (near-zero variance), making FR loss vanish to ~0.000032
+3. **Online feature comparison works**: Using model's own current stem_low output (detached) as target provides a moving reference that shifts with backbone
+4. **Phase 0 warmup is essential**: Decoder must learn to reconstruct before adversarial training begins
+5. **Computation cost is ~3× higher**: Dual forward passes (clean + adversarial) + decoder + critic = ~900s/epoch vs ~300s for v5
+
+### Status
+Training in progress (June 2026). Epoch 13 of Phase 1 at ε=0.062.
+
+---
+
+## 8. RHAN-UNIFIED: STL-10 96×96 From Scratch (Current)
+
+**RHAN-UNIFIED** is the definitive architecture combining all lessons from the CIFAR-10 RHAN series, trained from scratch on higher-resolution STL-10 96×96 images.
+
+### Architecture
+- **Conv stem**: 4 layers (96→48→24→12×12), 512 channels
+- **Tokens**: 144 spatial + 1 CLS = 145 tokens
+- **Transformer**: 3 layers, 8 heads, ff_dim=2048
+- **Recurrent feedback**: 2 steps, gated residual injection
+- **Head**: Cosine similarity (SemanticProjectionHead) — preserved throughout all phases
+- **Parameters**: 14M
+
+### Training Pipeline
+| Phase | Epochs | ε | β | LR | Key Feature |
+|---|---|---|---|---|---|
+| 0 | 50 | — | — | 3e-4 | Labeled + unlabeled pretraining |
+| 1 | 20 | 0.016 | 2.0 | 0.005 | Gentle start |
+| 2 | 20 | 0.031 | 2.0 | 0.005 | |
+| 3 | 20 | 0.047 | 2.5 | 0.005 | |
+| 4 | 20 | 0.062 | 2.5 | 0.005 | |
+| 5 | 20 | 0.094 | 3.0 | 0.003 | |
+| 6 | 20 | 0.125 | 3.0 | 0.003 | |
+| 7 | 20 | 0.150 | 3.0 | 0.003 | |
+| 8 | 20 | 0.200 | 3.0 | 0.003 | Maximum push |
+
+### Key Design Decisions
+1. **Cosine head preserved**: Head replacement destroyed Phase 0 calibration (72.94% → 13% test acc)
+2. **Beta=2.0 for STL-10**: Beta=6.0 was calibrated for CIFAR-10 with 5K images; beta=2.0 prevents KL explosion
+3. **Unlabeled data in Phase 0**: 100K unlabeled images provide 20× more visual diversity
+4. **No VAE/generative prior**: Pixel-level reconstruction conflicts with TRADES; removed for clean training
+5. **No frozen perceptual critic**: BatchNorm channel collapse issue; online feature comparison instead
+
+### Results So Far
+- **Phase 0** (50 epochs): Best test acc = **72.94%** (clean, unlabeled pretraining)
+- **Phase 1** (ε=0.016, β=2.0): Epoch 1 — TrAcc=92.9%, TeAcc=73.4%, T=2.377 (healthy!)
+- **Phase 2+**: In progress
+
+### Why STL-10 Changes Everything
+- **96×96 resolution**: 9× more pixels than CIFAR-10 32×32
+- **Better shape discrimination**: Higher resolution enables genuine shape-based features
+- **Human comparison**: Humans perform ~90-95% on STL-10 at 96×96 (vs ~73% on CIFAR-10 at 32×32)
+- **Predicted εthresh**: 0.220-0.280 (vs 0.185 CIFAR-10 ceiling)
+- **Predicted AutoAttack**: 45-65% at ε=0.031 (vs 29.2% CIFAR-10 best)
