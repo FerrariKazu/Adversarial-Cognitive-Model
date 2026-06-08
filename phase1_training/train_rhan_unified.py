@@ -182,17 +182,6 @@ def train_phases(device, args, model=None):
         else:
             print("WARNING: No Phase 0 checkpoint. Starting from scratch.")
 
-    # FIX 1: Replace cosine head with linear head for TRADES phases
-    # Cosine similarity head is incompatible with TRADES KL divergence
-    # because output space is bounded [-temp, +temp] vs unbounded
-    model.head = nn.Sequential(
-        nn.LayerNorm(512),
-        nn.Dropout(0.1),
-        nn.Linear(512, 10)
-    ).to(device)
-    nn.init.xavier_normal_(model.head[2].weight)
-    print("Head replaced: cosine -> linear for TRADES phases")
-
     total_params = sum(p.numel() for p in model.parameters())
     print("Parameters: {:,}".format(total_params))
 
