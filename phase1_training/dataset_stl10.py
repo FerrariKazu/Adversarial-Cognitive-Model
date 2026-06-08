@@ -81,5 +81,5 @@ def get_stl10_unlabeled_loader(batch_size=128, data_root='./data/stl10'):
     unlabeled_ds = STL10(data_root, split='unlabeled',
                          transform=transform, download=False)
     return DataLoader(unlabeled_ds, batch_size=batch_size,
-                      shuffle=True, num_workers=4,
+                      shuffle=True, num_workers=6,
                       pin_memory=True, persistent_workers=True)
