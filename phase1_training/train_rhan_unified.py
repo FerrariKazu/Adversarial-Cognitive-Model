@@ -5,23 +5,27 @@ RHAN-UNIFIED: Full training pipeline for STL-10 96x96.
 Phase 0: Semantic initialization with unlabeled data (50 epochs)
   - Uses both labeled (5K) and unlabeled (100K) data
   - Pseudo-labeling on unlabeled for richer pretraining
-  - Cosine head for clean training
+  - Cosine head preserved throughout all phases
 
 Phase 1-8: TRADES adversarial curriculum (20 epochs each = 160 total)
-  - Linear head (replaced from cosine for TRADES compatibility)
-  - Gentle beta values (2.0-3.0) calibrated for 5K sample regime
-  - Small epsilon steps starting at 0.016
+  - Cosine head (no replacement)
+  - Beta=2.0 for phases 1-6, 2.5 for phase 7, 3.0 for phase 8
+  - 3-epoch warmup at each phase transition (beta=0.5)
+  - Lower LR: 0.002 (P1-4), 0.001 (P5-8)
+  - Rolling checkpoint every epoch
+  - Mid-phase checkpoint at epoch 10
+  - Resume capability via --resume and --start-phase
 
 Loss: 0.60*TRADES + 0.25*alignment + 0.15*freq_consistency
 
 Curriculum:
   Phase 1: eps=0.016  beta=2.0
   Phase 2: eps=0.031  beta=2.0
-  Phase 3: eps=0.047  beta=2.5
-  Phase 4: eps=0.062  beta=2.5
-  Phase 5: eps=0.094  beta=3.0
-  Phase 6: eps=0.125  beta=3.0
-  Phase 7: eps=0.150  beta=3.0
+  Phase 3: eps=0.047  beta=2.0
+  Phase 4: eps=0.062  beta=2.0
+  Phase 5: eps=0.094  beta=2.0
+  Phase 6: eps=0.125  beta=2.5
+  Phase 7: eps=0.150  beta=2.5
   Phase 8: eps=0.200  beta=3.0
 """
 
@@ -77,6 +81,30 @@ def generate_trades_adv(model, x_natural, step_size, epsilon, perturb_steps,
     for m in bn_modules:
         m.train()
     return x_adv
+
+
+def save_rolling_checkpoint(args, model, phase, epoch, eps, best_acc):
+    """FIX 4: Save rolling checkpoint every epoch for resume capability."""
+    ckpt = {
+        'model': model.state_dict(),
+        'phase': phase,
+        'epoch': epoch,
+        'eps': eps,
+        'best_acc': best_acc,
+    }
+    torch.save(ckpt, os.path.join(args.ckpt_dir, 'rhan_unified_rolling.pth'))
+
+
+def load_rolling_checkpoint(args, model):
+    """FIX 4: Load rolling checkpoint and return resume state."""
+    ckpt_path = os.path.join(args.ckpt_dir, 'rhan_unified_rolling.pth')
+    if not os.path.exists(ckpt_path):
+        return None
+    ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+    model.load_state_dict(ckpt['model'])
+    print("Loaded rolling checkpoint: Phase {}, Epoch {}, eps={}".format(
+        ckpt['phase'], ckpt['epoch'], ckpt['eps']))
+    return ckpt
 
 
 def train_phase0(device, args):
@@ -166,20 +194,25 @@ def train_phase0(device, args):
     return model
 
 
-def train_phases(device, args, model=None):
+def train_phases(device, args, model=None, start_phase=1):
     """Phases 1-8: Full TRADES adversarial curriculum."""
     print("\n" + "=" * 60)
     print("PHASES 1-8: TRADES ADVERSARIAL CURRICULUM")
     print("=" * 60)
 
+    # FIX 4: Resume from rolling checkpoint if --resume
+    resume_ckpt = None
+    if args.resume:
+        resume_ckpt = load_rolling_checkpoint(args, model)
+
     if model is None:
         model = RHANUnified(head_type='cosine').to(device)
         phase0_ckpt = os.path.join(args.ckpt_dir, 'rhan_unified_phase0_final.pth')
-        if os.path.exists(phase0_ckpt):
+        if os.path.exists(phase0_ckpt) and resume_ckpt is None:
             model.load_state_dict(
                 torch.load(phase0_ckpt, map_location=device, weights_only=False))
             print("Loaded Phase 0 checkpoint")
-        else:
+        elif resume_ckpt is None:
             print("WARNING: No Phase 0 checkpoint. Starting from scratch.")
 
     total_params = sum(p.numel() for p in model.parameters())
@@ -191,35 +224,46 @@ def train_phases(device, args, model=None):
     clip_min_t = torch.tensor(STL10_MIN).view(1, 3, 1, 1).to(device)
     clip_max_t = torch.tensor(STL10_MAX).view(1, 3, 1, 1).to(device)
 
-    # FIX 3: Reduced beta values calibrated for STL-10's 5K sample regime
-    # beta=6.0 was for CIFAR-10 with 50K images — too high for 5K
+    # FIX 1: Keep beta=2.0 through phase 6, only increase at 7-8
     curriculum = [
         (1, 0.016, 2.0, 10),
         (2, 0.031, 2.0, 10),
-        (3, 0.047, 2.5, 10),
-        (4, 0.062, 2.5, 10),
-        (5, 0.094, 3.0, 10),
-        (6, 0.125, 3.0, 10),
-        (7, 0.150, 3.0, 10),
+        (3, 0.047, 2.0, 10),
+        (4, 0.062, 2.0, 10),
+        (5, 0.094, 2.0, 10),
+        (6, 0.125, 2.5, 10),
+        (7, 0.150, 2.5, 10),
         (8, 0.200, 3.0, 10),
     ]
 
-    best_acc = 0.0
+    best_acc = resume_ckpt['best_acc'] if resume_ckpt else 0.0
 
     for phase, eps, beta, steps in curriculum:
+        # FIX 4: Skip phases before start_phase
+        if phase < start_phase:
+            print("Skipping Phase {} (start_phase={})".format(phase, start_phase))
+            continue
+
         print("\nPhase {}: eps={:.3f}, beta={}, steps={}".format(phase, eps, beta, steps))
 
+        # FIX 2: Lower LR for all phases
         if phase <= 4:
-            optimizer = optim.SGD(model.parameters(), lr=0.005,
+            optimizer = optim.SGD(model.parameters(), lr=0.002,
                                   momentum=0.9, weight_decay=5e-4)
         else:
-            optimizer = optim.SGD(model.parameters(), lr=0.003,
+            optimizer = optim.SGD(model.parameters(), lr=0.001,
                                   momentum=0.9, weight_decay=5e-4)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20)
         scaler = GradScaler('cuda')
         step_size = eps / 4
 
-        for epoch in range(1, 21):
+        # FIX 4: Determine starting epoch for resume
+        start_epoch = 1
+        if resume_ckpt and resume_ckpt['phase'] == phase:
+            start_epoch = resume_ckpt['epoch'] + 1
+            print("Resuming Phase {} from epoch {}".format(phase, start_epoch))
+
+        for epoch in range(start_epoch, 21):
             model.train()
             train_loss = 0; train_correct = 0; total_b = 0
             l_trades_s = 0; l_align_s = 0; l_freq_s = 0
@@ -241,7 +285,10 @@ def train_phases(device, args, model=None):
                     feat_a = model.get_feature_vector(x_adv)
                     logits_a = model.head(feat_a)
 
-                    l_trades = ce_loss(logits_c, lbls) + beta * F.kl_div(
+                    # FIX 3: 3-epoch warmup with reduced beta
+                    effective_beta = 0.5 if epoch <= 3 else beta
+
+                    l_trades = ce_loss(logits_c, lbls) + effective_beta * F.kl_div(
                         F.log_softmax(logits_a, dim=1),
                         F.softmax(logits_c, dim=1),
                         reduction='batchmean')
@@ -279,24 +326,30 @@ def train_phases(device, args, model=None):
 
             test_acc = 100. * test_correct / test_total
 
-            print("Phase {} (eps={:.3f}) | Ep {:02d}/20 | L:{:.3f} | "
+            # FIX 3: Show warmup status in output
+            warmup_tag = " [WARMUP beta=0.5]" if epoch <= 3 else ""
+            print("Phase {} (eps={:.3f}) | Ep {:02d}/20{} | L:{:.3f} | "
                   "T:{:.3f} A:{:.4f} F:{:.4f} | "
                   "TrAcc:{:.1f}% TeAcc:{:.1f}% | {:.0f}s".format(
-                phase, eps, epoch, train_loss/total_b,
+                phase, eps, epoch, warmup_tag, train_loss/total_b,
                 l_trades_s/total_b, l_align_s/total_b, l_freq_s/total_b,
                 100.*train_correct/total_b, test_acc, time.time()-t0))
 
             # Health checks
             if epoch == 1 and l_trades_s/total_b > 5.0:
                 print("WARNING: TRADES loss > 5.0 on epoch 1 — beta may still be too high")
-            if epoch == 3 and test_acc < 65.0:
-                print("WARNING: Test acc < 65% by epoch 3 — data may be insufficient")
+            if epoch == 5 and test_acc < 60.0:
+                print("WARNING: Test acc < 60% by epoch 5 — model may be collapsing")
+
+            # FIX 4: Save rolling checkpoint every epoch
+            save_rolling_checkpoint(args, model, phase, epoch, eps, best_acc)
 
             if test_acc > best_acc:
                 best_acc = test_acc
                 torch.save(model.state_dict(),
                            os.path.join(args.ckpt_dir, 'rhan_unified_best.pth'))
 
+        # FIX 5: Save phase checkpoints regardless of clean accuracy
         torch.save(model.state_dict(),
                    os.path.join(args.ckpt_dir, 'rhan_unified_phase{}_final.pth'.format(phase)))
         print("Phase {} complete. Best so far: {:.2f}%".format(phase, best_acc))
@@ -310,6 +363,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--phase', type=str, default='all',
                         choices=['0', '1-6', 'all'])
+    parser.add_argument('--resume', action='store_true',
+                        help='Resume from rolling checkpoint')
+    parser.add_argument('--start-phase', type=int, default=1,
+                        help='Start from this phase (skips earlier phases)')
     args = parser.parse_args()
 
     set_seed(42)
@@ -325,7 +382,7 @@ def main():
         model = train_phase0(device, args)
 
     if args.phase in ['1-6', 'all']:
-        train_phases(device, args, model=model)
+        train_phases(device, args, model=model, start_phase=args.start_phase)
 
 
 if __name__ == '__main__':
