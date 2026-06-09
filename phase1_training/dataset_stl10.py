@@ -13,6 +13,7 @@ on small labeled datasets (5K samples).
 """
 
 import numpy as np
+import torch
 import torchvision.transforms as T
 from torchvision.datasets import STL10 as _STL10
 from torch.utils.data import DataLoader
