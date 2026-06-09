@@ -326,17 +326,14 @@ def train_trades(model, train_loader, test_loader, device, ckpt_dir,
         }, os.path.join(ckpt_dir, 'rhan_stl10_rolling.pth'))
 
         # Phase checkpoint at midpoint and end
-        for s, e, _, _, _ in CURRICULUM:
+        for phase_idx, (s, e, eps_val, beta_val, steps_val) in enumerate(CURRICULUM):
             if epoch == s + 9:  # midpoint (~epoch 10 of phase)
                 torch.save(model.state_dict(),
-                           os.path.join(ckpt_dir, 'rhan_stl10_phase{}_ep10.pth'.format(
-                               CURRICULUM.index((s, e, _, _, _)) + 1)))
+                           os.path.join(ckpt_dir, 'rhan_stl10_phase{}_ep10.pth'.format(phase_idx + 1)))
             if epoch == e:  # end of phase
                 torch.save(model.state_dict(),
-                           os.path.join(ckpt_dir, 'rhan_stl10_phase{}_final.pth'.format(
-                               CURRICULUM.index((s, e, _, _, _)) + 1)))
-                print("Phase {} complete. Best so far: {:.2f}%".format(
-                    CURRICULUM.index((s, e, _, _, _)) + 1, best_acc))
+                           os.path.join(ckpt_dir, 'rhan_stl10_phase{}_final.pth'.format(phase_idx + 1)))
+                print("Phase {} complete. Best so far: {:.2f}%".format(phase_idx + 1, best_acc))
 
     print("\nAll phases complete. Best test accuracy: {:.2f}%".format(best_acc))
     return model
