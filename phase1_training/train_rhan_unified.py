@@ -126,6 +126,9 @@ def train_phase0(device, args):
     unlabeled_loader = get_stl10_unlabeled_loader(batch_size=128)
     unlabeled_iter = iter(unlabeled_loader)
 
+    # IMPROVEMENT 3: CutMix augmentation
+    from dataset_stl10 import cutmix_data
+
     best_acc = 0.0
     for epoch in range(1, 51):
         model.train()
@@ -137,10 +140,18 @@ def train_phase0(device, args):
             imgs, lbls = imgs.to(device), lbls.to(device)
             B = imgs.size(0)
 
+            # IMPROVEMENT 3: Apply CutMix 50% of the time
+            use_cutmix = np.random.random() > 0.5
+            if use_cutmix:
+                imgs, y_a, y_b, lam = cutmix_data(imgs, lbls, alpha=1.0)
+
             optimizer.zero_grad(set_to_none=True)
             with autocast('cuda'):
                 logits = model(imgs)
-                loss_sup = ce_loss(logits, lbls)
+                if use_cutmix:
+                    loss_sup = lam * ce_loss(logits, y_a) + (1 - lam) * ce_loss(logits, y_b)
+                else:
+                    loss_sup = ce_loss(logits, lbls)
                 loss = loss_sup
 
                 # Unlabeled pseudo-labeling step
@@ -273,9 +284,18 @@ def train_phases(device, args, model=None, start_phase=1):
                 imgs, lbls = imgs.to(device), lbls.to(device)
                 B = imgs.size(0)
 
-                x_adv = generate_trades_adv(
-                    model, imgs, step_size, eps, steps,
-                    clip_min_t, clip_max_t)
+                # IMPROVEMENT 3: Apply CutMix 50% of the time
+                use_cutmix = np.random.random() > 0.5
+                if use_cutmix:
+                    imgs, y_a, y_b, lam = cutmix_data(imgs, lbls, alpha=1.0)
+                    # Generate adversarial from mixed images
+                    x_adv = generate_trades_adv(
+                        model, imgs, step_size, eps, steps,
+                        clip_min_t, clip_max_t)
+                else:
+                    x_adv = generate_trades_adv(
+                        model, imgs, step_size, eps, steps,
+                        clip_min_t, clip_max_t)
 
                 optimizer.zero_grad(set_to_none=True)
                 with autocast('cuda'):
@@ -288,11 +308,17 @@ def train_phases(device, args, model=None, start_phase=1):
                     # FIX 3: 3-epoch warmup with reduced beta
                     effective_beta = 0.5 if epoch <= 3 else beta
 
-                    l_trades = ce_loss(logits_c, lbls) + effective_beta * F.kl_div(
-                        F.log_softmax(logits_a, dim=1),
-                        F.softmax(logits_c, dim=1),
-                        reduction='batchmean')
-
+                    if use_cutmix:
+                        l_trades = (lam * ce_loss(logits_c, y_a) + (1-lam) * ce_loss(logits_c, y_b)) + \
+                                   effective_beta * F.kl_div(
+                                       F.log_softmax(logits_a, dim=1),
+                                       F.softmax(logits_c, dim=1),
+                                       reduction='batchmean')
+                    else:
+                        l_trades = ce_loss(logits_c, lbls) + effective_beta * F.kl_div(
+                            F.log_softmax(logits_a, dim=1),
+                            F.softmax(logits_c, dim=1),
+                            reduction='batchmean')
                     l_align = 1.0 - F.cosine_similarity(
                         feat_c.detach(), feat_a, dim=-1).mean()
 
