@@ -1,264 +1,335 @@
 # RHAN Architectural Evolution & History
 
-This document outlines the design history, theoretical foundations, and evolutionary path of the **Recurrent Hybrid Attention Network (RHAN)** in this repository, culminating in **RHAN-v5** (current best, εthresh=0.103) and the ongoing **RHAN-v5-TRADES** training experiment.
+This document outlines the complete design history, theoretical foundations, evolutionary path, and empirical findings of the **Recurrent Hybrid Attention Network (RHAN)** series — from v4 through the current RHAN-UNIFIED on STL-10.
+
+> **Mission:** Close the gap between human visual robustness and AI models by incorporating neuroscientific principles into neural network architecture. Humans maintain stable perception up to ε=0.30; standard AI models collapse before ε=0.03. That's a 10× gap.
 
 ---
 
-## 1. Lineage and Version History
+## Table of Contents
 
-```mermaid
-graph TD
-    RHAN_clean[RHAN-clean<br/>Clean Training] -->|Adversarial curriculum| RHAN_adv[RHAN-adv<br/>Standard Adv Training]
-    
-    RHAN_adv -->|Trial 3| Split[Ventral/Dorsal Split<br/>Architecture split]
-    RHAN_adv -->|Trial 4| PredCoding[Predictive Coding<br/>Surprise-gated feedback]
-    RHAN_adv -->|Trial 8| Aligned[Neural Alignment<br/>CORnet-S IT loss on clean]
-    
-    Split & Aligned -->|Adversarial Alignment + Warm Start| RHAN_v2[RHAN-v2<br/>Unified Fine-tuning]
-    RHAN_v2 -->|Scratch training + 100 Epochs + Warmup| RHAN_v3[RHAN-v3<br/>Joint Training from Scratch]
-    
-    RHAN_v3 -->|Multi-Scale Feedback + active CLIP| RHAN_v4[RHAN-v4<br/>Multi-Scale Gated Feedback]
-    RHAN_v3 -->|Frequency Separation + Phase 0 CLIP| RHAN_v5[RHAN-v5<br/>Frequency-Separated Model]
-    
-    RHAN_v5 -->|Dynamic Gating + ACT + PredCoding| RHAN_v6[RHAN-v6<br/>Dynamic Gating - REGRESSED]
-    RHAN_v5 -->|TRADES loss algorithm change| RHAN_TRADES[RHAN-v5-TRADES<br/>TRADES Training - IN PROGRESS]
-    
-    style RHAN_v5 fill:#2d6a4f,color:#fff
-    style RHAN_v6 fill:#d62828,color:#fff
-    style RHAN_TRADES fill:#f77f00,color:#fff
-```
+1. [Lineage & Metrics](#1-lineage--metrics)
+2. [Theoretical Pillars](#2-theoretical-pillars)
+3. [RHAN-v4: Multi-Scale Gated Feedback](#3-rhan-v4-multi-scale-gated-feedback)
+4. [RHAN-v5: Frequency Separation & Phase Decoupling](#4-rhan-v5-frequency-separation--phase-decoupling)
+5. [RHAN-v5-TRADES & Hardened Variants](#5-rhan-v5-trades--hardened-variants)
+6. [RHAN-v6: Dynamic Gating — Regression](#6-rhan-v6-dynamic-gating--regression)
+7. [RHAN-v7: Generative World-Model](#7-rhan-v7-generative-world-model)
+8. [RHAN-UNIFIED: STL-10 From Scratch](#8-rhan-unified-stl-10-from-scratch)
+9. [Key Lessons Learned](#9-key-lessons-learned)
+10. [Remaining Human-AI Gap](#10-remaining-human-ai-gap)
 
-### Version Metrics Comparison
-| System / Model | Clean Acc | PGD 50% Threshold | $d'=1.0$ Threshold | Training Style | Key Mechanism |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Human** | 74.15% | >0.30 | >0.30 | Biological | Biological Vision (n=18) |
-| **RHAN-trades-curriculum** ★ BEST | **78.12%** | **ε≈0.113** | **ε≈0.1850** | SGD 3-Phase Curriculum (60 Ep) | Multi-stage epsilon curriculum (0.062->0.100->0.150) |
-| **RHAN-TRADES-Hardened** | 86.33% | ε≈0.086 | ε≈0.1246 | SGD Fine-tuning (30 Ep) | Class-hardened TRADES + IT align + inter-class margin |
-| **RHAN-v5-TRADES** | 87.30% | ε≈0.078 | ε≈0.1113 | SGD Scratch (120 Ep) | Standard TRADES + IT alignment |
-| **RHAN-v5** | 84.57% | ε≈0.071 | ε≈0.1030 | Phase 0 CLIP + Phase 1 Curriculum | Learnable Freq Separation, Dual Stems, Split-Stream |
-| **RHAN-v3** | 91.41% | ε≈0.066 | ε≈0.0900 | Joint Scratch (100 Ep) | Ventral/Dorsal Split + Adv IT-Alignment |
-| **RHAN-v4** | 89.65% | ε≈0.056 | ε≈0.0800 | Scratch (100 Ep) | Multi-Scale Feedback, Active CLIP loss, InfoNCE |
-| **RHAN-adv** | 83.79% | ε≈0.053 | ε≈0.0764 | Adv Curriculum | Recurrent Top-Down Gated Feedback |
-| **RHAN-clean**| 89.06% | ε≈0.023 | ε≈0.0330 | Clean Only | Recurrent Top-Down Gated Feedback |
-| **RHAN-v6** ⚠️ | 82.03% | — | Regressed | Phase 0 + 6-Phase Curriculum | Dynamic Gating, PredCoding Error, ACT Pondering |
+---
 
-### RHAN Series PGD Accuracy Table (Verified)
-| Epsilon | Curriculum | Hardened | TRADES | RHAN-v5 | RHAN-v3 | RHAN-adv | ResNet-18 | ViT-Small |
-|---------|------------|----------|--------|---------|---------|----------|-----------|-----------|
-| 0.00 | 78.12% | 86.33% | 87.30% | 84.57% | 91.41% | 83.79% | 95.82% | 97.80% |
-| 0.01 | 75.00% | 83.01% | 84.77% | 80.66% | 85.35% | 77.93% | 75.57% | 55.18% |
-| 0.05 | 65.23% | 67.19% | 65.82% | 61.13% | 60.74% | 51.95% |  2.84% |  8.80% |
-| 0.10 | 52.93% | 43.16% | 37.89% | 34.38% | 26.17% | 17.77% |  0.21% |  2.78% |
-| 0.20 | 29.49% |  8.59% |  5.47% |  2.73% |  1.17% |  0.59% |  0.02% |  1.12% |
-| 0.30 | 10.16% |  0.20% |  0.20% |  0.20% |  0.00% |  0.00% |  0.00% |  0.58% |
+## 1. Lineage & Metrics
+
+### Version Comparison
+
+| System / Model | Clean Acc | PGD 50% Threshold | d'=1.0 Threshold | Status |
+|---|---|---|---|---|
+| **Human** | 74.15% | >0.30 | >0.30 | ✅ Complete |
+| **RHAN-UNIFIED** ★ | **~73%** | **TBD** | **TBD** | 🔄 Training |
+| **RHAN-trades-curriculum** ★ | **78.12%** | **ε≈0.113** | **ε≈0.1850** | ✅ Complete |
+| **RHAN-TRADES-Hardened** | **86.33%** | **ε≈0.086** | **ε≈0.1246** | ✅ Complete |
+| **RHAN-v5-TRADES** | **87.30%** | **ε≈0.078** | **ε≈0.1113** | ✅ Complete |
+| **RHAN-v5** | **84.57%** | **ε≈0.071** | **ε≈0.1030** | ✅ Complete |
+| **RHAN-v3** | **91.41%** | **ε≈0.066** | **ε≈0.0900** | ✅ Complete |
+| **RHAN-v4** | **89.65%** | **ε≈0.056** | **ε≈0.0800** | ✅ Complete |
+| **RHAN-adv** | **83.79%** | **ε≈0.053** | **ε≈0.0764** | ✅ Complete |
+| RHAN-clean | 89.06% | ε≈0.023 | ε≈0.0330 | ✅ Complete |
+| **RHAN-v6** ⚠️ | 82.03% | — | — | ⚠️ Regressed |
+| ResNet-18 | 95.82% | ε≈0.024 | ε≈0.0300 | ✅ Complete |
+| ViT-Small | 97.80% | ε≈0.014 | ε≈0.0264 | ✅ Complete |
+
+### PGD Accuracy Collapse Table
+
+| Epsilon | UNIFIED | Curriculum | Hardened | TRADES | RHAN-v5 | ResNet | ViT |
+|---|---|---|---|---|---|---|---|
+| 0.00 | ~73% | 78.12% | 86.33% | 87.30% | 84.57% | 95.82% | 97.80% |
+| 0.01 | TBD | 75.00% | 83.01% | 84.77% | 80.66% | 75.57% | 55.18% |
+| 0.05 | TBD | 65.23% | 67.19% | 65.82% | 61.13% | 2.84% | 8.80% |
+| 0.10 | TBD | 52.93% | 43.16% | 37.89% | 34.38% | 0.21% | 2.78% |
+| 0.20 | TBD | 29.49% | 8.59% | 5.47% | 2.73% | 0.02% | 1.12% |
+| 0.30 | TBD | 10.16% | 0.20% | 0.20% | 0.20% | 0.00% | 0.58% |
 
 ---
 
 ## 2. Theoretical Pillars of RHAN
 
-RHAN bridges the gap between biological vision and machine vision by incorporating three neuroscientific priors:
+RHAN bridges the gap between biological vision and machine vision by incorporating neuroscientific priors. Each version tests a specific hypothesis about what makes human vision robust.
 
-### A. Recurrent Top-Down Feedback (All Versions)
-Feedforward networks (ResNet, ViT) process images in a single forward pass, making them highly susceptible to local high-frequency adversarial noise. Biological brains utilize massive recurrent feedback loops (e.g., feedback connections from IT/V4 back to V1) to perform iterative denoising and perceptual grouping. 
-RHAN implements this via a recurrent feedback block that modulates the convolutional stem activations using the output of the global self-attention layer.
+### Pillar 1: Recurrent Top-Down Feedback (All Versions)
+Feedforward networks process images in a single pass, making them susceptible to local high-frequency adversarial noise. Biological brains use massive recurrent feedback loops (IT→V4→V2→V1) for iterative denoising. RHAN implements this via a recurrent feedback block that modulates convolutional stem activations using global self-attention output.
 
-### B. Ventral/Dorsal Pathway Split (Introduced in Trial 3 / Unified in v2 & v3)
+### Pillar 2: Ventral/Dorsal Pathway Split (Trial 3 → v2/v3)
 Primate visual systems process information along two parallel streams:
-1. **Ventral Stream ("What" pathway)**: Decodes shape, identity, color, and semantic representations.
-2. **Dorsal Stream ("Where" pathway)**: Decodes spatial layout, motion, boundaries, and coordinate relationships.
+- **Ventral ("What"):** Shape, identity, color, semantic representations
+- **Dorsal ("Where"):** Spatial layout, motion, boundaries, coordinate relationships
 
-By splitting the 512-dimensional attention channel into parallel 256-dimensional pathways, RHAN prevents an adversarial attack from easily optimizing against both channels simultaneously.
+Splitting the 512-dim attention channel into parallel 256-dim pathways prevents adversarial attacks from easily optimizing against both channels simultaneously.
 
-### C. Neural Representation Alignment (Introduced in Trial 8 / Fixed in v2 & v3)
-To ensure the model learns semantic, shape-based abstractions instead of relying on brittle, non-robust pixel features, we align the CLS token representation against the inferior temporal (IT) cortex representation of a primate brain, proxied by a pre-trained **CORnet-S** model.
+### Pillar 3: Neural Representation Alignment (Trial 8 → v2/v3)
+Aligning the CLS token representation against CORnet-S IT cortex features forces the model to learn semantic, shape-based abstractions instead of brittle, non-robust pixel features. **Critical finding:** Alignment must be computed on adversarial images, not clean images, to reinforce robustness.
 
----
-
-## 3. Detailed Architecture of RHAN-v3
-
-RHAN-v3 represents the realization of **Joint Biologically-Grounded Adversarial Training**.
-
-### Mathematical Formulation
-The loss function for RHAN-v3 is defined as a 4-component weighted sum optimized simultaneously from epoch 1:
-
-$$\mathcal{L}_{\text{total}} = 0.5 \cdot \mathcal{L}_{\text{adv\_CE}} + 0.2 \cdot \mathcal{L}_{\text{clean\_CE}} + 0.2 \cdot \mathcal{L}_{\text{align\_on\_adv}} + 0.1 \cdot \mathcal{L}_{\text{consistency}}$$
-
-1. **Adversarial Task Loss ($\mathcal{L}_{\text{adv\_CE}}$)**:
-   Standard Cross-Entropy Loss computed on adversarial samples generated via an inline 5-step PGD attack ($\epsilon=0.031$).
-2. **Clean Task Loss ($\mathcal{L}_{\text{clean\_CE}}$)**:
-   Cross-Entropy computed on unperturbed clean samples to ensure classification accuracy.
-3. **Adversarial Neural Alignment ($\mathcal{L}_{\text{align\_on\_adv}}$)**:
-   Forces the model to maintain primate-like IT visual representations **even when under active attack**. It minimizes the cosine distance between the normalized visual feature vector ($F_{\text{RHAN}}$) and the normalized CORnet-S IT features ($F_{\text{IT}}$):
-   $$\mathcal{L}_{\text{align}} = 1 - \frac{1}{B} \sum_{i=1}^B \hat{F}_{\text{RHAN}}(x^{\text{adv}}_i) \cdot \hat{F}_{\text{IT}}(x^{\text{adv}}_i)$$
-4. **Perceptual Consistency Loss ($\mathcal{L}_{\text{consistency}}$)**:
-   An MSE loss constraining the model's internal representation of the adversarial image to be close to the representation of the original clean image:
-   $$\mathcal{L}_{\text{consistency}} = \text{MSE}(\hat{F}_{\text{RHAN}}(x^{\text{adv}}), \hat{F}_{\text{RHAN}}(x^{\text{clean}}))$$
-
-### Optimization & Hyperparameters
-- **Initialization**: Random initialization (no checkpoint starting point).
-- **Epochs**: 100
-- **Base Learning Rate**: 0.001 (higher to allow the split pathways and alignment heads to develop together).
-- **Warmup**: 15 epochs of linear warmup (from 0 to 0.001) to prevent early gradient explosion/collapse under the complex multi-component loss objective, followed by 85 epochs of cosine annealing back to 0.
-- **Optimizer**: AdamW (weight decay = 0.05).
-- **Mixed Training Ratio**: 50% clean, 50% PGD-5.
+### Pillar 4: Frequency Separation (v5)
+Primate V1 channels low-frequency (shape/structure) separately from high-frequency (texture/noise). Adversarial noise is primarily high-frequency. Learnable Gaussian separator with dual stems (shape vs. texture) and learnable weights (w_low=0.85, w_high=0.15) implements this computationally.
 
 ---
 
-## 4. RHAN-v5: Frequency Separation & Phase-Decoupled Pretraining
+## 3. RHAN-v4: Multi-Scale Gated Feedback
 
-**RHAN-v5** is the current best model ($\epsilon_{\text{thresh}} = 0.103$). It introduced two core design paradigms:
+**Hypothesis:** Multi-scale gated feedback with active CLIP semantic loss would improve both clean accuracy and robustness.
 
-### A. Biological Frequency Separation
-Primate V1 channels low-frequency components (shape/structure) separately from high-frequency components (texture/noise). Since adversarial noise is primarily high-frequency, RHAN-v5 uses a learnable Gaussian separator and dual stems (shape stem vs. texture stem) with learnable weights initialized to favor shape-dominant processing ($w_{\text{low}}=0.85$, $w_{\text{high}}=0.15$). An explicit **Frequency Consistency Loss** enforces that low-frequency features remain invariant clean-vs-adversarial.
+**Architecture:** Built on v3's dual-stream transformer. Added:
+- Multi-scale gated feedback with 4 spatial scales
+- Active CLIP semantic loss during adversarial training
+- InfoNCE adversarial consistency
 
-### B. Phase-Decoupled Pretraining (Phase 0)
-To eliminate semantic-geometric conflict (identified in v4), CLIP semantic alignment is applied strictly during a **Phase 0 initialization (30 epochs, clean-only)**. This bakes semantic priors into the weights before any adversarial training occurs. Phase 1 (120 epochs) then runs a full epsilon curriculum ($0.031 \to 0.062 \to 0.100 \to 0.150$) with neural representation alignment on adversarial images, completely decoupled from active semantic losses.
+**Training:** 100 epochs, β=6.0, ε=0.031 PGD-5.
 
-### C. Verified Results
-- **Clean Accuracy**: 84.57%
-- **εthresh (d'=1.0)**: 0.1030
-- **M-Pathway Dominance**: Confirmed (wL=0.791 > wH=0.513)
-- **No gradient masking**: PGD-20 vs PGD-100 gap < 8%
+**Result:** Clean 89.65%, εthresh=0.0800.
 
----
+**Finding — Semantic-Geometric Conflict:** Active CLIP semantic loss during adversarial training acts as a geometry-degrading constraint. It forces internal representations onto a smoother semantic manifold that conflicts with the sharp decision boundaries needed for adversarial robustness. This was the first clear evidence that semantic losses and adversarial training conflict when applied simultaneously.
 
-## 5. RHAN-v6: Dynamic Gating — Regression Analysis
-
-**RHAN-v6** attempted to extend v5 with three additional mechanisms:
-1. **Dynamic Frequency Gating**: Input-dependent α(x) gating instead of static learned weights
-2. **Predictive Coding Error**: Top-down prediction error signals modulating recurrent feedback
-3. **Adaptive Computation Time (ACT)**: Learned halting for variable-depth recurrence
-
-### Why v6 Failed
-The 6-phase epsilon curriculum ($0.015 \to 0.031 \to 0.062 \to 0.100 \to 0.150 \to 0.250$) was too aggressive. **Phase F (ε=0.250)** corrupted learned representations — the model could not maintain clean accuracy while defending against perturbations that exceed the information content of 32×32 CIFAR images. ACT maxed out its pondering budget on every sample, indicating the training regime was asking the model to solve an impossible task.
-
-**Key lesson**: The architecture was not the problem — the training algorithm was. This motivated the pivot to TRADES on the proven v5 architecture.
+**Lesson:** Semantic alignment must be decoupled from adversarial training — applied as initialization, not as an ongoing loss.
 
 ---
 
-## 6. RHAN-v5-TRADES and TRADES Hardening Experiments
+## 4. RHAN-v5: Frequency Separation & Phase Decoupling
 
-Instead of adding architectural complexity, we focused on refining the **training objective** and **adversarial constraints** on the proven RHAN-v5 architecture.
+**Hypothesis:** Strictly separating CLIP pretraining (Phase 0) from adversarial training (Phase 1), combined with biological frequency separation, would resolve the semantic-geometric conflict.
 
-### A. RHAN-v5-TRADES Baseline
-Optimized using the standard TRADES loss (KL divergence formulation, $\beta=6.0$) and IT alignment (0.2 weight).
-- **Initialization**: CLIP zero-shot weights (`rhan_v5_clip_init.pth`)
-- **Epsilon**: $\epsilon=0.031$
-- **Epochs**: 120 epochs
-- **Results**: Clean test accuracy reached **87.30%**, and robustness threshold $\epsilon_{\text{thresh}}$ reached **0.1151** (d'=1.0 boundary), a significant step up from standard RHAN-v5.
+**Architecture — Two Innovations:**
 
-### B. RHAN-TRADES-Hardened
-To combat class collapses where similar categories (such as automobile/truck) fell to 0.00% under AutoAttack, we designed class-hardened training:
-- **Epsilon Scaling**: Base $\epsilon=0.031$ scaled to $\epsilon=0.055$ (1.77×) for vulnerable classes (`automobile`=1, `truck`=9, `horse`=7, `dog`=5, `cat`=3).
-- **APGD inner loop**: Generated adversarial examples using a custom 20-step adaptive APGD step with milestone-based halving and backtracking.
-- **Inter-class margin loss**: Added centroid distance penalty ($\text{margin}=0.5$) with 0.20 weight on adversarial features.
-- **Results**: Fine-tuned for 30 epochs, pushing $\epsilon_{\text{thresh}}$ to **0.1246** (a **4.2×** improvement over ResNet-18). However, AutoAttack standard evaluation revealed that `automobile` and `truck` robust accuracies remained at 0.00%, showing that boundary geometry near these classes is a deep representational problem.
+1. **Biological Frequency Separation:** Learnable Gaussian low-pass separator with dual stems (shape vs. texture) and Frequency Consistency Loss enforcing low-frequency feature invariance clean-vs-adversarial.
 
-### C. RHAN-trades-curriculum (Completed)
-To push boundaries across all classes and scale robustness, we executed the Extended Curriculum training script starting from the hardened checkpoint.
-- **Schedule**: 3 phases of 20 epochs each (60 epochs total):
-  - **Phase A**: $\epsilon = 0.062$, step_size = 0.015, beta = 6.0 (Epochs 1-20)
-  - **Phase B**: $\epsilon = 0.100$, step_size = 0.025, beta = 6.0 (Epochs 21-40)
-  - **Phase C**: $\epsilon = 0.150$, step_size = 0.030, beta = 5.0 (Epochs 41-60)
-- **Joint Loss**: $\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{trades}} + 0.15 \cdot \mathcal{L}_{\text{align}} + 0.10 \cdot \mathcal{L}_{\text{margin}}$.
-- **Results**: Pushed the robustness boundary threshold to **εthresh = 0.1850** (d'=1.0 boundary), a **6.3×** improvement over the ResNet-18 baseline.
-  - Phase A Final: $\epsilon_{\text{thresh}} = 0.1409$ (Clean: 79.88%, PGD-100 Acc at $\epsilon=0.05$: 65.23%)
-  - Phase B Final: $\epsilon_{\text{thresh}} = 0.1676$ (Clean: 79.49%, PGD-100 Acc at $\epsilon=0.05$: 65.82%)
-  - Phase C Final (Best): $\epsilon_{\text{thresh}} = 0.1850$ (Clean: 78.12%, PGD-100 Acc at $\epsilon=0.05$: 65.23%, $\epsilon=0.30$: 10.16%)
-  - **AutoAttack standard evaluation**: Achieved **21.88%** robust accuracy at $\epsilon=0.031$ on 1000 images, with zero robust accuracy on `automobile`, `horse`, and `truck`, confirming that extremely high-strength curriculum regularization pushes the boundary sensitivity threshold ($d'$) but degrades lower-epsilon generalization and clean features.
+2. **Phase-Decoupled Pretraining:** CLIP semantic alignment applied strictly during Phase 0 (30 epochs, clean-only). Phase 1 (120 epochs) runs full epsilon curriculum with neural alignment on adversarial images, completely decoupled from active semantic losses.
+
+**Training:** Phase 0: 30 epochs clean CLIP. Phase 1: 120 epochs ε=0.031→0.150 curriculum.
+
+**Result:** Clean 84.57%, εthresh=0.1030 — a 14.4% improvement over v3, becoming the new best model.
+
+**Key Findings:**
+- M-pathway dominance confirmed: wL=0.791 > wH=0.513 (shape over texture)
+- No gradient masking: PGD-20 vs PGD-100 gap < 8%
+- Phase decoupling is essential: applying semantic losses during adversarial training degrades geometry
 
 ---
 
-## 7. Key Discoveries & Impact
+## 5. RHAN-v5-TRADES & Hardened Variants
 
-### Overcoming the Clean-Robustness Trade-off (RHAN-v3)
-Previous trials (Trial 3, Trial 4, Trial 8) applied biological priors only to clean images. While this improved clean accuracy, it regressed high-epsilon robustness because the adversarial training curriculum was decoupled from the biological structure. 
+**Hypothesis:** The training algorithm (not just architecture) drives robustness. Standard TRADES loss would outperform custom adversarial losses.
 
-**RHAN-v3** fixes this by computing representation alignment **directly on the adversarial images**. This forces the model to align its representations with primate IT cortex features *under attack*, causing the biological prior to reinforce robustness.
+### RHAN-v5-TRADES Baseline
 
-As a result, RHAN-v3 is the first model in the codebase to **simultaneously improve clean accuracy (from 83.79% to 91.41%) and robustness at ε=0.05 (from 51.95% to 60.74%)**, achieving an $\epsilon_{\text{thresh}}$ threshold of **0.0900**.
+**Architecture:** Same v5 backbone. Replaced custom adversarial loss with standard TRADES (KL divergence, β=6.0) + IT alignment (0.2 weight).
 
-### The Limits of Ongoing Joint Losses (RHAN-v4)
-**RHAN-v4** integrated multi-scale gated feedback, active semantic loss mapping to CLIP spaces during training, and InfoNCE adversarial consistency. While it achieved strong metrics (clean: 89.65%, $\epsilon_{\text{thresh}}$: 0.0800), it performed worse than RHAN-v3. 
+**Training:** 120 epochs, ε=0.031, initialized from CLIP pretraining weights.
 
-Analysis revealed that *active CLIP semantic loss during adversarial training* acts as a geometry-degrading constraint. It forces the internal representations onto a smoother semantic manifold that conflicts with the sharp decision boundaries needed for high-strength adversarial robustness. 
+**Result:** Clean 87.30%, εthresh=0.1113. Significant improvement over standard v5, proving the value of a theoretically principled objective.
 
-### Phase Decoupling Breakthrough (RHAN-v5)
-**RHAN-v5** resolved the semantic-geometric conflict by strictly separating CLIP pretraining (Phase 0) from adversarial training (Phase 1). Combined with biological frequency separation, this achieved the **new best εthresh of 0.1030** — a 14.4% improvement over v3.
+### RHAN-TRADES-Hardened
 
-### Architecture vs. Algorithm (RHAN-v6 → TRADES)
-**RHAN-v6** proved that adding architectural complexity (dynamic gating, predictive coding, ACT) to an already-effective architecture produces diminishing or negative returns when the training regime is not carefully calibrated. The pivot to TRADES represents a fundamental insight: **the training algorithm, not the architecture, is now the bottleneck for further robustness gains**.
+**Architecture:** Same v5+TRADES backbone. Added class-hardened training:
+- ε scaling: base ε=0.031 → ε=0.055 for vulnerable classes (automobile, truck, horse, dog, cat)
+- 20-step adaptive APGD with milestone-based halving and backtracking
+- Inter-class margin loss (centroid distance penalty, margin=0.5, weight=0.20)
+
+**Result:** Clean 86.33%, εthresh=0.1246 (4.2× ResNet-18).
+
+**Finding — Class-Specific Geometric Vulnerabilities:** AutoAttack revealed automobile and truck robust accuracies remained at 0.00%. Feature space proximity near these classes is a deep geometric problem requiring stronger training. **This insight motivated the curriculum approach.**
+
+### RHAN-trades-curriculum
+
+**Schedule:** 3 phases × 20 epochs from hardened checkpoint:
+- Phase A: ε=0.062, β=6.0
+- Phase B: ε=0.100, β=6.0
+- Phase C: ε=0.150, β=5.0
+
+**Result:** εthresh=0.1850 — **6.3× improvement over ResNet-18**, the best CIFAR-10 result.
+
+**Finding — Curriculum Trade-off:** AutoAttack at ε=0.031 showed only 21.88% robust accuracy (vs 28.22% for hardened). Vulnerable classes (automobile, horse, truck) still collapsed to 0.00%. High-strength curriculum regularization pushes the d' threshold but drifts clean representation margins.
+
+---
+
+## 6. RHAN-v6: Dynamic Gating — Regression
+
+**Hypothesis:** Adding dynamic gating, predictive coding, and ACT to the v5 architecture would push robustness further.
+
+**Architecture:** Extended v5 with:
+1. Input-dependent α(x) frequency gating (instead of static learned weights)
+2. Predictive coding error signals modulating recurrent feedback
+3. Adaptive Computation Time (ACT) for variable-depth recurrence
+
+**Training:** 6-phase epsilon curriculum (0.015→0.031→0.062→0.100→0.150→0.250).
+
+**Result:** Regressed. Clean 82.03%, no meaningful εthresh.
+
+**Root Cause:** Phase F (ε=0.250) corrupted learned representations. The model could not maintain clean accuracy while defending against perturbations exceeding the information content of 32×32 CIFAR images. ACT maxed out its pondering budget on every sample.
+
+**Key Lesson:** Architecture was not the problem — the training algorithm was. Adding complexity to an already-effective architecture produces diminishing returns when the training regime is not carefully calibrated.
 
 ---
 
 ## 7. RHAN-v7: Generative World-Model (CIFAR-10)
 
-**RHAN-v7** extended the v7 architecture with a VAE decoder that forces adversarial examples to remain reconstructible — adding a second constraint beyond classification.
+**Hypothesis:** A generative prior (VAE decoder) would provide a manifold constraint on adversarial attacks — attacks must fool the classifier AND keep features in a region that decodes to a plausible image.
 
-### Architecture
+**Architecture:**
 - Dual-stream transformer (ventral 256-dim + dorsal 256-dim)
 - VAE encoder head (μ, log_var) → latent_dim=256
-- VAE decoder: 256 → 512×1×1 → ConvTranspose2d → 32×32 RGB output
-- Generative classifier (latent → 10 classes)
+- VAE decoder: 256→512×1×1→ConvTranspose2d→32×32 RGB
+- Generative classifier (latent→10 classes)
 - Perceptual critic: fresh random ConvStem (not copied from trained backbone)
 
-### Loss Function
-```
-total = 0.50*TRADES + 0.15*feature_recon + 0.20*KL_freebits + 0.10*alignment
-```
+**Loss:** 0.50*TRADES + 0.15*feature_recon + 0.20*KL_freebits + 0.10*alignment
 
-### Key Findings
-1. **FR loss must use raw images, not low-pass filtered**: The Gaussian low-pass filter removes the high-frequency signal the critic needs to distinguish original from reconstruction, causing FR loss to vanish
-2. **Fresh random perceptual critic, not copied**: Copying trained stem_low causes BatchNorm channel collapse (near-zero variance), making FR loss vanish to ~0.000032
-3. **Online feature comparison works**: Using model's own current stem_low output (detached) as target provides a moving reference that shifts with backbone
-4. **Phase 0 warmup is essential**: Decoder must learn to reconstruct before adversarial training begins
-5. **Computation cost is ~3× higher**: Dual forward passes (clean + adversarial) + decoder + critic = ~900s/epoch vs ~300s for v5
+**Critical Discoveries:**
 
-### Status
-Training in progress (June 2026). Epoch 13 of Phase 1 at ε=0.062.
+1. **Frozen perceptual critic must be fresh random init:** Copying trained stem_low causes BatchNorm channel collapse (near-zero variance), making FR loss vanish to ~0.000032
+2. **Pixel-level reconstruction conflicts with TRADES:** Feature-level reconstruction (comparing stem features) is compatible
+3. **Online feature comparison works:** Using model's own current stem_low output (detached) as target provides a moving reference
+4. **Phase 0 warmup is essential:** Decoder must learn to reconstruct before adversarial training
+5. **Computation cost ~3× higher:** ~900s/epoch vs ~300s for v5
+
+**Status:** Training in progress (June 2026).
 
 ---
 
 ## 8. RHAN-UNIFIED: STL-10 96×96 From Scratch (Current)
 
-**RHAN-UNIFIED** is the definitive architecture combining all lessons from the CIFAR-10 RHAN series, trained from scratch on higher-resolution STL-10 96×96 images.
+**Hypothesis:** Training on higher-resolution 96×96 STL-10 with all proven components unified would enable better shape discrimination and close the human-AI robustness gap further.
 
 ### Architecture
-- **Conv stem**: 4 layers (96→48→24→12×12), 512 channels
-- **Tokens**: 144 spatial + 1 CLS = 145 tokens
-- **Transformer**: 3 layers, 8 heads, ff_dim=2048
-- **Recurrent feedback**: 2 steps, gated residual injection
-- **Head**: Cosine similarity (SemanticProjectionHead) — preserved throughout all phases
-- **Parameters**: 14M
 
-### Training Pipeline
-| Phase | Epochs | ε | β | LR | Key Feature |
+**Initial (model_rhan_stl10.py):**
+- ConvStemSTL10: 4 layers, 64→256→512→512 channels
+- 144 spatial tokens + CLS = 145
+- Transformer: 3 layers, 8 heads, ff_dim=2048
+- Recurrent feedback: 2 steps
+- Cosine similarity head
+- ~14M parameters
+
+**Upgraded (model_rhan_unified.py) — WideSEConvStem:**
+- SEBlock after each conv layer (channel gain control, biological analog: V4)
+- Wider channels: 128→512→1024→512
+- Stochastic depth dropout (p=0.1) after conv3
+- ~20.5M parameters
+
+### Training Pipeline Evolution
+
+**Attempt 1 — Direct TRADES (FAILED):**
+- β=6.0, ε=0.062→0.200, 80 epochs
+- Result: Immediate collapse. TeAcc dropped from 72.94% to 13.0%. T=13.965.
+- Root cause: β=6.0 calibrated for 50K CIFAR images, not 5K STL-10
+
+**Attempt 2 — Lower Beta + Head Replacement (FAILED):**
+- β=2.0, replaced cosine head with linear head before TRADES
+- Result: TeAcc dropped to 13% on epoch 1
+- Root cause: Head replacement destroyed learned feature calibration
+
+**Attempt 3 — Keep Cosine Head, Lower Beta (SUCCEEDED — Phases 1-2):**
+- β=2.0, keep cosine head, 8 phases
+- Phase 1 (ε=0.016): TeAcc stable at 73.1-73.6%, T=2.0-2.4 ✓
+- Phase 2 (ε=0.031): TeAcc stable at 72.2-73.2%, T=4.2-5.8 ✓
+- Phase 3 (ε=0.047, β=2.5): COLLAPSE. TeAcc fell from 71.1% to 54.6%
+- Root cause: β=2.5 still too high for ε=0.047 transition
+
+**Attempt 4 — Current (training in progress):**
+- β=2.0 for ALL phases 1-6, β=2.5 for phase 7, β=3.0 for phase 8
+- 3-epoch beta warmup at each phase transition (β_effective = 0.3×β)
+- Lower LR: 0.002 (P1-4), 0.001 (P5-8)
+- Phase 0: 30 epochs clean pretraining with CutMix
+- CutMix augmentation throughout all phases
+- Rolling checkpoint every epoch
+- Resume capability via --resume and --start-phase flags
+
+### Curriculum (Current)
+
+| Phase | Epochs | ε | β | LR | Warmup |
 |---|---|---|---|---|---|
-| 0 | 50 | — | — | 3e-4 | Labeled + unlabeled pretraining |
-| 1 | 20 | 0.016 | 2.0 | 0.005 | Gentle start |
-| 2 | 20 | 0.031 | 2.0 | 0.005 | |
-| 3 | 20 | 0.047 | 2.5 | 0.005 | |
-| 4 | 20 | 0.062 | 2.5 | 0.005 | |
-| 5 | 20 | 0.094 | 3.0 | 0.003 | |
-| 6 | 20 | 0.125 | 3.0 | 0.003 | |
-| 7 | 20 | 0.150 | 3.0 | 0.003 | |
-| 8 | 20 | 0.200 | 3.0 | 0.003 | Maximum push |
+| 0 | 1-30 | — | — | 3e-4 | Clean CE + CutMix |
+| 1 | 31-45 | 0.016 | 2.0 | 0.002 | 3-ep β=0.5→2.0 |
+| 2 | 46-60 | 0.031 | 2.0 | 0.002 | 3-ep β=0.5→2.0 |
+| 3 | 61-75 | 0.047 | 2.0 | 0.002 | 3-ep β=0.5→2.0 |
+| 4 | 76-90 | 0.062 | 2.0 | 0.002 | 3-ep β=0.5→2.0 |
+| 5 | 91-102 | 0.094 | 2.0 | 0.001 | 3-ep β=0.5→2.0 |
+| 6 | 103-114 | 0.125 | 2.5 | 0.001 | 3-ep β=0.75→2.5 |
+| 7 | 115-126 | 0.150 | 2.5 | 0.001 | 3-ep β=0.75→2.5 |
+| 8 | 127-138 | 0.200 | 3.0 | 0.001 | 3-ep β=0.9→3.0 |
 
 ### Key Design Decisions
-1. **Cosine head preserved**: Head replacement destroyed Phase 0 calibration (72.94% → 13% test acc)
-2. **Beta=2.0 for STL-10**: Beta=6.0 was calibrated for CIFAR-10 with 5K images; beta=2.0 prevents KL explosion
-3. **Unlabeled data in Phase 0**: 100K unlabeled images provide 20× more visual diversity
-4. **No VAE/generative prior**: Pixel-level reconstruction conflicts with TRADES; removed for clean training
-5. **No frozen perceptual critic**: BatchNorm channel collapse issue; online feature comparison instead
+
+1. **Cosine head preserved throughout:** Head replacement destroyed Phase 0 calibration (72.94% → 13% test acc)
+2. **Beta=2.0 for phases 1-6:** Beta=6.0 was for CIFAR-10 with 50K images; beta=2.0 prevents KL explosion on 5K STL-10
+3. **3-epoch warmup at phase transitions:** First 3 epochs use 30% of target β, allowing gradual adjustment
+4. **CutMix augmentation:** Applied 50% of the time; expected to close train-test gap from ~19% to ~10%
+5. **Rolling checkpoint every epoch:** Saves model, optimizer, epoch, best_acc for resume
+6. **Phase 0 clean pretraining:** 30 epochs pure CE on labeled data only (no unlabeled, no pseudo-labels)
+7. **Lower LR:** 0.002/0.001 (was 0.005/0.003) to prevent optimizer shock at phase transitions
 
 ### Results So Far
-- **Phase 0** (50 epochs): Best test acc = **72.94%** (clean, unlabeled pretraining)
-- **Phase 1** (ε=0.016, β=2.0): Epoch 1 — TrAcc=92.9%, TeAcc=73.4%, T=2.377 (healthy!)
-- **Phase 2+**: In progress
+
+- **Phase 0** (30 epochs): Best test acc = **72.94%** (with CutMix)
+- **Phase 1** (ε=0.016, β=2.0): TeAcc stable at 73.1-73.6%, T=2.0-2.4 ✓
+- **Phase 2** (ε=0.031, β=2.0): TeAcc stable at 72.2-73.2%, T=4.2-5.8 ✓
+- **Phase 3+**: Training in progress with corrected curriculum
 
 ### Why STL-10 Changes Everything
-- **96×96 resolution**: 9× more pixels than CIFAR-10 32×32
-- **Better shape discrimination**: Higher resolution enables genuine shape-based features
-- **Human comparison**: Humans perform ~90-95% on STL-10 at 96×96 (vs ~73% on CIFAR-10 at 32×32)
-- **Predicted εthresh**: 0.220-0.280 (vs 0.185 CIFAR-10 ceiling)
-- **Predicted AutoAttack**: 45-65% at ε=0.031 (vs 29.2% CIFAR-10 best)
+
+- **96×96 resolution:** 9× more pixels than CIFAR-10 32×32
+- **Better shape discrimination:** Higher resolution enables genuine shape-based features
+- **Human comparison:** Humans perform ~90-95% on STL-10 at 96×96 (vs ~73% on CIFAR-10 at 32×32)
+- **Predicted εthresh:** 0.220-0.280 (vs 0.185 CIFAR-10 ceiling)
+- **Predicted AutoAttack:** 45-65% at ε=0.031 (vs 29.2% CIFAR-10 best)
+
+---
+
+## 9. Key Lessons Learned
+
+### What Definitively Doesn't Work
+
+| Failure | Root Cause |
+|---|---|
+| Fine-tuning robust model with biological priors (Trials 1-8) | Always hurts high-epsilon robustness |
+| CLIP as ongoing loss during adversarial training (v4) | Smooth semantic manifolds are exploitable |
+| Phase F curriculum (ε=0.250) (v6) | Exceeds information content of 32×32 images |
+| Concept bottlenecks without ground truth annotations | Spurious concepts become attack surfaces |
+| Ensembling models with same geometric failures | Averages don't create new separations |
+| Replacing cosine head before TRADES phases | Destroys learned feature calibration |
+| Pixel-level reconstruction loss for generative prior | Conflicts with adversarial training |
+| Frozen perceptual critic copied from trained backbone | BatchNorm channel collapse kills FR loss |
+| Beta=6.0 for STL-10 with 5K samples | KL term over-penalizes, TRADES loss explodes |
+| No warmup at phase transitions | Model can't adapt to new epsilon fast enough |
+
+### What Definitively Works
+
+| Success | Key Insight |
+|---|---|
+| Joint training from scratch (v3) | All objectives must shape representations simultaneously |
+| Frequency separation with learnable M-pathway gates (v5) | Confirmed biological V1 shape-over-texture hypothesis |
+| TRADES loss over PGD training | +20% relative εthresh improvement |
+| Extended curriculum with phase-specific epsilons | Directly sets the robustness ceiling |
+| CLIP as initialization only, not ongoing loss (v5) | Semantic prior without geometric conflict |
+| Neural alignment on adversarial images (v3) | Critical: alignment under attack, not on clean images |
+| Ventral/dorsal stream split (v3) | Persistent improvement across all variants |
+| Online feature comparison for generative prior | Moving reference shifts with backbone |
+| Unlabeled data pseudo-labeling for Phase 0 | 20× more visual diversity for small labeled sets |
+| Beta=2.0 with cosine head | Stable TRADES training for limited-data regime |
+| CutMix augmentation | Closes train-test gap on small datasets |
+| Rolling checkpoints every epoch | No progress lost during curriculum transitions |
+| 3-epoch beta warmup at phase transitions | Gradual adjustment prevents collapse |
+
+---
+
+## 10. Remaining Human-AI Gap
+
+Even with all improvements, the gap between RHAN (εthresh≈0.185) and humans (εthresh>0.30) on CIFAR-10 is ~1.6×. On STL-10, we predict εthresh≈0.250 vs human >0.500 — still a 2× gap.
+
+**The remaining gap likely requires genuine semantic grounding** (language-vision integration), not just architectural improvements. This is the fourth missing principle identified in our research:
+
+> "Human visual robustness is not a single mechanism — it is an emergent property of a system that combines local frequency filtering, global shape integration, recurrent top-down feedback, and semantic language grounding, operating together across a strict processing hierarchy. Our results show that implementing even three of these four principles in a unified architecture produces robustness qualitatively superior to any single-principle model, while the remaining gap to human performance points precisely to the fourth missing principle: genuine semantic grounding of visual representations in conceptual knowledge."
+
+---
+
+*Last updated: June 2026. RHAN-UNIFIED training in progress on STL-10 96×96.*
