@@ -197,6 +197,12 @@ def train_phase0(model, train_loader, test_loader, device, ckpt_dir, epochs=30):
             best_acc = test_acc
             torch.save(model.state_dict(), os.path.join(ckpt_dir, 'rhan_stl10_phase0.pth'))
 
+        torch.save({
+            'epoch': epoch,
+            'model': model.state_dict(),
+            'best_acc': best_acc,
+        }, os.path.join(ckpt_dir, 'rhan_stl10_rolling.pth'))
+
     print("Phase 0 complete. Best: {:.2f}%".format(best_acc))
     return model
 
@@ -236,7 +242,7 @@ def train_trades(model, train_loader, test_loader, device, ckpt_dir,
         if epoch == 1 or any(epoch == s for s, e, _, _, _ in CURRICULUM):
             # New phase: reset optimizer with lower LR
             if phase_num <= 4:
-                optimizer = optim.SGD(model.parameters(), lr=0.005,
+                optimizer = optim.SGD(model.parameters(), lr=0.002,
                                       momentum=0.9, weight_decay=5e-4)
             else:
                 optimizer = optim.SGD(model.parameters(), lr=0.003,
@@ -284,13 +290,13 @@ def train_trades(model, train_loader, test_loader, device, ckpt_dir,
 
             scaler.scale(l_trades).backward()
             scaler.step(optimizer)
+            scheduler.step()
             scaler.update()
 
             train_loss += l_trades.item() * B
             train_correct += logits_c.argmax(1).eq(lbls).sum().item()
             total_b += B
 
-        scheduler.step()
         model.eval()
         test_correct = 0; test_total = 0
         with torch.no_grad():
@@ -377,6 +383,71 @@ def main():
     # Phase 0: Clean pretraining (CHANGE 3)
     if start_epoch <= PHASE0_EPOCHS:
         model = train_phase0(model, train_loader, test_loader, device, ckpt_dir, epochs=PHASE0_EPOCHS)
+
+    # ── HEAD RECALIBRATION (5 epochs clean) ──────────────────────
+    # The Phase 0 cosine head has temperature=100 which makes
+    # TRADES KL divergence explode. Replace with linear head
+    # and recalibrate on clean data before TRADES begins.
+
+    if start_epoch <= PHASE0_EPOCHS:
+        print("Recalibrating head for TRADES compatibility...")
+
+        # Replace cosine head with linear head
+        model.head = nn.Sequential(
+            nn.LayerNorm(512),
+            nn.Dropout(0.1),
+            nn.Linear(512, 10)
+        ).to(device)
+        nn.init.xavier_normal_(model.head[2].weight)
+        nn.init.zeros_(model.head[2].bias)
+
+        # Freeze backbone — only train the new head
+        for name, param in model.named_parameters():
+            if 'head' not in name:
+                param.requires_grad = False
+
+        # 5 epochs of clean training to recalibrate
+        recal_optimizer = optim.Adam(model.head.parameters(), lr=1e-3)
+        recal_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            recal_optimizer, T_max=5)
+        ce = nn.CrossEntropyLoss()
+        scaler_recal = GradScaler('cuda')
+
+        for recal_epoch in range(1, 6):
+            model.train()
+            correct = 0; total = 0
+            for imgs, lbls in train_loader:
+                imgs, lbls = imgs.to(device), lbls.to(device)
+                recal_optimizer.zero_grad(set_to_none=True)
+                with autocast('cuda'):
+                    logits = model(imgs)
+                    loss = ce(logits, lbls)
+                scaler_recal.scale(loss).backward()
+                scaler_recal.step(recal_optimizer)
+                scaler_recal.update()
+                correct += logits.argmax(1).eq(lbls).sum().item()
+                total += lbls.size(0)
+            recal_scheduler.step()
+            
+            # Eval
+            model.eval()
+            test_correct = 0; test_total = 0
+            with torch.no_grad():
+                for imgs, lbls in test_loader:
+                    imgs, lbls = imgs.to(device), lbls.to(device)
+                    test_correct += model(imgs).argmax(1).eq(lbls).sum().item()
+                    test_total += lbls.size(0)
+            
+            print(f"Recal {recal_epoch}/5 | "
+                  f"TrAcc:{100.*correct/total:.1f}% "
+                  f"TeAcc:{100.*test_correct/test_total:.1f}%")
+
+        # Unfreeze backbone for TRADES
+        for param in model.parameters():
+            param.requires_grad = True
+
+        print("Head recalibrated. Starting TRADES curriculum.")
+    # ── END RECALIBRATION ─────────────────────────────────────────
 
     # Phases 1-8: TRADES curriculum
     if start_epoch <= TOTAL_EPOCHS:

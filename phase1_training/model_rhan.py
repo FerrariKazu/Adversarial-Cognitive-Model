@@ -1,7 +1,7 @@
 """
 RHAN: Recurrent Hybrid Attention Network
 =========================================
-Proposed by: Mina Antonius (FerrariKazu), 2026
+Proposed by: Mina Magdy (FerrariKazu), 2026
 Motivated by: Adversarial Cognition Divergence empirical findings
 
 THEORETICAL MOTIVATION:

@@ -12,6 +12,7 @@ from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 import clip
 from autoattack import AutoAttack
+import argparse
 
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -46,22 +47,24 @@ def generate_trades_adv(model, x_natural, step_size, epsilon, perturb_steps, cli
     x_adv = torch.max(torch.min(x_adv, clip_max), clip_min).detach()
 
     with torch.no_grad():
-        logits_clean = model(x_natural)
-        if isinstance(logits_clean, tuple):
-            logits_clean = logits_clean[0]
-        probs_clean = F.softmax(logits_clean, dim=1).detach()
+        with autocast('cuda'):
+            logits_clean = model(x_natural)
+            if isinstance(logits_clean, tuple):
+                logits_clean = logits_clean[0]
+            probs_clean = F.softmax(logits_clean.float(), dim=1).detach()
 
     for _ in range(perturb_steps):
         x_adv.requires_grad_(True)
         with torch.enable_grad():
-            logits_adv = model(x_adv)
-            if isinstance(logits_adv, tuple):
-                logits_adv = logits_adv[0]
-            loss_kl = F.kl_div(
-                F.log_softmax(logits_adv, dim=1),
-                probs_clean,
-                reduction='batchmean'
-            )
+            with autocast('cuda'):
+                logits_adv = model(x_adv)
+                if isinstance(logits_adv, tuple):
+                    logits_adv = logits_adv[0]
+                loss_kl = F.kl_div(
+                    F.log_softmax(logits_adv.float(), dim=1),
+                    probs_clean,
+                    reduction='batchmean'
+                )
         grad = torch.autograd.grad(loss_kl, [x_adv])[0]
         x_adv = x_adv.detach() + step_size * torch.sign(grad.detach())
         delta = torch.clamp(x_adv - x_natural, min=-epsilon, max=epsilon)
@@ -73,6 +76,10 @@ def generate_trades_adv(model, x_natural, step_size, epsilon, perturb_steps, cli
     return x_adv
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--resume', action='store_true')
+    args = parser.parse_args()
+
     set_seed(42)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -119,11 +126,12 @@ def main():
         text_features = clip_model.encode_text(text_tokens)
         text_features = F.normalize(text_features.float(), dim=-1)
 
-    trainloader_raw, testloader_raw = get_dataloaders(batch_size=128, num_workers=4, model_name='resnet')
-    trainloader = DataLoader(trainloader_raw.dataset, batch_size=128, shuffle=True,
-                             num_workers=4, pin_memory=True, persistent_workers=True)
-    testloader = DataLoader(testloader_raw.dataset, batch_size=128, shuffle=False,
-                            num_workers=4, pin_memory=True, persistent_workers=False)
+    batch_size = 64
+    trainloader_raw, testloader_raw = get_dataloaders(batch_size=batch_size, num_workers=0, model_name='resnet')
+    trainloader = DataLoader(trainloader_raw.dataset, batch_size=batch_size, shuffle=True,
+                             num_workers=0, pin_memory=True, persistent_workers=False, drop_last=True)
+    testloader = DataLoader(testloader_raw.dataset, batch_size=batch_size, shuffle=False,
+                            num_workers=0, pin_memory=True, persistent_workers=False)
 
     cifar_min = torch.tensor([-2.4291, -2.4181, -2.2194]).view(1, 3, 1, 1).to(device)
     cifar_max = torch.tensor([2.6400, 2.6210, 2.7615]).view(1, 3, 1, 1).to(device)
@@ -144,6 +152,20 @@ def main():
     ce_loss = nn.CrossEntropyLoss()
 
     best_acc = 0.0
+    start_epoch = 1
+    if args.resume:
+        rolling = os.path.join(ckpt_dir, 'rhan_v8_rolling.pth')
+        if os.path.exists(rolling):
+            ckpt = torch.load(rolling, map_location=device)
+            model.load_state_dict(ckpt['model'])
+            clip_projector.load_state_dict(ckpt['clip_projector'])
+            optimizer.load_state_dict(ckpt['optimizer'])
+            scheduler.load_state_dict(ckpt['scheduler'])
+            scaler.load_state_dict(ckpt['scaler'])
+            best_acc = ckpt['best_acc']
+            start_epoch = ckpt['epoch'] + 1
+            print(f"Resumed from epoch {ckpt['epoch']}, best_acc={best_acc:.2f}%")
+            torch.cuda.empty_cache()
     
     eps = 0.031
     beta = 4.0
@@ -151,52 +173,70 @@ def main():
     step_size = eps / 4
 
     print("Starting Training (40 epochs, TRADES eps=0.031)")
-    for epoch in range(1, epochs + 1):
+    for epoch in range(start_epoch, epochs + 1):
         t0 = time.time()
         model.train()
         train_loss = train_correct = total = 0
         l_trades_s = l_clip_s = l_align_s = l_freq_s = 0
 
-        for imgs, lbls in trainloader:
+        for batch_idx, (imgs, lbls) in enumerate(trainloader):
+            if batch_idx % 50 == 0:
+                print(f"  [Epoch {epoch}] Batch {batch_idx}/{len(trainloader)} running...", flush=True)
+
             imgs, lbls = imgs.to(device, non_blocking=True), lbls.to(device, non_blocking=True)
             B = imgs.size(0)
 
-            x_adv = generate_trades_adv(model, imgs, step_size, eps, steps, cifar_min, cifar_max)
+            try:
+                x_adv = generate_trades_adv(model, imgs, step_size, eps, steps, cifar_min, cifar_max)
 
-            optimizer.zero_grad(set_to_none=True)
-            with autocast('cuda'):
-                logits_c, _ = model.forward_with_features(imgs)
-                logits_a, feat_adv = model.forward_with_features(x_adv)
+                optimizer.zero_grad(set_to_none=True)
+                with autocast('cuda'):
+                    logits_c, _ = model.forward_with_features(imgs)
+                    logits_a, feat_adv = model.forward_with_features(x_adv)
 
-                l_trades = ce_loss(logits_c, lbls) + beta * F.kl_div(
-                    F.log_softmax(logits_a, dim=1),
-                    F.softmax(logits_c, dim=1),
-                    reduction='batchmean'
-                )
+                    l_trades = ce_loss(logits_c, lbls) + beta * F.kl_div(
+                        F.log_softmax(logits_a, dim=1),
+                        F.softmax(logits_c, dim=1),
+                        reduction='batchmean'
+                    )
 
-                feat_projected = F.normalize(clip_projector(feat_adv), dim=-1)
-                target_text = text_features[lbls]
-                l_clip_anchor = (1 - (feat_projected * target_text).sum(dim=1)).mean()
+                    feat_projected = F.normalize(clip_projector(feat_adv), dim=-1)
+                    target_text = text_features[lbls]
+                    l_clip_anchor = (1 - (feat_projected * target_text).sum(dim=1)).mean()
 
-                with torch.no_grad():
-                    it_feats = get_it_features(teacher, x_adv)
-                l_align = 1.0 - (F.normalize(feat_adv, dim=-1) * F.normalize(it_feats, dim=-1)).sum(dim=-1).mean()
+                    if batch_idx % 2 == 0:
+                        with torch.no_grad():
+                            with torch.amp.autocast('cuda', enabled=False):
+                                it_feats = get_it_features(teacher, x_adv.float())
+                        l_align = 1.0 - (F.normalize(feat_adv, dim=-1) * 
+                                         F.normalize(it_feats.to(feat_adv.dtype), dim=-1)
+                                        ).sum(dim=-1).mean()
+                    else:
+                        l_align = torch.tensor(0.0, device=device)
 
-                if hasattr(model, 'separate_frequencies') and hasattr(model, 'stem_low'):
-                    x_low_clean, _ = model.separate_frequencies(imgs)
-                    x_low_adv, _ = model.separate_frequencies(x_adv)
-                    f_low_clean = model.stem_low(x_low_clean)
-                    f_low_adv = model.stem_low(x_low_adv)
-                    l_freq = F.mse_loss(f_low_adv, f_low_clean.detach())
+                    if hasattr(model, 'separate_frequencies') and hasattr(model, 'stem_low'):
+                        x_low_clean, _ = model.separate_frequencies(imgs)
+                        x_low_adv, _ = model.separate_frequencies(x_adv)
+                        f_low_clean = model.stem_low(x_low_clean)
+                        f_low_adv = model.stem_low(x_low_adv)
+                        l_freq = F.mse_loss(f_low_adv, f_low_clean.detach())
+                    else:
+                        l_freq = torch.tensor(0.0, device=device)
+
+                    loss = 0.55 * l_trades + 0.20 * l_clip_anchor + 0.15 * l_align + 0.10 * l_freq
+
+                scaler.scale(loss).backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                scaler.step(optimizer)
+                scaler.update()
+            except RuntimeError as e:
+                if "out of memory" in str(e).lower():
+                    print(f"\nFATAL: CUDA Out of Memory on batch {batch_idx}!")
+                    print(f"Details: {e}")
+                    torch.cuda.empty_cache()
+                    sys.exit(1)
                 else:
-                    l_freq = torch.tensor(0.0, device=device)
-
-                loss = 0.55 * l_trades + 0.20 * l_clip_anchor + 0.15 * l_align + 0.10 * l_freq
-
-            scaler.scale(loss).backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            scaler.step(optimizer)
-            scaler.update()
+                    raise e
 
             train_loss += loss.item() * B
             train_correct += logits_c.argmax(1).eq(lbls).sum().item()
@@ -208,11 +248,14 @@ def main():
             l_freq_s += l_freq.item() * B
 
         scheduler.step()
+        print("Finished train loop, starting validation...", flush=True)
 
         model.eval()
         test_correct = test_total = 0
         with torch.no_grad():
-            for imgs, lbls in testloader:
+            for val_idx, (imgs, lbls) in enumerate(testloader):
+                if val_idx % 20 == 0:
+                    print(f"  [Epoch {epoch}] Val Batch {val_idx}/{len(testloader)}...", flush=True)
                 imgs, lbls = imgs.to(device, non_blocking=True), lbls.to(device, non_blocking=True)
                 with autocast('cuda'):
                     outputs = model(imgs)
@@ -233,9 +276,20 @@ def main():
         else:
             marker = ''
 
+        torch.save({
+            'epoch': epoch,
+            'model': model.state_dict(),
+            'clip_projector': clip_projector.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'scheduler': scheduler.state_dict(),
+            'best_acc': best_acc,
+            'scaler': scaler.state_dict(),
+        }, os.path.join(ckpt_dir, 'rhan_v8_rolling.pth'))
+
         print(f"Epoch {epoch:02d}/{epochs} | "
               f"L:{train_loss/total:.3f} | TrAcc:{100.*train_correct/total:.1f}% TeAcc:{test_acc:.1f}% | "
-              f"T:{l_trades_s/total:.3f} C:{l_clip_s/total:.3f} A:{l_align_s/total:.3f} F:{l_freq_s/total:.3f} | {time.time()-t0:.0f}s{marker}")
+              f"T:{l_trades_s/total:.3f} C:{l_clip_s/total:.3f} A:{l_align_s/total:.3f} F:{l_freq_s/total:.3f} | {time.time()-t0:.0f}s{marker}",
+              flush=True)
 
     # AutoAttack Evaluation
     print("\nStarting AutoAttack evaluation for automobile (1) and truck (9)...")
@@ -249,8 +303,12 @@ def main():
         def __init__(self, m):
             super().__init__()
             self.m = m
+            self.mean = torch.tensor([0.4914, 0.4822, 0.4465]).view(1, 3, 1, 1).to(device)
+            self.std = torch.tensor([0.2023, 0.1994, 0.2010]).view(1, 3, 1, 1).to(device)
+            
         def forward(self, x):
-            out = self.m(x)
+            x_norm = (x - self.mean) / self.std
+            out = self.m(x_norm)
             return out[0] if isinstance(out, tuple) else out
             
     wrapper = Wrapper(model)
@@ -270,8 +328,14 @@ def main():
     car_truck_imgs = car_truck_imgs[:200].to(device)
     car_truck_lbls = car_truck_lbls[:200].to(device)
     
+    # Denormalize to [0, 1] space for AutoAttack
+    mean = torch.tensor([0.4914, 0.4822, 0.4465]).view(1, 3, 1, 1).to(device)
+    std = torch.tensor([0.2023, 0.1994, 0.2010]).view(1, 3, 1, 1).to(device)
+    car_truck_imgs_01 = car_truck_imgs * std + mean
+    car_truck_imgs_01 = torch.clamp(car_truck_imgs_01, 0, 1)
+    
     adversary = AutoAttack(wrapper, norm='Linf', eps=0.031, version='custom', attacks_to_run=['apgd-ce'], device=device)
-    x_adv_eval = adversary.run_standard_evaluation(car_truck_imgs, car_truck_lbls, bs=100)
+    x_adv_eval = adversary.run_standard_evaluation(car_truck_imgs_01, car_truck_lbls, bs=100)
     with torch.no_grad():
         outputs = wrapper(x_adv_eval)
         preds = outputs.max(1)[1]
