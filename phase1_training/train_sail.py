@@ -93,10 +93,14 @@ def generate_pgd_adversarial(model, x, epsilon, alpha, steps,
                 logits = model(x_adv)
                 if isinstance(logits, tuple):
                     logits = logits[0]
-                # Use CE loss for adversarial generation
-                # (targeting maximum confusion regardless of labels)
-                # For SAIL: we just want diverse, strong perturbations
-                loss = -logits.max(dim=1)[0].mean()  # maximize top logit
+                # Get pseudo-label from clean image prediction (no labels needed)
+                # Attack toward MAXIMUM LOSS on the pseudo-label
+                # = make the model wrong on whatever it currently predicts
+                pseudo_labels = model(x.detach()).detach()
+                if isinstance(pseudo_labels, tuple):
+                    pseudo_labels = pseudo_labels[0]
+                pseudo_labels = pseudo_labels.argmax(dim=1)
+                loss = F.cross_entropy(logits, pseudo_labels)
 
         grad = torch.autograd.grad(loss, x_adv)[0]
         x_adv = x_adv.detach() + alpha * grad.sign()
@@ -147,33 +151,56 @@ def generate_trades_adversarial(model, x, epsilon, alpha, steps,
 # SAIL LOSS: Self-Supervised Adversarial Invariance
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def sail_infonce_loss(z_clean: torch.Tensor, z_adv: torch.Tensor,
-                      temperature: float = 0.07) -> torch.Tensor:
+def sail_loss(z_clean, z_adv, mu=25.0, nu=25.0, lam=1.0):
     """
-    InfoNCE loss for adversarial invariance.
-
-    z_clean: (B, D) normalized clean representations
-    z_adv:   (B, D) normalized adversarial representations
-
-    Positive pairs: (z_clean[i], z_adv[i]) — same image, clean vs adversarial
-    Negative pairs: (z_clean[i], z_adv[j]) for i≠j — different images
-
-    This directly trains: encoder(x_adv) ≈ encoder(x_clean)
-    which is the representation-level invariance humans have.
+    VICReg-style adversarial invariance loss.
+    
+    Three terms prevent collapse while enforcing invariance:
+    
+    1. INVARIANCE (lam): z_clean and z_adv should be identical
+       This is the SAIL objective — adversarial invariance
+    
+    2. VARIANCE (mu): each dimension's std should be near 1
+       Prevents representation collapse to a single point
+       
+    3. COVARIANCE (nu): features should be decorrelated
+       Prevents informational collapse (all features encoding same thing)
     """
     B = z_clean.shape[0]
-
-    # Build similarity matrix: clean vs all adversarial
-    # Shape: (B, B) where [i, j] = similarity(clean_i, adv_j)
-    sim = torch.mm(z_clean, z_adv.T) / temperature  # (B, B)
-
-    # Diagonal is the positive pair (same image)
-    labels = torch.arange(B, device=z_clean.device)
-
-    # Cross-entropy: maximize diagonal, minimize off-diagonal
-    loss = F.cross_entropy(sim, labels)
-
-    return loss
+    D = z_clean.shape[1]
+    
+    # 1. Invariance term: MSE between clean and adversarial
+    inv_loss = F.mse_loss(z_clean, z_adv)
+    
+    # Calculate means over batch
+    z_clean_mu = z_clean.mean(dim=0)
+    z_adv_mu = z_adv.mean(dim=0)
+    
+    # Center representations
+    z_clean_c = z_clean - z_clean_mu
+    z_adv_c = z_adv - z_adv_mu
+    
+    # 2. Variance term: hinge loss on std dev = 1
+    std_clean = torch.sqrt(z_clean_c.var(dim=0) + 1e-04)
+    std_adv = torch.sqrt(z_adv_c.var(dim=0) + 1e-04)
+    
+    var_loss = torch.mean(F.relu(1 - std_clean)) + torch.mean(F.relu(1 - std_adv))
+    
+    # 3. Covariance term: off-diagonal elements of cov matrix should be 0
+    cov_clean = (z_clean_c.T @ z_clean_c) / (B - 1)
+    cov_adv = (z_adv_c.T @ z_adv_c) / (B - 1)
+    
+    # Remove diagonal
+    mask = ~torch.eye(D, dtype=bool, device=z_clean.device)
+    cov_loss = (cov_clean[mask].pow(2).sum() / D) + (cov_adv[mask].pow(2).sum() / D)
+    
+    # Combine
+    loss = lam * inv_loss + mu * var_loss + nu * cov_loss
+    
+    # Also return std for monitoring collapse
+    mean_std = (std_clean.mean().item() + std_adv.mean().item()) / 2.0
+    
+    return loss, mean_std
 
 
 def frequency_invariance_loss(model: RHANv9, x_clean: torch.Tensor,
@@ -200,7 +227,8 @@ def concept_supervision_loss(model: RHANv9, x: torch.Tensor,
     _, concepts = model.forward_with_concepts(x)
     # Ground truth concepts for each sample
     target_concepts = model.concept_labels[labels]  # (B, n_concepts)
-    return F.binary_cross_entropy(concepts, target_concepts)
+    with autocast('cuda', enabled=False):
+        return F.binary_cross_entropy(concepts.float(), target_concepts.float())
 
 
 def get_it_features(teacher: nn.Module, x: torch.Tensor) -> torch.Tensor:
@@ -214,6 +242,47 @@ def get_it_features(teacher: nn.Module, x: torch.Tensor) -> torch.Tensor:
         out = teacher.model.module.decoder.avgpool(out)
         out = teacher.model.module.decoder.flatten(out)
     return out
+
+
+def generate_pgd_representation(model, x, epsilon, alpha, steps,
+                                clip_min, clip_max, random_start=True):
+    """
+    Representation-based PGD for unsupervised adversarial training.
+    Uses NORMALIZED representations for the attack so the adversary 
+    focuses on feature directions rather than blowing up magnitudes.
+    """
+    x = x.detach()
+    
+    with torch.no_grad():
+        with autocast('cuda'):
+            # Get target representation (normalized)
+            z_clean = model.forward_contrastive(x, normalize=True).detach()
+
+    if random_start:
+        delta = torch.empty_like(x).uniform_(-epsilon, epsilon)
+        x_adv = (x + delta).detach()
+    else:
+        x_adv = x.clone().detach()
+
+    x_adv = torch.max(torch.min(x_adv, clip_max), clip_min)
+
+    model.eval()
+    for _ in range(steps):
+        x_adv.requires_grad_(True)
+        with torch.enable_grad():
+            with autocast('cuda'):
+                # Attack normalized representations
+                z_adv = model.forward_contrastive(x_adv, normalize=True)
+                # Maximize MSE distance between normalized representations (equivalent to minimizing cosine sim)
+                loss = -F.mse_loss(z_adv, z_clean)
+
+        grad = torch.autograd.grad(loss, x_adv)[0]
+        x_adv = x_adv.detach() + alpha * grad.sign()
+        delta = torch.clamp(x_adv - x, -epsilon, epsilon)
+        x_adv = torch.clamp(x + delta, clip_min, clip_max).detach()
+
+    model.train()
+    return x_adv.detach()
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -249,28 +318,30 @@ def run_sail_phase(model, trainloader, testloader, optimizer, scheduler,
         total_loss = n_total = 0
         l_sail_sum = l_freq_sum = 0
 
+        epoch_stds = []
         for batch_idx, (imgs, _) in enumerate(trainloader):
             # NOTE: No labels used in SAIL phase
             imgs = imgs.to(device, non_blocking=True)
 
-            # Generate adversarial examples
-            x_adv = generate_pgd_adversarial(
+            # Generate representation-based adversarial examples
+            x_adv = generate_pgd_representation(
                 model, imgs, epsilon, alpha, steps, cifar_min, cifar_max
             )
 
             optimizer.zero_grad(set_to_none=True)
             with autocast('cuda'):
-                # Contrastive representations
-                z_clean = model.forward_contrastive(imgs)   # (B, 128)
-                z_adv = model.forward_contrastive(x_adv)    # (B, 128)
+                # Contrastive representations (UNNORMALIZED for VICReg)
+                z_clean = model.forward_contrastive(imgs, normalize=False)   # (B, 128)
+                z_adv = model.forward_contrastive(x_adv, normalize=False)    # (B, 128)
 
-                # SAIL InfoNCE loss
-                l_sail = sail_infonce_loss(z_clean, z_adv, temperature=0.07)
+                # SAIL VICReg loss
+                l_sail, mean_std = sail_loss(z_clean, z_adv, mu=25.0, nu=25.0, lam=1.0)
+                epoch_stds.append(mean_std)
 
                 # Frequency invariance loss
                 l_freq = frequency_invariance_loss(model, imgs, x_adv)
 
-                loss = 0.70 * l_sail + 0.30 * l_freq
+                loss = l_sail + 0.30 * l_freq
 
             scaler.scale(loss).backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -312,13 +383,20 @@ def run_sail_phase(model, trainloader, testloader, optimizer, scheduler,
             'scaler': scaler.state_dict(), 'best_acc': best_acc,
         }, rolling_path)
 
+        avg_epoch_std = sum(epoch_stds) / len(epoch_stds)
         print(
             f"SAIL Epoch {epoch:02d}/{epochs} | "
             f"Loss: {total_loss/n_total:.4f} | "
             f"SAIL: {l_sail_sum/n_total:.4f} | "
             f"Freq: {l_freq_sum/n_total:.4f} | "
+            f"StdDev: {avg_epoch_std:.4f} | "
             f"CleanAcc: {acc:.1f}% | {time.time()-t0:.0f}s{marker}"
         )
+        
+        # Collapse detection
+        if epoch >= 5 and avg_epoch_std < 0.1:
+            print(f"\n[!] ERROR: Representation collapse detected (mean std = {avg_epoch_std:.4f}). Stopping training.")
+            raise RuntimeError("SAIL Representation Collapse")
 
     print(f"\nSAIL pretraining complete. Best clean acc: {best_acc:.2f}%")
     print(f"Checkpoint: {sail_output_path}")
@@ -333,7 +411,8 @@ def run_trades_phase(model, teacher, text_features, clip_projector,
                      trainloader, testloader, optimizer, scheduler,
                      scaler, device, cifar_min, cifar_max,
                      epochs, ckpt_dir, beta=4.0, epsilon=0.031,
-                     alpha=0.008, steps=10):
+                     alpha=0.008, steps=10,
+                     start_epoch=1, init_best_acc=0.0):
     """
     TRADES fine-tuning starting from SAIL-pretrained invariant representations.
 
@@ -349,17 +428,20 @@ def run_trades_phase(model, teacher, text_features, clip_projector,
     """
     print("=" * 70)
     print("PHASE 2: TRADES FINE-TUNING ON SAIL-INVARIANT REPRESENTATIONS")
-    print(f"Beta: {beta}, Epsilon: {epsilon}, Steps: {steps}")
+    print(f"Beta: {beta} (with warmup to 2.0 for first 20 epochs), Epsilon: {epsilon}, Steps: {steps}")
+    if start_epoch > 1:
+        print(f"Resuming from epoch {start_epoch}/{epochs} (best acc so far: {init_best_acc:.2f}%)")
     print("=" * 70)
 
-    best_acc = 0.0
+    best_acc = init_best_acc
     output_path = os.path.join(ckpt_dir, 'rhan_v9_best.pth')
     rolling_path = os.path.join(ckpt_dir, 'rhan_v9_rolling.pth')
     ce_loss = nn.CrossEntropyLoss()
 
-    for epoch in range(1, epochs + 1):
+    for epoch in range(start_epoch, epochs + 1):
         t0 = time.time()
         model.train()
+        effective_beta = 2.0 if epoch <= 20 else beta
 
         total_loss = n_total = correct = 0
         sums = {k: 0 for k in ['trades', 'clip', 'align', 'freq', 'concept']}
@@ -378,7 +460,7 @@ def run_trades_phase(model, teacher, text_features, clip_projector,
                 logits_a, feat_a = model.forward_with_features(x_adv)
 
                 # TRADES loss
-                l_trades = ce_loss(logits_c, lbls) + beta * F.kl_div(
+                l_trades = ce_loss(logits_c, lbls) + effective_beta * F.kl_div(
                     F.log_softmax(logits_a, dim=1),
                     F.softmax(logits_c.detach(), dim=1),
                     reduction='batchmean'
@@ -389,7 +471,7 @@ def run_trades_phase(model, teacher, text_features, clip_projector,
                 l_clip = (1 - (feat_proj * text_features[lbls]).sum(dim=1)).mean()
 
                 # CORnet-S alignment (every other batch)
-                if batch_idx % 2 == 0:
+                if teacher is not None and batch_idx % 2 == 0:
                     with torch.no_grad():
                         it_feats = get_it_features(teacher, x_adv.float())
                     l_align = 1.0 - (
@@ -477,10 +559,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--phase', choices=['sail', 'trades', 'both'],
                         default='both', help='Training phase to run')
-    parser.add_argument('--sail-epochs', type=int, default=50)
+    parser.add_argument('--sail-epochs', type=int, default=30)
     parser.add_argument('--trades-epochs', type=int, default=60)
     parser.add_argument('--start', type=str, default=None,
-                        help='Starting checkpoint (default: rhan_v8_best.pth)')
+                        help='Starting checkpoint (default: rhan_trades_phase_c_final.pth)')
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--seed', type=int, default=42)
     args = parser.parse_args()
@@ -496,22 +578,40 @@ def main():
     # ── MODEL ──────────────────────────────────────────────────────────────
     model = RHANv9(head_type='cosine').to(device)
 
-    start_ckpt = args.start or os.path.join(ckpt_dir, 'rhan_v8_best.pth')
-    if os.path.exists(start_ckpt):
-        state = torch.load(start_ckpt, map_location=device, weights_only=False)
-        if isinstance(state, dict) and 'model' in state:
-            state = state['model']
-        missing, unexpected = model.load_state_dict(state, strict=False)
-        print(f"Loaded checkpoint: {start_ckpt}")
-        if missing:
-            print(f"  New parameters (random init): {missing}")
+    rolling_ckpt_path = os.path.join(ckpt_dir, 'rhan_v9_rolling.pth')
+    will_resume = args.resume and os.path.exists(rolling_ckpt_path)
+
+    if not will_resume:
+        start_ckpt = args.start or os.path.join(ckpt_dir, 'rhan_trades_phase_c_final.pth')
+        if os.path.exists(start_ckpt):
+            state = torch.load(start_ckpt, map_location=device, weights_only=False)
+            if isinstance(state, dict) and 'model' in state:
+                state = state['model']
+            
+            # Filter out shape mismatches (e.g. from v8's 15 concepts vs v9's 18 concepts)
+            model_state = model.state_dict()
+            filtered_state = {}
+            for k, v in state.items():
+                if k in model_state:
+                    if v.shape != model_state[k].shape:
+                        print(f"Skipping parameter {k} due to shape mismatch: {v.shape} vs {model_state[k].shape}")
+                        continue
+                filtered_state[k] = v
+            
+            missing, unexpected = model.load_state_dict(filtered_state, strict=False)
+            print(f"Loaded checkpoint: {start_ckpt}")
+            if missing:
+                print(f"  New parameters (random init): {missing}")
+        else:
+            print(f"WARNING: Start checkpoint not found at {start_ckpt}")
+            print("Training from scratch — results will be worse")
     else:
-        print(f"WARNING: Start checkpoint not found at {start_ckpt}")
-        print("Training from scratch — results will be worse")
+        print("Resume requested and rolling checkpoint found. Skipping initial start checkpoint loading.")
+
 
     # ── TEACHER (CORnet-S) ─────────────────────────────────────────────────
     teacher = CIFARCORnet().to(device)
-    teacher_ckpt = os.path.join(ckpt_dir, 'phase1_training/checkpoints/cornets_best.pth')
+    teacher_ckpt = os.path.join(script_dir, 'checkpoints', 'cornets_best.pth')
     if os.path.exists(teacher_ckpt):
         teacher.load_state_dict(
             torch.load(teacher_ckpt, map_location=device, weights_only=False)
@@ -556,7 +656,7 @@ def main():
     ).to(device)
 
     # ── DATA ───────────────────────────────────────────────────────────────
-    batch_size = 64
+    batch_size = 128
     _, testloader_raw = get_dataloaders(batch_size=batch_size, num_workers=0,
                                          model_name='resnet')
     trainloader_raw, _ = get_dataloaders(batch_size=batch_size, num_workers=0,
@@ -573,8 +673,7 @@ def main():
 
     # ── PHASE 1: SAIL ──────────────────────────────────────────────────────
     if args.phase in ('sail', 'both'):
-        optimizer = optim.SGD(model.parameters(), lr=0.01,
-                              momentum=0.9, weight_decay=5e-4)
+        optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=args.sail_epochs, eta_min=1e-5
         )
@@ -605,15 +704,32 @@ def main():
     if args.phase in ('trades', 'both'):
         optimizer = optim.SGD(
             list(model.parameters()) + list(clip_projector.parameters()),
-            lr=0.002, momentum=0.9, weight_decay=5e-4
+            lr=0.006, momentum=0.9, weight_decay=5e-4
         )
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=args.trades_epochs, eta_min=1e-5
         )
         scaler = GradScaler('cuda')
 
-        if args.phase == 'trades':
-            # Load SAIL checkpoint if only running TRADES
+        start_epoch = 1
+        init_best_acc = 0.0
+
+        rolling_ckpt = os.path.join(ckpt_dir, 'rhan_v9_rolling.pth')
+
+        if args.resume and os.path.exists(rolling_ckpt):
+            # Full resume: restore weights, optimizer, scheduler, scaler, epoch
+            ck = torch.load(rolling_ckpt, map_location=device, weights_only=False)
+            model.load_state_dict(ck['model'])
+            if 'clip_projector' in ck:
+                clip_projector.load_state_dict(ck['clip_projector'])
+            optimizer.load_state_dict(ck['optimizer'])
+            scheduler.load_state_dict(ck['scheduler'])
+            scaler.load_state_dict(ck['scaler'])
+            start_epoch = ck['epoch'] + 1
+            init_best_acc = ck.get('best_acc', 0.0)
+            print(f"Resumed from rolling checkpoint (epoch {ck['epoch']}, best acc {init_best_acc:.2f}%)")
+        elif args.phase == 'trades':
+            # Fresh start: load SAIL weights (or user-specified --start)
             sail_ckpt = os.path.join(ckpt_dir, 'rhan_v9_sail.pth')
             if os.path.exists(sail_ckpt):
                 model.load_state_dict(
@@ -640,6 +756,8 @@ def main():
             epsilon=0.031,
             alpha=0.031 / 4,
             steps=10,
+            start_epoch=start_epoch,
+            init_best_acc=init_best_acc,
         )
 
     print("\nSAIL training pipeline complete.")

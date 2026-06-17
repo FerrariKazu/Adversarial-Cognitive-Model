@@ -8,16 +8,26 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(os.path.join(__file__, '..'))
 
 from model_rhan_v5 import RHANv5
 from dataset import get_dataloaders
+import argparse
 from autoattack import AutoAttack
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, required=True, help='Path to model checkpoint')
+    args = parser.parse_args()
+
     device = torch.device('cuda')
     print(f"Device: {device}", flush=True)
 
     # Load model
-    ckpt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'checkpoints', 'rhan_adv_trades_best.pth')
+    ckpt_path = os.path.abspath(args.model)
     ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
     model = RHANv5(head_type='cosine').to(device)
+    
+    # Filter state dict if it's nested
+    if isinstance(ckpt, dict) and 'model' in ckpt:
+        ckpt = ckpt['model']
+        
     model.load_state_dict(ckpt)
     model.eval()
     print(f"Loaded: {ckpt_path}", flush=True)
