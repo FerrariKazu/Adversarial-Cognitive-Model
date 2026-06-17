@@ -90,7 +90,7 @@ class PredictiveCodingLayer(nn.Module):
         )
 
         # Error modulator: scale the correction based on local uncertainty
-        self.error_scale = nn.Parameter(torch.ones(1))
+        self.error_scale = nn.Parameter(torch.zeros(1))
 
     def forward(self, local_features: torch.Tensor,
                 global_context: torch.Tensor) -> tuple:
@@ -184,8 +184,11 @@ class ContrastiveProjectionHead(nn.Module):
             nn.Linear(embed_dim, proj_dim),
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.normalize(self.projector(x), dim=-1)
+    def forward(self, x: torch.Tensor, normalize: bool = True) -> torch.Tensor:
+        out = self.projector(x)
+        if normalize:
+            return F.normalize(out, dim=-1)
+        return out
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -211,7 +214,7 @@ class RHANv9(nn.Module):
     def __init__(self, num_classes: int = 10, embed_dim: int = 512,
                  num_heads: int = 8, ff_dim: int = 2048,
                  dropout: float = 0.1, num_transformer_layers: int = 3,
-                 max_recurrence: int = 4, head_type: str = 'cosine'):
+                 max_recurrence: int = 2, head_type: str = 'cosine'):
         super().__init__()
         self.embed_dim = embed_dim
         self.head_type = head_type
@@ -412,10 +415,10 @@ class RHANv9(nn.Module):
         logits = self.classifier(cls)
         return logits, cls
 
-    def forward_contrastive(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_contrastive(self, x: torch.Tensor, normalize: bool = True) -> torch.Tensor:
         """Used ONLY during SAIL pretraining phase."""
         cls, _ = self.get_feature_vector(x)
-        return self.contrastive_head(cls)
+        return self.contrastive_head(cls, normalize=normalize)
 
     def forward_with_concepts(self, x: torch.Tensor) -> tuple:
         cls, _ = self.get_feature_vector(x)
