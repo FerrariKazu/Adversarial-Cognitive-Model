@@ -655,7 +655,7 @@ def main():
     model = RHANUnifiedSTL10().to(device)
 
     if args.phase == 'tdv':
-        unlabeled_loader = get_stl10_unlabeled_dataloader(args.data_root, batch_size=256)
+        unlabeled_loader = get_stl10_unlabeled_dataloader(args.data_root, batch_size=args.batch_size)
         run_phase_tdv(model, unlabeled_loader, device, ckpt_dir, resume=args.resume)
     elif args.phase == 'label':
         trainloader, testloader, _, _ = get_stl10_dataloaders(args.data_root, batch_size=args.batch_size)
