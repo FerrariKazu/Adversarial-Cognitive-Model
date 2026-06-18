@@ -12,6 +12,8 @@
 | Human | 74.15% | >0.30 | >0.30 | ✅ Complete |
 | **RHAN-UNIFIED** ★ | **~73%** | **TBD** | **TBD** | 🔄 Training |
 | **RHAN-trades-curriculum** ★ | **78.12%** | **ε≈0.113** | **ε≈0.1850** | ✅ Complete |
+| **RHAN-Self-Alignment** ⚠️ | **77.10%** | — | — | ⚠️ Obfuscated (AA: 21.60%) |
+| **RHAN-Feature-Scatter** ⚠️ | **77.10%** | — | — | ⚠️ Obfuscated (AA: 22.30%) |
 | **RHAN-TRADES-Hardened** | **86.33%** | **ε≈0.086** | **ε≈0.1246** | ✅ Complete |
 | **RHAN-v5-TRADES** | **87.30%** | **ε≈0.078** | **ε≈0.1113** | ✅ Complete |
 | **RHAN-v5 (Freq-Separated)** | **84.57%** | **ε≈0.071** | **ε≈0.1030** | ✅ Complete |
@@ -28,9 +30,9 @@
 | RHAN-v6 (Dynamic Gating) | 82.03% | — | — | ⚠️ Regressed |
 | CLIP ViT-B/32 | — | — | — | 🔄 Pending |
 
-**Headline:** All standard feedforward AI models collapse before ε=0.03. The curriculum-trained TRADES model, `RHAN-trades-curriculum`, extends visual robustness to **ε≈0.1850** (a **6.3× improvement** over ResNet-18), while `RHAN-TRADES-Hardened` reaches **ε≈0.1246** and `RHAN-v5-TRADES` reaches **ε≈0.1113**, significantly narrowing the gap to Human visual cognition.
+**Headline:** All standard feedforward AI models collapse before ε=0.03. The curriculum-trained TRADES model, `RHAN-trades-curriculum`, extends visual robustness to **ε≈0.1850** (a **6.3× improvement** over ResNet-18). However, direct feature-space alignment constraints (Self-Alignment, Feature Scatter) failed under AutoAttack standard ($\epsilon = 0.031$) due to the **Gradient Masking Theorem**, confirming that visual category overlap at 32×32 CIFAR-10 is dataset-intrinsic and irreducible.
 
-**RHAN-UNIFIED (current):** Training on STL-10 96×96 from scratch with unified architecture. Phase 0 achieved 72.94% clean accuracy with labeled+unlabeled pretraining. Phases 1-8 TRADES curriculum in progress with linear head, beta=2.0-3.0, gentle epsilon schedule.
+**Next Phase: STL-10 + TDV (Temporal Difference in Vision):** Pretraining on UCF-101 using TDV ($z_t + m_t = z_{t+1}$) is planned to enforce temporal diversity and prevent representation collapse. This will be followed by a TRADES curriculum at 96×96 to narrow the automobile/truck gap through spatial resolution and causal temporal structure.
 
 ---
 
@@ -100,10 +102,21 @@ RHAN-clean → RHAN-adv → Trial branches (Split, PredCoding, Aligned)
              ACT Pondering)         RHAN-TRADES-Hardened ← εthresh=0.1246
               ↓ regressed              ↓
                                     RHAN-trades-curriculum ← εthresh=0.1850 (BEST CIFAR)
-                                                              ↓
-                                    RHAN-v7 (Generative World-Model, CIFAR)
-                                                              ↓
-                                    RHAN-UNIFIED (STL-10 96×96, from scratch) ← CURRENT
+                                               │
+                                  ┌────────────┴────────────┐
+                        [Concept Bottlenecks]      [Feature Invariance]
+                           (RHAN-CBM v1-v2)     (Self-Align / Feat Scatter)
+                                  │                         │
+                        (Irreducible at 32x32)     (Gradient Masking Theorem)
+                                  └────────────┬────────────┘
+                                               ▼
+                                       [CIFAR-10 CLOSED]
+                                               │
+                                               ▼
+                                    [TDV (Temporal Difference)]
+                                               │
+                                               ▼
+                                        RHAN + TDV (STL-10) ← FUTURE ROADMAP
 ```
 
 ## Model Spectrum
@@ -125,8 +138,12 @@ RHAN-clean → RHAN-adv → Trial branches (Split, PredCoding, Aligned)
 | **RHAN-v5-TRADES** | **Standard TRADES adversarial training** | **Mina** | **phase/rhan-trades** |
 | **RHAN-TRADES-Hardened** | **Class-hardened TRADES with margin loss** | **Mina** | **phase/rhan-trades** |
 | **RHAN-trades-curriculum** | **TRADES 3-Phase Extended Curriculum** | **Mina** | **phase/rhan-trades-curriculum** |
+| **RHAN-Self-Alignment** | **Feature-space cosine distance fine-tuning** | **Mina** | **phase/rhan-self-alignment** |
+| **RHAN-Feature-Scatter** | **Feature-space scatter mapping with corrected bounds** | **Mina** | **phase/rhan-feature-scatter** |
+| **RHAN-CBM v1-v2** | **Concept Bottleneck Models with straight-through estimator** | **Mina** | **phase/rhan-cbm** |
 | **RHAN-v7** | **Generative World-Model (VAE + TRADES)** | **Mina** | **dev** |
 | **RHAN-UNIFIED** | **Unified architecture, STL-10 96×96, from scratch** | **Mina** | **dev** |
+| **RHAN-TDV (Future)** | **Temporal Difference video-pretrained backbone** | **Mina** | **phase/rhan-tdv** |
 | Human | Biological vision (n=18) | All | — |
 
 ## Team
