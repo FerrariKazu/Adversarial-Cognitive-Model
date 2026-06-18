@@ -36,15 +36,18 @@
 \contentsline {subsection}{\numberline {5.4}The Visual Feedback Restoration Gap}{23}{subsection.5.4}%
 \contentsline {subsection}{\numberline {5.5}SAIL vs. TRADES: Enforcing Representation Invariance}{24}{subsection.5.5}%
 \contentsline {subsection}{\numberline {5.6}What Would It Take?}{24}{subsection.5.6}%
-\contentsline {section}{\numberline {6}Limitations}{25}{section.6}%
-\contentsline {section}{\numberline {7}Future Work}{25}{section.7}%
-\contentsline {section}{\numberline {8}Conclusion}{26}{section.8}%
-\contentsline {section}{\numberline {A}Figure Index}{29}{appendix.A}%
-\contentsline {subsection}{\numberline {A.1}Primary Psychophysical and Performance Curves}{32}{subsection.A.1}%
-\contentsline {subsection}{\numberline {A.2}Representation and Latent Space Topology}{33}{subsection.A.2}%
-\contentsline {subsection}{\numberline {A.3}Model-Specific Confusion Matrices}{35}{subsection.A.3}%
-\contentsline {subsection}{\numberline {A.4}Recurrent Feedback Gating Maps}{35}{subsection.A.4}%
-\contentsline {subsection}{\numberline {A.5}Visual Psychophysics Stimuli and Grad-CAM Explanations}{36}{subsection.A.5}%
-\contentsline {subsection}{\numberline {A.6}STL-10 Evaluation Figures}{37}{subsection.A.6}%
-\contentsline {section}{\numberline {B}The New Frontier: Visualizing the Gap}{40}{appendix.B}%
-\contentsline {section}{\numberline {C}Implementation Details}{50}{appendix.C}%
+\contentsline {section}{\numberline {6}Probing the Remaining Gap: Seven Interventions}{25}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Empirical Verification of the Gradient Masking Theorem}{26}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}The Irreducibility of Category Overlap on $32\times 32$ CIFAR-10}{27}{subsection.6.2}%
+\contentsline {section}{\numberline {7}Limitations}{27}{section.7}%
+\contentsline {section}{\numberline {8}Future Work}{28}{section.8}%
+\contentsline {section}{\numberline {9}Conclusion}{29}{section.9}%
+\contentsline {section}{\numberline {A}Figure Index}{32}{appendix.A}%
+\contentsline {subsection}{\numberline {A.1}Primary Psychophysical and Performance Curves}{35}{subsection.A.1}%
+\contentsline {subsection}{\numberline {A.2}Representation and Latent Space Topology}{36}{subsection.A.2}%
+\contentsline {subsection}{\numberline {A.3}Model-Specific Confusion Matrices}{38}{subsection.A.3}%
+\contentsline {subsection}{\numberline {A.4}Recurrent Feedback Gating Maps}{38}{subsection.A.4}%
+\contentsline {subsection}{\numberline {A.5}Visual Psychophysics Stimuli and Grad-CAM Explanations}{39}{subsection.A.5}%
+\contentsline {subsection}{\numberline {A.6}STL-10 Evaluation Figures}{40}{subsection.A.6}%
+\contentsline {section}{\numberline {B}The New Frontier: Visualizing the Gap}{43}{appendix.B}%
+\contentsline {section}{\numberline {C}Implementation Details}{53}{appendix.C}%
