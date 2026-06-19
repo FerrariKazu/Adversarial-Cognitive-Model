@@ -133,12 +133,11 @@ def tdv_loss(model, x_t, x_t1):
     z_t1 = model.tdv_head(model.get_feature_vector(x_t1))  # (B, 256)
     z_t1_detach = z_t1.detach()
 
-    # Encode motion between frames
-    m_t = model.motion_encoder(x_t, x_t1)  # (B, 512)
-    m_t_proj = model.tdv_head(m_t)         # (B, 256)
+    # Encode motion between frames (outputs B, 256 directly)
+    m_proj = model.motion_encoder(x_t, x_t1)  # (B, 256)
 
-    # Prediction prediction: z_t + m_t ≈ z_t1
-    z_t1_pred = z_t + m_t_proj
+    # Prediction prediction: z_t + m_proj ≈ z_t1
+    z_t1_pred = z_t + m_proj
 
     # 1. Prediction discrepancy
     l_pred = F.mse_loss(z_t1_pred, z_t1_detach)
@@ -155,7 +154,8 @@ def tdv_loss(model, x_t, x_t1):
     l_cov = (cov**2).sum() - (cov.diagonal()**2).sum()
     l_cov = l_cov / D
 
-    loss = l_pred + 25.0 * l_var + 25.0 * l_cov
+    # Correct VICReg scaling: invariance=25, variance=25, covariance=1
+    loss = 25.0 * l_pred + 25.0 * l_var + 1.0 * l_cov
     return loss, l_pred, l_var, l_cov
 
 def pgd_attack(model, x_t, x_t1, eps=0.031, steps=3):
@@ -176,9 +176,8 @@ def pgd_attack(model, x_t, x_t1, eps=0.031, steps=3):
         with torch.enable_grad():
             with autocast('cuda'):
                 z_t_adv = model.tdv_head(model.get_feature_vector(x_adv))
-                m_t = model.motion_encoder(x_adv, x_t1)
-                m_t_proj = model.tdv_head(m_t)
-                z_t1_pred = z_t_adv + m_t_proj
+                m_proj = model.motion_encoder(x_adv, x_t1)
+                z_t1_pred = z_t_adv + m_proj
                 loss = F.mse_loss(z_t1_pred, z_t1)
         grad = torch.autograd.grad(loss, x_adv)[0]
         x_adv = x_adv.detach() + (eps / steps) * grad.sign()
