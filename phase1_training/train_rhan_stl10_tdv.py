@@ -250,7 +250,9 @@ def run_phase_tdv(model, unlabeled_loader, device, ckpt_dir, resume=False):
         total_loss = total_pred = total_var = total_cov = n_total = 0
         feature_std_val = 0.0
 
-        for imgs_t, imgs_t1 in unlabeled_loader:
+        for batch_idx, (imgs_t, imgs_t1) in enumerate(unlabeled_loader):
+            if batch_idx >= 150:
+                break
             imgs_t = imgs_t.to(device, non_blocking=True)
             imgs_t1 = imgs_t1.to(device, non_blocking=True)
 
