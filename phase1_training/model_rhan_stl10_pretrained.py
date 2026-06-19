@@ -61,7 +61,7 @@ class TDVProjectionHead(nn.Module):
         super().__init__()
         self.projector = nn.Sequential(
             nn.Linear(embed_dim, proj_dim),
-            nn.BatchNorm1d(proj_dim),
+            nn.LayerNorm(proj_dim),
             nn.ReLU(inplace=True),
             nn.Linear(proj_dim, proj_dim),
         )

@@ -128,9 +128,13 @@ def get_stl10_unlabeled_dataloader(data_root='./data/stl10', batch_size=256):
 
 def tdv_loss(model, x_t, x_t1):
     """Temporal Difference Vision self-supervised prediction loss."""
-    # Encode both frames
-    z_t  = model.tdv_head(model.get_feature_vector(x_t))   # (B, 256)
-    z_t1 = model.tdv_head(model.get_feature_vector(x_t1))  # (B, 256)
+    # Encode both frames (retrieve raw features first)
+    cls_t = model.get_feature_vector(x_t)   # (B, 512)
+    cls_t1 = model.get_feature_vector(x_t1) # (B, 512)
+
+    # Project to TDV space
+    z_t  = model.tdv_head(cls_t)   # (B, 256)
+    z_t1 = model.tdv_head(cls_t1)  # (B, 256)
     z_t1_detach = z_t1.detach()
 
     # Encode motion between frames (outputs B, 256 directly)
@@ -142,20 +146,25 @@ def tdv_loss(model, x_t, x_t1):
     # 1. Prediction discrepancy
     l_pred = F.mse_loss(z_t1_pred, z_t1_detach)
 
-    # 2. Variance loss (VICReg-style standard deviation penalty)
+    # 2. Variance loss (VICReg-style standard deviation penalty on projected features)
     std_t  = torch.sqrt(z_t.var(dim=0) + 1e-4)
     std_t1 = torch.sqrt(z_t1.var(dim=0) + 1e-4)
     l_var = (F.relu(1 - std_t) + F.relu(1 - std_t1)).mean()
 
-    # 3. Covariance loss (decorrelation)
+    # 3. Variance loss on raw unprojected features
+    std_cls_t = torch.sqrt(cls_t.var(dim=0) + 1e-4)
+    std_cls_t1 = torch.sqrt(cls_t1.var(dim=0) + 1e-4)
+    l_var_raw = (F.relu(1 - std_cls_t) + F.relu(1 - std_cls_t1)).mean()
+
+    # 4. Covariance loss (decorrelation)
     B, D = z_t.shape
     z_tc = z_t - z_t.mean(dim=0)
     cov = (z_tc.T @ z_tc) / (B - 1)
     l_cov = (cov**2).sum() - (cov.diagonal()**2).sum()
     l_cov = l_cov / D
 
-    # Correct VICReg scaling: invariance=25, variance=25, covariance=1
-    loss = 25.0 * l_pred + 25.0 * l_var + 1.0 * l_cov
+    # Correct VICReg scaling: invariance=25, variance=25, covariance=1, raw_variance=25
+    loss = 25.0 * l_pred + 25.0 * l_var + 1.0 * l_cov + 25.0 * l_var_raw
     return loss, l_pred, l_var, l_cov
 
 def pgd_attack(model, x_t, x_t1, eps=0.031, steps=3):
