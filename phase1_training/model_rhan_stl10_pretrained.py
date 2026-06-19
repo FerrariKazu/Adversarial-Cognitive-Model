@@ -30,7 +30,7 @@ class MotionEncoder(nn.Module):
     Encodes the 'motion' between frame t and frame t+1.
     Input: concatenated [x_t, x_t1] → 6-channel input
     """
-    def __init__(self, embed_dim=512):
+    def __init__(self, embed_dim=512, out_dim=256):
         super().__init__()
         self.encoder = nn.Sequential(
             nn.Conv2d(6, 64, 3, 2, 1),    # 96→48, 6ch input (concat frames)
@@ -44,13 +44,13 @@ class MotionEncoder(nn.Module):
             nn.ReLU(inplace=True),
             nn.AdaptiveAvgPool2d(1),       # 12→1
             nn.Flatten(),
-            nn.Linear(512, embed_dim),
+            nn.Linear(512, out_dim),
         )
 
     def forward(self, x_t, x_t1):
         # Concatenate frames along channel dimension
         x_cat = torch.cat([x_t, x_t1], dim=1)  # (B, 6, 96, 96)
-        return self.encoder(x_cat)  # (B, embed_dim)
+        return self.encoder(x_cat)  # (B, out_dim)
 
 class TDVProjectionHead(nn.Module):
     """
@@ -130,7 +130,7 @@ class RHANUnifiedSTL10(nn.Module):
         self.log_scale = nn.Parameter(torch.tensor(10.0).log())
 
         # ── TDV COMPONENTS ────────────────────────────────────────────────
-        self.motion_encoder = MotionEncoder(embed_dim=embed_dim)
+        self.motion_encoder = MotionEncoder(embed_dim=embed_dim, out_dim=256)
         self.tdv_head = TDVProjectionHead(embed_dim=embed_dim, proj_dim=256)
 
     def freeze_stem(self, freeze: bool):
