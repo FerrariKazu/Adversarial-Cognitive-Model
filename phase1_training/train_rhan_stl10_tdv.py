@@ -657,7 +657,7 @@ def main():
     parser.add_argument('--eval-ckpt', type=str, default='')
     parser.add_argument('--eval-samples', type=int, default=256)
     parser.add_argument('--eval-eps', type=float, default=0.031)
-    parser.add_argument('--unlabeled-batch-size', type=int, default=128)
+    parser.add_argument('--unlabeled-batch-size', type=int, default=64)
     args = parser.parse_args()
 
     set_seed(args.seed)
