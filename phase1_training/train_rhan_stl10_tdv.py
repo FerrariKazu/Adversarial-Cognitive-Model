@@ -294,8 +294,10 @@ def run_phase_tdv(model, unlabeled_loader, device, ckpt_dir, resume=False):
             'scaler': scaler.state_dict(),
         }, rolling_path)
 
-        if feature_std_val < 0.1:
-            print("CRITICAL WARNING: Feature collapse detected (Std < 0.1). Adjusting variance penalty.")
+        if feature_std_val < 0.1 and epoch > 3:
+            print("STOPPING: Collapse confirmed — check VICReg weights")
+            torch.save(model.state_dict(), final_path)
+            return
 
     torch.save(model.state_dict(), final_path)
     print(f"Phase TDV Complete. Final model saved to {final_path}")
@@ -404,12 +406,17 @@ def run_phase_trades(model, trainloader, testloader, unlabeled_loader, device, s
 
     start_epoch = 1
     best_acc = 0.0
+    optimizer_state = None
+    scheduler_state = None
+
     if resume and os.path.exists(rolling_path):
         ckpt = torch.load(rolling_path, map_location=device)
         model.load_state_dict(ckpt['model'])
         scaler.load_state_dict(ckpt['scaler'])
         start_epoch = ckpt['epoch'] + 1
         best_acc = ckpt.get('best_acc', 0.0)
+        optimizer_state = ckpt.get('optimizer')
+        scheduler_state = ckpt.get('scheduler')
         print(f"Resumed from epoch {ckpt['epoch']}, best_acc={best_acc:.2f}%")
     else:
         labeled_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_tdv_labeled.pth')
@@ -422,28 +429,45 @@ def run_phase_trades(model, trainloader, testloader, unlabeled_loader, device, s
     unlabeled_iter = iter(unlabeled_loader)
 
     # Curriculum Setup
-    # total 60 epochs:
-    # 1-15: eps=0.031, beta=2.0
-    # 16-30: eps=0.062, beta=2.0
-    # 31-45: eps=0.094, beta=2.5
-    # 46-60: eps=0.125, beta=2.5
+    phases = [
+        (1,  15, 0.031, 2.0, 7,  0.003),
+        (16, 30, 0.062, 2.0, 10, 0.002),
+        (31, 45, 0.094, 2.5, 10, 0.001),
+        (46, 60, 0.125, 2.5, 12, 0.0005),
+    ]
+
+    current_phase_start = None
+    optimizer = None
+    scheduler = None
+
     for epoch in range(start_epoch, 61):
         t0 = time.time()
 
-        if epoch <= 15:
-            eps, beta, steps = 0.031, 2.0, 7
-            lr = 0.003
-        elif epoch <= 30:
-            eps, beta, steps = 0.062, 2.0, 10
-            lr = 0.002
-        elif epoch <= 45:
-            eps, beta, steps = 0.094, 2.5, 10
-            lr = 0.001
-        else:
-            eps, beta, steps = 0.125, 2.5, 12
-            lr = 0.0005
+        # Determine current phase parameters
+        for p_start, p_end, eps, beta, steps, lr in phases:
+            if p_start <= epoch <= p_end:
+                phase_params = (eps, beta, steps)
+                phase_lr = lr
+                # Create optimizer only at phase boundaries
+                if current_phase_start != p_start:
+                    current_phase_start = p_start
+                    optimizer = optim.SGD(
+                        model.parameters(), lr=phase_lr,
+                        momentum=0.9, weight_decay=1e-4
+                    )
+                    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                        optimizer, T_max=p_end - p_start + 1, eta_min=phase_lr * 0.1
+                    )
+                    if optimizer_state is not None:
+                        optimizer.load_state_dict(optimizer_state)
+                        optimizer_state = None
+                    if scheduler_state is not None:
+                        scheduler.load_state_dict(scheduler_state)
+                        scheduler_state = None
+                    print(f"New optimizer for phase {p_start}-{p_end}: lr={phase_lr}")
+                break
 
-        optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=1e-4)
+        eps, beta, steps = phase_params
 
         model.train()
         total_loss = total_tr = total_cons = n_total = correct = 0
@@ -508,6 +532,8 @@ def run_phase_trades(model, trainloader, testloader, unlabeled_loader, device, s
             correct    += logits_c.argmax(1).eq(lbls).sum().item()
             n_total    += B
 
+        scheduler.step()
+
         # Validation (clean)
         model.eval()
         val_correct = val_total = 0
@@ -536,6 +562,8 @@ def run_phase_trades(model, trainloader, testloader, unlabeled_loader, device, s
         torch.save({
             'epoch': epoch,
             'model': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'scheduler': scheduler.state_dict(),
             'scaler': scaler.state_dict(),
             'best_acc': best_acc,
         }, rolling_path)
@@ -629,6 +657,7 @@ def main():
     parser.add_argument('--eval-ckpt', type=str, default='')
     parser.add_argument('--eval-samples', type=int, default=256)
     parser.add_argument('--eval-eps', type=float, default=0.031)
+    parser.add_argument('--unlabeled-batch-size', type=int, default=128)
     args = parser.parse_args()
 
     set_seed(args.seed)
@@ -656,14 +685,14 @@ def main():
     model = RHANUnifiedSTL10().to(device)
 
     if args.phase == 'tdv':
-        unlabeled_loader = get_stl10_unlabeled_dataloader(args.data_root, batch_size=args.batch_size)
+        unlabeled_loader = get_stl10_unlabeled_dataloader(args.data_root, batch_size=args.unlabeled_batch_size)
         run_phase_tdv(model, unlabeled_loader, device, ckpt_dir, resume=args.resume)
     elif args.phase == 'label':
         trainloader, testloader, _, _ = get_stl10_dataloaders(args.data_root, batch_size=args.batch_size)
         run_phase_label(model, trainloader, testloader, device, ckpt_dir, resume=args.resume)
     elif args.phase == 'trades':
         trainloader, testloader, stl_min, stl_max = get_stl10_dataloaders(args.data_root, batch_size=args.batch_size)
-        unlabeled_loader = get_stl10_unlabeled_dataloader(args.data_root, batch_size=args.batch_size)
+        unlabeled_loader = get_stl10_unlabeled_dataloader(args.data_root, batch_size=args.unlabeled_batch_size)
         stl_min, stl_max = stl_min.to(device), stl_max.to(device)
         run_phase_trades(model, trainloader, testloader, unlabeled_loader, device, stl_min, stl_max, ckpt_dir, resume=args.resume)
 
