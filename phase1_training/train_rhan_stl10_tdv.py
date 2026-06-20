@@ -526,7 +526,7 @@ def run_phase_trades(model, trainloader, testloader, unlabeled_loader, device, s
                     reduction='batchmean'
                 )
 
-                l_tdv_consistency, _, _, _ = tdv_loss(model, x_t, x_t1)
+                l_tdv_consistency, _, _, _ = adversarial_tdv_loss(model, x_t, x_t1, eps=eps, steps=3)
                 loss = 0.70 * l_trades + 0.30 * l_tdv_consistency
 
             scaler.scale(loss).backward()
