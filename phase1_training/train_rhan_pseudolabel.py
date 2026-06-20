@@ -283,9 +283,9 @@ def evaluate_autoattack(model, testloader, device, eps=0.031, n_samples=1000, bs
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data-root', type=str, default='./data/stl10')
-    parser.add_argument('--batch-size', type=int, default=256, help='Batch size for training combined loader')
+    parser.add_argument('--batch-size', type=int, default=128, help='Batch size for training combined loader')
     parser.add_argument('--unlabeled-batch-size', type=int, default=512, help='Batch size for pseudo-label generation')
-    parser.add_argument('--tdv-batch-size', type=int, default=64, help='Batch size for TDV consistency training')
+    parser.add_argument('--tdv-batch-size', type=int, default=32, help='Batch size for TDV consistency training')
     parser.add_argument('--confidence-threshold', type=float, default=0.85)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--eval-only', action='store_true')
