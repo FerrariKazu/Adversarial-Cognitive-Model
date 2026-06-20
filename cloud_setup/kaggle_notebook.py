@@ -95,8 +95,9 @@ print("Launching Experiment 1...")
 cmd = (
     "python3 phase1_training/train_rhan_pseudolabel.py "
     "--data-root ./data "
-    "--batch-size 256 "
+    "--batch-size 128 "
     "--unlabeled-batch-size 512 "
+    "--tdv-batch-size 32 "
     "--confidence-threshold 0.85"
 )
 
