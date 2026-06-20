@@ -32,8 +32,8 @@ This document outlines the complete design history, theoretical foundations, evo
 | **Human** | 74.15% | >0.30 | >0.30 | ✅ Complete |
 | **RHAN-UNIFIED** ★ | **~73%** | **TBD** | **TBD** | 🔄 Training |
 | **RHAN-trades-curriculum** ★ | **78.12%** | **ε≈0.113** | **ε≈0.1850** | ✅ Complete |
-| **RHAN-TDV-Clean** (STL-10) ★ | **78.20%** | **ε≈0.015** | — | ✅ Complete |
-| **RHAN-TDV-Adversarial** (STL-10) ★ | **75.40%** | **ε≈0.015** | — | ✅ Complete |
+| **RHAN-TDV-Clean** (STL-10) ★ | **78.50%** | **ε≈0.0037** | **ε≈0.0043** | ✅ Complete |
+| **RHAN-TDV-Adversarial** (STL-10) ★ | **73.83%** | **ε≈0.0077** | **ε≈0.0066** | ✅ Complete |
 | **RHAN-Self-Alignment** ⚠️ | **77.10%** | — | — | ⚠️ Obfuscated (AA: 21.60%) |
 | **RHAN-Feature-Scatter** ⚠️ | **77.10%** | — | — | ⚠️ Obfuscated (AA: 22.30%) |
 | **RHAN-TRADES-Hardened** | **86.33%** | **ε≈0.086** | **ε≈0.1246** | ✅ Complete |
@@ -51,12 +51,12 @@ This document outlines the complete design history, theoretical foundations, evo
 
 | Epsilon | UNIFIED | TDV-Clean | TDV-Adv | Curriculum | Hardened | TRADES | RHAN-v5 | ResNet | ViT |
 |---|---|---|---|---|---|---|---|---|---|
-| 0.00 | ~73% | 78.20% | 73.83% | 78.12% | 86.33% | 87.30% | 84.57% | 95.82% | 97.80% |
-| 0.01 | TBD | ~1.56% | 1.56% | 75.00% | 83.01% | 84.77% | 80.66% | 75.57% | 55.18% |
-| 0.05 | TBD | ~0.98% | 0.98% | 65.23% | 67.19% | 65.82% | 61.13% | 2.84% | 8.80% |
-| 0.10 | TBD | ~0.78% | 0.78% | 52.93% | 43.16% | 37.89% | 34.38% | 0.21% | 2.78% |
-| 0.20 | TBD | ~0.78% | 0.78% | 29.49% | 8.59% | 5.47% | 2.73% | 0.02% | 1.12% |
-| 0.30 | TBD | ~0.78% | 0.78% | 10.16% | 0.20% | 0.20% | 0.20% | 0.00% | 0.58% |
+| 0.00 | ~73% | 78.50% | 73.83% | 78.12% | 86.33% | 87.30% | 84.57% | 95.82% | 97.80% |
+| 0.01 | TBD | 5.20% | ~1.56% | 75.00% | 83.01% | 84.77% | 80.66% | 75.57% | 55.18% |
+| 0.05 | TBD | ~2.00% | 0.98% | 65.23% | 67.19% | 65.82% | 61.13% | 2.84% | 8.80% |
+| 0.10 | TBD | ~2.00% | 0.78% | 52.93% | 43.16% | 37.89% | 34.38% | 0.21% | 2.78% |
+| 0.20 | TBD | ~2.00% | 0.78% | 29.49% | 8.59% | 5.47% | 2.73% | 0.02% | 1.12% |
+| 0.30 | TBD | ~2.00% | 0.78% | 10.16% | 0.20% | 0.20% | 0.20% | 0.00% | 0.58% |
 
 ---
 
@@ -359,13 +359,30 @@ We ran two distinct settings to analyze consistency bounds:
 * **Run 1: Clean TDV Consistency** (batch size 32): TRADES fine-tuning using `tdv_loss` on clean temporal pairs. Clean accuracy stabilized at **78.2%**. Under standard AutoAttack ($\varepsilon = 0.031$), robust accuracy dropped to **1.76%** (`truck` = 13.3%, `car` = 0.0%). The attack deformed representations because consistency was only enforced on clean frames.
 * **Run 2: Adversarial TDV Consistency** (batch size 16 to avoid VRAM paging): Active `adversarial_tdv_loss` enforcing $z_{\text{adv}}[t] + m_t = z_{\text{clean}}[t+1]$. Clean accuracy stabilized at **75.4%**. Under AutoAttack ($\varepsilon = 0.031$), overall robustness was **0.78%** (`truck` = 4.4%, `car` = 0.0%).
 
-#### 4. PGD-100 Sweep & Robustness Threshold
-Evaluating the Run 2 checkpoint (`rhan_stl10_tdv_trades_actual.pth`) under a 100-step PGD sweep across epsilons revealed:
-* $\varepsilon = 0.000$: **73.83%**
-* $\varepsilon = 0.015$: **1.56%**
-* $\varepsilon = 0.031$: **0.98%**
+#### 4. PGD-100 Sweep & Robustness Thresholds (Run 1 - Clean TDV Consistency)
+Evaluating the Run 1 checkpoint (`rhan_stl10_tdv_trades.pth` / `rhan_stl10_tdv_trades_clean_consistency.pth`) under a 100-step PGD sweep across epsilons with 1000 test samples revealed:
+* $\varepsilon = 0.000$: **78.50%** (Overall $d'$ = 2.8600, Car $d'$ = 3.4077, Truck $d'$ = 3.2250)
+* $\varepsilon = 0.005$: **26.00%** (Overall $d'$ = 0.6992, Car $d'$ = 1.6744, Truck $d'$ = 1.0909)
+* $\varepsilon = 0.010$: **5.20%** (Overall $d'$ = -0.5970, Car $d'$ = 0.5585, Truck $d'$ = -0.2888)
+* $\varepsilon = 0.015$: **2.00%** (Overall $d'$ = -0.8867, Car $d'$ = -0.1992, Truck $d'$ = -0.9133)
+* $\varepsilon \ge 0.030$: **< 2.0%** (Overall $d'$ is negative, complete collapse)
+
+* **Estimated $\varepsilon_{\text{thresh}}$ (Relative 50% Accuracy drop)**: **0.0037**
+* **Estimated $\varepsilon_{\text{thresh}}$ (Overall SDT $d'=1.0$)**: **0.0043**
+* **Car Class $\varepsilon_{\text{thresh}}$ ($d'=1.0$)**: **0.0080**
+* **Truck Class $\varepsilon_{\text{thresh}}$ ($d'=1.0$)**: **0.0053**
+
+* **Interpretation**: The truck class shows a non-zero $\varepsilon_{\text{thresh}}$ of $0.0053$ (and car shows $0.0080$), showing that the TDV representation mapping preserves class sensitivity up to $\varepsilon \approx 0.005 - 0.008$. However, the model collapses immediately beyond this level, indicating that clean temporal difference consistency alone is insufficient to build a robust manifold across high perturbation magnitudes.
+
+#### 5. PGD-100 Sweep & Robustness Thresholds (Run 2 - Adversarial TDV Consistency)
+Evaluating the Run 2 checkpoint (`rhan_stl10_tdv_trades_actual.pth`) under a 100-step PGD sweep across epsilons with 1000 test samples revealed:
+* $\varepsilon = 0.000$: **73.83%** (Overall $d'$ = 2.5325, Car $d'$ = 3.1970, Truck $d'$ = 3.0182)
+* $\varepsilon = 0.015$: **1.56%** (Overall $d'$ = -0.9245, Car $d'$ = -0.6582, Truck $d'$ = -0.3541)
+* $\varepsilon = 0.031$: **0.98%** (Overall $d'$ is negative, complete collapse)
 * $\varepsilon \ge 0.094$: **0.78%**
-* **Estimated $\varepsilon_{\text{thresh}}$**: **~0.015**
+
+* **Estimated $\varepsilon_{\text{thresh}}$ (Relative 50% Accuracy drop)**: **0.0077**
+* **Estimated $\varepsilon_{\text{thresh}}$ (Overall SDT $d'=1.0$)**: **0.0066**
 
 The flat performance floor (~0.78% robustness) persisting through higher epsilons indicates a capacity limit or a hard boundary masking issue: the model cannot project high-resolution spatial details into the 3-layer transformer encoder to enforce a stable temporal manifold under perturbation.
 
@@ -430,4 +447,4 @@ Even with all improvements, the gap between RHAN (εthresh≈0.185) and humans (
 
 ---
 
-*Last updated: June 2026. RHAN-UNIFIED training in progress on STL-10 96×96.*
+
