@@ -1712,7 +1712,23 @@ sensitivity thresholds ($\varepsilon_{\text{thresh}}$ where $d' < 1.0$).}
   \label{fig:vit_tsne_full}
 \end{subfigure}
 \caption{\textbf{Latent Feature Space Displacement t-SNE Projections}.}
-\label{fig:tsne_full}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/displacement_comparison.bar.png}
+  \caption{Latent space centroid displacement (Fig.~A.11).}
+  \label{fig:displacement_comparison}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{figures/vit_attention_entropy.png}
+  \caption{ViT self-attention entropy decay (Fig.~A.12).}
+  \label{fig:vit_attention_entropy}
+\end{subfigure}
+\caption{\textbf{Latent Displacement and Attention Entropy Analysis}.}
+\label{fig:displacement_entropy}
 \end{figure}
 
 \begin{figure}[H]
@@ -1951,7 +1967,13 @@ sensitivity thresholds ($\varepsilon_{\text{thresh}}$ where $d' < 1.0$).}
 \centering
 \includegraphics[width=0.9\textwidth]{figures/stl10_car_truck_comparison.png}
 \caption{\textbf{Car vs.\ Truck Comparison (Fig.~A.37)}.}
-\label{fig:stl10_car_truck}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/stl10_confusion_suite.png}
+\caption{\textbf{RHAN-STL10 Confusion Matrices (Fig.~A.38)}.}
+\label{fig:stl10_confusion_suite}
 \end{figure}
 
 \begin{figure}[H]
@@ -1966,6 +1988,36 @@ sensitivity thresholds ($\varepsilon_{\text{thresh}}$ where $d' < 1.0$).}
 \includegraphics[width=0.9\textwidth]{figures/resolution_robustness_bars.png}
 \caption{\textbf{Resolution vs.\ Robustness (Fig.~A.40)}.}
 \label{fig:resolution_robustness}
+\end{figure}
+
+\subsection{Architecture Spectrum and Crossover Figures}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/architecture_spectrum.png}
+\caption{\textbf{Visual Locality-to-Globality Spectrum (Fig.~A.41)}.}
+\label{fig:architecture_spectrum}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/rhan_cifar10_confusion_stl10.png}
+\caption{\textbf{RHAN Confusion Comparison: CIFAR-10 vs.\ STL-10 (Fig.~A.42)}.}
+\label{fig:rhan_cifar_stl_confusion}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/confidence_accuracy_dissociation.png}
+\caption{\textbf{Confidence vs.\ Accuracy Scatter Plot (Fig.~A.43)}.}
+\label{fig:confidence_accuracy_dissociation}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/two_regime_crossover.png}
+\caption{\textbf{ResNet-18 vs.\ ViT-Small Crossover Diagram (Fig.~A.44)}.}
+\label{fig:two_regime_crossover}
 \end{figure}
 
 % ============================================================
