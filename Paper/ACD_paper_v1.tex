@@ -1012,7 +1012,7 @@ By performing linear interpolation at the crossing boundaries, we find the follo
     \item \textbf{Truck Class $d'=1.0$ Threshold:} $\varepsilon_{\text{thresh, truck}} \approx 0.0053$.
 \end{itemize}
 
-Evaluating the Run 2 checkpoint (`rhan_stl10_tdv_trades_actual.pth`) under the same PGD-100 sweep reveals an overall $d'=1.0$ threshold of $\varepsilon_{\text{thresh}} \approx 0.0066$ (and a relative 50\% accuracy drop threshold of $\varepsilon_{\text{thresh}} \approx 0.0077$). 
+Evaluating the Run 2 checkpoint (\texttt{rhan\_stl10\_tdv\_trades\_actual.pth}) under the same PGD-100 sweep reveals an overall $d'=1.0$ threshold of $\varepsilon_{\text{thresh}} \approx 0.0066$ (and a relative 50\% accuracy drop threshold of $\varepsilon_{\text{thresh}} \approx 0.0077$). 
 
 These results confirm that the TDV temporal mapping yields the first non-zero robust sensitivity thresholds for the vulnerable classes (`car` and `truck`) on STL-10. However, the immediate collapse beyond $\varepsilon \ge 0.010$ reveals that clean/adversarial temporal difference consistency alone is insufficient to build a robust manifold across higher perturbation scales when constrained by a 3-layer transformer encoder bottleneck. Scaling visual robustness on higher-resolution datasets requires scaling backbone capacity, real video pretraining, and explicit shape-boundary priors.
 
@@ -1466,146 +1466,146 @@ need to be generated. \label{tab:fig_index}} \\
 \bottomrule
 \endlastfoot
 % --- Primary performance curves (EXISTING) ---
-Fig.~A.1 & \texttt{FINAL\_divergence\_with\_rhan.png} &
+Fig.~A.1 & \texttt{FINAL\_\allowbreak{}divergence\_\allowbreak{}with\_\allowbreak{}rhan.png} &
 Accuracy vs.\ $\varepsilon$ for all architectures + humans. \\
-Fig.~A.2 & \texttt{final\_dprime\_with\_rhan.png} &
+Fig.~A.2 & \texttt{final\_\allowbreak{}dprime\_\allowbreak{}with\_\allowbreak{}rhan.png} &
 SDT $d'$ curves for all architectures + humans. \\
-Fig.~A.3 & \texttt{full\_confidence\_curve.png} &
+Fig.~A.3 & \texttt{full\_\allowbreak{}confidence\_\allowbreak{}curve.png} &
 Confidence decay vs.\ $\varepsilon$ for all systems + humans. \\
-Fig.~A.4 & \texttt{perclass\_dprime\_eps0.10.png} &
+Fig.~A.4 & \texttt{perclass\_\allowbreak{}dprime\_\allowbreak{}eps0.10.png} &
 Per-class $d'$ at $\varepsilon = 0.10$. \\
-Fig.~A.5 & \texttt{class\_heatmap.png} &
+Fig.~A.5 & \texttt{class\_\allowbreak{}heatmap.png} &
 Machine accuracy heatmap across CIFAR-10 classes. \\
-Fig.~A.6 & \texttt{human\_class\_heatmap.png} &
+Fig.~A.6 & \texttt{human\_\allowbreak{}class\_\allowbreak{}heatmap.png} &
 Human accuracy heatmap across CIFAR-10 classes. \\
-Fig.~A.7 & \texttt{accuracy\_threshold\_bars.png} &
+Fig.~A.7 & \texttt{accuracy\_\allowbreak{}threshold\_\allowbreak{}bars.png} &
 Accuracy collapse threshold bars. \\
-Fig.~A.8 & \texttt{sdt\_threshold\_bars.png} &
+Fig.~A.8 & \texttt{sdt\_\allowbreak{}threshold\_\allowbreak{}bars.png} &
 SDT collapse threshold bars ($\varepsilon_{\text{thresh}}$). \\
 \midrule
 % --- Latent space (EXISTING) ---
-Fig.~A.9 & \texttt{resnet\_tsne.png} &
+Fig.~A.9 & \texttt{resnet\_\allowbreak{}tsne.png} &
 ResNet-18 feature space t-SNE under PGD. \\
-Fig.~A.10 & \texttt{vit\_tsne.png} &
+Fig.~A.10 & \texttt{vit\_\allowbreak{}tsne.png} &
 ViT-Small feature space t-SNE under PGD. \\
-Fig.~A.11 & \texttt{displacement\_comparison.bar.png} &
+Fig.~A.11 & \texttt{displacement\_\allowbreak{}comparison.bar.png} &
 Latent space centroid displacement distances. \\
-Fig.~A.12 & \texttt{vit\_attention\_entropy.png} &
+Fig.~A.12 & \texttt{vit\_\allowbreak{}attention\_\allowbreak{}entropy.png} &
 ViT self-attention entropy decay. \\
-Fig.~A.13 & \texttt{perturbation\_atlas.png} &
+Fig.~A.13 & \texttt{perturbation\_\allowbreak{}atlas.png} &
 Adversarial perturbation atlas across all 10 classes. \\
 \midrule
 % --- Confusion matrices (EXISTING) ---
-Fig.~A.14 & \texttt{resnet\_confusion\_suite.png} &
+Fig.~A.14 & \texttt{resnet\_\allowbreak{}confusion\_\allowbreak{}suite.png} &
 ResNet-18 confusion matrices. \\
-Fig.~A.15 & \texttt{vit\_confusion\_suite.png} &
+Fig.~A.15 & \texttt{vit\_\allowbreak{}confusion\_\allowbreak{}suite.png} &
 ViT-Small confusion matrices. \\
-Fig.~A.16 & \texttt{shaperesnet\_confusion\_suite.png} &
+Fig.~A.16 & \texttt{shaperesnet\_\allowbreak{}confusion\_\allowbreak{}suite.png} &
 Shape-ResNet-50 confusion matrices. \\
-Fig.~A.17 & \texttt{efficientnet\_confusion\_suite.png} &
+Fig.~A.17 & \texttt{efficientnet\_\allowbreak{}confusion\_\allowbreak{}suite.png} &
 EfficientNet-B0 confusion matrices. \\
-Fig.~A.18 & \texttt{rhan-clean\_confusion\_suite.png} &
+Fig.~A.18 & \texttt{rhan-\allowbreak{}clean\_\allowbreak{}confusion\_\allowbreak{}suite.png} &
 RHAN-clean confusion matrices. \\
-Fig.~A.19 & \texttt{rhan-adv\_confusion\_suite.png} &
+Fig.~A.19 & \texttt{rhan-\allowbreak{}adv\_\allowbreak{}confusion\_\allowbreak{}suite.png} &
 RHAN-adv confusion matrices. \\
 \midrule
 % --- Gating maps (EXISTING) ---
-Fig.~A.20 & \texttt{gating\_entropy\_comparison.png} &
+Fig.~A.20 & \texttt{gating\_\allowbreak{}entropy\_\allowbreak{}comparison.png} &
 Feedback gate Shannon entropy under PGD. \\
-Fig.~A.21 & \texttt{feedback\_dog.png} &
+Fig.~A.21 & \texttt{feedback\_\allowbreak{}dog.png} &
 Dog class gating map. \\
-Fig.~A.22 & \texttt{feedback\_airplane.png} &
+Fig.~A.22 & \texttt{feedback\_\allowbreak{}airplane.png} &
 Airplane class gating map. \\
-Fig.~A.23 & \texttt{feedback\_automobile.png} &
+Fig.~A.23 & \texttt{feedback\_\allowbreak{}automobile.png} &
 Automobile class gating map. \\
-Fig.~A.24 & \texttt{feedback\_cat.png} &
+Fig.~A.24 & \texttt{feedback\_\allowbreak{}cat.png} &
 Cat class gating map. \\
-Fig.~A.25 & \texttt{feedback\_ship.png} &
+Fig.~A.25 & \texttt{feedback\_\allowbreak{}ship.png} &
 Ship class gating map. \\
 \midrule
 % --- Grad-CAM (EXISTING) ---
-Fig.~A.26 & \texttt{airplane\_gradcam.png} &
+Fig.~A.26 & \texttt{airplane\_\allowbreak{}gradcam.png} &
 Airplane Grad-CAM overlay. \\
-Fig.~A.27 & \texttt{airplane\_1.png} &
+Fig.~A.27 & \texttt{airplane\_\allowbreak{}1.png} &
 Airplane clean + adversarial stimuli. \\
-Fig.~A.28 & \texttt{cat\_gradcam.png} &
+Fig.~A.28 & \texttt{cat\_\allowbreak{}gradcam.png} &
 Cat Grad-CAM overlay. \\
-Fig.~A.29 & \texttt{cat\_1.png} &
+Fig.~A.29 & \texttt{cat\_\allowbreak{}1.png} &
 Cat clean + adversarial stimuli. \\
-Fig.~A.30 & \texttt{dog\_gradcam.png} &
+Fig.~A.30 & \texttt{dog\_\allowbreak{}gradcam.png} &
 Dog Grad-CAM overlay. \\
-Fig.~A.31 & \texttt{dog\_1.png} &
+Fig.~A.31 & \texttt{dog\_\allowbreak{}1.png} &
 Dog clean + adversarial stimuli. \\
-Fig.~A.32 & \texttt{truck\_gradcam.png} &
+Fig.~A.32 & \texttt{truck\_\allowbreak{}gradcam.png} &
 Truck Grad-CAM overlay. \\
-Fig.~A.33 & \texttt{truck\_1.png} &
+Fig.~A.33 & \texttt{truck\_\allowbreak{}1.png} &
 Truck clean + adversarial stimuli. \\
 \midrule
 % --- NEW STL-10 FIGURES (need to be generated) ---
-Fig.~A.34$\star$ & \texttt{stl10\_pgd\_sweep.png} &
+Fig.~A.34$\star$ & \texttt{stl10\_\allowbreak{}pgd\_\allowbreak{}sweep.png} &
 PGD-20 accuracy sweep for RHAN-STL10 across all epsilons. \\
-Fig.~A.35$\star$ & \texttt{stl10\_perclass\_aa.png} &
+Fig.~A.35$\star$ & \texttt{stl10\_\allowbreak{}perclass\_\allowbreak{}aa.png} &
 Per-class AutoAttack accuracy for RHAN-STL10. \\
-Fig.~A.36$\star$ & \texttt{stl10\_dprime\_curves.png} &
+Fig.~A.36$\star$ & \texttt{stl10\_\allowbreak{}dprime\_\allowbreak{}curves.png} &
 SDT $d'$ curves for RHAN-STL10. \\
-Fig.~A.37$\star$ & \texttt{stl10\_car\_truck\_comparison.png} &
+Fig.~A.37$\star$ & \texttt{stl10\_\allowbreak{}car\_\allowbreak{}truck\_\allowbreak{}comparison.png} &
 Car vs.\ truck clean and adversarial examples with predictions. \\
-Fig.~A.38$\star$ & \texttt{stl10\_confusion\_suite.png} &
+Fig.~A.38$\star$ & \texttt{stl10\_\allowbreak{}confusion\_\allowbreak{}suite.png} &
 RHAN-STL10 confusion matrices at clean and AA. \\
-Fig.~A.39$\star$ & \texttt{cifar10\_stl10\_comparison.png} &
+Fig.~A.39$\star$ & \texttt{cifar10\_\allowbreak{}stl10\_\allowbreak{}comparison.png} &
 Side-by-side CIFAR-10 vs.\ STL-10 PGD curves for RHAN. \\
-Fig.~A.40$\star$ & \texttt{resolution\_robustness\_bars.png} &
+Fig.~A.40$\star$ & \texttt{resolution\_\allowbreak{}robustness\_\allowbreak{}bars.png} &
 Robustness comparison across resolutions (CIFAR-10 $32^2$ vs.\ STL-10 $96^2$). \\
 \midrule
 % --- NEW ARCHITECTURE FIGURES ---
-Fig.~A.41$\star$ & \texttt{architecture\_spectrum.png} &
+Fig.~A.41$\star$ & \texttt{architecture\_\allowbreak{}spectrum.png} &
 Visual diagram of the 7-model locality-to-globality spectrum. \\
-Fig.~A.42$\star$ & \texttt{rhan\_cifar10\_confusion\_stl10.png} &
+Fig.~A.42$\star$ & \texttt{rhan\_\allowbreak{}cifar10\_\allowbreak{}confusion\_\allowbreak{}stl10.png} &
 RHAN confusion comparison: CIFAR-10 vs.\ STL-10. \\
-Fig.~A.43$\star$ & \texttt{confidence\_accuracy\_dissociation.png} &
+Fig.~A.43$\star$ & \texttt{confidence\_\allowbreak{}accuracy\_\allowbreak{}dissociation.png} &
 Confidence vs.\ accuracy scatter for all models across epsilons. \\
-Fig.~A.44$\star$ & \texttt{two\_regime\_crossover.png} &
+Fig.~A.44$\star$ & \texttt{two\_\allowbreak{}regime\_\allowbreak{}crossover.png} &
 ResNet-18 vs.\ ViT-Small crossover diagram. \\
 \midrule
 % --- NEW SCI-FI FIGURES (need to be generated) ---
-Fig.~A.45$\star$ & \texttt{hero\_human\_machine\_divergence.png} &
+Fig.~A.45$\star$ & \texttt{hero\_\allowbreak{}human\_\allowbreak{}machine\_\allowbreak{}divergence.png} &
 Cover figure: human d' stays flat at ~2.0 while all 7 machine models
 collapse into the abyss. Dark background, glowing lines. \\
-Fig.~A.46$\star$ & \texttt{collapse\_cascade\_grid.png} &
+Fig.~A.46$\star$ & \texttt{collapse\_\allowbreak{}cascade\_\allowbreak{}grid.png} &
 10$\times$10 grid of CIFAR-10 images at increasing $\varepsilon$:
 watch machines lose their minds while humans still see clearly. \\
-Fig.~A.47$\star$ & \texttt{rhan\_trajectory\_rocket.png} &
+Fig.~A.47$\star$ & \texttt{rhan\_\allowbreak{}trajectory\_\allowbreak{}rocket.png} &
 The RHAN family as a rocket climbing the $\varepsilon_{\text{thresh}}$
 axis: 5 variants from 0.076 to 0.185, approaching the human ceiling
 at $>$0.30. \\
-Fig.~A.48$\star$ & \texttt{vulnerability\_fingerprint.png} &
+Fig.~A.48$\star$ & \texttt{vulnerability\_\allowbreak{}fingerprint.png} &
 Radar/spider chart with 10 class axes: human $d'$ fingerprint (large,
 regular) vs.\ machine $d'$ fingerprint (shrunken, distorted). \\
-Fig.~A.49$\star$ & \texttt{confidence\_hall\_of\_mirrors.png} &
+Fig.~A.49$\star$ & \texttt{confidence\_\allowbreak{}hall\_\allowbreak{}of\_\allowbreak{}mirrors.png} &
 6 models at $\varepsilon{=}0.10$: wrong predictions, absurd confidence.
 Below: humans, correct, with appropriate uncertainty. \\
-Fig.~A.50$\star$ & \texttt{latent\_space\_invasion\_3d.png} &
+Fig.~A.50$\star$ & \texttt{latent\_\allowbreak{}space\_\allowbreak{}invasion\_\allowbreak{}3d.png} &
 3D t-SNE: clean clusters in color, adversarial examples invading
 neighboring territories. ResNet-18 (destroyed) vs.\ RHAN-adv
 (deformed but intact). \\
-Fig.~A.51$\star$ & \texttt{feedback\_loop\_animation\_frame.png} &
+Fig.~A.51$\star$ & \texttt{feedback\_\allowbreak{}loop\_\allowbreak{}animation\_\allowbreak{}frame.png} &
 RHAN feedback mechanism: clean image vs.\ adversarial, with gate
 heatmaps showing top-down attention suppressing noise. \\
-Fig.~A.52$\star$ & \texttt{resolution\_futility.png} &
+Fig.~A.52$\star$ & \texttt{resolution\_\allowbreak{}futility.png} &
 Side-by-side CIFAR-10 (32$\times$32) vs.\ STL-10 (96$\times$96) PGD
 curves. Nearly identical despite 9$\times$ more pixels. \\
-Fig.~A.53$\star$ & \texttt{autoattack\_waterfall.png} &
+Fig.~A.53$\star$ & \texttt{autoattack\_\allowbreak{}waterfall.png} &
 Waterfall: AutoAttack components progressively reduce accuracy.
 APGD-CE $\to$ APGD-T $\to$ FAB-T $\to$ SQUARE. Final: 21.88\%. \\
-Fig.~A.54$\star$ & \texttt{human\_machine\_percept.png} &
+Fig.~A.54$\star$ & \texttt{human\_\allowbreak{}machine\_\allowbreak{}percept.png} &
 5 images that fool all models: (a) original, (b) adversarial
 (identical to humans), (c) perturbation amplified 50$\times$,
 (d) Grad-CAM (wrong), (e) human eye-tracking (right). \\
-Fig.~A.55$\star$ & \texttt{ethresh\_spectrum.png} &
+Fig.~A.55$\star$ & \texttt{ethresh\_\allowbreak{}spectrum.png} &
 Horizontal spectrum 0 to 0.30: where each model "lives."
 EfficientNet at 0.006, ResNet at 0.03, RHAN-curriculum at 0.185,
 Human at $>$0.30. The final frontier. \\
-Fig.~A.56$\star$ & \texttt{training\_dynamics\_rhan.png} &
+Fig.~A.56$\star$ & \texttt{training\_\allowbreak{}dynamics\_\allowbreak{}rhan.png} &
 60-epoch curriculum training: clean acc, robust acc, d', gating
 entropy over time. Three phases with vertical dividers. \\
 \end{longtable}
