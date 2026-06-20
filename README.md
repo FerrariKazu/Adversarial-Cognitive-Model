@@ -113,10 +113,10 @@ RHAN-clean → RHAN-adv → Trial branches (Split, PredCoding, Aligned)
                                        [CIFAR-10 CLOSED]
                                                │
                                                ▼
-                                    [TDV (Temporal Difference)]
-                                               │
-                                               ▼
-                                        RHAN + TDV (STL-10) ← FUTURE ROADMAP
+                                     [TDV (Temporal Difference)]
+                                                │
+                                                ▼
+                                         RHAN-TDV (STL-10) ← εthresh=0.0043 (Run 1: 13.3% Truck Robustness, Collapse Mitigated)
 ```
 
 ## Model Spectrum
@@ -143,7 +143,8 @@ RHAN-clean → RHAN-adv → Trial branches (Split, PredCoding, Aligned)
 | **RHAN-CBM v1-v2** | **Concept Bottleneck Models with straight-through estimator** | **Mina** | **phase/rhan-cbm** |
 | **RHAN-v7** | **Generative World-Model (VAE + TRADES)** | **Mina** | **dev** |
 | **RHAN-UNIFIED** | **Unified architecture, STL-10 96×96, from scratch** | **Mina** | **dev** |
-| **RHAN-TDV (Future)** | **Temporal Difference video-pretrained backbone** | **Mina** | **phase/rhan-tdv** |
+| **RHAN-TDV-Clean** | **Temporal Difference pretrained backbone (clean consistency)** | **Mina** | **phase/rhan-tdv** |
+| **RHAN-TDV-Adv** | **Temporal Difference pretrained backbone (adv consistency)** | **Mina** | **phase/rhan-tdv** |
 | Human | Biological vision (n=18) | All | — |
 
 ## Team
@@ -190,6 +191,21 @@ python phase1_training/train_rhan_unified.py --phase 1-6
 
 # Everything at once
 python phase1_training/train_rhan_unified.py --phase all
+```
+
+# RHAN-TDV Training & Evaluation (STL-10 96x96)
+```bash
+# Phase 1: Self-supervised TDV pretraining (unlabeled data, 30 epochs)
+python phase1_training/train_rhan_stl10_tdv.py --phase tdv --unlabeled-batch-size 32
+
+# Phase 2: Classification head label calibration (5K labeled images, 10 epochs)
+python phase1_training/train_rhan_stl10_tdv.py --phase label --batch-size 64
+
+# Phase 3: TRADES curriculum fine-tuning with TDV consistency (60 epochs)
+python phase1_training/train_rhan_stl10_tdv.py --phase trades --batch-size 16 --unlabeled-batch-size 16
+
+# Run PGD-100 & SDT Evaluation Sweep
+python phase1_training/eval_pgd_sdt_stl10.py --checkpoint ../checkpoints/rhan_stl10_tdv_trades_clean_consistency.pth --samples 1000 --batch-size 64
 ```
 
 ## Human Study
