@@ -416,37 +416,75 @@ $\varepsilon \in \{0.00, 0.01, 0.05, 0.10, 0.20, 0.30\}$.
 \subsection{RHAN Architecture}
 \label{sec:rhan_arch}
 
-RHAN is built to explicitly mix three ingredients that are often discussed in
-biological vision: local smoothing, global integration, and iterative
-(top-down) refinement.
+RHAN is designed to instantiate a unified computational theory of robust vision: \textit{robust perception emerges from the synergistic interaction of recurrent top-down predictive coding, dual-stream attention partitioning, spherical decision geometry, temporal causality, and adversarial invariance}. 
 
-\textbf{(1) Local convolutional stem.} We begin with a four-layer residual
-convolutional stem that extracts locally aggregated features. In practice, this
-acts like a mild spatial low-pass filter, which helps suppress
-high-frequency perturbations (our ``Regime-1'' smoothing). On CIFAR-10
-($32{\times}32$), the stem outputs an $8{\times}8$ feature map with 512 channels
-(64 spatial tokens). On STL-10 ($96{\times}96$), it outputs a
-$12{\times}12$ map with 512 channels (144 tokens).
+The structural components implementing this framework are detailed below.
 
-\textbf{(2) Global transformer attention.} The stem features are then processed
-by a 3-layer, 8-head transformer (pre-norm, GELU, 2048-dim MLP). Self-attention
-lets the model combine evidence across the whole image early, supporting
-``Regime-2'' global/shape-level integration.
+\subsubsection{Recurrent Top-Down Feedback via Predictive Coding}
+Conventional feedforward neural networks process inputs unidirectionally, i.e., $\mathbf{z} = f(\mathbf{x})$. In contrast, mammalian visual systems feature dense feedback projections from higher cortical areas to early sensory regions to modulate sensory representations. 
 
-\textbf{(3) Recurrent top-down feedback.} Finally, we let the model ``look
-again.'' After the transformer produces a global representation, a learned
-feedback pathway sends information back to the stem and modulates its features
-with a sigmoid gate. Concretely, a $1{\times}1$ conv produces a gating map
-$g \in [0,1]$ and we update
-$\mathbf{f}_{\text{modulated}} = \mathbf{f}_{\text{stem}} + g \cdot
-\mathbf{f}_{\text{feedback}}$.
-We run this loop for two recurrent steps at inference time, approximating a
-simple form of top-down refinement.
+RHAN models this mechanism through iterative top-down predictive coding. At recurrent step $t$, early convolutional stem features are updated via:
+\begin{equation}
+  \mathbf{f}^{(t+1)} = \mathbf{f}_{\mathrm{stem}} + g(\mathbf{e}^{(t)}) \odot \mathbf{e}^{(t)}
+  \label{eq:feedback_update}
+\end{equation}
+where the prediction error $\mathbf{e}^{(t)}$ is computed as:
+\begin{equation}
+  \mathbf{e}^{(t)} = \mathbf{f}_{\mathrm{stem}} - \hat{\mathbf{f}}^{(t)}
+\end{equation}
+The top-down prediction $\hat{\mathbf{f}}^{(t)}$ is reconstructed from high-level spatial representations produced by the transformer:
+\begin{equation}
+  \hat{\mathbf{f}}^{(t)} = \operatorname{Predictor}\left(\mathbf{s}_{\mathrm{spatial}}^{(t)}\right)
+\end{equation}
+The predictor network consists of a $3\times3$ Convolution, Group Normalization, a GELU activation, and a final $1\times1$ Convolution to project the high-level features back to the dimensions of the stem. A learned gating mechanism controls error propagation:
+\begin{equation}
+  g(\mathbf{e}^{(t)}) = \sigma\left(\operatorname{Conv}_{1\times1}(\mathbf{e}^{(t)})\right)
+\end{equation}
+where $\sigma(\cdot)$ denotes the sigmoid function and $\odot$ represents the Hadamard (element-wise) product. The complete recurrent update is thus formulated as:
+\begin{equation}
+  \mathbf{f}^{(t+1)} = \mathbf{f}_{\mathrm{stem}} + \sigma\left(\operatorname{Conv}_{1\times1}(\mathbf{e}^{(t)})\right) \odot \left(\mathbf{f}_{\mathrm{stem}} - \hat{\mathbf{f}}^{(t)}\right)
+\end{equation}
+This formulation enables high-level semantic context to iteratively correct local, corrupted, or perturbed early features.
 
-For classification, RHAN uses a cosine-similarity projection
-(\texttt{SemanticProjectionHead}) rather than a standard linear layer, which we
-found to be important for stable training: swapping in a linear head reduced
-clean accuracy from roughly 73\% to roughly 13\% in our ablations.
+\subsubsection{Dual-Stream Transformer Attention}
+Inspired by the primate visual system, RHAN splits visual processing into parallel ventral (``what'') and dorsal (``where/how'') pathways. 
+
+Initial token embeddings $\mathbf{x}_{\mathrm{tokens}}$ are constructed by concatenating stem features and adding positional embeddings:
+\begin{equation}
+  \mathbf{x}_{\mathrm{tokens}} = \mathbf{x}_{\mathrm{tokens\_raw}} + \mathbf{P}_{\mathrm{pos}}
+\end{equation}
+The embedding dimension $D$ is then split channel-wise:
+\begin{equation}
+  \mathbf{x}^{V} = \mathbf{x}_{\mathrm{tokens}}[:, :, 1:D/2]
+\end{equation}
+\begin{equation}
+  \mathbf{x}^{D} = \mathbf{x}_{\mathrm{tokens}}[:, :, D/2:D]
+\end{equation}
+The ventral stream processes semantic object identity and texture:
+\begin{equation}
+  \mathbf{v} = \operatorname{Transformer}_{V}(\mathbf{x}^{V})
+\end{equation}
+The dorsal stream captures spatial layout, global relations, and relational geometry:
+\begin{equation}
+  \mathbf{d} = \operatorname{Transformer}_{D}(\mathbf{x}^{D})
+\end{equation}
+The final representation vector $\mathbf{z}$ is obtained by concatenating the class token representations ($\text{CLS}$) from both streams:
+\begin{equation}
+  \mathbf{z} = \left[\mathbf{v}_{\mathrm{CLS}} \mathbin{\Vert} \mathbf{d}_{\mathrm{CLS}}\right]
+\end{equation}
+
+\subsubsection{Spherical Prototype Classification}
+Standard linear classifiers compute logits using $\ell_c = \mathbf{w}_c^\top \mathbf{z} + b_c$. This formulation allows models to minimize loss by expanding the norm $\|\mathbf{z}\|_2$ of feature vectors—a vulnerability that adversarial perturbations exploit to cause large representation-space drift.
+
+RHAN instead projects both the feature representations and class prototypes onto a unit hypersphere. Let $\tilde{\mathbf{z}}$ and $\tilde{\mathbf{p}}_c$ be the normalized feature and class prototype vectors:
+\begin{equation}
+  \tilde{\mathbf{z}} = \frac{\mathbf{z}}{\|\mathbf{z}\|_2}, \quad \tilde{\mathbf{p}}_c = \frac{\mathbf{p}_c}{\|\mathbf{p}_c\|_2}
+\end{equation}
+Class probabilities are computed purely based on angular similarity:
+\begin{equation}
+  P(y = c \mid \mathbf{z}) = \operatorname{softmax}\left( e^{\alpha} \cdot \tilde{\mathbf{z}}^\top \tilde{\mathbf{p}}_c \right) = \operatorname{softmax}\left( e^{\alpha} \cos(\theta_c) \right)
+\end{equation}
+where $\cos(\theta_c) = \frac{\mathbf{z} \cdot \mathbf{p}_c}{\|\mathbf{z}\|_2 \|\mathbf{p}_c\|_2}$ and $\alpha$ is a learnable temperature parameter. Under this geometry, decision boundaries are defined by angular relations ($\cos(\theta_i) = \cos(\theta_j)$) rather than Euclidean planes, preventing adversarial perturbations from exploiting unbounded feature norm growth.
 
 \subsection{RHAN Curriculum Adversarial Training}
 
