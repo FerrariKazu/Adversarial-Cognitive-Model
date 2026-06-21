@@ -413,8 +413,8 @@ def main():
         # Training loop
         model.train()
         total_loss = total_tr = total_cons = n_total = correct = 0
-        
-        for imgs, lbls, weights in trainloader:
+        num_batches = len(trainloader)
+        for batch_idx, (imgs, lbls, weights) in enumerate(trainloader):
             imgs = imgs.to(device, non_blocking=True)
             lbls = lbls.to(device, non_blocking=True)
             weights = weights.to(device, non_blocking=True)
@@ -475,6 +475,9 @@ def main():
                     logits_c = model(imgs)
             correct += logits_c.argmax(1).eq(lbls).sum().item()
             n_total += B
+            
+            if batch_idx % 20 == 0:
+                print(f"  Batch {batch_idx}/{num_batches} | Loss: {loss.item():.4f} | TrLoss: {l_trades.item():.4f} | Cons: {l_tdv_consistency.item():.4f}")
 
         scheduler.step()
 
