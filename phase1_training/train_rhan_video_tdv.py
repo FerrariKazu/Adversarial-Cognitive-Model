@@ -351,15 +351,6 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
                 x_adv = torch.clamp(imgs + delta, stl_min, stl_max).detach()
             model.train()
 
-            # Fetch UCF-101 frame pair
-            try:
-                x_t, x_t1 = next(video_iter)
-            except StopIteration:
-                video_iter = iter(video_loader)
-                x_t, x_t1 = next(video_iter)
-            x_t = x_t.to(device, non_blocking=True)
-            x_t1 = x_t1.to(device, non_blocking=True)
-
             optimizer.zero_grad(set_to_none=True)
             with autocast('cuda'):
                 logits_c = model(imgs)
@@ -370,8 +361,7 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
                     F.softmax(logits_c.float().detach(), dim=1),
                     reduction='batchmean'
                 )
-                l_tdv_consistency, _, _, _ = adversarial_tdv_loss_large(model, x_t, x_t1, eps=eps, steps=3)
-                loss = 0.70 * l_trades + 0.30 * l_tdv_consistency
+                loss = l_trades
 
             scaler.scale(loss).backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -381,7 +371,6 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
             B = imgs.size(0)
             total_loss += loss.item() * B
             total_tr   += l_trades.item() * B
-            total_cons += l_tdv_consistency.item() * B
             correct    += logits_c.argmax(1).eq(lbls).sum().item()
             n_total    += B
 
@@ -407,7 +396,6 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
 
         print(
             f"Epoch {epoch:02d}/30 (ε={eps:.3f}) | Loss:{total_loss/n_total:.3f} | "
-            f"TrLoss:{total_tr/n_total:.3f} Cons:{total_cons/n_total:.3f} | "
             f"TrAcc:{100.*correct/n_total:.1f}% TeAcc:{val_acc:.1f}% | "
             f"{time.time()-t0:.0f}s{marker}"
         )

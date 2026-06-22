@@ -262,10 +262,12 @@ class RHANLargeSTL10(nn.Module):
         )
         
     def _run_transformer(self, tokens):
+        from torch.utils.checkpoint import checkpoint
         B = tokens.shape[0]
         # Split tokens channel-wise (768 -> 384 + 384)
-        v_tokens = self.ventral(tokens[:, :, :384])
-        d_tokens = self.dorsal(tokens[:, :, 384:])
+        # Use gradient checkpointing to save activation memory on limited VRAM
+        v_tokens = checkpoint(self.ventral, tokens[:, :, :384], use_reentrant=False)
+        d_tokens = checkpoint(self.dorsal, tokens[:, :, 384:], use_reentrant=False)
         combined = torch.cat([v_tokens, d_tokens], dim=-1)
         return combined
 
