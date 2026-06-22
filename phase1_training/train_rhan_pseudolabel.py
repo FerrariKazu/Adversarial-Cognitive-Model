@@ -285,8 +285,8 @@ def main():
     parser.add_argument('--data-root', type=str, default='./data/stl10')
     parser.add_argument('--batch-size', type=int, default=128, help='Batch size for training combined loader')
     parser.add_argument('--unlabeled-batch-size', type=int, default=512, help='Batch size for pseudo-label generation')
-    parser.add_argument('--tdv-batch-size', type=int, default=32, help='Batch size for TDV consistency training')
-    parser.add_argument('--confidence-threshold', type=float, default=0.85)
+    parser.add_argument('--accum-steps', type=int, default=4, help='Gradient accumulation steps')
+    parser.add_argument('--confidence-threshold', type=float, default=0.70)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--eval-only', action='store_true')
     parser.add_argument('--ckpt', type=str, default='')
@@ -294,6 +294,8 @@ def main():
 
     set_seed(args.seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if torch.cuda.is_available():
+        torch.set_float32_matmul_precision('high')
     print(f"Device: {device}")
 
     script_dir = os.path.dirname(__file__)
@@ -335,6 +337,13 @@ def main():
         print("Error: No pseudo-labels generated above confidence threshold. Exiting.")
         sys.exit(1)
 
+    # Free VRAM cache after pseudo-label generation before starting training loop
+    import gc
+    torch.cuda.empty_cache()
+    gc.collect()
+    if torch.cuda.is_available():
+        print(f"VRAM after pseudo-label generation: {torch.cuda.memory_allocated()/1e9:.2f}GB")
+
     # 5. Load raw real labeled training data
     norm_transform = T.Compose([
         T.ToTensor(),
@@ -356,10 +365,6 @@ def main():
     sampler = BalancedBatchSampler(real_indices, pseudo_indices, batch_size=args.batch_size)
     trainloader = DataLoader(combined_dataset, batch_sampler=sampler, num_workers=4, pin_memory=True)
 
-    # Unlabeled data for TDV consistency
-    tdv_unlabeled_loader = get_stl10_unlabeled_dataloader(args.data_root, batch_size=args.tdv_batch_size)
-    unlabeled_iter = iter(tdv_unlabeled_loader)
-    
     _, testloader, stl_min, stl_max = get_stl10_dataloaders(args.data_root, batch_size=64)
     stl_min, stl_max = stl_min.to(device), stl_max.to(device)
 
@@ -412,8 +417,11 @@ def main():
         
         # Training loop
         model.train()
-        total_loss = total_tr = total_cons = n_total = correct = 0
+        total_loss = n_total = correct = 0
         num_batches = min(len(trainloader), 150)
+        
+        optimizer.zero_grad(set_to_none=True)
+        
         for batch_idx, (imgs, lbls, weights) in enumerate(trainloader):
             if batch_idx >= 150:
                 break
@@ -443,33 +451,21 @@ def main():
                 x_adv = torch.clamp(imgs + delta, stl_min, stl_max).detach()
             model.train()
 
-            # Fetch temporal unlabeled pair
-            try:
-                x_t, x_t1 = next(unlabeled_iter)
-            except StopIteration:
-                unlabeled_iter = iter(tdv_unlabeled_loader)
-                x_t, x_t1 = next(unlabeled_iter)
-            x_t = x_t.to(device, non_blocking=True)
-            x_t1 = x_t1.to(device, non_blocking=True)
-
-            optimizer.zero_grad(set_to_none=True)
             with autocast('cuda'):
-                # We need to pass the raw model to tdv/adversarial functions if they use heads directly
-                # However train_rhan_stl10_tdv's adversarial_tdv_loss is compatible with nn.DataParallel
-                # as long as we pass raw_model for state access to heads.
                 l_trades = trades_loss_weighted(model, imgs, lbls, weights, x_adv, beta, stl_min, stl_max)
-                l_tdv_consistency, _, _, _ = adversarial_tdv_loss(raw_model, x_t, x_t1, eps=eps, steps=3)
-                loss = 0.70 * l_trades + 0.30 * l_tdv_consistency
+                loss = l_trades / args.accum_steps
 
             scaler.scale(loss).backward()
-            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            scaler.step(optimizer)
-            scaler.update()
+            
+            if (batch_idx + 1) % args.accum_steps == 0:
+                scaler.unscale_(optimizer)
+                nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad(set_to_none=True)
 
             B = imgs.size(0)
-            total_loss += loss.item() * B
-            total_tr   += l_trades.item() * B
-            total_cons += l_tdv_consistency.item() * B
+            total_loss += l_trades.item() * B
             
             # Keep track of training accuracy (real and pseudo)
             with torch.no_grad():
@@ -479,7 +475,15 @@ def main():
             n_total += B
             
             if batch_idx % 20 == 0:
-                print(f"  Batch {batch_idx}/{num_batches} | Loss: {loss.item():.4f} | TrLoss: {l_trades.item():.4f} | Cons: {l_tdv_consistency.item():.4f}")
+                print(f"  Batch {batch_idx}/{num_batches} | Loss: {l_trades.item():.4f}")
+
+        # Remainder step update
+        if num_batches % args.accum_steps != 0:
+            scaler.unscale_(optimizer)
+            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad(set_to_none=True)
 
         scheduler.step()
 
@@ -503,7 +507,6 @@ def main():
 
         print(
             f"Epoch {epoch:02d}/65 (ε={eps:.3f}) | Loss:{total_loss/n_total:.3f} | "
-            f"TrLoss:{total_tr/n_total:.3f} Cons:{total_cons/n_total:.3f} | "
             f"TrAcc:{100.*correct/n_total:.1f}% TeAcc:{val_acc:.1f}% | "
             f"{time.time()-t0:.0f}s{marker}"
         )
