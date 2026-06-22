@@ -413,8 +413,10 @@ def main():
         # Training loop
         model.train()
         total_loss = total_tr = total_cons = n_total = correct = 0
-        num_batches = len(trainloader)
+        num_batches = min(len(trainloader), 150)
         for batch_idx, (imgs, lbls, weights) in enumerate(trainloader):
+            if batch_idx >= 150:
+                break
             imgs = imgs.to(device, non_blocking=True)
             lbls = lbls.to(device, non_blocking=True)
             weights = weights.to(device, non_blocking=True)
