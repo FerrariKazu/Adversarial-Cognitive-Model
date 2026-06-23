@@ -35,7 +35,17 @@ os.makedirs(checkpoint_dir, exist_ok=True)
 # 2. Install Dependencies
 print('Installing requirements...')
 # Install required non-torch dependencies first
-subprocess.run('pip install -q datasets huggingface_hub autoattack opencv-python', shell=True, check=True)
+try:
+    subprocess.run('pip install -q datasets huggingface_hub autoattack opencv-python', shell=True, check=True)
+except subprocess.CalledProcessError as e:
+    print("\n" + "=" * 80)
+    print("ERROR: Package installation failed!")
+    print("This is usually caused by internet access being disabled in your Kaggle settings.")
+    print("Please enable internet access in the Kaggle notebook sidebar:")
+    print("  Settings (right panel) -> Internet -> Toggle ON")
+    print("=" * 80 + "\n")
+    raise e
+
 if os.path.exists('requirements.txt'):
     with open('requirements.txt', 'r') as f:
         reqs = f.readlines()
