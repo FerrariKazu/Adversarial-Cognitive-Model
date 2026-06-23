@@ -68,15 +68,16 @@ class CombinedSTL10Dataset(Dataset):
     Real labels get weight 1.0, pseudo-labels get weight 0.5.
     """
     def __init__(self, real_imgs, real_labels, 
-                 pseudo_imgs, pseudo_labels, transform=None):
+                 unlabeled_dataset, pseudo_indices, pseudo_labels, transform=None):
         self.real_imgs = real_imgs
         self.real_labels = real_labels
-        self.pseudo_imgs = pseudo_imgs  
+        self.unlabeled_dataset = unlabeled_dataset
+        self.pseudo_indices = pseudo_indices
         self.pseudo_labels = pseudo_labels
         self.transform = transform
         
         self.n_real = len(real_imgs)
-        self.n_pseudo = len(pseudo_imgs)
+        self.n_pseudo = len(pseudo_indices)
         print(f"Combined dataset: {self.n_real} real + "
               f"{self.n_pseudo} pseudo = {self.n_real+self.n_pseudo} total")
     
@@ -89,7 +90,8 @@ class CombinedSTL10Dataset(Dataset):
             label = self.real_labels[idx]
             weight = 1.0
         else:
-            img = self.pseudo_imgs[idx - self.n_real]
+            pseudo_idx = self.pseudo_indices[idx - self.n_real].item()
+            img, _ = self.unlabeled_dataset[pseudo_idx]
             label = self.pseudo_labels[idx - self.n_real]
             weight = 0.5
         
@@ -127,15 +129,16 @@ def generate_pseudo_labels(model, unlabeled_loader, device, confidence_threshold
     """
     Generate pseudo-labels from 100K unlabeled STL-10 images.
     Uses the loaded checkpoint's predictions.
+    Saves only the indices and predictions to minimize RAM footprint.
     """
     model.eval()
-    pseudo_images = []
+    pseudo_indices = []
     pseudo_labels = []
     confidence_scores = []
     
     print("Generating pseudo-labels from 100K unlabeled images...")
     with torch.no_grad():
-        for batch_idx, (imgs, _) in enumerate(unlabeled_loader):
+        for batch_idx, (imgs, idx) in enumerate(unlabeled_loader):
             imgs = imgs.to(device)
             
             with autocast('cuda'):
@@ -145,7 +148,7 @@ def generate_pseudo_labels(model, unlabeled_loader, device, confidence_threshold
             
             mask = conf >= confidence_threshold
             if mask.sum() > 0:
-                pseudo_images.append(imgs[mask].cpu())
+                pseudo_indices.append(idx[mask].cpu())
                 pseudo_labels.append(pred[mask].cpu())
                 confidence_scores.append(conf[mask].cpu())
             
@@ -153,11 +156,11 @@ def generate_pseudo_labels(model, unlabeled_loader, device, confidence_threshold
                 kept = sum(len(x) for x in pseudo_labels)
                 print(f"  Batch {batch_idx}/195 | Kept: {kept} images")
     
-    if len(pseudo_images) == 0:
+    if len(pseudo_indices) == 0:
         print("WARNING: No high confidence pseudo labels generated!")
-        return torch.zeros(0, 3, 96, 96), torch.zeros(0, dtype=torch.long), torch.zeros(0)
+        return torch.zeros(0, dtype=torch.long), torch.zeros(0, dtype=torch.long), torch.zeros(0)
 
-    pseudo_images = torch.cat(pseudo_images, dim=0)
+    pseudo_indices = torch.cat(pseudo_indices, dim=0)
     pseudo_labels = torch.cat(pseudo_labels, dim=0)
     confidence_scores = torch.cat(confidence_scores, dim=0)
     
@@ -174,10 +177,10 @@ def generate_pseudo_labels(model, unlabeled_loader, device, confidence_threshold
         else:
             print(f"  {classes[c]:<12}: 0      images")
     
-    print(f"\nTotal pseudo-labeled: {len(pseudo_images)} "
-          f"/ 100000 ({100*len(pseudo_images)/100000:.1f}%)")
+    print(f"\nTotal pseudo-labeled: {len(pseudo_indices)} "
+          f"/ 100000 ({100*len(pseudo_indices)/100000:.1f}%)")
     
-    return pseudo_images, pseudo_labels, confidence_scores
+    return pseudo_indices, pseudo_labels, confidence_scores
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # STEP 3 — WEIGHTED TRADES LOSS
@@ -244,9 +247,9 @@ def main():
     # 3. Generate new pseudo-labels at confidence=0.65
     unlabeled_dataset = STL10RawUnlabeledDataset(args.data_root)
     unlabeled_loader = DataLoader(unlabeled_dataset, batch_size=args.unlabeled_batch_size, shuffle=False, num_workers=4)
-    pseudo_imgs, pseudo_lbls, _ = generate_pseudo_labels(model, unlabeled_loader, device, args.confidence_threshold)
+    pseudo_indices, pseudo_lbls, _ = generate_pseudo_labels(model, unlabeled_loader, device, args.confidence_threshold)
 
-    if len(pseudo_imgs) == 0:
+    if len(pseudo_indices) == 0:
         print("Error: No pseudo-labels generated above confidence threshold. Exiting.")
         sys.exit(1)
 
@@ -271,11 +274,11 @@ def main():
         T.RandomCrop(96, padding=12),
         T.RandomHorizontalFlip(),
     ])
-    combined_dataset = CombinedSTL10Dataset(real_imgs, real_labels, pseudo_imgs, pseudo_lbls, transform=train_transform)
+    combined_dataset = CombinedSTL10Dataset(real_imgs, real_labels, unlabeled_dataset, pseudo_indices, pseudo_lbls, transform=train_transform)
     
     real_indices = list(range(len(real_imgs)))
-    pseudo_indices = list(range(len(real_imgs), len(real_imgs) + len(pseudo_imgs)))
-    sampler = BalancedBatchSampler(real_indices, pseudo_indices, batch_size=args.batch_size)
+    pseudo_indices_list = list(range(len(real_imgs), len(real_imgs) + len(pseudo_indices)))
+    sampler = BalancedBatchSampler(real_indices, pseudo_indices_list, batch_size=args.batch_size)
     trainloader = DataLoader(combined_dataset, batch_sampler=sampler, num_workers=4, pin_memory=True)
 
     _, testloader, stl_min, stl_max = get_stl10_dataloaders(args.data_root, batch_size=64)
