@@ -18,8 +18,9 @@ This document outlines the complete design history, theoretical foundations, evo
 8. [RHAN-UNIFIED: STL-10 From Scratch](#8-rhan-unified-stl-10-from-scratch)
 9. [Final CIFAR-10 Experiments: Self-Alignment & Feature Scatter](#9-final-cifar-10-experiments-self-alignment--feature-scatter)
 10. [The Temporal Difference in Vision (TDV) Paradigm](#10-the-temporal-difference-in-vision-tdv-paradigm)
-11. [Key Lessons Learned](#11-key-lessons-learned)
-12. [Remaining Human-AI Gap](#12-remaining-human-ai-gap)
+11. [Experiment 1: STL-10 Pseudo-label TRADES Fine-Tuning](#11-experiment-1-stl-10-pseudo-label-trades-fine-tuning)
+12. [Key Lessons Learned](#12-key-lessons-learned)
+13. [Remaining Human-AI Gap](#13-remaining-human-ai-gap)
 
 ---
 
@@ -32,6 +33,7 @@ This document outlines the complete design history, theoretical foundations, evo
 | **Human** | 74.15% | >0.30 | >0.30 | ✅ Complete |
 | **RHAN-UNIFIED** ★ | **~73%** | **TBD** | **TBD** | 🔄 Training |
 | **RHAN-trades-curriculum** ★ | **78.12%** | **ε≈0.113** | **ε≈0.1850** | ✅ Complete |
+| **RHAN-Pseudolabel-TRADES** (STL-10) ★ | **86.20%** | **ε≈0.0109** | **ε≈0.0130** | ✅ Complete |
 | **RHAN-TDV-Clean** (STL-10) ★ | **78.50%** | **ε≈0.0037** | **ε≈0.0043** | ✅ Complete |
 | **RHAN-TDV-Adversarial** (STL-10) ★ | **73.83%** | **ε≈0.0077** | **ε≈0.0066** | ✅ Complete |
 | **RHAN-Self-Alignment** ⚠️ | **77.10%** | — | — | ⚠️ Obfuscated (AA: 21.60%) |
@@ -49,14 +51,14 @@ This document outlines the complete design history, theoretical foundations, evo
 
 ### PGD Accuracy Collapse Table
 
-| Epsilon | UNIFIED | TDV-Clean | TDV-Adv | Curriculum | Hardened | TRADES | RHAN-v5 | ResNet | ViT |
-|---|---|---|---|---|---|---|---|---|---|
-| 0.00 | ~73% | 78.50% | 73.83% | 78.12% | 86.33% | 87.30% | 84.57% | 95.82% | 97.80% |
-| 0.01 | TBD | 5.20% | ~1.56% | 75.00% | 83.01% | 84.77% | 80.66% | 75.57% | 55.18% |
-| 0.05 | TBD | 1.50% | 0.98% | 65.23% | 67.19% | 65.82% | 61.13% | 2.84% | 8.80% |
-| 0.10 | TBD | 1.60% | 0.78% | 52.93% | 43.16% | 37.89% | 34.38% | 0.21% | 2.78% |
-| 0.20 | TBD | 1.60% | 0.78% | 29.49% | 8.59% | 5.47% | 2.73% | 0.02% | 1.12% |
-| 0.30 | TBD | 1.70% | 0.78% | 10.16% | 0.20% | 0.20% | 0.20% | 0.00% | 0.58% |
+| Epsilon | UNIFIED | Pseudolabel | TDV-Clean | TDV-Adv | Curriculum | Hardened | TRADES | RHAN-v5 | ResNet | ViT |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 0.00 | ~73% | 86.20% | 78.50% | 73.83% | 78.12% | 86.33% | 87.30% | 84.57% | 95.82% | 97.80% |
+| 0.01 | TBD | 46.60% | 5.20% | ~1.56% | 75.00% | 83.01% | 84.77% | 80.66% | 75.57% | 55.18% |
+| 0.05 | TBD | 0.00% | 1.50% | 0.98% | 65.23% | 67.19% | 65.82% | 61.13% | 2.84% | 8.80% |
+| 0.10 | TBD | 0.00% | 1.60% | 0.78% | 52.93% | 43.16% | 37.89% | 34.38% | 0.21% | 2.78% |
+| 0.20 | TBD | 0.00% | 1.60% | 0.78% | 29.49% | 8.59% | 5.47% | 2.73% | 0.02% | 1.12% |
+| 0.30 | TBD | 0.00% | 1.70% | 0.78% | 10.16% | 0.20% | 0.20% | 0.20% | 0.00% | 0.58% |
 
 ---
 
@@ -393,7 +395,49 @@ The flat performance floor (~0.78% robustness) persisting through higher epsilon
 
 ---
 
-## 11. Key Lessons Learned
+## 11. Experiment 1: STL-10 Pseudo-label TRADES Fine-Tuning
+
+### Experimental Setup
+* **Objective**: Train a robust RHAN model on a massive combined dataset consisting of the 5K real labeled STL-10 images and high-confidence pseudo-labeled images selected from the 100K unlabeled set.
+* **Optimizations implemented**:
+  1. **Lowered confidence threshold**: Adjusted confidence threshold to `0.70` (down from `0.85`), generating **22,322** high-confidence pseudo-labels to provide visual diversity.
+  2. **Gradient balance**: Removed the TDV consistency loss from the TRADES fine-tuning phase to prevent gradient scale mismatch (~70 vs ~3.9).
+  3. **Balanced loading**: Implemented a balanced sampler providing an exact 50/50 ratio of real and pseudo-labeled samples in every batch, applying a weight of `1.0` for real labels and `0.5` for pseudo-labels.
+
+### PGD-100 Sweep & Robustness Thresholds
+Evaluating the best checkpoint `rhan_stl10_pseudolabel_best.pth` under a 100-step PGD sweep across epsilons with 1000 test samples:
+* $\varepsilon = 0.000$: **86.20%** (Overall $d'$ = 3.3442, Car $d'$ = 3.8958, Truck $d'$ = 3.6899)
+* $\varepsilon = 0.005$: **68.30%** (Overall $d'$ = 2.3252, Car $d'$ = 2.9452, Truck $d'$ = 2.4992)
+* $\varepsilon = 0.010$: **46.60%** (Overall $d'$ = 1.4628, Car $d'$ = 2.2603, Truck $d'$ = 1.5250)
+* $\varepsilon = 0.015$: **26.60%** (Overall $d'$ = 0.6810, Car $d'$ = 1.4267, Truck $d'$ = 0.5394)
+* $\varepsilon = 0.030$: **2.80%** (Overall $d'$ = -0.8883, Car $d'$ = 0.2086, Truck $d'$ = -0.8764)
+* $\varepsilon \ge 0.050$: **0.00%** (Complete collapse)
+
+* **Estimated $\varepsilon_{\text{thresh}}$ (Relative 50% Accuracy drop)**: **0.0109** (approx. $2.8/255$; vs baseline $0.0037$)
+* **Estimated $\varepsilon_{\text{thresh}}$ (Overall SDT $d'=1.0$)**: **0.0130** (approx. $3.3/255$; vs baseline $0.0043$)
+* **Car Class $\varepsilon_{\text{thresh}}$ ($d'=1.0$)**: **0.0203** (approx. $5.2/255$)
+* **Truck Class $\varepsilon_{\text{thresh}}$ ($d'=1.0$)**: **0.0127** (approx. $3.2/255$)
+
+### AutoAttack Performance (Standard $\varepsilon=0.031$, $n=1000$)
+* **Clean Accuracy (subset)**: **86.20%**
+* **Verified Robust Accuracy**: **7.70%** (77/1000 samples)
+  * APGD-CE: **9.00%**
+  * APGD-T: **7.70%**
+  * FAB-T: **7.70%**
+  * Square: **7.70%**
+* **Per-class robust accuracy**:
+  * `car` (97 samples): Clean = 94.8% | AA = 0.0%
+  * `truck` (96 samples): Clean = 88.5% | AA = 1.0%
+  * `ship` (103 samples): Clean = 93.2% | AA = 35.9%
+  * `airplane` (103 samples): Clean = 95.1% | AA = 20.4%
+
+### Finding: Representational Enrichment vs. Manifold Collapse
+Training on balanced pseudo-labels significantly enriched the model's visual representations, boosting clean accuracy to **86.20%** (an absolute increase of **8.0 pp** over the baseline model's 78.2%). The robustness threshold also rose significantly, pushing the d'=1.0 boundary out by over **3×** to $\varepsilon=0.0130$.
+However, the complete class-specific collapse of the `car` class under AutoAttack at $\varepsilon=0.031$ (dropping to 0.0%) highlights that while representations are stronger, the local decision boundary geometry around key categories remains highly vulnerable to adaptive attacks when the perturbation magnitude exceeds the clean-trained manifold boundaries.
+
+---
+
+## 12. Key Lessons Learned
 
 ### What Definitively Doesn't Work
 
@@ -437,7 +481,7 @@ The flat performance floor (~0.78% robustness) persisting through higher epsilon
 
 ---
 
-## 12. Remaining Human-AI Gap
+## 13. Remaining Human-AI Gap
 
 Even with all improvements, the gap between RHAN (εthresh≈0.185) and humans (εthresh>0.30) on CIFAR-10 is ~1.6×. On STL-10, we predict εthresh≈0.250 vs human >0.500 — still a 2× gap.
 
