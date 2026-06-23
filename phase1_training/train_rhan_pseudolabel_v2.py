@@ -148,7 +148,7 @@ def generate_pseudo_labels(model, unlabeled_loader, device, confidence_threshold
             
             mask = conf >= confidence_threshold
             if mask.sum() > 0:
-                pseudo_indices.append(idx[mask].cpu())
+                pseudo_indices.append(idx[mask.cpu()])
                 pseudo_labels.append(pred[mask].cpu())
                 confidence_scores.append(conf[mask].cpu())
             
