@@ -32,9 +32,29 @@ subprocess.run('git pull origin main', shell=True, check=True)
 checkpoint_dir = 'checkpoints'
 os.makedirs(checkpoint_dir, exist_ok=True)
 
-# 2. Install Dependencies
+# 2. Install Dependencies (Resolving P100 sm_60 compatibility)
 print('Installing requirements...')
-# Install required non-torch dependencies first
+
+# Check if pre-installed PyTorch supports P100 (sm_60)
+import torch
+need_torch_reinstall = False
+if torch.cuda.is_available():
+    cap = torch.cuda.get_device_capability(0)
+    if cap == (6, 0):  # Tesla P100
+        arch_list = torch.cuda.get_arch_list()
+        if 'sm_60' not in arch_list:
+            print("WARNING: Pre-installed PyTorch does not support P100 (sm_60) architecture.")
+            need_torch_reinstall = True
+
+if need_torch_reinstall:
+    print("Reinstalling PyTorch with CUDA 11.8 wheels to restore sm_60 support...")
+    try:
+        subprocess.run('pip install --force-reinstall -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118', shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print("Failed to reinstall PyTorch using CUDA 11.8 wheel.")
+        raise e
+
+# Install other required non-torch dependencies
 try:
     subprocess.run('pip install -q datasets huggingface_hub autoattack opencv-python', shell=True, check=True)
 except subprocess.CalledProcessError as e:
@@ -52,7 +72,8 @@ if os.path.exists('requirements.txt'):
     filtered_reqs = []
     for r in reqs:
         r_clean = r.strip()
-        if not r_clean or r_clean.startswith('--') or any(pkg in r_clean for pkg in ['torch', 'torchvision', 'torchaudio']) and not any(pkg in r_clean for pkg in ['torchattacks']):
+        # Skip package index commands and PyTorch packages to avoid overwriting P100-compatible PyTorch
+        if not r_clean or r_clean.startswith('--') or (any(pkg in r_clean for pkg in ['torch', 'torchvision', 'torchaudio']) and not any(pkg in r_clean for pkg in ['torchattacks'])):
             continue
         filtered_reqs.append(r_clean)
     
