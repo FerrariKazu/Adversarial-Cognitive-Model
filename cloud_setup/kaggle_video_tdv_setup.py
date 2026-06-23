@@ -83,13 +83,63 @@ if os.path.exists('requirements.txt'):
     
     subprocess.run(f'pip install -q -r {temp_reqs_path}', shell=True, check=True)
 
-# 3. Handle Checkpoint from Kaggle Dataset
+# 3. Setup UCF-101 Video Dataset
+print('Setting up UCF-101 dataset...')
+ucf_src_path = None
+if os.path.exists(kaggle_input_dir):
+    for item in os.listdir(kaggle_input_dir):
+        item_path = os.path.join(kaggle_input_dir, item)
+        if os.path.isdir(item_path):
+            try:
+                contents = os.listdir(item_path)
+                if 'UCF-101' in contents or 'ucf101' in contents:
+                    ucf_src_path = os.path.join(item_path, 'UCF-101' if 'UCF-101' in contents else 'ucf101')
+                    break
+                if any(cat in contents for cat in ['ApplyEyeMakeup', 'Archery', 'Basketball']):
+                    ucf_src_path = item_path
+                    break
+            except Exception:
+                pass
+
+os.makedirs('data', exist_ok=True)
+if ucf_src_path:
+    print(f"Found mounted UCF-101 dataset in inputs at: {ucf_src_path}")
+    target_link = 'data/ucf101'
+    if os.path.exists(target_link):
+        if os.path.islink(target_link):
+            os.unlink(target_link)
+        else:
+            shutil.rmtree(target_link)
+    os.symlink(ucf_src_path, target_link)
+    print("Successfully symlinked dataset to data/ucf101.")
+else:
+    # Direct download fallback
+    if not os.path.exists('data/ucf101'):
+        print("UCF-101 dataset not found in inputs. Downloading official archive (~6.5GB)...")
+        download_cmd = "wget --no-check-certificate -q --show-progress https://www.crcv.ucf.edu/data/UCF101/UCF101.rar -O data/UCF101.rar"
+        try:
+            subprocess.run(download_cmd, shell=True, check=True)
+            print("Extracting UCF-101 dataset (this may take a few minutes)...")
+            extract_cmd = "unrar x data/UCF101.rar data/ > /dev/null"
+            subprocess.run(extract_cmd, shell=True, check=True)
+            if os.path.exists('data/UCF-101'):
+                os.rename('data/UCF-101', 'data/ucf101')
+            print("Dataset downloaded and extracted successfully.")
+        except Exception as e:
+            print(f"Download/Extraction failed: {e}")
+        finally:
+            if os.path.exists('data/UCF101.rar'):
+                os.remove('data/UCF101.rar')
+                print("Cleaned up download archive to save space.")
+    else:
+        print("UCF-101 dataset already present at data/ucf101.")
+
+# 4. Handle Checkpoint from Kaggle Dataset
 expected_ckpt = 'rhan_stl10_tdv_trades.pth'
 dst_ckpt = os.path.join(checkpoint_dir, expected_ckpt)
 
 # Search robustly for the checkpoint under Kaggle inputs
 src_ckpt = None
-kaggle_input_dir = '/kaggle/input'
 if os.path.exists(kaggle_input_dir):
     print("Searching for checkpoint in Kaggle inputs...")
     for root, dirs, files in os.walk(kaggle_input_dir):
