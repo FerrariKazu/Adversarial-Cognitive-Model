@@ -70,23 +70,25 @@ def set_seed(seed=42):
 
 class UCF101TemporalDataset(Dataset):
     """
-    Extracts consecutive frame pairs from UCF-101 video clips.
-    Uses genuine optical flow/motion from frames separated by frame_skip.
+    Extracts consecutive frame pairs from UCF-101 video clips dynamically.
+    Avoids OOM and slow startup by loading and decoding frame pairs on the fly.
     """
-    def __init__(self, ucf_root, categories=None, frame_skip=3, img_size=96):
-        self.frame_pairs = []
+    def __init__(self, ucf_root, categories=None, frame_skip=3, img_size=96, epoch_len=5000):
+        self.video_paths = []
         self.frame_skip = frame_skip
         self.img_size = img_size
+        self.epoch_len = epoch_len
+        self.mock = False
         
         if not os.path.exists(ucf_root):
-            print(f"WARNING: UCF-101 directory '{ucf_root}' not found. Generating mock dataset for verification.")
-            # Create a mock dataset for validation
+            print(f"WARNING: UCF-101 directory '{ucf_root}' not found. Generating mock dataset.")
+            self.mock = True
+            self.mock_pairs = []
             for _ in range(100):
                 f1 = np.random.randint(0, 256, (img_size, img_size, 3), dtype=np.uint8)
                 f2 = np.random.randint(0, 256, (img_size, img_size, 3), dtype=np.uint8)
-                self.frame_pairs.append((f1, f2))
+                self.mock_pairs.append((f1, f2))
         else:
-            # Extract frame pairs from all video clips
             for category in os.listdir(ucf_root):
                 if categories and category not in categories:
                     continue
@@ -95,37 +97,58 @@ class UCF101TemporalDataset(Dataset):
                     continue
                 for video_file in os.listdir(cat_path):
                     if video_file.endswith('.avi'):
-                        try:
-                            pairs = self.extract_frame_pairs(os.path.join(cat_path, video_file))
-                            self.frame_pairs.extend(pairs)
-                        except Exception as e:
-                            print(f"Error loading {video_file}: {e}")
-        
-        print(f"UCF-101 dataset loaded: {len(self.frame_pairs)} frame pairs")
-    
-    def extract_frame_pairs(self, video_path):
-        """Extract (frame_t, frame_t+k) pairs from a video file."""
-        import cv2
-        cap = cv2.VideoCapture(video_path)
-        frames = []
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frames.append(frame)
-        cap.release()
-        
-        pairs = []
-        for i in range(len(frames) - self.frame_skip):
-            pairs.append((frames[i], frames[i + self.frame_skip]))
-        return pairs
-    
+                        self.video_paths.append(os.path.join(cat_path, video_file))
+            print(f"UCF-101 dataset located: found {len(self.video_paths)} videos across {len(categories) if categories else 'all'} categories.")
+            if len(self.video_paths) == 0:
+                print("WARNING: No video files found. Falling back to mock dataset.")
+                self.mock = True
+                self.mock_pairs = []
+                for _ in range(100):
+                    f1 = np.random.randint(0, 256, (img_size, img_size, 3), dtype=np.uint8)
+                    f2 = np.random.randint(0, 256, (img_size, img_size, 3), dtype=np.uint8)
+                    self.mock_pairs.append((f1, f2))
+
     def __len__(self):
-        return len(self.frame_pairs)
-    
+        if self.mock:
+            return len(self.mock_pairs)
+        return self.epoch_len
+
     def __getitem__(self, idx):
-        frame_t, frame_t1 = self.frame_pairs[idx]
+        if self.mock:
+            frame_t, frame_t1 = self.mock_pairs[idx % len(self.mock_pairs)]
+        else:
+            # Pick a video path based on index
+            video_idx = idx % len(self.video_paths)
+            video_path = self.video_paths[video_idx]
+            
+            import cv2
+            cap = cv2.VideoCapture(video_path)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+            if total_frames <= self.frame_skip + 1:
+                cap.release()
+                # Fallback: recursively pick another random video index
+                return self.__getitem__(random.randint(0, len(self.video_paths) - 1))
+            
+            # Select random starting frame
+            t = random.randint(0, total_frames - self.frame_skip - 1)
+            
+            # Read frame t
+            cap.set(cv2.CAP_PROP_POS_FRAMES, t)
+            ret_t, frame_t = cap.read()
+            
+            # Read frame t + skip
+            cap.set(cv2.CAP_PROP_POS_FRAMES, t + self.frame_skip)
+            ret_t1, frame_t1 = cap.read()
+            
+            cap.release()
+            
+            if not ret_t or not ret_t1 or frame_t is None or frame_t1 is None:
+                # Fallback: recursively pick another random video index
+                return self.__getitem__(random.randint(0, len(self.video_paths) - 1))
+                
+            frame_t = cv2.cvtColor(frame_t, cv2.COLOR_BGR2RGB)
+            frame_t1 = cv2.cvtColor(frame_t1, cv2.COLOR_BGR2RGB)
         
         transform = T.Compose([
             T.ToPILImage(),
