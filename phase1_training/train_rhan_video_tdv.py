@@ -249,7 +249,7 @@ def adversarial_tdv_loss_large(model, x_t, x_t1, eps=0.031, steps=3):
 # TRAINING PHASES
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def run_video_tdv(model, video_loader, device, ckpt_path):
+def run_video_tdv(model, video_loader, device, ckpt_path, accum_steps=1):
     print("\n" + "="*70)
     print("RUNNING UCF-101 VIDEO TDV PRETRAINING (stem frozen)")
     print("="*70)
@@ -268,24 +268,36 @@ def run_video_tdv(model, video_loader, device, ckpt_path):
         t0 = time.time()
         total_loss = total_pred = total_var = n_total = 0
         
-        for x_t, x_t1 in video_loader:
+        optimizer.zero_grad(set_to_none=True)
+        for batch_idx, (x_t, x_t1) in enumerate(video_loader):
             x_t = x_t.to(device, non_blocking=True)
             x_t1 = x_t1.to(device, non_blocking=True)
             
-            optimizer.zero_grad(set_to_none=True)
             with autocast('cuda'):
                 loss, l_pred, l_var, _ = tdv_loss_large(model, x_t, x_t1)
+                loss = loss / accum_steps
             
             scaler.scale(loss).backward()
-            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            scaler.step(optimizer)
-            scaler.update()
+            
+            if (batch_idx + 1) % accum_steps == 0:
+                scaler.unscale_(optimizer)
+                nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad(set_to_none=True)
             
             B = x_t.size(0)
-            total_loss += loss.item() * B
+            total_loss += (loss.item() * accum_steps) * B
             total_pred += l_pred.item() * B
             total_var  += l_var.item() * B
             n_total    += B
+            
+        if len(video_loader) % accum_steps != 0:
+            scaler.unscale_(optimizer)
+            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad(set_to_none=True)
             
         scheduler.step()
         if n_total > 0:
@@ -296,7 +308,7 @@ def run_video_tdv(model, video_loader, device, ckpt_path):
     torch.save(model.state_dict(), ckpt_path)
     print(f"Saved pre-trained video TDV model to {ckpt_path}")
 
-def run_trades_finetuning(model, trainloader, testloader, video_loader, device, ckpt_path):
+def run_trades_finetuning(model, trainloader, testloader, video_loader, device, ckpt_path, accum_steps=1):
     print("\n" + "="*70)
     print("RUNNING TRADES ADVERSARIAL FINE-TUNING (UCF-101 video temporal consistency)")
     print("="*70)
@@ -313,19 +325,19 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
     std  = (0.2603, 0.2566, 0.2713)
     stl_min = torch.tensor([-(m/s) for m, s in zip(mean, std)]).view(1,3,1,1).to(device)
     stl_max = torch.tensor([(1-m)/s for m, s in zip(mean, std)]).view(1,3,1,1).to(device)
-
+ 
     # Curriculum Setup
     curriculum = [
         (1,  10, 0.031, 2.0, 7,  0.003),
         (11, 20, 0.062, 2.0, 10, 0.002),
         (21, 30, 0.094, 2.5, 10, 0.001),
     ]
-
+ 
     current_phase_start = None
     optimizer = None
     scheduler = None
     best_acc = 0.0
-
+ 
     for epoch in range(1, 31):
         t0 = time.time()
         
@@ -345,13 +357,14 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
                     )
                     print(f"\n--- Epoch {epoch}: New optimizer phase {p_start}-{p_end} (lr={phase_lr}) ---")
                 break
-
+ 
         eps, beta, steps = phase_params
         
         model.train()
         total_loss = total_tr = total_cons = n_total = correct = 0
         
-        for imgs, lbls in trainloader:
+        optimizer.zero_grad(set_to_none=True)
+        for batch_idx, (imgs, lbls) in enumerate(trainloader):
             imgs = imgs.to(device, non_blocking=True)
             lbls = lbls.to(device, non_blocking=True)
             
@@ -376,8 +389,7 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
                 delta = torch.clamp(x_adv - imgs, -eps, eps)
                 x_adv = torch.clamp(imgs + delta, stl_min, stl_max).detach()
             model.train()
-
-            optimizer.zero_grad(set_to_none=True)
+ 
             with autocast('cuda'):
                 logits_c = model(imgs)
                 logits_a = model(x_adv)
@@ -387,19 +399,30 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
                     F.softmax(logits_c.float().detach(), dim=1),
                     reduction='batchmean'
                 )
-                loss = l_trades
-
+                loss = l_trades / accum_steps
+ 
             scaler.scale(loss).backward()
-            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            scaler.step(optimizer)
-            scaler.update()
-
+            
+            if (batch_idx + 1) % accum_steps == 0:
+                scaler.unscale_(optimizer)
+                nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad(set_to_none=True)
+ 
             B = imgs.size(0)
-            total_loss += loss.item() * B
+            total_loss += (loss.item() * accum_steps) * B
             total_tr   += l_trades.item() * B
             correct    += logits_c.argmax(1).eq(lbls).sum().item()
             n_total    += B
-
+ 
+        if len(trainloader) % accum_steps != 0:
+            scaler.unscale_(optimizer)
+            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad(set_to_none=True)
+            
         scheduler.step()
 
         # Validation (clean)
@@ -438,6 +461,7 @@ def main():
     parser.add_argument('--model-size', type=str, default='base', choices=['base', 'large'])
     parser.add_argument('--data-root', type=str, default='./data')
     parser.add_argument('--batch-size', type=int, default=512)
+    parser.add_argument('--accum-steps', type=int, default=1, help='Gradient accumulation steps')
     parser.add_argument('--seed', type=int, default=42)
     args = parser.parse_args()
 
@@ -474,7 +498,7 @@ def main():
     )
 
     if args.phase == 'tdv':
-        run_video_tdv(model, video_loader, device, ckpt_path)
+        run_video_tdv(model, video_loader, device, ckpt_path, args.accum_steps)
     elif args.phase == 'trades':
         # Load pre-trained checkpoint if it exists
         if os.path.exists(ckpt_path):
@@ -485,7 +509,7 @@ def main():
 
         stl_data_root = os.path.join(args.data_root, 'stl10')
         trainloader, testloader, _, _ = get_stl10_dataloaders(data_root=stl_data_root, batch_size=64)
-        run_trades_finetuning(model, trainloader, testloader, video_loader, device, ckpt_path)
+        run_trades_finetuning(model, trainloader, testloader, video_loader, device, ckpt_path, args.accum_steps)
 
 if __name__ == '__main__':
     main()
