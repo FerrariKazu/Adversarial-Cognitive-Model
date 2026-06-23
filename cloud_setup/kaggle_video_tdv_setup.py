@@ -86,6 +86,7 @@ if os.path.exists('requirements.txt'):
 # 3. Setup UCF-101 Video Dataset
 print('Setting up UCF-101 dataset...')
 ucf_src_path = None
+kaggle_input_dir = '/kaggle/input'
 if os.path.exists(kaggle_input_dir):
     for item in os.listdir(kaggle_input_dir):
         item_path = os.path.join(kaggle_input_dir, item)
