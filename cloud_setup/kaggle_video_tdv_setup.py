@@ -34,9 +34,23 @@ os.makedirs(checkpoint_dir, exist_ok=True)
 
 # 2. Install Dependencies
 print('Installing requirements...')
+# Install required non-torch dependencies first
 subprocess.run('pip install -q datasets huggingface_hub autoattack opencv-python', shell=True, check=True)
 if os.path.exists('requirements.txt'):
-    subprocess.run('pip install -q -r requirements.txt', shell=True, check=True)
+    with open('requirements.txt', 'r') as f:
+        reqs = f.readlines()
+    filtered_reqs = []
+    for r in reqs:
+        r_clean = r.strip()
+        if not r_clean or r_clean.startswith('--') or any(pkg in r_clean for pkg in ['torch', 'torchvision', 'torchaudio']) and not any(pkg in r_clean for pkg in ['torchattacks']):
+            continue
+        filtered_reqs.append(r_clean)
+    
+    temp_reqs_path = 'kaggle_requirements.txt'
+    with open(temp_reqs_path, 'w') as f:
+        f.write('\n'.join(filtered_reqs))
+    
+    subprocess.run(f'pip install -q -r {temp_reqs_path}', shell=True, check=True)
 
 # 3. Handle Checkpoint from Kaggle Dataset
 expected_ckpt = 'rhan_stl10_tdv_trades.pth'
