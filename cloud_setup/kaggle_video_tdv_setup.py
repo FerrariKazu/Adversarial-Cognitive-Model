@@ -56,7 +56,7 @@ if need_torch_reinstall:
 
 # Install other required non-torch dependencies
 try:
-    subprocess.run('pip install -q datasets huggingface_hub autoattack opencv-python', shell=True, check=True)
+    subprocess.run('pip install -q datasets huggingface_hub autoattack opencv-python --index-url https://pypi.org/simple', shell=True, check=True)
 except subprocess.CalledProcessError as e:
     print("\n" + "=" * 80)
     print("ERROR: Package installation failed!")
@@ -81,7 +81,7 @@ if os.path.exists('requirements.txt'):
     with open(temp_reqs_path, 'w') as f:
         f.write('\n'.join(filtered_reqs))
     
-    subprocess.run(f'pip install -q -r {temp_reqs_path}', shell=True, check=True)
+    subprocess.run(f'pip install -q -r {temp_reqs_path} --index-url https://pypi.org/simple', shell=True, check=True)
 
 # 3. Setup UCF-101 Video Dataset
 print('Setting up UCF-101 dataset...')
