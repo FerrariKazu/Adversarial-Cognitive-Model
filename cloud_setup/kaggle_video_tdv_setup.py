@@ -180,6 +180,7 @@ training_cmd = """nohup python3 phase1_training/train_rhan_video_tdv.py \
     --phase tdv \
     --model-size large \
     --data-root ./data \
-    --batch-size 512 > training_log.out 2>&1 &"""
+    --batch-size 128 \
+    --accum-steps 4 > training_log.out 2>&1 &"""
 
 os.system(training_cmd)
