@@ -35,16 +35,16 @@ os.makedirs(checkpoint_dir, exist_ok=True)
 # 2. Install Dependencies (Resolving P100 sm_60 compatibility)
 print('Installing requirements...')
 
-# Check if pre-installed PyTorch supports P100 (sm_60)
-import torch
+# Check if pre-installed PyTorch supports P100 (sm_60) using a separate subprocess
 need_torch_reinstall = False
-if torch.cuda.is_available():
-    cap = torch.cuda.get_device_capability(0)
-    if cap == (6, 0):  # Tesla P100
-        arch_list = torch.cuda.get_arch_list()
-        if 'sm_60' not in arch_list:
-            print("WARNING: Pre-installed PyTorch does not support P100 (sm_60) architecture.")
-            need_torch_reinstall = True
+try:
+    check_cmd = "python3 -c \"import torch; cap = torch.cuda.get_device_capability(0) if torch.cuda.is_available() else None; print('REINSTALL' if cap == (6, 0) and 'sm_60' not in torch.cuda.get_arch_list() else 'OK')\""
+    res = subprocess.run(check_cmd, shell=True, capture_output=True, text=True)
+    if 'REINSTALL' in res.stdout:
+        print("WARNING: Pre-installed PyTorch does not support P100 (sm_60) architecture.")
+        need_torch_reinstall = True
+except Exception:
+    pass
 
 if need_torch_reinstall:
     print("Reinstalling PyTorch with CUDA 11.8 wheels to restore sm_60 support...")
