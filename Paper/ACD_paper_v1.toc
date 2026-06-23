@@ -10,44 +10,53 @@
 \contentsline {subsection}{\numberline {3.2}Model Architectures}{9}{subsection.3.2}%
 \contentsline {subsection}{\numberline {3.3}Adversarial Attacks}{10}{subsection.3.3}%
 \contentsline {subsection}{\numberline {3.4}RHAN Architecture}{10}{subsection.3.4}%
-\contentsline {subsection}{\numberline {3.5}RHAN Curriculum Adversarial Training}{11}{subsection.3.5}%
-\contentsline {subsection}{\numberline {3.6}Self-Supervised Adversarial Invariance Learning (SAIL)}{11}{subsection.3.6}%
-\contentsline {subsubsection}{\numberline {3.6.1}Motivation and Cognitive Foundations}{11}{subsubsection.3.6.1}%
-\contentsline {subsubsection}{\numberline {3.6.2}Mathematical Formulation}{12}{subsubsection.3.6.2}%
-\contentsline {subsubsection}{\numberline {3.6.3}Algorithmic Phases}{13}{subsubsection.3.6.3}%
-\contentsline {paragraph}{Phase 1: Representation Invariance Pretraining.}{13}{section*.3}%
-\contentsline {paragraph}{Phase 2: Semantically Anchored Fine-Tuning.}{13}{section*.4}%
-\contentsline {subsection}{\numberline {3.7}Human Psychophysics Study}{14}{subsection.3.7}%
-\contentsline {subsection}{\numberline {3.8}Signal Detection Theory}{15}{subsection.3.8}%
-\contentsline {section}{\numberline {4}Results}{15}{section.4}%
-\contentsline {subsection}{\numberline {4.1}PGD Accuracy Collapse on CIFAR-10}{15}{subsection.4.1}%
-\contentsline {subsection}{\numberline {4.2}The Two-Regime Robustness Crossover}{16}{subsection.4.2}%
-\contentsline {subsection}{\numberline {4.3}Signal Detection Theory Analysis}{17}{subsection.4.3}%
-\contentsline {subsection}{\numberline {4.4}Shape-ResNet: A Negative Result}{18}{subsection.4.4}%
-\contentsline {subsection}{\numberline {4.5}Confidence-Accuracy Dissociation}{18}{subsection.4.5}%
-\contentsline {subsection}{\numberline {4.6}RHAN Architecture and Gating Dynamics}{19}{subsection.4.6}%
-\contentsline {subsection}{\numberline {4.7}STL-10 Evaluation: The Resolution Question}{19}{subsection.4.7}%
-\contentsline {subsection}{\numberline {4.8}CORnet-S: Recurrence Without Robustness}{21}{subsection.4.8}%
-\contentsline {subsection}{\numberline {4.9}SAIL: Representation Invariance and Preliminary Results}{21}{subsection.4.9}%
-\contentsline {section}{\numberline {5}Discussion}{22}{section.5}%
-\contentsline {subsection}{\numberline {5.1}The ResNet Paradox}{22}{subsection.5.1}%
-\contentsline {subsection}{\numberline {5.2}Why Shape Bias Is Not Enough}{22}{subsection.5.2}%
-\contentsline {subsection}{\numberline {5.3}Why Resolution Is Not Enough}{23}{subsection.5.3}%
-\contentsline {subsection}{\numberline {5.4}The Visual Feedback Restoration Gap}{23}{subsection.5.4}%
-\contentsline {subsection}{\numberline {5.5}SAIL vs. TRADES: Enforcing Representation Invariance}{24}{subsection.5.5}%
-\contentsline {subsection}{\numberline {5.6}What Would It Take?}{24}{subsection.5.6}%
-\contentsline {section}{\numberline {6}Probing the Remaining Gap: Seven Interventions}{25}{section.6}%
-\contentsline {subsection}{\numberline {6.1}Empirical Verification of the Gradient Masking Theorem}{26}{subsection.6.1}%
-\contentsline {subsection}{\numberline {6.2}The Irreducibility of Category Overlap on $32\times 32$ CIFAR-10}{27}{subsection.6.2}%
-\contentsline {section}{\numberline {7}Limitations}{27}{section.7}%
-\contentsline {section}{\numberline {8}Future Work}{28}{section.8}%
-\contentsline {section}{\numberline {9}Conclusion}{29}{section.9}%
-\contentsline {section}{\numberline {A}Figure Index}{32}{appendix.A}%
-\contentsline {subsection}{\numberline {A.1}Primary Psychophysical and Performance Curves}{35}{subsection.A.1}%
-\contentsline {subsection}{\numberline {A.2}Representation and Latent Space Topology}{36}{subsection.A.2}%
-\contentsline {subsection}{\numberline {A.3}Model-Specific Confusion Matrices}{38}{subsection.A.3}%
-\contentsline {subsection}{\numberline {A.4}Recurrent Feedback Gating Maps}{38}{subsection.A.4}%
-\contentsline {subsection}{\numberline {A.5}Visual Psychophysics Stimuli and Grad-CAM Explanations}{39}{subsection.A.5}%
-\contentsline {subsection}{\numberline {A.6}STL-10 Evaluation Figures}{40}{subsection.A.6}%
-\contentsline {section}{\numberline {B}The New Frontier: Visualizing the Gap}{43}{appendix.B}%
-\contentsline {section}{\numberline {C}Implementation Details}{53}{appendix.C}%
+\contentsline {subsubsection}{\numberline {3.4.1}Recurrent Top-Down Feedback via Predictive Coding}{11}{subsubsection.3.4.1}%
+\contentsline {subsubsection}{\numberline {3.4.2}Dual-Stream Transformer Attention}{11}{subsubsection.3.4.2}%
+\contentsline {subsubsection}{\numberline {3.4.3}Spherical Prototype Classification}{12}{subsubsection.3.4.3}%
+\contentsline {subsection}{\numberline {3.5}RHAN Curriculum Adversarial Training}{12}{subsection.3.5}%
+\contentsline {subsection}{\numberline {3.6}Self-Supervised Adversarial Invariance Learning (SAIL)}{13}{subsection.3.6}%
+\contentsline {subsubsection}{\numberline {3.6.1}Motivation and Cognitive Foundations}{13}{subsubsection.3.6.1}%
+\contentsline {subsubsection}{\numberline {3.6.2}Mathematical Formulation}{13}{subsubsection.3.6.2}%
+\contentsline {subsubsection}{\numberline {3.6.3}Algorithmic Phases}{15}{subsubsection.3.6.3}%
+\contentsline {paragraph}{Phase 1: Representation Invariance Pretraining.}{15}{section*.3}%
+\contentsline {paragraph}{Phase 2: Semantically Anchored Fine-Tuning.}{15}{section*.4}%
+\contentsline {subsection}{\numberline {3.7}Temporal Difference in Vision (TDV) Pretraining}{16}{subsection.3.7}%
+\contentsline {subsection}{\numberline {3.8}Human Psychophysics Study}{17}{subsection.3.8}%
+\contentsline {subsection}{\numberline {3.9}Signal Detection Theory}{18}{subsection.3.9}%
+\contentsline {section}{\numberline {4}Results}{18}{section.4}%
+\contentsline {subsection}{\numberline {4.1}PGD Accuracy Collapse on CIFAR-10}{18}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}The Two-Regime Robustness Crossover}{19}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Signal Detection Theory Analysis}{20}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Shape-ResNet: A Negative Result}{21}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}Confidence-Accuracy Dissociation}{21}{subsection.4.5}%
+\contentsline {subsection}{\numberline {4.6}RHAN Architecture and Gating Dynamics}{22}{subsection.4.6}%
+\contentsline {subsection}{\numberline {4.7}STL-10 Evaluation: The Resolution Question}{22}{subsection.4.7}%
+\contentsline {subsection}{\numberline {4.8}Causal Temporal Difference (TDV): Resolving the Car-Truck Collapse on STL-10}{24}{subsection.4.8}%
+\contentsline {paragraph}{Phase TDV Pretraining.}{24}{section*.10}%
+\contentsline {paragraph}{Phase Label Calibration.}{24}{section*.11}%
+\contentsline {paragraph}{Adversarial TDV Consistency Fine-Tuning.}{24}{section*.12}%
+\contentsline {subsection}{\numberline {4.9}CORnet-S: Recurrence Without Robustness}{26}{subsection.4.9}%
+\contentsline {subsection}{\numberline {4.10}SAIL: Representation Invariance and Preliminary Results}{26}{subsection.4.10}%
+\contentsline {section}{\numberline {5}Discussion}{27}{section.5}%
+\contentsline {subsection}{\numberline {5.1}The ResNet Paradox}{27}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Why Shape Bias Is Not Enough}{27}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Why Resolution Is Not Enough}{28}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}The Visual Feedback Restoration Gap}{28}{subsection.5.4}%
+\contentsline {subsection}{\numberline {5.5}SAIL vs. TRADES: Enforcing Representation Invariance}{28}{subsection.5.5}%
+\contentsline {subsection}{\numberline {5.6}What Would It Take?}{29}{subsection.5.6}%
+\contentsline {section}{\numberline {6}Probing the Remaining Gap: Seven Interventions}{29}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Empirical Verification of the Gradient Masking Theorem}{30}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}The Irreducibility of Category Overlap on $32\times 32$ CIFAR-10}{31}{subsection.6.2}%
+\contentsline {section}{\numberline {7}Limitations}{32}{section.7}%
+\contentsline {section}{\numberline {8}Future Work}{33}{section.8}%
+\contentsline {section}{\numberline {9}Conclusion}{34}{section.9}%
+\contentsline {section}{\numberline {A}Figure Index}{37}{appendix.A}%
+\contentsline {subsection}{\numberline {A.1}Primary Psychophysical and Performance Curves}{40}{subsection.A.1}%
+\contentsline {subsection}{\numberline {A.2}Representation and Latent Space Topology}{42}{subsection.A.2}%
+\contentsline {subsection}{\numberline {A.3}Model-Specific Confusion Matrices}{44}{subsection.A.3}%
+\contentsline {subsection}{\numberline {A.4}Recurrent Feedback Gating Maps}{44}{subsection.A.4}%
+\contentsline {subsection}{\numberline {A.5}Visual Psychophysics Stimuli and Grad-CAM Explanations}{45}{subsection.A.5}%
+\contentsline {subsection}{\numberline {A.6}STL-10 Evaluation Figures}{46}{subsection.A.6}%
+\contentsline {subsection}{\numberline {A.7}Architecture Spectrum and Crossover Figures}{49}{subsection.A.7}%
+\contentsline {section}{\numberline {B}The New Frontier: Visualizing the Gap}{51}{appendix.B}%
+\contentsline {section}{\numberline {C}Implementation Details}{61}{appendix.C}%
