@@ -265,7 +265,10 @@ def run_video_tdv(model, video_loader, device, ckpt_path):
             n_total    += B
             
         scheduler.step()
-        print(f"Epoch {epoch:02d}/10 | Loss: {total_loss/n_total:.4f} | l_pred: {total_pred/n_total:.4f} | l_var: {total_var/n_total:.4f} | {time.time()-t0:.0f}s")
+        if n_total > 0:
+            print(f"Epoch {epoch:02d}/10 | Loss: {total_loss/n_total:.4f} | l_pred: {total_pred/n_total:.4f} | l_var: {total_var/n_total:.4f} | {time.time()-t0:.0f}s")
+        else:
+            print(f"Epoch {epoch:02d}/10 | Loss: 0.0000 | l_pred: 0.0000 | l_var: 0.0000 | {time.time()-t0:.0f}s (No batches processed)")
         
     torch.save(model.state_dict(), ckpt_path)
     print(f"Saved pre-trained video TDV model to {ckpt_path}")
@@ -434,7 +437,18 @@ def main():
     # Load video dataset
     ucf_root = os.path.join(args.data_root, 'ucf101')
     video_dataset = UCF101TemporalDataset(ucf_root=ucf_root, categories=list(UCF_RELEVANT_CATEGORIES.keys()))
-    video_loader = DataLoader(video_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True, drop_last=True)
+    
+    # Ensure drop_last is only True if dataset size exceeds batch size to prevent ZeroDivisionError
+    drop_last = len(video_dataset) > args.batch_size
+    batch_size = min(args.batch_size, len(video_dataset)) if len(video_dataset) > 0 else args.batch_size
+    video_loader = DataLoader(
+        video_dataset, 
+        batch_size=batch_size, 
+        shuffle=True, 
+        num_workers=4, 
+        pin_memory=True, 
+        drop_last=drop_last
+    )
 
     if args.phase == 'tdv':
         run_video_tdv(model, video_loader, device, ckpt_path)
