@@ -84,6 +84,7 @@ import argparse
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--skip-pgd', action='store_true', help='Skip PGD-100 sweep and print cached results')
+    parser.add_argument('--checkpoint', type=str, default='checkpoints/rhan_stl10_pseudolabel_best.pth', help='Path to checkpoint file')
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -92,7 +93,12 @@ def main():
     # Load model
     model = RHANUnifiedSTL10().to(device)
     script_dir = os.path.dirname(__file__)
-    ckpt_path = os.path.abspath(os.path.join(script_dir, '../checkpoints/rhan_stl10_pseudolabel_best.pth'))
+    
+    # Handle absolute vs relative paths
+    if os.path.isabs(args.checkpoint):
+        ckpt_path = args.checkpoint
+    else:
+        ckpt_path = os.path.abspath(os.path.join(script_dir, '..', args.checkpoint))
     
     if os.path.exists(ckpt_path):
         model.load_state_dict(torch.load(ckpt_path, map_location=device))
