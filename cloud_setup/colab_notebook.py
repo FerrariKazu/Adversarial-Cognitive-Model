@@ -98,7 +98,7 @@ ucf_dir = os.path.join(local_data_dir, "ucf101")
 if not os.path.exists(ucf_dir):
     print("UCF-101 Video Dataset not found on local VM scratch space. Downloading (13GB)...")
     # Official CRC unrar flow
-    run_command(f"wget -q --show-progress https://www.crcv.ucf.edu/data/UCF101/UCF101.rar -O {local_data_dir}/UCF101.rar")
+    run_command(f"wget --no-check-certificate -q --show-progress https://www.crcv.ucf.edu/data/UCF101/UCF101.rar -O {local_data_dir}/UCF101.rar")
     print("Extracting UCF-101 dataset (this may take a few minutes)...")
     run_command(f"unrar x {local_data_dir}/UCF101.rar {local_data_dir}/ > /dev/null")
     if os.path.exists(f"{local_data_dir}/UCF-101"):
