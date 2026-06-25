@@ -263,8 +263,19 @@ def run_video_tdv(model, video_loader, device, ckpt_path, accum_steps=1):
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
     scaler = GradScaler('cuda')
     
+    start_epoch = 1
+    resume_path = ckpt_path.replace('.pth', '_resume.pth')
+    if os.path.exists(resume_path):
+        print(f"Resuming video TDV training from {resume_path}...")
+        checkpoint = torch.load(resume_path, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        print(f"Starting from epoch {start_epoch}")
+
     model.train()
-    for epoch in range(1, 11):
+    for epoch in range(start_epoch, 11):
         t0 = time.time()
         total_loss = total_pred = total_var = n_total = 0
         
@@ -305,8 +316,18 @@ def run_video_tdv(model, video_loader, device, ckpt_path, accum_steps=1):
         else:
             print(f"Epoch {epoch:02d}/10 | Loss: 0.0000 | l_pred: 0.0000 | l_var: 0.0000 | {time.time()-t0:.0f}s (No batches processed)")
         
+        # Save resume checkpoint
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
+        }, resume_path)
+        
     torch.save(model.state_dict(), ckpt_path)
     print(f"Saved pre-trained video TDV model to {ckpt_path}")
+    if os.path.exists(resume_path):
+        os.remove(resume_path)
 
 def run_trades_finetuning(model, trainloader, testloader, video_loader, device, ckpt_path, accum_steps=1):
     print("\n" + "="*70)
@@ -337,8 +358,34 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
     optimizer = None
     scheduler = None
     best_acc = 0.0
+    start_epoch = 1
+
+    resume_path = ckpt_path.replace('.pth', '_resume.pth')
+    if os.path.exists(resume_path):
+        print(f"Resuming TRADES fine-tuning from {resume_path}...")
+        checkpoint = torch.load(resume_path, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        best_acc = checkpoint['best_acc']
+        
+        # Pre-initialize the optimizer and scheduler for the resumed epoch's phase
+        resume_epoch = checkpoint['epoch']
+        for p_start, p_end, eps, beta, steps, lr in curriculum:
+            if p_start <= resume_epoch <= p_end:
+                current_phase_start = p_start
+                optimizer = optim.SGD(
+                    model.parameters(), lr=lr,
+                    momentum=0.9, weight_decay=1e-4
+                )
+                scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                    optimizer, T_max=p_end - p_start + 1, eta_min=lr * 0.1
+                )
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+                print(f"Restored optimizer and scheduler state for phase starting at epoch {p_start}. Resuming at epoch {start_epoch}.")
+                break
  
-    for epoch in range(1, 31):
+    for epoch in range(start_epoch, 31):
         t0 = time.time()
         
         # Determine curriculum parameters
@@ -424,7 +471,7 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
             optimizer.zero_grad(set_to_none=True)
             
         scheduler.step()
-
+ 
         # Validation (clean)
         model.eval()
         val_correct = val_total = 0
@@ -435,21 +482,32 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
                     logits = model(imgs)
                 val_correct += logits.argmax(1).eq(lbls).sum().item()
                 val_total += lbls.size(0)
-
+ 
         val_acc = 100. * val_correct / val_total
         marker = ''
         if val_acc > best_acc:
             best_acc = val_acc
             torch.save(model.state_dict(), ckpt_path)
             marker = ' ★'
-
+ 
         print(
             f"Epoch {epoch:02d}/30 (ε={eps:.3f}) | Loss:{total_loss/n_total:.3f} | "
             f"TrAcc:{100.*correct/n_total:.1f}% TeAcc:{val_acc:.1f}% | "
             f"{time.time()-t0:.0f}s{marker}"
         )
-
+        
+        # Save resume checkpoint
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
+            'best_acc': best_acc,
+        }, resume_path)
+ 
     print(f"Finetuning Complete. Model saved to {ckpt_path}")
+    if os.path.exists(resume_path):
+        os.remove(resume_path)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # MAIN ENTRYPOINT
