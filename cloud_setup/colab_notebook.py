@@ -69,9 +69,35 @@ os.makedirs("checkpoints", exist_ok=True)
 
 # %%
 def run_command(cmd, shell=True):
+    import sys
     print(f"Executing: {cmd}")
-    result = subprocess.run(cmd, shell=shell, check=True, text=True)
-    return result.returncode
+    
+    # Set PYTHONUNBUFFERED=1 to ensure Python subprocesses flush stdout/stderr immediately
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    
+    process = subprocess.Popen(
+        cmd,
+        shell=shell,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        env=env
+    )
+    
+    # Stream stdout/stderr in real-time
+    while True:
+        output = process.stdout.readline()
+        if output == '' and process.poll() is not None:
+            break
+        if output:
+            sys.stdout.write(output)
+            sys.stdout.flush()
+            
+    rc = process.poll()
+    if rc != 0:
+        raise subprocess.CalledProcessError(rc, cmd)
+    return rc
 
 # 1. Upgrade packaging utilities first to restore legacy distutils support on Python 3.12+
 run_command("pip install --upgrade pip setuptools wheel")
