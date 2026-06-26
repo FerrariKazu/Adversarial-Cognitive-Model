@@ -89,11 +89,15 @@ os.makedirs("checkpoints", exist_ok=True)
 # %%
 def run_command(cmd, shell=True):
     import sys
+    import re
     print(f"Executing: {cmd}")
     
-    # Set PYTHONUNBUFFERED=1 to ensure Python subprocesses flush stdout/stderr immediately
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
+    
+    # Matches any line that contains a percentage figure (wget, pip, unrar, etc.)
+    progress_re = re.compile(r'\d+%')
+    last_was_progress = False
     
     process = subprocess.Popen(
         cmd,
@@ -104,15 +108,33 @@ def run_command(cmd, shell=True):
         env=env
     )
     
-    # Stream stdout/stderr in real-time
     while True:
         output = process.stdout.readline()
         if output == '' and process.poll() is not None:
             break
         if output:
-            sys.stdout.write(output)
-            sys.stdout.flush()
-            
+            line = output.rstrip('\n')
+            if progress_re.search(line):
+                # Parse wget lines into a compact summary, fall back to raw line
+                m = re.search(r'(\d+)%\s+(\S+)\s+(\S+)\s*$', line)
+                summary = (
+                    f"  Downloading... {m.group(1)}%  |  {m.group(2)}/s  |  ETA {m.group(3)}   "
+                    if m else f"  {line.strip():<80}"
+                )
+                sys.stdout.write(f'\r{summary}')
+                sys.stdout.flush()
+                last_was_progress = True
+            else:
+                if last_was_progress:
+                    sys.stdout.write('\n')   # seal the progress line before moving on
+                    last_was_progress = False
+                sys.stdout.write(output)
+                sys.stdout.flush()
+                
+    if last_was_progress:
+        sys.stdout.write('\n')
+        sys.stdout.flush()
+        
     rc = process.poll()
     if rc != 0:
         raise subprocess.CalledProcessError(rc, cmd)
@@ -143,7 +165,10 @@ ucf_dir = os.path.join(local_data_dir, "ucf101")
 if not os.path.exists(ucf_dir):
     print("UCF-101 Video Dataset not found on local VM scratch space. Downloading (13GB)...")
     # Official CRC unrar flow
-    run_command(f"wget --no-check-certificate -q --show-progress https://www.crcv.ucf.edu/data/UCF101/UCF101.rar -O {local_data_dir}/UCF101.rar")
+    run_command(
+        f"wget --no-check-certificate --progress=dot:mega "
+        f"https://www.crcv.ucf.edu/data/UCF101/UCF101.rar -O {local_data_dir}/UCF101.rar"
+    )
     print("Extracting UCF-101 dataset (this may take a few minutes)...")
     run_command(f"unrar x {local_data_dir}/UCF101.rar {local_data_dir}/ > /dev/null")
     if os.path.exists(f"{local_data_dir}/UCF-101"):
