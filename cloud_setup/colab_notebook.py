@@ -65,7 +65,7 @@ if os.path.exists("/content/drive"):
     else:
         print(f"Workspace verified at '{drive_workspace}'. Pulling latest commits...")
         os.chdir(drive_workspace)
-        subprocess.run("git pull origin main", shell=True, check=True)
+        subprocess.run("git pull --no-edit origin main", shell=True, check=True)
     
     # Change current working directory to the resolved repository folder
     os.chdir(drive_workspace)
