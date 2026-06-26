@@ -28,29 +28,48 @@ except ImportError:
 
 # %% [markdown]
 # ## Step 2: Setup & Sync Repository in Google Drive
-# This cell clones the repository directly into your Google Drive (if it's not already cloned) and pulls any new commits. 
-# This ensures all code, checkpoints, and logs are saved permanently.
+# 
+# > [!IMPORTANT]
+# > **To access your checkpoints from another Google Account:**
+# > 1. Log in to your **new** Google account in your browser.
+# > 2. Open the shared Google Drive folder link: [Shared Folder](https://drive.google.com/drive/folders/1ufdzhOMslipYUoe3yPrRfi2xozIcK4XI).
+# > 3. Click the drop-down menu next to the folder name at the top of the page, select **"Organize"** -> **"Add shortcut"**, choose **"My Drive"**, and confirm.
+# > 4. Once the shortcut is added, this cell will automatically find it, sync updates, and write all checkpoints directly back to it!
 
 # %%
 import os
 import subprocess
 
-# Define the workspace directory inside Google Drive
+# Define the default workspace directory inside Google Drive
 drive_workspace = "/content/drive/MyDrive/Adversarial-Cognitive-Model"
 
 if os.path.exists("/content/drive"):
+    # If standard path doesn't exist, scan My Drive for a folder containing our codebase
     if not os.path.exists(drive_workspace):
-        print("Cloning repository directly into Google Drive for persistence...")
+        print("Standard workspace path not found. Scanning My Drive for shortcuts or shared folders...")
+        for item in os.listdir("/content/drive/MyDrive"):
+            full_path = os.path.join("/content/drive/MyDrive", item)
+            if os.path.isdir(full_path):
+                # Look for files or subdirectories unique to our repository
+                if os.path.exists(os.path.join(full_path, "phase1_training")) or "Adversarial-Cognitive-Model" in item:
+                    drive_workspace = full_path
+                    print(f"Located active workspace at: {drive_workspace}")
+                    break
+                    
+    # If still not found, clone it fresh to Google Drive
+    if not os.path.exists(drive_workspace):
+        print("Workspace not found on Google Drive. Cloning fresh repository...")
         os.chdir("/content/drive/MyDrive")
         subprocess.run("git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git", shell=True, check=True)
+        drive_workspace = "/content/drive/MyDrive/Adversarial-Cognitive-Model"
     else:
-        print("Repository already exists on Google Drive. Pulling latest commits...")
+        print(f"Workspace verified at '{drive_workspace}'. Pulling latest commits...")
         os.chdir(drive_workspace)
         subprocess.run("git pull origin main", shell=True, check=True)
     
-    # Change current working directory to the repository folder
+    # Change current working directory to the resolved repository folder
     os.chdir(drive_workspace)
-    print(f"Working directory set to: {os.getcwd()}")
+    print(f"Working directory successfully set to: {os.getcwd()}")
 else:
     print("Google Drive not mounted. Using local /content workspace (temporary).")
     local_workspace = "/content/Adversarial-Cognitive-Model"
@@ -58,7 +77,7 @@ else:
         os.chdir("/content")
         subprocess.run("git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git", shell=True, check=True)
     os.chdir(local_workspace)
-    print(f"Working directory set to: {os.getcwd()}")
+    print(f"Working directory successfully set to: {os.getcwd()}")
 
 # Ensure checkpoints directory exists
 os.makedirs("checkpoints", exist_ok=True)
