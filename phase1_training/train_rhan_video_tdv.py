@@ -347,11 +347,11 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
     stl_min = torch.tensor([-(m/s) for m, s in zip(mean, std)]).view(1,3,1,1).to(device)
     stl_max = torch.tensor([(1-m)/s for m, s in zip(mean, std)]).view(1,3,1,1).to(device)
  
-    # Curriculum Setup
+    # Curriculum Setup (extended to 120 epochs for complete convergence)
     curriculum = [
-        (1,  10, 0.031, 2.0, 7,  0.003),
-        (11, 20, 0.062, 2.0, 10, 0.002),
-        (21, 30, 0.094, 2.5, 10, 0.001),
+        (1,  40, 0.031, 2.0, 7,  0.003),
+        (41, 80, 0.062, 2.0, 10, 0.002),
+        (81, 120, 0.094, 2.5, 10, 0.001),
     ]
  
     current_phase_start = None
@@ -385,7 +385,7 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
                 print(f"Restored optimizer and scheduler state for phase starting at epoch {p_start}. Resuming at epoch {start_epoch}.")
                 break
  
-    for epoch in range(start_epoch, 31):
+    for epoch in range(start_epoch, 121):
         t0 = time.time()
         
         # Determine curriculum parameters
@@ -491,7 +491,7 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
             marker = ' ★'
  
         print(
-            f"Epoch {epoch:02d}/30 (ε={eps:.3f}) | Loss:{total_loss/n_total:.3f} | "
+            f"Epoch {epoch:02d}/120 (ε={eps:.3f}) | Loss:{total_loss/n_total:.3f} | "
             f"TrAcc:{100.*correct/n_total:.1f}% TeAcc:{val_acc:.1f}% | "
             f"{time.time()-t0:.0f}s{marker}"
         )
