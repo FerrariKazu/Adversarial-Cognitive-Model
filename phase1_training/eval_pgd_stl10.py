@@ -13,7 +13,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from model_rhan_stl10_pretrained import RHANUnifiedSTL10
-from train_rhan_stl10_tdv import get_stl10_dataloaders
+from model_rhan_stl10_large import RHANLargeSTL10
+from train_rhan_video_tdv import get_stl10_dataloaders
 
 def pgd_attack_classification(model, x, y, eps=0.031, steps=100, stl_min=None, stl_max=None):
     model.eval()
@@ -39,19 +40,28 @@ def pgd_attack_classification(model, x, y, eps=0.031, steps=100, stl_min=None, s
 
 def main():
     parser = argparse.ArgumentParser(description='RHAN STL-10 PGD-100 Evaluation')
-    parser.add_argument('--checkpoint', type=str, default='../checkpoints/rhan_stl10_tdv_trades.pth',
-                        help='Path to model checkpoint')
+    parser.add_argument('--model-size', type=str, default='base', choices=['base', 'large'],
+                        help='Model size architecture to instantiate')
+    parser.add_argument('--checkpoint', type=str, default=None,
+                        help='Path to model checkpoint (defaults to size-specific path)')
     parser.add_argument('--batch-size', type=int, default=64)
     parser.add_argument('--samples', type=int, default=512, help='Number of test samples to evaluate')
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Device: {device}")
+    print(f"Device: {device} | Model size: {args.model_size}")
 
-    # Load model
-    model = RHANUnifiedSTL10().to(device)
+    # Load model architecture
+    if args.model_size == 'large':
+        model = RHANLargeSTL10().to(device)
+        default_ckpt = '../checkpoints/rhan_stl10_large_video_tdv.pth'
+    else:
+        model = RHANUnifiedSTL10().to(device)
+        default_ckpt = '../checkpoints/rhan_stl10_base_video_tdv.pth'
+
+    ckpt_rel = args.checkpoint if args.checkpoint is not None else default_ckpt
     script_dir = os.path.dirname(__file__)
-    ckpt_path = os.path.abspath(os.path.join(script_dir, args.checkpoint))
+    ckpt_path = os.path.abspath(os.path.join(script_dir, ckpt_rel))
     
     if os.path.exists(ckpt_path):
         model.load_state_dict(torch.load(ckpt_path, map_location=device))
