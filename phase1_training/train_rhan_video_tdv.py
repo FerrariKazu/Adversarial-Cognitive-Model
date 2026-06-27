@@ -40,6 +40,9 @@ from model_rhan_stl10_pretrained import RHANUnifiedSTL10
 from model_rhan_stl10_large import RHANLargeSTL10
 from train_rhan_stl10_tdv import get_stl10_dataloaders
 
+def get_raw_model(model):
+    return model.module if isinstance(model, nn.DataParallel) else model
+
 # UCF-101 Categories relevant to STL-10 visual concepts
 UCF_RELEVANT_CATEGORIES = {
     # Vehicles (maps to car/truck/ship/airplane)
@@ -164,8 +167,8 @@ class UCF101TemporalDataset(Dataset):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def freeze_stem(model, freeze=True):
-    """Freezes or unfreezes model conv stem layers."""
-    stem_module = getattr(model, 'stem', None)
+    raw_model = get_raw_model(model)
+    stem_module = getattr(raw_model, 'stem', None)
     if stem_module is not None:
         for p in stem_module.parameters():
             p.requires_grad = not freeze
@@ -175,14 +178,15 @@ def freeze_stem(model, freeze=True):
 
 def tdv_loss_large(model, x_t, x_t1):
     """Causal TDV prediction loss on base or large model."""
-    cls_t = model.get_feature_vector(x_t)
-    cls_t1 = model.get_feature_vector(x_t1)
+    raw_model = get_raw_model(model)
+    cls_t = raw_model.get_feature_vector(x_t)
+    cls_t1 = raw_model.get_feature_vector(x_t1)
     
-    z_t = model.tdv_head(cls_t)
-    z_t1 = model.tdv_head(cls_t1)
+    z_t = raw_model.tdv_head(cls_t)
+    z_t1 = raw_model.tdv_head(cls_t1)
     z_t1_detach = z_t1.detach()
     
-    m_proj = model.motion_encoder(x_t, x_t1)
+    m_proj = raw_model.motion_encoder(x_t, x_t1)
     z_t1_pred = z_t + m_proj
     
     # 1. Prediction discrepancy
@@ -210,6 +214,7 @@ def tdv_loss_large(model, x_t, x_t1):
 
 def pgd_attack_large(model, x_t, x_t1, eps=0.031, steps=3):
     """PGD attack targeting temporal prediction consistency."""
+    raw_model = get_raw_model(model)
     model.eval()
     x_adv = x_t.clone().detach() + 0.001 * torch.randn_like(x_t)
     
@@ -220,14 +225,14 @@ def pgd_attack_large(model, x_t, x_t1, eps=0.031, steps=3):
     x_adv = torch.clamp(x_adv, stl_min, stl_max)
 
     with torch.no_grad():
-        z_t1 = model.tdv_head(model.get_feature_vector(x_t1)).detach()
+        z_t1 = raw_model.tdv_head(raw_model.get_feature_vector(x_t1)).detach()
 
     for _ in range(steps):
         x_adv.requires_grad_(True)
         with torch.enable_grad():
             with autocast('cuda'):
-                z_t_adv = model.tdv_head(model.get_feature_vector(x_adv))
-                m_proj = model.motion_encoder(x_adv, x_t1)
+                z_t_adv = raw_model.tdv_head(raw_model.get_feature_vector(x_adv))
+                m_proj = raw_model.motion_encoder(x_adv, x_t1)
                 z_t1_pred = z_t_adv + m_proj
                 loss = F.mse_loss(z_t1_pred, z_t1)
         grad = torch.autograd.grad(loss, x_adv)[0]
@@ -268,7 +273,7 @@ def run_video_tdv(model, video_loader, device, ckpt_path, accum_steps=1):
     if os.path.exists(resume_path):
         print(f"Resuming video TDV training from {resume_path}...")
         checkpoint = torch.load(resume_path, map_location=device)
-        model.load_state_dict(checkpoint['model_state_dict'])
+        get_raw_model(model).load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
@@ -316,15 +321,14 @@ def run_video_tdv(model, video_loader, device, ckpt_path, accum_steps=1):
         else:
             print(f"Epoch {epoch:02d}/10 | Loss: 0.0000 | l_pred: 0.0000 | l_var: 0.0000 | {time.time()-t0:.0f}s (No batches processed)")
         
-        # Save resume checkpoint
         torch.save({
             'epoch': epoch,
-            'model_state_dict': model.state_dict(),
+            'model_state_dict': get_raw_model(model).state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'scheduler_state_dict': scheduler.state_dict(),
         }, resume_path)
         
-    torch.save(model.state_dict(), ckpt_path)
+    torch.save(get_raw_model(model).state_dict(), ckpt_path)
     print(f"Saved pre-trained video TDV model to {ckpt_path}")
     if os.path.exists(resume_path):
         os.remove(resume_path)
@@ -364,7 +368,7 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
     if os.path.exists(resume_path):
         print(f"Resuming TRADES fine-tuning from {resume_path}...")
         checkpoint = torch.load(resume_path, map_location=device)
-        model.load_state_dict(checkpoint['model_state_dict'])
+        get_raw_model(model).load_state_dict(checkpoint['model_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
         best_acc = checkpoint['best_acc']
         
@@ -487,7 +491,7 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
         marker = ''
         if val_acc > best_acc:
             best_acc = val_acc
-            torch.save(model.state_dict(), ckpt_path)
+            torch.save(get_raw_model(model).state_dict(), ckpt_path)
             marker = ' ★'
  
         print(
@@ -499,7 +503,7 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
         # Save resume checkpoint
         torch.save({
             'epoch': epoch,
-            'model_state_dict': model.state_dict(),
+            'model_state_dict': get_raw_model(model).state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'scheduler_state_dict': scheduler.state_dict(),
             'best_acc': best_acc,
@@ -555,15 +559,18 @@ def main():
         drop_last=drop_last
     )
 
-    if args.phase == 'tdv':
-        run_video_tdv(model, video_loader, device, ckpt_path, args.accum_steps)
-    elif args.phase == 'trades':
-        # Load pre-trained checkpoint if it exists
+    # Load pre-trained checkpoint if it exists (before DataParallel wrapping)
+    if args.phase == 'trades':
         if os.path.exists(ckpt_path):
             model.load_state_dict(torch.load(ckpt_path, map_location=device))
             print(f"Loaded pretrained checkpoint: {ckpt_path}")
         else:
             print("WARNING: Pretrained TDV checkpoint not found! Fine-tuning from scratch.")
+
+    # Wrap model in DataParallel if multiple GPUs are available
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs with DataParallel")
+        model = nn.DataParallel(model)
 
         stl_data_root = os.path.join(args.data_root, 'stl10')
         trainloader, testloader, _, _ = get_stl10_dataloaders(data_root=stl_data_root, batch_size=64)
