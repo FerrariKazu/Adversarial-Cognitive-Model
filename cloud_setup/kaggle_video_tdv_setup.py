@@ -135,21 +135,31 @@ else:
     else:
         print("UCF-101 dataset already present at data/ucf101.")
 
-# 4. Search and copy all relevant checkpoints from Kaggle inputs
+# 4. Handle Checkpoints (Download directly from Google Drive via gdown)
+print("Downloading checkpoints from Google Drive folder...")
+gdrive_folder_url = "https://drive.google.com/drive/folders/11y9LRlq0jGPRI5ORqFCC74AdS1wR2GLo"
 checkpoints_to_find = [
     'rhan_stl10_large_video_tdv.pth',
     'rhan_stl10_large_video_tdv_resume.pth'
 ]
 
-if os.path.exists(kaggle_input_dir):
-    print("Searching for checkpoints in Kaggle inputs...")
-    for root, dirs, files in os.walk(kaggle_input_dir):
-        for ckpt in checkpoints_to_find:
-            if ckpt in files:
-                src_path = os.path.join(root, ckpt)
-                dst_path = os.path.join(checkpoint_dir, ckpt)
-                print(f"Found checkpoint in Kaggle inputs: {src_path} -> Copying to {dst_path}...")
-                shutil.copy(src_path, dst_path)
+try:
+    # Use gdown to download the entire shared folder into checkpoints/
+    # --remaining-ok avoids failures if there are any Google Drive API rate-limiting issues
+    subprocess.run(f"gdown --folder {gdrive_folder_url} -O {checkpoint_dir}/ --remaining-ok", shell=True, check=True)
+    print("Checkpoints downloaded/synced successfully from Google Drive.")
+except Exception as e:
+    print(f"Direct Google Drive download failed ({e}). Searching Kaggle inputs instead...")
+    
+    if os.path.exists(kaggle_input_dir):
+        print("Searching for checkpoints in Kaggle inputs...")
+        for root, dirs, files in os.walk(kaggle_input_dir):
+            for ckpt in checkpoints_to_find:
+                if ckpt in files:
+                    src_path = os.path.join(root, ckpt)
+                    dst_path = os.path.join(checkpoint_dir, ckpt)
+                    print(f"Found checkpoint in Kaggle inputs: {src_path} -> Copying to {dst_path}...")
+                    shutil.copy(src_path, dst_path)
 
 # Fallback: check if they were uploaded directly to /kaggle/working/
 for ckpt in checkpoints_to_find:
