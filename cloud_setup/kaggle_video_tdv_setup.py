@@ -11,6 +11,10 @@ import os
 import shutil
 import subprocess
 
+# Kill any running background training instances first to prevent conflicts
+print("Checking for and cleaning up any running background training instances...")
+subprocess.run("pkill -f train_rhan_video_tdv.py", shell=True)
+
 # 1. Setup Repository
 REPO_NAME = 'Adversarial-Cognitive-Model'
 REPO_URL = f'https://github.com/FerrariKazu/{REPO_NAME}.git'
@@ -148,6 +152,14 @@ try:
     # --remaining-ok avoids failures if there are any Google Drive API rate-limiting issues
     subprocess.run(f"gdown --folder {gdrive_folder_url} -O {checkpoint_dir}/ --remaining-ok", shell=True, check=True)
     print("Checkpoints downloaded/synced successfully from Google Drive.")
+    
+    # Auto-resolve nested folder if gdown created points to checkpoints/checkpoints/...
+    nested_dir = os.path.join(checkpoint_dir, 'checkpoints')
+    if os.path.exists(nested_dir) and os.path.isdir(nested_dir):
+        print("Detected nested checkpoints directory from gdown. Moving files...")
+        for item in os.listdir(nested_dir):
+            shutil.move(os.path.join(nested_dir, item), os.path.join(checkpoint_dir, item))
+        shutil.rmtree(nested_dir)
 except Exception as e:
     print(f"Direct Google Drive download failed ({e}). Searching Kaggle inputs instead...")
     
