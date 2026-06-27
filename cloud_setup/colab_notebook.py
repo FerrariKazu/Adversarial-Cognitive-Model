@@ -204,15 +204,15 @@ else:
 # RUN EXPERIMENT 2: Base Model (frozen stem)
 # -------------------------------------------
 # Phase A: Video TDV Pretraining
-print("Starting/Resuming Experiment 2 Phase A...")
-run_command(
-    "python3 phase1_training/train_rhan_video_tdv.py "
-    "--phase tdv "
-    "--model-size base "
-    "--data-root /content/data "
-    "--batch-size 128 "
-    "--accum-steps 4"
-)
+# print("Starting/Resuming Experiment 2 Phase A...")
+# run_command(
+#     "python3 phase1_training/train_rhan_video_tdv.py "
+#     "--phase tdv "
+#     "--model-size base "
+#     "--data-root /content/data "
+#     "--batch-size 128 "
+#     "--accum-steps 4"
+# )
 
 # Phase B: TRADES Fine-tuning
 print("Starting/Resuming Experiment 2 Phase B...")
@@ -229,15 +229,15 @@ run_command(
 # RUN EXPERIMENT 3: Scaled Large Model
 # ------------------------------------
 # Phase A: Large Model Video TDV Pretraining
-print("Starting/Resuming Experiment 3 Phase A...")
-run_command(
-    "python3 phase1_training/train_rhan_video_tdv.py "
-    "--phase tdv "
-    "--model-size large "
-    "--data-root /content/data "
-    "--batch-size 128 "
-    "--accum-steps 4"
-)
+# print("Starting/Resuming Experiment 3 Phase A...")
+# run_command(
+#     "python3 phase1_training/train_rhan_video_tdv.py "
+#     "--phase tdv "
+#     "--model-size large "
+#     "--data-root /content/data "
+#     "--batch-size 128 "
+#     "--accum-steps 4"
+# )
 
 # Phase B: Large Model TRADES Fine-tuning
 print("Starting/Resuming Experiment 3 Phase B...")
