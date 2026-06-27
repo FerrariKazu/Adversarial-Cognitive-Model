@@ -135,49 +135,44 @@ else:
     else:
         print("UCF-101 dataset already present at data/ucf101.")
 
-# 4. Handle Checkpoint from Kaggle Dataset
-expected_ckpt = 'rhan_stl10_tdv_trades.pth'
-dst_ckpt = os.path.join(checkpoint_dir, expected_ckpt)
+# 4. Search and copy all relevant checkpoints from Kaggle inputs
+checkpoints_to_find = [
+    'rhan_stl10_large_video_tdv.pth',
+    'rhan_stl10_large_video_tdv_resume.pth'
+]
 
-# Search robustly for the checkpoint under Kaggle inputs
-src_ckpt = None
 if os.path.exists(kaggle_input_dir):
-    print("Searching for checkpoint in Kaggle inputs...")
+    print("Searching for checkpoints in Kaggle inputs...")
     for root, dirs, files in os.walk(kaggle_input_dir):
-        if expected_ckpt in files:
-            src_ckpt = os.path.join(root, expected_ckpt)
-            break
+        for ckpt in checkpoints_to_find:
+            if ckpt in files:
+                src_path = os.path.join(root, ckpt)
+                dst_path = os.path.join(checkpoint_dir, ckpt)
+                print(f"Found checkpoint in Kaggle inputs: {src_path} -> Copying to {dst_path}...")
+                shutil.copy(src_path, dst_path)
 
-if src_ckpt:
-    print(f'Found checkpoint at: {src_ckpt}')
-    print(f'Copying checkpoint to: {dst_ckpt}')
-    # Kaggle input is read-only, so we copy instead of move
-    shutil.copy(src_ckpt, dst_ckpt)
-    
-    # Also copy to large/base names in case they are referenced directly by the script
-    shutil.copy(src_ckpt, os.path.join(checkpoint_dir, 'rhan_stl10_large_video_tdv.pth'))
-    shutil.copy(src_ckpt, os.path.join(checkpoint_dir, 'rhan_stl10_base_video_tdv.pth'))
-    print("Checkpoint mapped to standard locations successfully.")
-else:
-    # Fallback check if it was uploaded to /kaggle/working/ directly
-    fallback_src = os.path.join('/kaggle/working/', expected_ckpt)
-    if os.path.exists(fallback_src):
-        print(f'Moving checkpoint from {fallback_src} to {dst_ckpt}')
-        shutil.move(fallback_src, dst_ckpt)
-        shutil.copy(dst_ckpt, os.path.join(checkpoint_dir, 'rhan_stl10_large_video_tdv.pth'))
-        shutil.copy(dst_ckpt, os.path.join(checkpoint_dir, 'rhan_stl10_base_video_tdv.pth'))
-    else:
-        print(f'Warning: {expected_ckpt} not found.')
-        print("Please ensure you have added the 'RHAN-Cloud' dataset to this Kaggle notebook.")
+# Fallback: check if they were uploaded directly to /kaggle/working/
+for ckpt in checkpoints_to_find:
+    dst_path = os.path.join(checkpoint_dir, ckpt)
+    if not os.path.exists(dst_path):
+        fallback_src = os.path.join('/kaggle/working/', ckpt)
+        if os.path.exists(fallback_src):
+            print(f"Moving checkpoint from {fallback_src} to {dst_path}")
+            shutil.move(fallback_src, dst_path)
+            
+# Print warning if resume checkpoint is still missing
+if not os.path.exists(os.path.join(checkpoint_dir, 'rhan_stl10_large_video_tdv_resume.pth')):
+    print("WARNING: Resume checkpoint 'rhan_stl10_large_video_tdv_resume.pth' was not found.")
+    print("Training will start from epoch 1 instead of resuming.")
 
-# 4. Run Training in Background
+# 5. Run Training in Background
 print('Starting training in background (nohup)...')
-print('Monitoring script: train_rhan_video_tdv.py')
+print('Monitoring script: train_rhan_video_tdv.py (Phase B: TRADES, Model: large)')
 print('You can monitor progress by running: !tail -n 20 -f training_log.out')
 
-# Command for video pretraining phase
+# Command for video trades fine-tuning phase
 training_cmd = """nohup python3 phase1_training/train_rhan_video_tdv.py \
-    --phase tdv \
+    --phase trades \
     --model-size large \
     --data-root ./data \
     --batch-size 128 \
