@@ -39,48 +39,58 @@ except ImportError:
 # %%
 import os
 import subprocess
+import shutil
 
-# Define the default workspace directory inside Google Drive
-drive_workspace = "/content/drive/MyDrive/Adversarial-Cognitive-Model"
+# Define the local workspace directory (fast local VM scratch space)
+local_workspace = "/content/Adversarial-Cognitive-Model"
+drive_checkpoint_dir = "/content/drive/MyDrive/Adversarial-Cognitive-Model/checkpoints"
 
+# 1. Clone or pull repository on the fast local VM disk
+if not os.path.exists(local_workspace):
+    print("Cloning repository to fast local VM scratch space...")
+    os.chdir("/content")
+    subprocess.run("git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git", shell=True, check=True)
+else:
+    print("Repository exists locally. Pulling latest commits...")
+    os.chdir(local_workspace)
+    subprocess.run("git fetch origin main && git reset --hard origin/main", shell=True, check=True)
+
+# Change current working directory to the local repository folder
+os.chdir(local_workspace)
+
+# 2. Setup Google Drive checkpoints persistence via symbolic link
 if os.path.exists("/content/drive"):
-    # If standard path doesn't exist, scan My Drive for a folder containing our codebase
-    if not os.path.exists(drive_workspace):
-        print("Standard workspace path not found. Scanning My Drive for shortcuts or shared folders...")
+    print("Google Drive detected. Setting up persistent checkpoints symlink...")
+    # Resolve the correct drive path (check for shortcuts/shared folders if standard path doesn't exist)
+    drive_base = "/content/drive/MyDrive/Adversarial-Cognitive-Model"
+    if not os.path.exists(drive_base):
         for item in os.listdir("/content/drive/MyDrive"):
             full_path = os.path.join("/content/drive/MyDrive", item)
             if os.path.isdir(full_path):
-                # Look for files or subdirectories unique to our repository
                 if os.path.exists(os.path.join(full_path, "phase1_training")) or "Adversarial-Cognitive-Model" in item:
-                    drive_workspace = full_path
-                    print(f"Located active workspace at: {drive_workspace}")
+                    drive_base = full_path
                     break
-                    
-    # If still not found, clone it fresh to Google Drive
-    if not os.path.exists(drive_workspace):
-        print("Workspace not found on Google Drive. Cloning fresh repository...")
-        os.chdir("/content/drive/MyDrive")
-        subprocess.run("git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git", shell=True, check=True)
-        drive_workspace = "/content/drive/MyDrive/Adversarial-Cognitive-Model"
-    else:
-        print(f"Workspace verified at '{drive_workspace}'. Pulling latest commits...")
-        os.chdir(drive_workspace)
-        subprocess.run("git pull --no-edit origin main", shell=True, check=True)
     
-    # Change current working directory to the resolved repository folder
-    os.chdir(drive_workspace)
-    print(f"Working directory successfully set to: {os.getcwd()}")
+    drive_checkpoint_dir = os.path.join(drive_base, "checkpoints")
+    os.makedirs(drive_checkpoint_dir, exist_ok=True)
+    
+    # Symlink the local checkpoints folder to Google Drive
+    if os.path.exists("checkpoints"):
+        if os.path.islink("checkpoints"):
+            os.unlink("checkpoints")
+        elif os.path.isdir("checkpoints"):
+            # Move any existing local checkpoints to the persistent Drive directory
+            for ckpt in os.listdir("checkpoints"):
+                shutil.move(os.path.join("checkpoints", ckpt), os.path.join(drive_checkpoint_dir, ckpt))
+            shutil.rmtree("checkpoints")
+            
+    os.symlink(drive_checkpoint_dir, "checkpoints")
+    print(f"Checkpoints directory successfully symlinked to Google Drive: {drive_checkpoint_dir}")
 else:
-    print("Google Drive not mounted. Using local /content workspace (temporary).")
-    local_workspace = "/content/Adversarial-Cognitive-Model"
-    if not os.path.exists(local_workspace):
-        os.chdir("/content")
-        subprocess.run("git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git", shell=True, check=True)
-    os.chdir(local_workspace)
-    print(f"Working directory successfully set to: {os.getcwd()}")
+    print("Google Drive not mounted. Checkpoints will be saved locally (temporary).")
+    os.makedirs("checkpoints", exist_ok=True)
 
-# Ensure checkpoints directory exists
-os.makedirs("checkpoints", exist_ok=True)
+print(f"Working directory successfully set to: {os.getcwd()}")
 
 # %% [markdown]
 # ## Step 3: Environment Installation
