@@ -68,6 +68,8 @@ def sync_to_hf(file_path):
                 token=hf_token
             )
             print("Sync complete.")
+        else:
+            print("WARNING: HF_TOKEN not found in environment or secrets. Skipping Hugging Face sync.")
     except Exception as e:
         print(f"Hugging Face sync failed: {e}")
 
@@ -110,6 +112,8 @@ def download_from_hf(file_path):
                     return True
             except Exception as e:
                 print(f"Hugging Face files check failed: {e}")
+        else:
+            print("WARNING: HF_TOKEN not found in environment or secrets. Skipping Hugging Face download.")
     except Exception as e:
         print(f"Hugging Face setup check failed: {e}")
     return False
