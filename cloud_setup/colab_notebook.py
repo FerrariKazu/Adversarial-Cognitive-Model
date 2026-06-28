@@ -180,8 +180,8 @@ if not os.path.exists(ucf_dir):
         f"https://www.crcv.ucf.edu/data/UCF101/UCF101.rar -O {local_data_dir}/UCF101.rar"
     )
     print("Download complete. Extracting dataset (this will take a few minutes)...")
-    # -inul silences all unrar outputs to prevent browser tab RAM bloat/crash
-    run_command(f"unrar x -inul {local_data_dir}/UCF101.rar {local_data_dir}/")
+    # Redirect stdout and stderr to /dev/null at the shell level to prevent browser tab freeze
+    run_command(f"unrar x {local_data_dir}/UCF101.rar {local_data_dir}/ > /dev/null 2>&1")
     if os.path.exists(f"{local_data_dir}/UCF-101"):
         os.rename(f"{local_data_dir}/UCF-101", ucf_dir)
     # Clean up rar file to save local disk space
