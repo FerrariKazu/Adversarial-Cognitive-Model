@@ -43,6 +43,77 @@ from train_rhan_stl10_tdv import get_stl10_dataloaders
 def get_raw_model(model):
     return model.module if isinstance(model, nn.DataParallel) else model
 
+def sync_to_hf(file_path):
+    import os
+    try:
+        from huggingface_hub import HfApi
+        hf_token = os.environ.get("HF_TOKEN")
+        if not hf_token:
+            try:
+                from kaggle_secrets import UserSecretsClient
+                hf_token = UserSecretsClient().get_secret("HF_TOKEN")
+            except Exception:
+                pass
+        if hf_token:
+            api = HfApi(token=hf_token)
+            username = api.whoami()['name']
+            repo_id = f"{username}/rhan-checkpoints"
+            filename = os.path.basename(file_path)
+            print(f"Syncing {filename} to Hugging Face ({repo_id})...")
+            api.upload_file(
+                path_or_fileobj=file_path,
+                path_in_repo=filename,
+                repo_id=repo_id,
+                repo_type="dataset",
+                token=hf_token
+            )
+            print("Sync complete.")
+    except Exception as e:
+        print(f"Hugging Face sync failed: {e}")
+
+def download_from_hf(file_path):
+    import os
+    try:
+        from huggingface_hub import HfApi, hf_hub_download, create_repo
+        hf_token = os.environ.get("HF_TOKEN")
+        if not hf_token:
+            try:
+                from kaggle_secrets import UserSecretsClient
+                hf_token = UserSecretsClient().get_secret("HF_TOKEN")
+            except Exception:
+                pass
+        if hf_token:
+            api = HfApi(token=hf_token)
+            username = api.whoami()['name']
+            repo_id = f"{username}/rhan-checkpoints"
+            
+            # Ensure repository exists
+            try:
+                create_repo(repo_id=repo_id, repo_type="dataset", private=True, exist_ok=True, token=hf_token)
+            except Exception:
+                pass
+                
+            filename = os.path.basename(file_path)
+            try:
+                files = api.list_repo_files(repo_id=repo_id, repo_type="dataset")
+                if filename in files:
+                    print(f"Downloading {filename} from Hugging Face ({repo_id})...")
+                    hf_hub_download(
+                        repo_id=repo_id,
+                        filename=filename,
+                        repo_type="dataset",
+                        local_dir=os.path.dirname(file_path),
+                        local_dir_use_symlinks=False,
+                        token=hf_token
+                    )
+                    print("Downloaded successfully from Hugging Face.")
+                    return True
+            except Exception as e:
+                print(f"Hugging Face files check failed: {e}")
+    except Exception as e:
+        print(f"Hugging Face setup check failed: {e}")
+    return False
+
 # UCF-101 Categories relevant to STL-10 visual concepts
 UCF_RELEVANT_CATEGORIES = {
     # Vehicles (maps to car/truck/ship/airplane)
@@ -270,6 +341,9 @@ def run_video_tdv(model, video_loader, device, ckpt_path, accum_steps=1):
     
     start_epoch = 1
     resume_path = ckpt_path.replace('.pth', '_resume.pth')
+    if not os.path.exists(resume_path):
+        download_from_hf(resume_path)
+        
     if os.path.exists(resume_path):
         print(f"Resuming video TDV training from {resume_path}...")
         checkpoint = torch.load(resume_path, map_location=device)
@@ -327,9 +401,11 @@ def run_video_tdv(model, video_loader, device, ckpt_path, accum_steps=1):
             'optimizer_state_dict': optimizer.state_dict(),
             'scheduler_state_dict': scheduler.state_dict(),
         }, resume_path)
+        sync_to_hf(resume_path)
         
     torch.save(get_raw_model(model).state_dict(), ckpt_path)
     print(f"Saved pre-trained video TDV model to {ckpt_path}")
+    sync_to_hf(ckpt_path)
     if os.path.exists(resume_path):
         os.remove(resume_path)
 
@@ -365,6 +441,9 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
     start_epoch = 1
 
     resume_path = ckpt_path.replace('.pth', '_resume.pth')
+    if not os.path.exists(resume_path):
+        download_from_hf(resume_path)
+        
     if os.path.exists(resume_path):
         print(f"Resuming TRADES fine-tuning from {resume_path}...")
         checkpoint = torch.load(resume_path, map_location=device)
@@ -492,6 +571,7 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
         if val_acc > best_acc:
             best_acc = val_acc
             torch.save(get_raw_model(model).state_dict(), ckpt_path)
+            sync_to_hf(ckpt_path)
             marker = ' ★'
  
         print(
@@ -508,6 +588,7 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
             'scheduler_state_dict': scheduler.state_dict(),
             'best_acc': best_acc,
         }, resume_path)
+        sync_to_hf(resume_path)
  
     print(f"Finetuning Complete. Model saved to {ckpt_path}")
     if os.path.exists(resume_path):
@@ -561,6 +642,9 @@ def main():
 
     # Load pre-trained checkpoint if it exists (before DataParallel wrapping)
     if args.phase == 'trades':
+        if not os.path.exists(ckpt_path):
+            download_from_hf(ckpt_path)
+            
         if os.path.exists(ckpt_path):
             model.load_state_dict(torch.load(ckpt_path, map_location=device))
             print(f"Loaded pretrained checkpoint: {ckpt_path}")
