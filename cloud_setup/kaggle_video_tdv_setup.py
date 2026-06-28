@@ -193,6 +193,22 @@ if not os.path.exists(os.path.join(checkpoint_dir, 'rhan_stl10_large_video_tdv_r
 
 # 5. Run Training in Background
 print('Starting training in background (nohup)...')
+
+# Fetch HF_TOKEN and inject it into the environment so the background process inherits it
+hf_token = os.environ.get("HF_TOKEN")
+if not hf_token:
+    try:
+        from kaggle_secrets import UserSecretsClient
+        hf_token = UserSecretsClient().get_secret("HF_TOKEN")
+    except Exception:
+        pass
+
+if hf_token:
+    os.environ["HF_TOKEN"] = hf_token
+    print("HF_TOKEN successfully loaded and injected into environment.")
+else:
+    print("WARNING: HF_TOKEN not found. Hugging Face sync will be disabled.")
+
 print('Monitoring script: train_rhan_video_tdv.py (Phase B: TRADES, Model: large)')
 print('You can monitor progress by running: !tail -n 20 -f training_log.out')
 
