@@ -167,20 +167,21 @@ run_command("pip install git+https://github.com/dicarlolab/CORnet.git")
 # Downloads the UCF-101 dataset to the fast local container disk (`/content/data`) so training has fast file access without FUSE lag or hitting Google Drive storage limits.
 
 # %%
-# Store dataset on local scratch disk (fastest, does not consume GDrive storage)
+## Store dataset on local scratch disk (fastest, does not consume GDrive storage)
 local_data_dir = "/content/data"
 os.makedirs(local_data_dir, exist_ok=True)
 
 ucf_dir = os.path.join(local_data_dir, "ucf101")
 if not os.path.exists(ucf_dir):
     print("UCF-101 Video Dataset not found on local VM scratch space. Downloading (13GB)...")
-    # Official CRC unrar flow
+    print("Downloading in quiet mode (no progress logs shown to prevent browser tab crash)...")
     run_command(
-        f"wget --no-check-certificate --progress=dot:mega "
+        f"wget -q --no-check-certificate "
         f"https://www.crcv.ucf.edu/data/UCF101/UCF101.rar -O {local_data_dir}/UCF101.rar"
     )
-    print("Extracting UCF-101 dataset (this may take a few minutes)...")
-    run_command(f"unrar x {local_data_dir}/UCF101.rar {local_data_dir}/ > /dev/null")
+    print("Download complete. Extracting dataset (this will take a few minutes)...")
+    # -inul silences all unrar outputs to prevent browser tab RAM bloat/crash
+    run_command(f"unrar x -inul {local_data_dir}/UCF101.rar {local_data_dir}/")
     if os.path.exists(f"{local_data_dir}/UCF-101"):
         os.rename(f"{local_data_dir}/UCF-101", ucf_dir)
     # Clean up rar file to save local disk space
@@ -196,16 +197,31 @@ else:
 # 
 # Adjust `--batch-size` and `--accum-steps` based on the GPU allocated:
 # - **A100 (40GB VRAM)**: `--batch-size 256 --accum-steps 2` (or `--batch-size 512 --accum-steps 1`)
-# - **V100 (16GB VRAM) / T4 (15GB VRAM) / L4 (24GB VRAM)**: `--batch-size 128 --accum-steps 4`
+# - **V100 (16GB VRAM)**: `--batch-size 128 --accum-steps 4`
+# - **T4 (15GB VRAM)**: `--batch-size 64 --accum-steps 8` (or `--batch-size 128 --accum-steps 4`)
 # 
 # *(Note: Both batch size combinations maintain the target effective batch size of 512).*
+
+# %%
+def run_interactive_command(cmd):
+    try:
+        from IPython import get_ipython
+        ipy = get_ipython()
+        if ipy is not None:
+            # IPython system runner prints stdout/stderr directly in real-time
+            ipy.system(cmd)
+            return
+    except Exception:
+        pass
+    # Fallback to standard subprocess
+    subprocess.run(cmd, shell=True, check=True)
 
 # %%
 # RUN EXPERIMENT 2: Base Model (frozen stem)
 # -------------------------------------------
 # Phase A: Video TDV Pretraining
 # print("Starting/Resuming Experiment 2 Phase A...")
-# run_command(
+# run_interactive_command(
 #     "python3 phase1_training/train_rhan_video_tdv.py "
 #     "--phase tdv "
 #     "--model-size base "
@@ -216,7 +232,7 @@ else:
 
 # Phase B: TRADES Fine-tuning
 print("Starting/Resuming Experiment 2 Phase B...")
-run_command(
+run_interactive_command(
     "python3 phase1_training/train_rhan_video_tdv.py "
     "--phase trades "
     "--model-size base "
@@ -230,7 +246,7 @@ run_command(
 # ------------------------------------
 # Phase A: Large Model Video TDV Pretraining
 # print("Starting/Resuming Experiment 3 Phase A...")
-# run_command(
+# run_interactive_command(
 #     "python3 phase1_training/train_rhan_video_tdv.py "
 #     "--phase tdv "
 #     "--model-size large "
@@ -241,7 +257,7 @@ run_command(
 
 # Phase B: Large Model TRADES Fine-tuning
 print("Starting/Resuming Experiment 3 Phase B...")
-run_command(
+run_interactive_command(
     "python3 phase1_training/train_rhan_video_tdv.py "
     "--phase trades "
     "--model-size large "
