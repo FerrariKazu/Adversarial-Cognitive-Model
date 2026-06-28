@@ -105,9 +105,10 @@ def run_command(cmd, shell=True):
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
     
-    # Matches any line that contains a percentage figure (wget, pip, unrar, etc.)
+    # Matches any line that contains a percentage figure (wget, pip, etc.)
     progress_re = re.compile(r'\d+%')
     last_was_progress = False
+    file_count = 0
     
     process = subprocess.Popen(
         cmd,
@@ -124,6 +125,8 @@ def run_command(cmd, shell=True):
             break
         if output:
             line = output.rstrip('\n')
+            
+            # Collapse wget progress lines
             if progress_re.search(line):
                 # Parse wget lines into a compact summary, fall back to raw line
                 m = re.search(r'(\d+)%\s+(\S+)\s+(\S+)\s*$', line)
@@ -134,6 +137,15 @@ def run_command(cmd, shell=True):
                 sys.stdout.write(f'\r{summary}')
                 sys.stdout.flush()
                 last_was_progress = True
+                
+            # Collapse unrar file extraction logs into a single dynamic counter to prevent tab freeze
+            elif line.strip().startswith("Extracting "):
+                file_count += 1
+                if file_count % 10 == 0:  # Update UI every 10 files to prevent printing overhead
+                    sys.stdout.write(f'\r  Extracting dataset... {file_count} files extracted')
+                    sys.stdout.flush()
+                last_was_progress = True
+                
             else:
                 if last_was_progress:
                     sys.stdout.write('\n')   # seal the progress line before moving on
@@ -180,8 +192,8 @@ if not os.path.exists(ucf_dir):
         f"https://www.crcv.ucf.edu/data/UCF101/UCF101.rar -O {local_data_dir}/UCF101.rar"
     )
     print("Download complete. Extracting dataset (this will take a few minutes)...")
-    # Redirect stdout and stderr to /dev/null at the shell level to prevent browser tab freeze
-    run_command(f"unrar x {local_data_dir}/UCF101.rar {local_data_dir}/ > /dev/null 2>&1")
+    # run_command will automatically collapse the extraction logs into a single progress counter
+    run_command(f"unrar x {local_data_dir}/UCF101.rar {local_data_dir}/")
     if os.path.exists(f"{local_data_dir}/UCF-101"):
         os.rename(f"{local_data_dir}/UCF-101", ucf_dir)
     # Clean up rar file to save local disk space
