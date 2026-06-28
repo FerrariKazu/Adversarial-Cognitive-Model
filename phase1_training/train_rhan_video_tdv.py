@@ -667,6 +667,9 @@ def main():
         print(f"Using {torch.cuda.device_count()} GPUs with DataParallel")
         model = nn.DataParallel(model)
 
+    if args.phase == 'tdv':
+        run_video_tdv(model, video_loader, device, ckpt_path, args.accum_steps)
+    elif args.phase == 'trades':
         stl_data_root = os.path.join(args.data_root, 'stl10')
         trainloader, testloader, _, _ = get_stl10_dataloaders(data_root=stl_data_root, batch_size=64)
         run_trades_finetuning(model, trainloader, testloader, video_loader, device, ckpt_path, args.accum_steps)
