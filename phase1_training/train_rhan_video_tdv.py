@@ -46,7 +46,7 @@ def get_raw_model(model):
 def sync_to_hf(file_path):
     import os
     try:
-        from huggingface_hub import HfApi
+        from huggingface_hub import HfApi, create_repo
         hf_token = os.environ.get("HF_TOKEN")
         if not hf_token:
             try:
@@ -58,6 +58,13 @@ def sync_to_hf(file_path):
             api = HfApi(token=hf_token)
             username = api.whoami()['name']
             repo_id = f"{username}/rhan-checkpoints"
+            
+            # Ensure repository exists
+            try:
+                create_repo(repo_id=repo_id, repo_type="dataset", private=True, exist_ok=True, token=hf_token)
+            except Exception:
+                pass
+                
             filename = os.path.basename(file_path)
             print(f"Syncing {filename} to Hugging Face ({repo_id})...")
             api.upload_file(
