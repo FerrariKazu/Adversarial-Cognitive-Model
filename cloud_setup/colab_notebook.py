@@ -262,8 +262,8 @@ run_interactive_command(
     "--phase trades "
     "--model-size large "
     "--data-root /content/data "
-    "--batch-size 128 "
-    "--accum-steps 4"
+    "--batch-size 64 "
+    "--accum-steps 8"
 )
 
 # %% [markdown]
