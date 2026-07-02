@@ -235,6 +235,7 @@ def run_interactive_command(cmd):
 MODEL_SIZE = "large"      # 'base' or 'large'
 BATCH_SIZE_TDV = 128
 BATCH_SIZE_TRADES = 256  # Set to 256 for A100/V100, 64/128 for lower end GPUs
+ACCUM_STEPS_TRADES = 2   # 2 for batch_size 256, 4 for batch_size 128, 8 for batch_size 64
 
 # Determine checkpoint paths
 ckpt_dir = "checkpoints"
@@ -277,7 +278,8 @@ run_interactive_command(
     f"--phase trades "
     f"--model-size {MODEL_SIZE} "
     f"--data-root /content/data "
-    f"--batch-size {BATCH_SIZE_TRADES}"
+    f"--batch-size {BATCH_SIZE_TRADES} "
+    f"--accum-steps {ACCUM_STEPS_TRADES}"
 )
 
 
