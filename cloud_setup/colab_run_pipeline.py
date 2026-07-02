@@ -56,7 +56,10 @@ def download_and_setup_dataset():
         print("\n>>> UCF-101 dataset already present on scratch disk.")
 
 def setup_checkpoints_dir():
-    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if '__file__' in globals():
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    else:
+        repo_root = "/content/Adversarial-Cognitive-Model"
     local_ckpt_dir = os.path.join(repo_root, "checkpoints")
     
     # Check if Google Drive is mounted
@@ -88,7 +91,10 @@ def setup_checkpoints_dir():
     return local_ckpt_dir
 
 def main():
-    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if '__file__' in globals():
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    else:
+        repo_root = "/content/Adversarial-Cognitive-Model"
     os.chdir(repo_root)
     
     # Set Python path to include repo root
