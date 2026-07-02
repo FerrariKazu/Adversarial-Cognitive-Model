@@ -27,7 +27,7 @@ def setup_checkpoints_dir():
     
     # Check if Google Drive is mounted
     gdrive_mount = "/content/drive"
-    gdrive_ckpt_dir = "/content/drive/MyDrive/checkpoints"
+    gdrive_ckpt_dir = "/content/drive/MyDrive/Adversarial-Cognitive-Model/checkpoints"
     
     if os.path.exists(gdrive_mount):
         print(">>> Google Drive detected. Setting up persistent storage...")
