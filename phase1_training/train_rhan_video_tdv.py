@@ -1,20 +1,11 @@
 #!/usr/bin/env python3
 """
-Experiment 2 — Real Video TDV on UCF-101 (for Colab A100)
-=========================================================
+Experiment 2 & 3 — Real Video TDV on UCF-101 (for Colab A100/V100)
+==================================================================
 
-Training loop for Video Temporal Difference Vision (TDV) pretraining and fine-tuning.
-Extracts genuine consecutive frame pairs with real motion from UCF-101.
+Training loop for Video Temporal Difference Vision (TDV) pretraining,
+labeled head calibration, and adversarial fine-tuning.
 Supports base (RHANUnifiedSTL10) and large (RHANLargeSTL10) architectures.
-
-Data download instructions:
-  # UCF-101 download (13GB):
-  # wget https://www.crcv.ucf.edu/data/UCF101/UCF101.rar
-  # unrar x UCF101.rar
-  # 
-  # Or on Colab:
-  # !pip install gdown
-  # !gdown --id 1rG-U339NkM-oXFoqL0EbCGPqFSAZPBjZ
 """
 
 import os
@@ -44,7 +35,6 @@ def get_raw_model(model):
     return model.module if isinstance(model, nn.DataParallel) else model
 
 def sync_to_hf(file_path):
-    import os
     try:
         from huggingface_hub import HfApi, create_repo
         hf_token = os.environ.get("HF_TOKEN")
@@ -81,7 +71,6 @@ def sync_to_hf(file_path):
         print(f"Hugging Face sync failed: {e}")
 
 def download_from_hf(file_path):
-    import os
     try:
         from huggingface_hub import HfApi, hf_hub_download, create_repo
         hf_token = os.environ.get("HF_TOKEN")
@@ -149,184 +138,124 @@ def set_seed(seed=42):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# UCF-101 TEMPORAL DATASET
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 class UCF101TemporalDataset(Dataset):
     """
-    Extracts consecutive frame pairs from UCF-101 video clips dynamically.
-    Avoids OOM and slow startup by loading and decoding frame pairs on the fly.
+    Loads consecutive frame pairs (t, t+1) from UCF-101 categories
+    to enforce temporal causality z_t + m_t = z_{t+1}.
     """
-    def __init__(self, ucf_root, categories=None, frame_skip=3, img_size=96, epoch_len=5000):
-        self.video_paths = []
-        self.frame_skip = frame_skip
-        self.img_size = img_size
-        self.epoch_len = epoch_len
-        self.mock = False
+    def __init__(self, ucf_root, categories, transform=None):
+        self.ucf_root = ucf_root
+        self.categories = categories
+        self.samples = []
         
-        if not os.path.exists(ucf_root):
-            print(f"WARNING: UCF-101 directory '{ucf_root}' not found. Generating mock dataset.")
-            self.mock = True
-            self.mock_pairs = []
-            for _ in range(100):
-                f1 = np.random.randint(0, 256, (img_size, img_size, 3), dtype=np.uint8)
-                f2 = np.random.randint(0, 256, (img_size, img_size, 3), dtype=np.uint8)
-                self.mock_pairs.append((f1, f2))
-        else:
-            for category in os.listdir(ucf_root):
-                if categories and category not in categories:
+        # Build samples list: for each category, find video directories
+        for cat in categories:
+            cat_dir = os.path.join(ucf_root, cat)
+            if not os.path.isdir(cat_dir):
+                continue
+            for video_dir in sorted(os.listdir(cat_dir)):
+                v_path = os.path.join(cat_dir, video_dir)
+                if not os.path.isdir(v_path):
                     continue
-                cat_path = os.path.join(ucf_root, category)
-                if not os.path.isdir(cat_path):
-                    continue
-                for video_file in os.listdir(cat_path):
-                    if video_file.endswith('.avi'):
-                        self.video_paths.append(os.path.join(cat_path, video_file))
-            print(f"UCF-101 dataset located: found {len(self.video_paths)} videos across {len(categories) if categories else 'all'} categories.")
-            if len(self.video_paths) == 0:
-                print("WARNING: No video files found. Falling back to mock dataset.")
-                self.mock = True
-                self.mock_pairs = []
-                for _ in range(100):
-                    f1 = np.random.randint(0, 256, (img_size, img_size, 3), dtype=np.uint8)
-                    f2 = np.random.randint(0, 256, (img_size, img_size, 3), dtype=np.uint8)
-                    self.mock_pairs.append((f1, f2))
+                # List frame images in sorted order
+                frames = sorted([f for f in os.listdir(v_path) if f.endswith(('.jpg', '.png'))])
+                # Add consecutive frame pairs
+                for i in range(len(frames) - 1):
+                    self.samples.append((
+                        os.path.join(v_path, frames[i]),
+                        os.path.join(v_path, frames[i+1])
+                    ))
+                    
+        self.to_tensor = T.Compose([
+            T.Resize((96, 96)),
+            T.ToTensor(),
+            T.Normalize(mean=(0.4467, 0.4398, 0.4066), std=(0.2603, 0.2566, 0.2713))
+        ])
+        print(f"Loaded UCF-101 dataset: found {len(self.samples)} frame pairs across {len(categories)} categories.")
 
     def __len__(self):
-        if self.mock:
-            return len(self.mock_pairs)
-        return self.epoch_len
+        return len(self.samples)
 
     def __getitem__(self, idx):
-        if self.mock:
-            frame_t, frame_t1 = self.mock_pairs[idx % len(self.mock_pairs)]
-        else:
-            # Pick a video path based on index
-            video_idx = idx % len(self.video_paths)
-            video_path = self.video_paths[video_idx]
-            
-            import cv2
-            cap = cv2.VideoCapture(video_path)
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            
-            if total_frames <= self.frame_skip + 1:
-                cap.release()
-                # Fallback: recursively pick another random video index
-                return self.__getitem__(random.randint(0, len(self.video_paths) - 1))
-            
-            # Select random starting frame
-            t = random.randint(0, total_frames - self.frame_skip - 1)
-            
-            # Read frame t
-            cap.set(cv2.CAP_PROP_POS_FRAMES, t)
-            ret_t, frame_t = cap.read()
-            
-            # Read frame t + skip
-            cap.set(cv2.CAP_PROP_POS_FRAMES, t + self.frame_skip)
-            ret_t1, frame_t1 = cap.read()
-            
-            cap.release()
-            
-            if not ret_t or not ret_t1 or frame_t is None or frame_t1 is None:
-                # Fallback: recursively pick another random video index
-                return self.__getitem__(random.randint(0, len(self.video_paths) - 1))
-                
-            frame_t = cv2.cvtColor(frame_t, cv2.COLOR_BGR2RGB)
-            frame_t1 = cv2.cvtColor(frame_t1, cv2.COLOR_BGR2RGB)
+        f1_path, f2_path = self.samples[idx]
+        from PIL import Image
+        img1 = Image.open(f1_path).convert('RGB')
+        img2 = Image.open(f2_path).convert('RGB')
         
-        transform = T.Compose([
-            T.ToPILImage(),
-            T.Resize((self.img_size, self.img_size)),
-            T.ToTensor(),
-            T.Normalize((0.4467, 0.4398, 0.4066), (0.2603, 0.2566, 0.2713))
-        ])
+        # Temporal random crop matching to simulate motion translation
+        w, h = img1.size
+        i1, j1, h1, w1 = T.RandomResizedCrop.get_params(img1, scale=(0.8, 1.0), ratio=(0.75, 1.33))
+        # Add slight offset to frame 2 for motion encoding
+        dy = random.randint(-4, 4)
+        dx = random.randint(-4, 4)
+        i2 = max(0, min(i1 + dy, h - h1))
+        j2 = max(0, min(j1 + dx, w - w1))
         
-        return transform(frame_t), transform(frame_t1)
+        x_t = TF.resized_crop(img1, i1, j1, h1, w1, (96, 96))
+        x_t1 = TF.resized_crop(img2, i2, j2, h1, w1, (96, 96))
+        
+        return self.to_tensor(x_t), self.to_tensor(x_t1)
+
+def freeze_stem(model, freeze=True):
+    raw_model = get_raw_model(model)
+    for name, param in raw_model.named_parameters():
+        if "stem" in name:
+            param.requires_grad = not freeze
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # TDV OBJECTIVES & ADV ATTACKS
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def freeze_stem(model, freeze=True):
-    raw_model = get_raw_model(model)
-    stem_module = getattr(raw_model, 'stem', None)
-    if stem_module is not None:
-        for p in stem_module.parameters():
-            p.requires_grad = not freeze
-        print(f"Stem {'frozen' if freeze else 'unfrozen'}")
-    else:
-        print("WARNING: Model stem module not found.")
-
 def tdv_loss_large(model, x_t, x_t1):
-    """Causal TDV prediction loss on base or large model."""
     raw_model = get_raw_model(model)
-    cls_t = raw_model.get_feature_vector(x_t)
-    cls_t1 = raw_model.get_feature_vector(x_t1)
     
-    z_t = raw_model.tdv_head(cls_t)
-    z_t1 = raw_model.tdv_head(cls_t1)
-    z_t1_detach = z_t1.detach()
+    # 1. Get representations for both timesteps
+    z_t = raw_model.get_feature_vector(x_t)
+    z_t1 = raw_model.get_feature_vector(x_t1)
     
-    m_proj = raw_model.motion_encoder(x_t, x_t1)
-    z_t1_pred = z_t + m_proj
+    # 2. Get motion vector and projected targets
+    m_t = raw_model.motion_encoder(x_t, x_t1)
+    p_t = raw_model.tdv_head(z_t)
+    p_t1 = raw_model.tdv_head(z_t1)
     
-    # 1. Prediction discrepancy
-    l_pred = F.mse_loss(z_t1_pred, z_t1_detach)
+    # 3. TDV Loss components (VICReg variant)
+    l_pred = F.mse_loss(p_t + m_t, p_t1)
     
-    # 2. Variance loss (VICReg)
-    std_t  = torch.sqrt(z_t.var(dim=0) + 1e-4)
-    std_t1 = torch.sqrt(z_t1.var(dim=0) + 1e-4)
-    l_var = (F.relu(1 - std_t) + F.relu(1 - std_t1)).mean()
+    # Variance Regularization to prevent feature representation collapse
+    std_t = torch.sqrt(p_t.var(dim=0) + 1e-4)
+    std_t1 = torch.sqrt(p_t1.var(dim=0) + 1e-4)
+    l_var = torch.mean(F.relu(1.0 - std_t)) + torch.mean(F.relu(1.0 - std_t1))
     
-    # 3. Variance loss on raw unprojected features
-    std_cls_t = torch.sqrt(cls_t.var(dim=0) + 1e-4)
-    std_cls_t1 = torch.sqrt(cls_t1.var(dim=0) + 1e-4)
-    l_var_raw = (F.relu(1 - std_cls_t) + F.relu(1 - std_cls_t1)).mean()
+    # Covariance Decorrelation
+    B, D = p_t.shape
+    p_t_mean = p_t - p_t.mean(dim=0)
+    p_t1_mean = p_t1 - p_t1.mean(dim=0)
+    cov_t = (p_t_mean.T @ p_t_mean) / (B - 1)
+    cov_t1 = (p_t1_mean.T @ p_t1_mean) / (B - 1)
     
-    # 4. Covariance loss (decorrelation)
-    B, D = z_t.shape
-    z_tc = z_t - z_t.mean(dim=0)
-    cov = (z_tc.T @ z_tc) / (B - 1)
-    l_cov = (cov**2).sum() - (cov.diagonal()**2).sum()
-    l_cov = l_cov / D
-    
-    loss = 25.0 * l_pred + 25.0 * l_var + 1.0 * l_cov + 25.0 * l_var_raw
-    return loss, l_pred, l_var, l_cov
+    l_cov = (cov_t.pow(2).sum() - cov_t.diagonal().pow(2).sum()) / D + \
+            (cov_t1.pow(2).sum() - cov_t1.diagonal().pow(2).sum()) / D
+            
+    total_loss = 25.0 * l_pred + 25.0 * l_var + 1.0 * l_cov
+    return total_loss, l_pred, l_var, l_cov
 
 def pgd_attack_large(model, x_t, x_t1, eps=0.031, steps=3):
-    """PGD attack targeting temporal prediction consistency."""
-    raw_model = get_raw_model(model)
     model.eval()
-    x_adv = x_t.clone().detach() + 0.001 * torch.randn_like(x_t)
+    x_adv = x_t.clone().detach() + torch.empty_like(x_t).uniform_(-eps, eps)
+    x_adv = torch.clamp(x_adv, -2.0, 2.0)
     
-    mean = (0.4467, 0.4398, 0.4066)
-    std  = (0.2603, 0.2566, 0.2713)
-    stl_min = torch.tensor([-(m/s) for m, s in zip(mean, std)]).view(1,3,1,1).to(x_t.device)
-    stl_max = torch.tensor([(1-m)/s for m, s in zip(mean, std)]).view(1,3,1,1).to(x_t.device)
-    x_adv = torch.clamp(x_adv, stl_min, stl_max)
-
-    with torch.no_grad():
-        z_t1 = raw_model.tdv_head(raw_model.get_feature_vector(x_t1)).detach()
-
+    alpha = eps / steps if steps > 0 else 0.0
     for _ in range(steps):
         x_adv.requires_grad_(True)
         with torch.enable_grad():
-            with autocast('cuda'):
-                z_t_adv = raw_model.tdv_head(raw_model.get_feature_vector(x_adv))
-                m_proj = raw_model.motion_encoder(x_adv, x_t1)
-                z_t1_pred = z_t_adv + m_proj
-                loss = F.mse_loss(z_t1_pred, z_t1)
+            loss, _, _, _ = tdv_loss_large(model, x_adv, x_t1)
         grad = torch.autograd.grad(loss, x_adv)[0]
-        x_adv = x_adv.detach() + (eps / steps) * grad.sign()
+        x_adv = x_adv.detach() + alpha * grad.sign()
         delta = torch.clamp(x_adv - x_t, -eps, eps)
-        x_adv = torch.clamp(x_t + delta, stl_min, stl_max).detach()
-
-    model.train()
+        x_adv = torch.clamp(x_t + delta, -2.0, 2.0).detach()
     return x_adv
 
 def adversarial_tdv_loss_large(model, x_t, x_t1, eps=0.031, steps=3):
-    """Enforces consistency on adversarially perturbed frame sequence."""
     x_t_adv = pgd_attack_large(model, x_t, x_t1, eps=eps, steps=steps)
     loss_clean, l_pred, l_var, l_cov = tdv_loss_large(model, x_t, x_t1)
     loss_adv, _, _, _ = tdv_loss_large(model, x_t_adv, x_t1)
@@ -338,7 +267,7 @@ def adversarial_tdv_loss_large(model, x_t, x_t1, eps=0.031, steps=3):
 
 def run_video_tdv(model, video_loader, device, ckpt_path, accum_steps=1):
     print("\n" + "="*70)
-    print("RUNNING UCF-101 VIDEO TDV PRETRAINING (stem frozen)")
+    print("PHASE 0: RUNNING UCF-101 VIDEO TDV PRETRAINING (stem frozen)")
     print("="*70)
     
     freeze_stem(model, freeze=True)
@@ -420,9 +349,68 @@ def run_video_tdv(model, video_loader, device, ckpt_path, accum_steps=1):
     if os.path.exists(resume_path):
         os.remove(resume_path)
 
-def run_trades_finetuning(model, trainloader, testloader, video_loader, device, ckpt_path, accum_steps=1):
+def run_label_calibration(model, trainloader, testloader, device, ckpt_path):
     print("\n" + "="*70)
-    print("RUNNING TRADES ADVERSARIAL FINE-TUNING (UCF-101 video temporal consistency)")
+    print("PHASE 1: LABELED CLASSIFIER HEAD CALIBRATION (backbone frozen)")
+    print("="*70)
+    
+    # Freeze the entire backbone, only train the classifier head
+    for name, p in model.named_parameters():
+        if "classifier" in name:
+            p.requires_grad = True
+        else:
+            p.requires_grad = False
+            
+    optimizer = optim.Adam(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=1e-3, weight_decay=1e-4
+    )
+    scaler = GradScaler('cuda')
+    ce_loss = nn.CrossEntropyLoss()
+    
+    for epoch in range(1, 11):
+        t0 = time.time()
+        model.train()
+        total_loss = correct = n_total = 0
+        for imgs, lbls in trainloader:
+            imgs = imgs.to(device, non_blocking=True)
+            lbls = lbls.to(device, non_blocking=True)
+            
+            optimizer.zero_grad(set_to_none=True)
+            with autocast('cuda'):
+                logits = model(imgs)
+                loss = ce_loss(logits, lbls)
+                
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+            
+            B = imgs.size(0)
+            total_loss += loss.item() * B
+            correct += logits.argmax(1).eq(lbls).sum().item()
+            n_total += B
+            
+        # Validation on clean test split
+        model.eval()
+        val_correct = val_total = 0
+        with torch.no_grad():
+            for imgs, lbls in testloader:
+                imgs, lbls = imgs.to(device), lbls.to(device)
+                with autocast('cuda'):
+                    logits = model(imgs)
+                val_correct += logits.argmax(1).eq(lbls).sum().item()
+                val_total += lbls.size(0)
+                
+        val_acc = 100. * val_correct / val_total
+        print(f"Calibration Epoch {epoch:02d}/10 | Loss: {total_loss/n_total:.4f} | TrAcc: {100.*correct/n_total:.1f}% TeAcc: {val_acc:.1f}% | {time.time()-t0:.0f}s")
+        
+    torch.save(get_raw_model(model).state_dict(), ckpt_path)
+    print(f"Classifier head calibration complete. Saved model to {ckpt_path}")
+    sync_to_hf(ckpt_path)
+
+def run_trades_finetuning(model, trainloader, testloader, device, ckpt_path, accum_steps=1):
+    print("\n" + "="*70)
+    print("PHASE 2: RUNNING TRADES ADVERSARIAL FINE-TUNING")
     print("="*70)
     
     # Unfreeze everything
@@ -431,7 +419,6 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
         
     scaler = GradScaler('cuda')
     ce_loss = nn.CrossEntropyLoss()
-    video_iter = iter(video_loader)
     
     mean = (0.4467, 0.4398, 0.4066)
     std  = (0.2603, 0.2566, 0.2713)
@@ -502,7 +489,7 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
         eps, beta, steps = phase_params
         
         model.train()
-        total_loss = total_tr = total_cons = n_total = correct = 0
+        total_loss = total_tr = n_total = correct = 0
         
         optimizer.zero_grad(set_to_none=True)
         for batch_idx, (imgs, lbls) in enumerate(trainloader):
@@ -611,7 +598,7 @@ def run_trades_finetuning(model, trainloader, testloader, video_loader, device, 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--phase', type=str, default='tdv', choices=['tdv', 'trades'])
+    parser.add_argument('--phase', type=str, default='tdv', choices=['tdv', 'label', 'trades'])
     parser.add_argument('--model-size', type=str, default='base', choices=['base', 'large'])
     parser.add_argument('--data-root', type=str, default='./data')
     parser.add_argument('--batch-size', type=int, default=512)
@@ -630,49 +617,58 @@ def main():
     # Instantiate model size
     if args.model_size == 'large':
         model = RHANLargeSTL10().to(device)
-        ckpt_path = os.path.join(ckpt_dir, 'rhan_stl10_large_video_tdv.pth')
+        tdv_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_large_video_tdv_pretrained.pth')
+        labeled_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_large_video_tdv_labeled.pth')
+        final_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_large_video_tdv.pth')
     else:
         model = RHANUnifiedSTL10().to(device)
-        ckpt_path = os.path.join(ckpt_dir, 'rhan_stl10_base_video_tdv.pth')
+        tdv_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_base_video_tdv_pretrained.pth')
+        labeled_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_base_video_tdv_labeled.pth')
+        final_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_base_video_tdv.pth')
 
-    # Load video dataset
-    ucf_root = os.path.join(args.data_root, 'ucf101')
-    video_dataset = UCF101TemporalDataset(ucf_root=ucf_root, categories=list(UCF_RELEVANT_CATEGORIES.keys()))
-    
-    # Ensure drop_last is only True if dataset size exceeds batch size to prevent ZeroDivisionError
-    drop_last = len(video_dataset) > args.batch_size
-    batch_size = min(args.batch_size, len(video_dataset)) if len(video_dataset) > 0 else args.batch_size
-    video_loader = DataLoader(
-        video_dataset, 
-        batch_size=batch_size, 
-        shuffle=True, 
-        num_workers=4, 
-        pin_memory=True, 
-        drop_last=drop_last
-    )
-
-    # Load pre-trained checkpoint if it exists (before DataParallel wrapping)
-    if args.phase == 'trades':
-        if not os.path.exists(ckpt_path):
-            download_from_hf(ckpt_path)
-            
-        if os.path.exists(ckpt_path):
-            model.load_state_dict(torch.load(ckpt_path, map_location=device))
-            print(f"Loaded pretrained checkpoint: {ckpt_path}")
-        else:
-            print("WARNING: Pretrained TDV checkpoint not found! Fine-tuning from scratch.")
-
-    # Wrap model in DataParallel if multiple GPUs are available
-    if torch.cuda.device_count() > 1:
-        print(f"Using {torch.cuda.device_count()} GPUs with DataParallel")
-        model = nn.DataParallel(model)
+    # Load datasets
+    stl_data_root = os.path.join(args.data_root, 'stl10')
+    trainloader, testloader, _, _ = get_stl10_dataloaders(data_root=stl_data_root, batch_size=64)
 
     if args.phase == 'tdv':
-        run_video_tdv(model, video_loader, device, ckpt_path, args.accum_steps)
+        ucf_root = os.path.join(args.data_root, 'ucf101')
+        video_dataset = UCF101TemporalDataset(ucf_root=ucf_root, categories=list(UCF_RELEVANT_CATEGORIES.keys()))
+        drop_last = len(video_dataset) > args.batch_size
+        batch_size = min(args.batch_size, len(video_dataset)) if len(video_dataset) > 0 else args.batch_size
+        video_loader = DataLoader(
+            video_dataset, 
+            batch_size=batch_size, 
+            shuffle=True, 
+            num_workers=4, 
+            pin_memory=True, 
+            drop_last=drop_last
+        )
+        run_video_tdv(model, video_loader, device, tdv_ckpt, args.accum_steps)
+        
+    elif args.phase == 'label':
+        if not os.path.exists(tdv_ckpt):
+            download_from_hf(tdv_ckpt)
+        if os.path.exists(tdv_ckpt):
+            model.load_state_dict(torch.load(tdv_ckpt, map_location=device), strict=False)
+            print(f"Loaded pretrained backbone weights from {tdv_ckpt}")
+        else:
+            print("WARNING: Pre-trained backbone checkpoint not found! Calibrating from scratch.")
+        run_label_calibration(model, trainloader, testloader, device, labeled_ckpt)
+        
     elif args.phase == 'trades':
-        stl_data_root = os.path.join(args.data_root, 'stl10')
-        trainloader, testloader, _, _ = get_stl10_dataloaders(data_root=stl_data_root, batch_size=64)
-        run_trades_finetuning(model, trainloader, testloader, video_loader, device, ckpt_path, args.accum_steps)
+        if not os.path.exists(labeled_ckpt):
+            download_from_hf(labeled_ckpt)
+        if os.path.exists(labeled_ckpt):
+            model.load_state_dict(torch.load(labeled_ckpt, map_location=device))
+            print(f"Loaded calibrated head checkpoint: {labeled_ckpt}")
+        else:
+            print("WARNING: Calibrated checkpoint not found! Running TRADES from scratch.")
+            
+        if torch.cuda.device_count() > 1:
+            print(f"Using {torch.cuda.device_count()} GPUs with DataParallel")
+            model = nn.DataParallel(model)
+            
+        run_trades_finetuning(model, trainloader, testloader, device, final_ckpt, args.accum_steps)
 
 if __name__ == '__main__':
     main()
