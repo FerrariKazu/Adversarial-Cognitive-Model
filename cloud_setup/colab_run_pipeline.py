@@ -91,10 +91,23 @@ def setup_checkpoints_dir():
     return local_ckpt_dir
 
 def main():
+    target_workspace = "/content/Adversarial-Cognitive-Model"
+    
+    # 0. Clone or pull repository if running in Google Colab
+    if os.path.exists("/content"):
+        if not os.path.exists(target_workspace):
+            print(">>> Cloning repository to fast local VM scratch space...")
+            os.chdir("/content")
+            subprocess.run("git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git", shell=True, check=True)
+        else:
+            print(">>> Repository exists locally. Pulling latest commits...")
+            os.chdir(target_workspace)
+            subprocess.run("git fetch origin main && git reset --hard origin/main", shell=True, check=True)
+
     if '__file__' in globals():
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     else:
-        repo_root = "/content/Adversarial-Cognitive-Model"
+        repo_root = target_workspace
     os.chdir(repo_root)
     
     # Set Python path to include repo root
