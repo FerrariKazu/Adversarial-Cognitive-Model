@@ -286,7 +286,7 @@ def run_video_tdv(model, video_loader, device, ckpt_path, accum_steps=1):
         
     if os.path.exists(resume_path):
         print(f"Resuming video TDV training from {resume_path}...")
-        checkpoint = torch.load(resume_path, map_location=device)
+        checkpoint = torch.load(resume_path, map_location=device, weights_only=False)
         get_raw_model(model).load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
@@ -444,7 +444,7 @@ def run_trades_finetuning(model, trainloader, testloader, device, ckpt_path, acc
         
     if os.path.exists(resume_path):
         print(f"Resuming TRADES fine-tuning from {resume_path}...")
-        checkpoint = torch.load(resume_path, map_location=device)
+        checkpoint = torch.load(resume_path, map_location=device, weights_only=False)
         get_raw_model(model).load_state_dict(checkpoint['model_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
         best_acc = checkpoint['best_acc']
@@ -649,7 +649,7 @@ def main():
         if not os.path.exists(tdv_ckpt):
             download_from_hf(tdv_ckpt)
         if os.path.exists(tdv_ckpt):
-            model.load_state_dict(torch.load(tdv_ckpt, map_location=device), strict=False)
+            model.load_state_dict(torch.load(tdv_ckpt, map_location=device, weights_only=False), strict=False)
             print(f"Loaded pretrained backbone weights from {tdv_ckpt}")
         else:
             print("WARNING: Pre-trained backbone checkpoint not found! Calibrating from scratch.")
@@ -659,7 +659,7 @@ def main():
         if not os.path.exists(labeled_ckpt):
             download_from_hf(labeled_ckpt)
         if os.path.exists(labeled_ckpt):
-            model.load_state_dict(torch.load(labeled_ckpt, map_location=device))
+            model.load_state_dict(torch.load(labeled_ckpt, map_location=device, weights_only=False))
             print(f"Loaded calibrated head checkpoint: {labeled_ckpt}")
         else:
             print("WARNING: Calibrated checkpoint not found! Running TRADES from scratch.")
