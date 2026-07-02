@@ -149,7 +149,7 @@ def main():
         
     # 7. Phase 2: TRADES Adversarial Fine-Tuning
     print("\n>>> Starting Phase 2 (TRADES Fine-Tuning)...")
-    run_cmd("python3 phase1_training/train_rhan_video_tdv.py --phase trades --model-size large --data-root /content/data --batch-size 256 --accum-steps 2")
+    run_cmd("python3 phase1_training/train_rhan_video_tdv.py --phase trades --model-size large --data-root /content/data --batch-size 128 --accum-steps 4")
     
     print("\n>>> PIPELINE EXECUTION COMPLETE!")
 
