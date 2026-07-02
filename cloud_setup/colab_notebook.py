@@ -229,54 +229,57 @@ def run_interactive_command(cmd):
     subprocess.run(cmd, shell=True, check=True)
 
 # %%
-# RUN EXPERIMENT 2: Base Model (frozen stem)
-# -------------------------------------------
-# Phase A: Video TDV Pretraining
-# print("Starting/Resuming Experiment 2 Phase A...")
-# run_interactive_command(
-#     "python3 phase1_training/train_rhan_video_tdv.py "
-#     "--phase tdv "
-#     "--model-size base "
-#     "--data-root /content/data "
-#     "--batch-size 128 "
-#     "--accum-steps 4"
-# )
-
-# Phase B: TRADES Fine-tuning
-print("Starting/Resuming Experiment 2 Phase B...")
-run_interactive_command(
-    "python3 phase1_training/train_rhan_video_tdv.py "
-    "--phase trades "
-    "--model-size base "
-    "--data-root /content/data "
-    "--batch-size 128 "
-    "--accum-steps 4"
-)
-
 # %%
-# RUN EXPERIMENT 3: Scaled Large Model
-# ------------------------------------
-# Phase A: Large Model Video TDV Pretraining
-# print("Starting/Resuming Experiment 3 Phase A...")
-# run_interactive_command(
-#     "python3 phase1_training/train_rhan_video_tdv.py "
-#     "--phase tdv "
-#     "--model-size large "
-#     "--data-root /content/data "
-#     "--batch-size 128 "
-#     "--accum-steps 4"
-# )
+# RUNTIME CONFIGURATION
+# ---------------------
+MODEL_SIZE = "large"      # 'base' or 'large'
+BATCH_SIZE_TDV = 128
+BATCH_SIZE_TRADES = 256  # Set to 256 for A100/V100, 64/128 for lower end GPUs
 
-# Phase B: Large Model TRADES Fine-tuning
-print("Starting/Resuming Experiment 3 Phase B...")
+# Determine checkpoint paths
+ckpt_dir = "checkpoints"
+if MODEL_SIZE == 'large':
+    tdv_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_large_video_tdv_pretrained.pth')
+    labeled_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_large_video_tdv_labeled.pth')
+else:
+    tdv_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_base_video_tdv_pretrained.pth')
+    labeled_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_base_video_tdv_labeled.pth')
+
+# 1. Run Phase 0 (Video TDV Pretraining) if not complete
+if not os.path.exists(tdv_ckpt):
+    print(f"Starting Phase 0 (Video TDV Pretraining) for {MODEL_SIZE} model...")
+    run_interactive_command(
+        f"python3 phase1_training/train_rhan_video_tdv.py "
+        f"--phase tdv "
+        f"--model-size {MODEL_SIZE} "
+        f"--data-root /content/data "
+        f"--batch-size {BATCH_SIZE_TDV}"
+    )
+else:
+    print(">>> Phase 0 (Pretraining) checkpoint found. Skipping.")
+
+# 2. Run Phase 1 (Labeled Classifier Head Calibration) if not complete
+if not os.path.exists(labeled_ckpt):
+    print(f"Starting Phase 1 (Classifier Head Calibration) for {MODEL_SIZE} model...")
+    run_interactive_command(
+        f"python3 phase1_training/train_rhan_video_tdv.py "
+        f"--phase label "
+        f"--model-size {MODEL_SIZE} "
+        f"--data-root /content/data"
+    )
+else:
+    print(">>> Phase 1 (Head Calibration) checkpoint found. Skipping.")
+
+# 3. Run Phase 2 (TRADES Adversarial Fine-Tuning)
+print(f"Starting/Resuming Phase 2 (TRADES Adversarial Fine-Tuning) for {MODEL_SIZE} model...")
 run_interactive_command(
-    "python3 phase1_training/train_rhan_video_tdv.py "
-    "--phase trades "
-    "--model-size large "
-    "--data-root /content/data "
-    "--batch-size 64 "
-    "--accum-steps 8"
+    f"python3 phase1_training/train_rhan_video_tdv.py "
+    f"--phase trades "
+    f"--model-size {MODEL_SIZE} "
+    f"--data-root /content/data "
+    f"--batch-size {BATCH_SIZE_TRADES}"
 )
+
 
 # %% [markdown]
 # ## Pro Tip: Prevent Colab Inactivity Disconnect
