@@ -691,7 +691,7 @@ def main():
 
     # Load datasets
     stl_data_root = os.path.join(args.data_root, 'stl10')
-    trainloader, testloader, _, _ = get_stl10_dataloaders(data_root=stl_data_root, batch_size=64)
+    trainloader, testloader, _, _ = get_stl10_dataloaders(data_root=stl_data_root, batch_size=args.batch_size)
 
     if args.phase == 'tdv':
         ucf_root = os.path.join(args.data_root, 'ucf101')
