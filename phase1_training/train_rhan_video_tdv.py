@@ -23,6 +23,8 @@ from torch.utils.data import DataLoader, Dataset
 import torchvision
 import torchvision.transforms as T
 import torchvision.transforms.functional as TF
+import torch.backends.cudnn as cudnn
+cudnn.benchmark = True
 
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -331,7 +333,8 @@ def run_video_tdv(model, video_loader, device, ckpt_path, accum_steps=1):
     
     optimizer = optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()),
-        lr=3e-4, weight_decay=1e-4
+        lr=3e-4, weight_decay=1e-4,
+        fused=(device.type == 'cuda')
     )
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
     scaler = GradScaler('cuda')
@@ -420,7 +423,8 @@ def run_label_calibration(model, trainloader, testloader, device, ckpt_path):
             
     optimizer = optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()),
-        lr=1e-3, weight_decay=1e-4
+        lr=1e-3, weight_decay=1e-4,
+        fused=(device.type == 'cuda')
     )
     scaler = GradScaler('cuda')
     ce_loss = nn.CrossEntropyLoss()
@@ -513,7 +517,8 @@ def run_trades_finetuning(model, trainloader, testloader, device, ckpt_path, acc
                 current_phase_start = p_start
                 optimizer = optim.SGD(
                     model.parameters(), lr=lr,
-                    momentum=0.9, weight_decay=1e-4
+                    momentum=0.9, weight_decay=1e-4,
+                    fused=(device.type == 'cuda')
                 )
                 scheduler = optim.lr_scheduler.CosineAnnealingLR(
                     optimizer, T_max=p_end - p_start + 1, eta_min=lr * 0.1
@@ -535,7 +540,8 @@ def run_trades_finetuning(model, trainloader, testloader, device, ckpt_path, acc
                     current_phase_start = p_start
                     optimizer = optim.SGD(
                         model.parameters(), lr=phase_lr,
-                        momentum=0.9, weight_decay=1e-4
+                        momentum=0.9, weight_decay=1e-4,
+                        fused=(device.type == 'cuda')
                     )
                     scheduler = optim.lr_scheduler.CosineAnnealingLR(
                         optimizer, T_max=p_end - p_start + 1, eta_min=phase_lr * 0.1
@@ -696,8 +702,9 @@ def main():
             video_dataset, 
             batch_size=batch_size, 
             shuffle=True, 
-            num_workers=4, 
+            num_workers=2, 
             pin_memory=True, 
+            persistent_workers=True,
             drop_last=drop_last
         )
         run_video_tdv(model, video_loader, device, tdv_ckpt, args.accum_steps)
