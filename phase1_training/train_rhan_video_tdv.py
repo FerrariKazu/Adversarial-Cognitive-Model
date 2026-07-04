@@ -348,6 +348,8 @@ def run_video_tdv(model, video_loader, device, ckpt_path, accum_steps=1):
         checkpoint = torch.load(resume_path, map_location=device, weights_only=False)
         get_raw_model(model).load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        for group in optimizer.param_groups:
+            group['fused'] = False
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
         print(f"Starting from epoch {start_epoch}")
@@ -521,6 +523,8 @@ def run_trades_finetuning(model, trainloader, testloader, device, ckpt_path, acc
                     optimizer, T_max=p_end - p_start + 1, eta_min=lr * 0.1
                 )
                 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                for group in optimizer.param_groups:
+                    group['fused'] = False
                 scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
                 print(f"Restored optimizer and scheduler state for phase starting at epoch {p_start}. Resuming at epoch {start_epoch}.")
                 break
