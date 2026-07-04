@@ -333,8 +333,7 @@ def run_video_tdv(model, video_loader, device, ckpt_path, accum_steps=1):
     
     optimizer = optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()),
-        lr=3e-4, weight_decay=1e-4,
-        fused=(device.type == 'cuda')
+        lr=3e-4, weight_decay=1e-4
     )
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
     scaler = GradScaler('cuda')
@@ -423,8 +422,7 @@ def run_label_calibration(model, trainloader, testloader, device, ckpt_path):
             
     optimizer = optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()),
-        lr=1e-3, weight_decay=1e-4,
-        fused=(device.type == 'cuda')
+        lr=1e-3, weight_decay=1e-4
     )
     scaler = GradScaler('cuda')
     ce_loss = nn.CrossEntropyLoss()
@@ -517,8 +515,7 @@ def run_trades_finetuning(model, trainloader, testloader, device, ckpt_path, acc
                 current_phase_start = p_start
                 optimizer = optim.SGD(
                     model.parameters(), lr=lr,
-                    momentum=0.9, weight_decay=1e-4,
-                    fused=(device.type == 'cuda')
+                    momentum=0.9, weight_decay=1e-4
                 )
                 scheduler = optim.lr_scheduler.CosineAnnealingLR(
                     optimizer, T_max=p_end - p_start + 1, eta_min=lr * 0.1
@@ -540,8 +537,7 @@ def run_trades_finetuning(model, trainloader, testloader, device, ckpt_path, acc
                     current_phase_start = p_start
                     optimizer = optim.SGD(
                         model.parameters(), lr=phase_lr,
-                        momentum=0.9, weight_decay=1e-4,
-                        fused=(device.type == 'cuda')
+                        momentum=0.9, weight_decay=1e-4
                     )
                     scheduler = optim.lr_scheduler.CosineAnnealingLR(
                         optimizer, T_max=p_end - p_start + 1, eta_min=phase_lr * 0.1
