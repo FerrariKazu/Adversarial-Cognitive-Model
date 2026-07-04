@@ -37,7 +37,7 @@ def run_command(cmd, shell=True):
     return result.returncode
 
 print("Installing Python packages...")
-run_command("pip install --quiet autoattack")
+run_command("pip install --quiet git+https://github.com/fra31/auto-attack.git")
 run_command("pip install --quiet git+https://github.com/openai/CLIP.git")
 run_command("pip install --quiet git+https://github.com/wielandbrendel/bag-of-local-features-models.git")
 run_command("pip install --quiet git+https://github.com/dicarlolab/CORnet.git")
