@@ -1,108 +1,149 @@
 #!/usr/bin/env python3
 """
-Kaggle 2xT4 Setup & Execution Script for Experiment 1
-======================================================
-This file can be run directly as a python script or converted/imported
-into a Kaggle Notebook. It uses '#' and '%%' cell markers to allow
-easy import into Jupyter-compatible IDEs.
-
-Experiment 1: STL-10 Pseudo-label TRADES curriculum training starting
-from a baseline TDV-trained model. Uses multi-GPU (nn.DataParallel).
+Kaggle 2xT4 Setup & Execution Script for Experiment 3 (Large Model TRADES)
+===========================================================================
+This file can be run directly as a python script or imported into a Kaggle Notebook.
+It uses '#' and '%%' cell markers to allow easy import into Jupyter cells.
 """
 
 # %% [markdown]
-# # Cell 1: Environment Installation
-# Install AutoAttack, CLIP, and standard requirements in the Kaggle environment.
+# # Step 1: Environment Setup & Dependencies
+# Installs necessary package dependencies and injects the Hugging Face Token.
 
+# %%
 import os
 import sys
 import subprocess
+import shutil
+
+# Fetch HF_TOKEN and inject it into the environment so the training process inherits it
+hf_token = os.environ.get("HF_TOKEN")
+if not hf_token:
+    try:
+        from kaggle_secrets import UserSecretsClient
+        hf_token = UserSecretsClient().get_secret("HF_TOKEN")
+    except Exception:
+        pass
+
+if hf_token:
+    os.environ["HF_TOKEN"] = hf_token
+    print("HF_TOKEN successfully loaded and injected into environment.")
+else:
+    print("WARNING: HF_TOKEN not found in environment or secrets. Hugging Face sync will be disabled.")
 
 def run_command(cmd, shell=True):
     print(f"Executing: {cmd}")
     result = subprocess.run(cmd, shell=shell, check=True, text=True)
     return result.returncode
 
-# %%
-print("Setting up Kaggle Environment...")
-
-# Install AutoAttack and open-source models dependencies
+print("Installing Python packages...")
 run_command("pip install --quiet autoattack")
 run_command("pip install --quiet git+https://github.com/openai/CLIP.git")
 run_command("pip install --quiet git+https://github.com/wielandbrendel/bag-of-local-features-models.git")
 run_command("pip install --quiet git+https://github.com/dicarlolab/CORnet.git")
+run_command("pip install --quiet opencv-python datasets huggingface_hub")
 
 # %% [markdown]
-# # Cell 2: Workspace Setup & Repository Sync
-# Checks and creates workspace directory, verifies git status.
+# # Step 2: Clone and Sync Repository
+# Clones the repository to Kaggle's writable VM scratch disk (`/kaggle/working`)
+# and pulls the latest commits.
 
 # %%
-# Create checkpoints and data folders if not present
-os.makedirs("checkpoints", exist_ok=True)
-os.makedirs("data", exist_ok=True)
+REPO_NAME = 'Adversarial-Cognitive-Model'
+REPO_URL = f'https://github.com/FerrariKazu/{REPO_NAME}.git'
 
-print("Directory structure verified:")
-print(f"Current Directory: {os.getcwd()}")
-print(f"Contents: {os.listdir('.')}")
+os.chdir('/kaggle/working')
+
+if not os.path.exists(f'/kaggle/working/{REPO_NAME}'):
+    print('Cloning repository...')
+    subprocess.run(f'git clone {REPO_URL}', shell=True, check=True)
+
+os.chdir(f'/kaggle/working/{REPO_NAME}')
+print('Syncing repository to latest commit...')
+subprocess.run('git fetch origin main && git reset --hard origin/main', shell=True, check=True)
+
+# Create checkpoints directory
+os.makedirs('checkpoints', exist_ok=True)
+print(f"Working directory successfully set to: {os.getcwd()}")
 
 # %% [markdown]
-# # Cell 3: Baseline Checkpoint Verification
-# Experiment 1 requires the baseline `rhan_stl10_tdv_trades.pth` checkpoint.
-# This cell checks for it and prints instructions if it is missing.
+# # Step 3: Setup UCF-101 Video Dataset
+# Searches for the UCF-101 dataset inside Kaggle inputs and symlinks it.
+# If not found, downloads and extracts the official UCF-101 archive.
 
 # %%
-baseline_path = "checkpoints/rhan_stl10_tdv_trades.pth"
+print('Locating UCF-101 dataset...')
+ucf_src_path = None
+kaggle_input_dir = '/kaggle/input'
+if os.path.exists(kaggle_input_dir):
+    for item in os.listdir(kaggle_input_dir):
+        item_path = os.path.join(kaggle_input_dir, item)
+        if os.path.isdir(item_path):
+            try:
+                contents = os.listdir(item_path)
+                if 'UCF-101' in contents or 'ucf101' in contents:
+                    ucf_src_path = os.path.join(item_path, 'UCF-101' if 'UCF-101' in contents else 'ucf101')
+                    break
+                if any(cat in contents for cat in ['ApplyEyeMakeup', 'Archery', 'Basketball']):
+                    ucf_src_path = item_path
+                    break
+            except Exception:
+                pass
 
-if not os.path.exists(baseline_path):
-    print("=" * 80)
-    print("WARNING: Baseline checkpoint 'checkpoints/rhan_stl10_tdv_trades.pth' is missing!")
-    print("You can upload this checkpoint as a Kaggle Dataset and copy it to checkpoints.")
-    print("Example command:")
-    print("  !cp /kaggle/input/rhan-checkpoints/rhan_stl10_tdv_trades.pth checkpoints/")
-    print("=" * 80)
-    
-    # Placeholder: if running in Kaggle, copy from input dataset if available
-    kaggle_input_dir = "/kaggle/input"
-    copied = False
-    if os.path.exists(kaggle_input_dir):
-        for root, dirs, files in os.walk(kaggle_input_dir):
-            if "rhan_stl10_tdv_trades.pth" in files:
-                src = os.path.join(root, "rhan_stl10_tdv_trades.pth")
-                print(f"Found checkpoint in Kaggle inputs. Copying {src} to {baseline_path}...")
-                subprocess.run(f"cp '{src}' '{baseline_path}'", shell=True)
-                copied = True
-                break
-        if not copied:
-            print("Could not find baseline checkpoint in Kaggle inputs. Creating mock checkpoint for verification...")
-            # Create a mock checkpoint so the script compiles and runs without erroring on missing file
-            import torch
-            from phase1_training.model_rhan_stl10_pretrained import RHANUnifiedSTL10
-            model = RHANUnifiedSTL10()
-            torch.save(model.state_dict(), baseline_path)
-            print("Created mock checkpoint at:", baseline_path)
+os.makedirs('data', exist_ok=True)
+if ucf_src_path:
+    print(f"Found mounted UCF-101 dataset in inputs at: {ucf_src_path}")
+    target_link = 'data/ucf101'
+    if os.path.exists(target_link):
+        if os.path.islink(target_link):
+            os.unlink(target_link)
+        else:
+            shutil.rmtree(target_link)
+    os.symlink(ucf_src_path, target_link)
+    print("Successfully symlinked dataset to data/ucf101.")
 else:
-    print(f"Verified: Baseline checkpoint exists at '{baseline_path}'")
+    # Direct download fallback
+    if not os.path.exists('data/ucf101'):
+        print("UCF-101 dataset not found in inputs. Downloading archive...")
+        download_cmd = "wget --no-check-certificate -q --show-progress https://www.crcv.ucf.edu/data/UCF101/UCF101.rar -O data/UCF101.rar"
+        try:
+            subprocess.run(download_cmd, shell=True, check=True)
+            print("Extracting UCF-101 dataset...")
+            extract_cmd = "unrar x data/UCF101.rar data/ > /dev/null"
+            subprocess.run(extract_cmd, shell=True, check=True)
+            if os.path.exists('data/UCF-101'):
+                os.rename('data/UCF-101', 'data/ucf101')
+            print("Dataset downloaded and extracted successfully.")
+        except Exception as e:
+            print(f"Download/Extraction failed: {e}")
+        finally:
+            if os.path.exists('data/UCF101.rar'):
+                os.remove('data/UCF101.rar')
+    else:
+        print("UCF-101 dataset already present at data/ucf101.")
 
 # %% [markdown]
-# # Cell 4: Launch Experiment 1 (STL-10 Pseudo-label TRADES)
-# Launch training using multi-GPU settings. Batch sizes are scaled to utilize dual-T4 GPUs.
-# Combined training batch size of 256 (128 real + 128 pseudo) and unlabeled generation batch size of 512.
+# # Step 4: Run training (Experiment 3 Phase B: Large Model TRADES)
+# Uses Kaggle's dual-T4 multi-GPU capability. `nn.DataParallel` splits the batch
+# size across both GPUs, so a batch size of 256 will allocate 128 samples per T4 GPU,
+# fully saturating the VRAM without OOM.
 
 # %%
-print("Launching Experiment 1...")
-# Note: Kaggle 2xT4 offers dual GPUs. The script train_rhan_pseudolabel.py uses nn.DataParallel automatically.
-# Adjusting number of workers for Kaggle's CPU allocation
+print("Launching Experiment 3 Phase B...")
+# Target batch size 256 + 2 gradient accumulation steps = 512 effective batch size.
 cmd = (
-    "python3 phase1_training/train_rhan_pseudolabel.py "
+    "python3 phase1_training/train_rhan_video_tdv.py "
+    "--phase trades "
+    "--model-size large "
     "--data-root ./data "
-    "--batch-size 128 "
-    "--unlabeled-batch-size 512 "
-    "--tdv-batch-size 32 "
-    "--confidence-threshold 0.85"
+    "--batch-size 256 "
+    "--accum-steps 2"
 )
 
 try:
+    # Set PYTHONPATH to include project root
+    os.environ["PYTHONPATH"] = f"/kaggle/working/{REPO_NAME}:{os.environ.get('PYTHONPATH', '')}"
     run_command(cmd)
-    print("Experiment 1 completed successfully.")
+    print("Training phase completed successfully.")
 except Exception as e:
-    print(f"Error executing Experiment 1: {e}")
+    print(f"Training run failed: {e}")
