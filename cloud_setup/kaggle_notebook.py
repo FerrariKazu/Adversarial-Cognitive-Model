@@ -62,8 +62,16 @@ os.chdir(f'/kaggle/working/{REPO_NAME}')
 print('Syncing repository to latest commit...')
 subprocess.run('git fetch origin main && git reset --hard origin/main', shell=True, check=True)
 
-# Create checkpoints directory
+# Create checkpoints directory and clean up stale files if FORCE_DOWNLOAD is active
+FORCE_DOWNLOAD = True
 os.makedirs('checkpoints', exist_ok=True)
+if FORCE_DOWNLOAD:
+    print("FORCE_DOWNLOAD is True. Clearing stale local checkpoints to force download from HF...")
+    for item in os.listdir('checkpoints'):
+        if item.endswith('.pth'):
+            item_path = os.path.join('checkpoints', item)
+            os.remove(item_path)
+            print(f"Removed local checkpoint: {item}")
 print(f"Working directory successfully set to: {os.getcwd()}")
 
 # %% [markdown]
