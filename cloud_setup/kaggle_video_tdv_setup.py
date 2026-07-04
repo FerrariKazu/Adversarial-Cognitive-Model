@@ -202,7 +202,6 @@ if not hf_token:
         hf_token = UserSecretsClient().get_secret("HF_TOKEN")
     except Exception:
         pass
-
 if hf_token:
     os.environ["HF_TOKEN"] = hf_token
     print("HF_TOKEN successfully loaded and injected into environment.")
@@ -217,7 +216,7 @@ training_cmd = """nohup python3 phase1_training/train_rhan_video_tdv.py \
     --phase trades \
     --model-size large \
     --data-root ./data \
-    --batch-size 128 \
-    --accum-steps 4 > training_log.out 2>&1 &"""
+    --batch-size 256 \
+    --accum-steps 2 > training_log.out 2>&1 &"""
 
 os.system(training_cmd)
