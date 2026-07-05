@@ -122,6 +122,18 @@ def main():
     except ImportError:
         pass
 
+    # Inject Hugging Face Token from Colab secrets securely if available
+    try:
+        from google.colab import userdata
+        token = userdata.get('HF_TOKEN')
+        if token:
+            os.environ["HF_TOKEN"] = token
+            print(">>> HF_TOKEN successfully loaded from Colab Secrets.")
+        else:
+            print(">>> WARNING: HF_TOKEN not found in Colab Secrets. Check your Secrets tab (key icon).")
+    except Exception:
+        pass
+
     # 2. Configure symlinks
     ckpt_dir = setup_checkpoints_dir()
     
