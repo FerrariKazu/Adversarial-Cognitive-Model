@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-07-05T18:46:18.733907</dc:date>
+    <dc:date>2026-07-05T18:50:38.375736</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -35,7 +35,7 @@ L 397.495385 171.027692
 L 397.495385 93.932308 
 L 233.667692 93.932308 
 z
-" clip-path="url(#p3ea0a8740f)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
+" clip-path="url(#p956a705c1d)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
    </g>
    <g id="patch_3">
     <path d="M 369.954365 227.479481 
@@ -43,7 +43,7 @@ L 533.782058 227.479481
 L 533.782058 150.384096 
 L 369.954365 150.384096 
 z
-" clip-path="url(#p3ea0a8740f)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
+" clip-path="url(#p956a705c1d)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
    </g>
    <g id="patch_4">
     <path d="M 426.406154 363.766154 
@@ -51,7 +51,7 @@ L 590.233846 363.766154
 L 590.233846 286.670769 
 L 426.406154 286.670769 
 z
-" clip-path="url(#p3ea0a8740f)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
+" clip-path="url(#p956a705c1d)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
    </g>
    <g id="patch_5">
     <path d="M 369.954365 500.052827 
@@ -59,7 +59,7 @@ L 533.782058 500.052827
 L 533.782058 422.957442 
 L 369.954365 422.957442 
 z
-" clip-path="url(#p3ea0a8740f)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
+" clip-path="url(#p956a705c1d)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
    </g>
    <g id="patch_6">
     <path d="M 233.667692 556.504615 
@@ -67,7 +67,7 @@ L 397.495385 556.504615
 L 397.495385 479.409231 
 L 233.667692 479.409231 
 z
-" clip-path="url(#p3ea0a8740f)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
+" clip-path="url(#p956a705c1d)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
    </g>
    <g id="patch_7">
     <path d="M 97.381019 500.052827 
@@ -75,7 +75,7 @@ L 261.208711 500.052827
 L 261.208711 422.957442 
 L 97.381019 422.957442 
 z
-" clip-path="url(#p3ea0a8740f)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
+" clip-path="url(#p956a705c1d)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
    </g>
    <g id="patch_8">
     <path d="M 40.929231 363.766154 
@@ -83,7 +83,7 @@ L 204.756923 363.766154
 L 204.756923 286.670769 
 L 40.929231 286.670769 
 z
-" clip-path="url(#p3ea0a8740f)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
+" clip-path="url(#p956a705c1d)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
    </g>
    <g id="patch_9">
     <path d="M 97.381019 227.479481 
@@ -91,7 +91,7 @@ L 261.208711 227.479481
 L 261.208711 150.384096 
 L 97.381019 150.384096 
 z
-" clip-path="url(#p3ea0a8740f)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
+" clip-path="url(#p956a705c1d)" style="fill: #f8f9fa; stroke: #90a4ae; stroke-width: 1.2"/>
    </g>
    <g id="text_1">
     <!-- The RHAN Robustness Ecosystem -->
@@ -500,7 +500,7 @@ C 250.058016 287.164112 242.340923 305.794823 242.340923 325.218462
 C 242.340923 344.6421 250.058016 363.272811 263.792603 377.007397 
 C 277.527189 390.741984 296.1579 398.459077 315.581538 398.459077 
 z
-" clip-path="url(#p3ea0a8740f)" style="fill: #e3f2fd; stroke: #1f77b4; stroke-width: 3; stroke-linejoin: miter"/>
+" clip-path="url(#p956a705c1d)" style="fill: #e3f2fd; stroke: #1f77b4; stroke-width: 3; stroke-linejoin: miter"/>
    </g>
    <g id="text_2">
     <!-- SAIL Invariance -->
@@ -2096,7 +2096,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="p3ea0a8740f">
+  <clipPath id="p956a705c1d">
    <rect x="7.2" y="7.2" width="616.763077" height="626.4"/>
   </clipPath>
  </defs>

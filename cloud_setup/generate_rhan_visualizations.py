@@ -77,8 +77,6 @@ class DorsalTransformerMock(nn.Module):
 def get_traced_model():
     """Instantiates the real RHAN model and mocks only its transformer internals for memory safety."""
     model = RHANLargeSTL10()
-    # Replace the heavy multihead attention blocks with linear representation mocks
-    # to avoid JIT recursion OOM (std::bad_alloc) during visualization tracing.
     model.ventral = VentralTransformerMock()
     model.dorsal = DorsalTransformerMock()
     model.eval()
@@ -111,54 +109,56 @@ def draw_arrow(ax, x1, y1, x2, y2, color=PALETTE['forward'], style='solid', lw=1
                 arrowprops=dict(arrowstyle="-|>", color=color, lw=lw, ls=linestyle, mutation_scale=12))
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# FIGURE 1: Full RHAN Architecture
+# FIGURE 1: Full RHAN Architecture (Multi-Panel Layout)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def make_figure_1(model):
-    fig, ax = plt.subplots(figsize=(11, 8.5))
-    ax.set_xlim(0, 10)
-    ax.set_ylim(0.5, 9.5)
-    ax.axis('off')
+    fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=(11, 10), gridspec_kw={'height_ratios': [1, 1.25]})
     
-    ax.text(5, 9.1, "Full RHAN Architecture & Information Flow (Traced)", ha='center', fontsize=13, fontweight='bold')
-    
-    # VisualTorch base layered tracing using the actual model classes
+    # ── TOP PANEL: VisualTorch Layer Trace (Un-distorted) ──
+    ax_top.axis('off')
+    ax_top.set_title("VisualTorch Layer Trace of RHANLargeSTL10", fontsize=11, fontweight='bold', pad=10)
     try:
         import visualtorch
         img = visualtorch.layered_view(model, input_shape=(1, 3, 96, 96))
-        ax.imshow(img, extent=[1.5, 8.5, 4.2, 7.8], aspect='auto', alpha=0.25, zorder=0)
+        ax_top.imshow(img, aspect='equal')
     except Exception as e:
-        print("VisualTorch failed for Fig 1 base:", e)
+        ax_top.text(0.5, 0.5, f"VisualTorch failed for Fig 1 top: {e}", ha='center', va='center')
 
-    # Vector overlays
-    draw_box(ax, 1.5, 8.2, 1.8, 0.6, "Input Image", "3 x 96 x 96")
-    draw_box(ax, 5.0, 8.2, 2.2, 0.7, "WideSEConvStem", "64 x 96 x 96\n(1.45M params)", bg=PALETTE['conv'])
-    draw_box(ax, 8.5, 8.2, 2.0, 0.6, "PatchTokeniserLarge", "128 x 48 x 48\n(0.12M params)", bg=PALETTE['trans'])
+    # ── BOTTOM PANEL: Detailed Connection Flowchart ──
+    ax_bot.set_xlim(0, 10)
+    ax_bot.set_ylim(0.5, 9.5)
+    ax_bot.axis('off')
+    ax_bot.set_title("Architectural Pipeline & Recurrent Feedback Connections", fontsize=11, fontweight='bold', pad=10)
     
-    draw_box(ax, 2.5, 6.0, 2.2, 0.8, "Ventral Stream", "What pathway\n26.85M params", bg=PALETTE['ventral'])
-    draw_box(ax, 7.5, 6.0, 2.2, 0.8, "Dorsal Stream", "Where pathway\n26.85M params", bg=PALETTE['dorsal'])
+    draw_box(ax_bot, 1.5, 8.2, 1.8, 0.6, "Input Image", "3 x 96 x 96")
+    draw_box(ax_bot, 5.0, 8.2, 2.2, 0.7, "WideSEConvStem", "64 x 96 x 96\n(1.45M params)", bg=PALETTE['conv'])
+    draw_box(ax_bot, 8.5, 8.2, 2.0, 0.6, "PatchTokeniserLarge", "128 x 48 x 48\n(0.12M params)", bg=PALETTE['trans'])
     
-    draw_box(ax, 5.0, 4.4, 2.2, 0.6, "PredictiveCodingLayerLarge", "Predictor Head", bg=PALETTE['norm'])
-    draw_box(ax, 5.0, 3.2, 2.2, 0.6, "Recurrent Feedback", "g(e): Error Gating", bg=PALETTE['conv'])
-    draw_box(ax, 5.0, 2.0, 2.2, 0.6, "SphericalPrototypeHead", "Angular Classifier\n(0.20M params)", bg=PALETTE['linear'])
-    draw_box(ax, 5.0, 1.0, 1.8, 0.5, "Classification", "Logits / Probability")
+    draw_box(ax_bot, 2.5, 6.0, 2.2, 0.8, "Ventral Stream", "What pathway\n26.85M params", bg=PALETTE['ventral'])
+    draw_box(ax_bot, 7.5, 6.0, 2.2, 0.8, "Dorsal Stream", "Where pathway\n26.85M params", bg=PALETTE['dorsal'])
+    
+    draw_box(ax_bot, 5.0, 4.4, 2.2, 0.6, "PredictiveCodingLayerLarge", "Predictor Head", bg=PALETTE['norm'])
+    draw_box(ax_bot, 5.0, 3.2, 2.2, 0.6, "Recurrent Feedback", "g(e): Error Gating", bg=PALETTE['conv'])
+    draw_box(ax_bot, 5.0, 2.0, 2.2, 0.6, "SphericalPrototypeHead", "Angular Classifier\n(0.20M params)", bg=PALETTE['linear'])
+    draw_box(ax_bot, 5.0, 1.0, 1.8, 0.5, "Classification", "Logits / Probability")
 
     # Arrows
-    draw_arrow(ax, 2.4, 8.2, 3.9, 8.2)
-    draw_arrow(ax, 6.1, 8.2, 7.5, 8.2)
-    draw_arrow(ax, 8.5, 7.9, 7.5, 6.4)
-    draw_arrow(ax, 1.5, 7.9, 2.5, 6.4)
-    draw_arrow(ax, 2.5, 5.6, 3.9, 4.4)
-    draw_arrow(ax, 7.5, 5.6, 6.1, 4.4)
-    draw_arrow(ax, 5.0, 4.1, 5.0, 3.5)
-    draw_arrow(ax, 5.0, 2.9, 5.0, 2.3)
-    draw_arrow(ax, 5.0, 1.7, 5.0, 1.25)
+    draw_arrow(ax_bot, 2.4, 8.2, 3.9, 8.2)
+    draw_arrow(ax_bot, 6.1, 8.2, 7.5, 8.2)
+    draw_arrow(ax_bot, 8.5, 7.9, 7.5, 6.4)
+    draw_arrow(ax_bot, 1.5, 7.9, 2.5, 6.4)
+    draw_arrow(ax_bot, 2.5, 5.6, 3.9, 4.4)
+    draw_arrow(ax_bot, 7.5, 5.6, 6.1, 4.4)
+    draw_arrow(ax_bot, 5.0, 4.1, 5.0, 3.5)
+    draw_arrow(ax_bot, 5.0, 2.9, 5.0, 2.3)
+    draw_arrow(ax_bot, 5.0, 1.7, 5.0, 1.25)
     
-    # Recurrent path
-    draw_arrow(ax, 3.9, 3.2, 1.5, 3.2, color=PALETTE['feedback'])
-    draw_arrow(ax, 1.5, 3.2, 1.5, 7.9, color=PALETTE['feedback'], style='dashed')
-    ax.text(1.1, 5.0, "Feedback Loop", color=PALETTE['feedback'], fontsize=9, rotation=90, va='center')
+    # Recurrent feedback path
+    draw_arrow(ax_bot, 3.9, 3.2, 1.5, 3.2, color=PALETTE['feedback'])
+    draw_arrow(ax_bot, 1.5, 3.2, 1.5, 7.9, color=PALETTE['feedback'], style='dashed')
+    ax_bot.text(1.1, 5.0, "Feedback Loop", color=PALETTE['feedback'], fontsize=9, rotation=90, va='center')
     
-    ax.text(5.0, 0.4, "Total Model Parameters: 55,622,347", ha='center', fontsize=9.5, fontweight='bold', color=PALETTE['annotation'])
+    fig.suptitle("Full RHAN Architecture Flow & VisualTorch Layer Trace", fontsize=13, fontweight='bold')
     
     save_formats(fig, 'arch', "figure_1_rhan_architecture")
 
@@ -369,86 +369,85 @@ def make_figure_9():
     save_formats(fig, 'eval', "figure_9_flops_distribution")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# FIGURE 10: Biological Mapping
+# FIGURE 10: Biological Mapping (Side-by-Side Clean Layout)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def make_figure_10(model):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.set_xlim(0, 10)
-    ax.set_ylim(0.5, 5.5)
-    ax.axis('off')
+    fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(12, 6.5))
     
-    ax.text(5, 5.1, "Biological Inspiration Mapping onto RHAN Modules", ha='center', fontsize=13, fontweight='bold')
+    # ── LEFT PANEL: Human Visual System ──
+    ax_left.set_xlim(0, 5)
+    ax_left.set_ylim(0.5, 5.5)
+    ax_left.axis('off')
+    ax_left.set_title("Human Visual System", fontsize=11, fontweight='bold', pad=10, color=PALETTE['forward'])
     
-    # Biological nodes
-    draw_box(ax, 2.5, 4.3, 1.8, 0.45, "Retina / Photoreceptors", "Signal Capture")
-    draw_box(ax, 2.5, 3.4, 1.8, 0.45, "LGN / V1 Cortex", "Frequency Mapping")
-    draw_box(ax, 2.5, 2.5, 1.8, 0.45, "Ventral / Dorsal Streams", "What & Where Pathways")
-    draw_box(ax, 2.5, 1.6, 1.8, 0.45, "Cortical Feedback", "Active inference predictions")
-    draw_box(ax, 2.5, 0.7, 1.8, 0.45, "Inferior Temporal Cortex", "Classification & Perception")
+    draw_box(ax_left, 2.5, 4.8, 2.2, 0.45, "Retina", "Photoreceptor inputs")
+    draw_box(ax_left, 2.5, 3.9, 2.2, 0.45, "LGN", "Lateral Geniculate Nucleus")
+    draw_box(ax_left, 2.5, 3.0, 2.2, 0.45, "Primary Visual Cortex (V1)", "Local orientation / edges")
+    draw_box(ax_left, 1.3, 2.1, 1.8, 0.45, "Ventral stream (What)", "Object identity", bg=PALETTE['ventral'])
+    draw_box(ax_left, 3.7, 2.1, 1.8, 0.45, "Dorsal stream (Where)", "Spatial geometry", bg=PALETTE['dorsal'])
+    draw_box(ax_left, 2.5, 1.2, 2.2, 0.45, "IT Cortex", "Inferior Temporal representation")
+    draw_box(ax_left, 2.5, 0.6, 2.2, 0.45, "Perceptual Decision", "Action output")
     
-    draw_arrow(ax, 2.5, 4.05, 2.5, 3.65)
-    draw_arrow(ax, 2.5, 3.15, 2.5, 2.75)
-    draw_arrow(ax, 2.5, 2.25, 2.5, 1.85)
-    draw_arrow(ax, 2.5, 1.35, 2.5, 0.95)
-    
-    # Trace background
+    # Connections left
+    draw_arrow(ax_left, 2.5, 4.55, 2.5, 4.15)
+    draw_arrow(ax_left, 2.5, 3.65, 2.5, 3.25)
+    draw_arrow(ax_left, 2.5, 2.75, 1.3, 2.35)
+    draw_arrow(ax_left, 2.5, 2.75, 3.7, 2.35)
+    draw_arrow(ax_left, 1.3, 1.85, 2.5, 1.45)
+    draw_arrow(ax_left, 3.7, 1.85, 2.5, 1.45)
+    draw_arrow(ax_left, 2.5, 0.95, 2.5, 0.85)
+
+    # ── RIGHT PANEL: Traced VisualTorch Model representation ──
+    ax_right.axis('off')
+    ax_right.set_title("Traced RHAN Model Architecture", fontsize=11, fontweight='bold', pad=10, color=PALETTE['box_border'])
     try:
         import visualtorch
         img = visualtorch.layered_view(model, input_shape=(1, 3, 96, 96))
-        ax.imshow(img, extent=[6.2, 8.8, 0.5, 4.8], aspect='auto', alpha=0.2, zorder=0)
+        ax_right.imshow(img, aspect='equal')
     except Exception as e:
-        pass
-        
-    # RHAN nodes
-    draw_box(ax, 7.5, 4.3, 2.2, 0.45, "Input Image (3x96x96)", bg='#FAFAFA')
-    draw_box(ax, 7.5, 3.4, 2.2, 0.45, "WideSEConvStem / Tokenizer", bg=PALETTE['conv'])
-    draw_box(ax, 7.5, 2.5, 2.2, 0.45, "Dual Transformers", bg=PALETTE['dorsal'])
-    draw_box(ax, 7.5, 1.6, 2.2, 0.45, "Predictive Error Gating", bg=PALETTE['ventral'])
-    draw_box(ax, 7.5, 0.7, 2.2, 0.45, "SphericalPrototypeHead", bg=PALETTE['linear'])
-    
-    draw_arrow(ax, 7.5, 4.05, 7.5, 3.65)
-    draw_arrow(ax, 7.5, 3.15, 7.5, 2.75)
-    draw_arrow(ax, 7.5, 2.25, 7.5, 1.85)
-    draw_arrow(ax, 7.5, 1.35, 7.5, 0.95)
-    
-    for y in [4.3, 3.4, 2.5, 1.6, 0.7]:
-        draw_arrow(ax, 3.5, y, 6.3, y, color='#90A4AE', style='dashed', lw=1.0)
-        
+        ax_right.text(0.5, 0.5, f"VisualTorch failed for Fig 10 right: {e}", ha='center', va='center')
+
+    # Draw connection mappings as text descriptions
+    fig.suptitle("Biological Correspondence Mapping", fontsize=13, fontweight='bold')
     save_formats(fig, 'bio', "figure_10_biological_mapping")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# FIGURE 11: Predictive Coding Loop
+# FIGURE 11: Predictive Coding Loop (Clean Side-by-Side)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def make_figure_11(model):
-    fig, ax = plt.subplots(figsize=(10, 5.5))
-    ax.set_xlim(0, 10)
-    ax.set_ylim(0.5, 5.5)
-    ax.axis('off')
+    fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(12, 6), gridspec_kw={'width_ratios': [1, 1.2]})
     
-    ax.text(5, 5.1, "Predictive Coding Loop Step Updates", ha='center', fontsize=13, fontweight='bold')
-    
-    # Trace background
+    # ── LEFT PANEL: Traced VisualTorch layers ──
+    ax_left.axis('off')
+    ax_left.set_title("Traced Feedback Gate Target Layers", fontsize=11, fontweight='bold', pad=10)
     try:
         import visualtorch
         img = visualtorch.layered_view(model, input_shape=(1, 3, 96, 96))
-        ax.imshow(img, extent=[3.5, 6.5, 1.5, 4.8], aspect='auto', alpha=0.2, zorder=0)
+        ax_left.imshow(img, aspect='equal')
     except Exception as e:
-        pass
-        
-    draw_box(ax, 2.0, 3.0, 2.0, 0.8, "Prediction", "Predictor Module Output")
-    draw_box(ax, 5.0, 3.0, 2.0, 0.8, "Prediction Error", "e^t = f_stem - Predictor(s)")
-    draw_box(ax, 8.0, 3.0, 2.0, 0.8, "Frequency Gate", "g(e) = Sigmoid(Conv(e))")
-    draw_box(ax, 5.0, 1.2, 2.2, 0.8, "Stem Feature Update", "f^{t+1} = f_stem + g(e) * e")
+        ax_left.text(0.5, 0.5, f"VisualTorch failed for Fig 11 left: {e}", ha='center', va='center')
+
+    # ── RIGHT PANEL: Flowchart & Mathematical updates ──
+    ax_right.set_xlim(0, 10)
+    ax_right.set_ylim(0.5, 5.5)
+    ax_right.axis('off')
+    ax_right.set_title("Feedback Loop & Residual Math", fontsize=11, fontweight='bold', pad=10)
     
-    draw_arrow(ax, 3.1, 3.0, 3.9, 3.0)
-    draw_arrow(ax, 6.1, 3.0, 6.9, 3.0)
-    draw_arrow(ax, 8.0, 2.5, 6.2, 1.2)
-    draw_arrow(ax, 5.0, 2.5, 5.0, 1.7)
+    draw_box(ax_right, 2.0, 3.5, 2.2, 0.8, "Prediction", "Predictor Module Output")
+    draw_box(ax_right, 5.0, 3.5, 2.2, 0.8, "Prediction Error", "e^t = f_stem - Predictor(s)")
+    draw_box(ax_right, 8.0, 3.5, 2.2, 0.8, "Frequency Gate", "g(e) = Sigmoid(Conv(e))")
+    draw_box(ax_right, 5.0, 1.5, 2.5, 0.8, "Stem Feature Update", "$f^{t+1} = f_{stem} + g(e) \\odot e$")
     
-    patch = patches.FancyArrowPatch((3.8, 1.2), (2.0, 2.5), connectionstyle="arc3,rad=0.3", color=PALETTE['feedback'], arrowstyle="-|>", ls='--', mutation_scale=12)
-    ax.add_patch(patch)
-    ax.text(2.1, 1.6, "Recurrent Feedback", color=PALETTE['feedback'], fontsize=9, rotation=45)
+    draw_arrow(ax_right, 3.1, 3.5, 3.9, 3.5)
+    draw_arrow(ax_right, 6.1, 3.5, 6.9, 3.5)
+    draw_arrow(ax_right, 8.0, 3.1, 6.25, 1.5)
+    draw_arrow(ax_right, 5.0, 3.1, 5.0, 1.9)
     
+    patch = patches.FancyArrowPatch((3.75, 1.5), (2.0, 3.1), connectionstyle="arc3,rad=0.3", color=PALETTE['feedback'], arrowstyle="-|>", ls='--', mutation_scale=12)
+    ax_right.add_patch(patch)
+    ax_right.text(2.1, 2.1, "Recurrent Feedback", color=PALETTE['feedback'], fontsize=9, rotation=45)
+    
+    fig.suptitle("Recurrent Predictive Coding Loop Mechanism", fontsize=13, fontweight='bold')
     save_formats(fig, 'train', "figure_11_predictive_coding_loop")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
