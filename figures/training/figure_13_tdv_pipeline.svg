@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-07-05T18:46:18.320175</dc:date>
+    <dc:date>2026-07-05T18:50:37.812440</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -35,7 +35,7 @@ L 209.736 138.528
 L 209.736 89.28 
 L 84.024 89.28 
 z
-" clip-path="url(#p90c6ba732f)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p62ae5e02e4)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_3">
     <path d="M 503.064 138.528 
@@ -43,7 +43,7 @@ L 628.776 138.528
 L 628.776 89.28 
 L 503.064 89.28 
 z
-" clip-path="url(#p90c6ba732f)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p62ae5e02e4)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_4">
     <path d="M 84.024 253.44 
@@ -51,7 +51,7 @@ L 209.736 253.44
 L 209.736 204.192 
 L 84.024 204.192 
 z
-" clip-path="url(#p90c6ba732f)" style="fill: #ffcdd2; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p62ae5e02e4)" style="fill: #ffcdd2; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_5">
     <path d="M 503.064 253.44 
@@ -59,7 +59,7 @@ L 628.776 253.44
 L 628.776 204.192 
 L 503.064 204.192 
 z
-" clip-path="url(#p90c6ba732f)" style="fill: #ffcdd2; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p62ae5e02e4)" style="fill: #ffcdd2; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_6">
     <path d="M 293.544 191.88 
@@ -67,7 +67,7 @@ L 419.256 191.88
 L 419.256 150.84 
 L 293.544 150.84 
 z
-" clip-path="url(#p90c6ba732f)" style="fill: #e0ffff; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p62ae5e02e4)" style="fill: #e0ffff; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_7">
     <path d="M 279.576 339.624 
@@ -75,7 +75,7 @@ L 433.224 339.624
 L 433.224 298.584 
 L 279.576 298.584 
 z
-" clip-path="url(#p90c6ba732f)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p62ae5e02e4)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_8">
     <path d="M 272.592 413.496 
@@ -83,7 +83,7 @@ L 440.208 413.496
 L 440.208 372.456 
 L 272.592 372.456 
 z
-" clip-path="url(#p90c6ba732f)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p62ae5e02e4)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="text_1">
     <!-- Temporal Difference Vision (TDV) Learning Pipeline -->
@@ -1613,7 +1613,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="p90c6ba732f">
+  <clipPath id="p62ae5e02e4">
    <rect x="7.2" y="7.2" width="698.4" height="410.4"/>
   </clipPath>
  </defs>
