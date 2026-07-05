@@ -369,47 +369,103 @@ def make_figure_9():
     save_formats(fig, 'eval', "figure_9_flops_distribution")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# FIGURE 10: Biological Mapping (Side-by-Side Clean Layout)
+# FIGURE 10: Biological Mapping (Traced 3D Block Comparison)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def make_figure_10(model):
-    fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(12, 6.5))
+    fig, ax = plt.subplots(figsize=(11, 7))
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0.5, 6.0)
+    ax.axis('off')
     
-    # ── LEFT PANEL: Human Visual System ──
-    ax_left.set_xlim(0, 5)
-    ax_left.set_ylim(0.5, 5.5)
-    ax_left.axis('off')
-    ax_left.set_title("Human Visual System", fontsize=11, fontweight='bold', pad=10, color=PALETTE['forward'])
-    
-    draw_box(ax_left, 2.5, 4.8, 2.2, 0.45, "Retina", "Photoreceptor inputs")
-    draw_box(ax_left, 2.5, 3.9, 2.2, 0.45, "LGN", "Lateral Geniculate Nucleus")
-    draw_box(ax_left, 2.5, 3.0, 2.2, 0.45, "Primary Visual Cortex (V1)", "Local orientation / edges")
-    draw_box(ax_left, 1.3, 2.1, 1.8, 0.45, "Ventral stream (What)", "Object identity", bg=PALETTE['ventral'])
-    draw_box(ax_left, 3.7, 2.1, 1.8, 0.45, "Dorsal stream (Where)", "Spatial geometry", bg=PALETTE['dorsal'])
-    draw_box(ax_left, 2.5, 1.2, 2.2, 0.45, "IT Cortex", "Inferior Temporal representation")
-    draw_box(ax_left, 2.5, 0.6, 2.2, 0.45, "Perceptual Decision", "Action output")
-    
-    # Connections left
-    draw_arrow(ax_left, 2.5, 4.55, 2.5, 4.15)
-    draw_arrow(ax_left, 2.5, 3.65, 2.5, 3.25)
-    draw_arrow(ax_left, 2.5, 2.75, 1.3, 2.35)
-    draw_arrow(ax_left, 2.5, 2.75, 3.7, 2.35)
-    draw_arrow(ax_left, 1.3, 1.85, 2.5, 1.45)
-    draw_arrow(ax_left, 3.7, 1.85, 2.5, 1.45)
-    draw_arrow(ax_left, 2.5, 0.95, 2.5, 0.85)
+    import matplotlib.colors as mcolors
 
-    # ── RIGHT PANEL: Traced VisualTorch Model representation ──
-    ax_right.axis('off')
-    ax_right.set_title("Traced RHAN Model Architecture", fontsize=11, fontweight='bold', pad=10, color=PALETTE['box_border'])
-    try:
-        import visualtorch
-        img = visualtorch.layered_view(model, input_shape=(1, 3, 96, 96))
-        ax_right.imshow(img, aspect='equal')
-    except Exception as e:
-        ax_right.text(0.5, 0.5, f"VisualTorch failed for Fig 10 right: {e}", ha='center', va='center')
+    def draw_3d_block(ax, x, y, w, h, d, color, label=None, label_color='#111111', alpha=1.0):
+        theta = np.deg2rad(30)
+        dx = d * np.cos(theta)
+        dy = d * np.sin(theta)
+        
+        # Front face
+        front = patches.Polygon([
+            [x, y],
+            [x + w, y],
+            [x + w, y + h],
+            [x, y + h]
+        ], facecolor=color, edgecolor='#455A64', lw=1.0, alpha=alpha)
+        ax.add_patch(front)
+        
+        # Top face
+        r, g, b = mcolors.to_rgb(color)
+        top_color = (min(r*1.15, 1.0), min(g*1.15, 1.0), min(b*1.15, 1.0))
+        top = patches.Polygon([
+            [x, y + h],
+            [x + w, y + h],
+            [x + w + dx, y + h + dy],
+            [x + dx, y + h + dy]
+        ], facecolor=top_color, edgecolor='#455A64', lw=1.0, alpha=alpha)
+        ax.add_patch(top)
+        
+        # Right face
+        right_color = (r*0.85, g*0.85, b*0.85)
+        right = patches.Polygon([
+            [x + w, y],
+            [x + w + dx, y + dy],
+            [x + w + dx, y + h + dy],
+            [x + w, y + h]
+        ], facecolor=right_color, edgecolor='#455A64', lw=1.0, alpha=alpha)
+        ax.add_patch(right)
+        
+        if label:
+            ax.text(x + w/2 + dx/2, y + h/2 + dy/2, label, ha='center', va='center', fontsize=8.0, fontweight='bold', color=label_color)
 
-    # Draw connection mappings as text descriptions
-    fig.suptitle("Biological Correspondence Mapping", fontsize=13, fontweight='bold')
+    ax.text(2.2, 5.5, "Human Visual System\n(Biological Pathway)", ha='center', va='center', fontsize=11, fontweight='bold', color=PALETTE['forward'])
+    ax.text(7.8, 5.5, "RHAN Model Architecture\n(Computational Pathway)", ha='center', va='center', fontsize=11, fontweight='bold', color=PALETTE['box_border'])
+    
+    # ── LEFT PATHWAY (Biological) ──
+    draw_3d_block(ax, 1.2, 4.5, 2.0, 0.4, 0.2, '#BBDEFB', "Retina / Eye")
+    draw_3d_block(ax, 1.4, 3.7, 1.6, 0.4, 0.2, '#C8E6C9', "LGN")
+    draw_3d_block(ax, 1.6, 2.9, 1.2, 0.4, 0.2, '#FFE0B2', "Primary Visual V1")
+    draw_3d_block(ax, 0.7, 2.0, 1.4, 0.4, 0.2, '#FFF0F5', "Ventral Stream (What)")
+    draw_3d_block(ax, 2.3, 2.0, 1.4, 0.4, 0.2, '#E0FFFF', "Dorsal Stream (Where)")
+    draw_3d_block(ax, 1.6, 1.1, 1.2, 0.4, 0.2, '#D1C4E9', "IT Cortex")
+    draw_3d_block(ax, 1.6, 0.5, 1.2, 0.4, 0.2, '#CFD8DC', "Perceptual Decision")
+
+    # Connect biology
+    draw_arrow(ax, 2.2, 4.5, 2.2, 4.2)
+    draw_arrow(ax, 2.2, 3.7, 2.2, 3.4)
+    draw_arrow(ax, 2.2, 2.9, 1.4, 2.5)
+    draw_arrow(ax, 2.2, 2.9, 3.0, 2.5)
+    draw_arrow(ax, 1.4, 2.0, 2.2, 1.6)
+    draw_arrow(ax, 3.0, 2.0, 2.2, 1.6)
+    draw_arrow(ax, 2.2, 1.1, 2.2, 1.0)
+
+    # ── RIGHT PATHWAY (RHAN) ──
+    draw_3d_block(ax, 6.8, 4.5, 2.0, 0.4, 0.2, '#BBDEFB', "Input Tensor")
+    draw_3d_block(ax, 7.0, 3.7, 1.6, 0.4, 0.2, '#C8E6C9', "WideSEConvStem")
+    draw_3d_block(ax, 7.2, 2.9, 1.2, 0.4, 0.2, '#FFE0B2', "PatchTokeniserLarge")
+    draw_3d_block(ax, 6.3, 2.0, 1.4, 0.4, 0.2, '#FFF0F5', "Ventral Transformer")
+    draw_3d_block(ax, 7.9, 2.0, 1.4, 0.4, 0.2, '#E0FFFF', "Dorsal Transformer")
+    draw_3d_block(ax, 7.2, 1.1, 1.2, 0.4, 0.2, '#D1C4E9', "Prototype Head")
+    draw_3d_block(ax, 7.2, 0.5, 1.2, 0.4, 0.2, '#CFD8DC', "Logits / Action")
+
+    # Connect RHAN
+    draw_arrow(ax, 7.8, 4.5, 7.8, 4.2)
+    draw_arrow(ax, 7.8, 3.7, 7.8, 3.4)
+    draw_arrow(ax, 7.8, 2.9, 7.0, 2.5)
+    draw_arrow(ax, 7.8, 2.9, 8.6, 2.5)
+    draw_arrow(ax, 7.0, 2.0, 7.8, 1.6)
+    draw_arrow(ax, 8.6, 2.0, 7.8, 1.6)
+    draw_arrow(ax, 7.8, 1.1, 7.8, 1.0)
+
+    # ── MAPPING LINES (Cross Connectors) ──
+    y_levels = [4.7, 3.9, 3.1, 2.2, 1.3, 0.7]
+    labels = ["Input mapping", "Local filtering", "Granular tokens", "Ventral path", "IT Classifier", "Output match"]
+    for idx, y in enumerate(y_levels):
+        ax.plot([3.5, 6.5], [y, y], color='#78909C', ls=':', lw=1.2)
+        ax.text(5.0, y + 0.08, labels[idx], ha='center', va='center', fontsize=7.5, color='#455A64', style='italic')
+
+    fig.suptitle("Biological Human Visual System vs. Traced RHAN Mapping", fontsize=13, fontweight='bold')
     save_formats(fig, 'bio', "figure_10_biological_mapping")
+
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # FIGURE 11: Predictive Coding Loop (Clean Side-by-Side)
