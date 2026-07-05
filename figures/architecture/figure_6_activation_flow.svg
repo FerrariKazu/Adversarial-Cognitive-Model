@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-07-05T18:56:22.379155</dc:date>
+    <dc:date>2026-07-05T19:10:26.927013</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -35,7 +35,7 @@ L 139.896 269.28
 L 139.896 119.52 
 L 42.12 119.52 
 z
-" clip-path="url(#p953d0aedc0)" style="fill: #eceff1; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#pda7b9f3208)" style="fill: #eceff1; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_3">
     <path d="M 174.816 269.28 
@@ -43,7 +43,7 @@ L 286.56 269.28
 L 286.56 119.52 
 L 174.816 119.52 
 z
-" clip-path="url(#p953d0aedc0)" style="fill: #ffcdd2; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#pda7b9f3208)" style="fill: #ffcdd2; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_4">
     <path d="M 314.496 269.28 
@@ -51,7 +51,7 @@ L 426.24 269.28
 L 426.24 119.52 
 L 314.496 119.52 
 z
-" clip-path="url(#p953d0aedc0)" style="fill: #c8e6c9; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#pda7b9f3208)" style="fill: #c8e6c9; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_5">
     <path d="M 454.176 269.28 
@@ -59,7 +59,7 @@ L 565.92 269.28
 L 565.92 119.52 
 L 454.176 119.52 
 z
-" clip-path="url(#p953d0aedc0)" style="fill: #e0ffff; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#pda7b9f3208)" style="fill: #e0ffff; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_6">
     <path d="M 593.856 269.28 
@@ -67,7 +67,7 @@ L 677.664 269.28
 L 677.664 119.52 
 L 593.856 119.52 
 z
-" clip-path="url(#p953d0aedc0)" style="fill: #d1c4e9; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#pda7b9f3208)" style="fill: #d1c4e9; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="text_1">
     <!-- Activation Flow and Dimension Changes -->
@@ -1788,7 +1788,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="p953d0aedc0">
+  <clipPath id="pda7b9f3208">
    <rect x="7.2" y="7.2" width="698.4" height="374.4"/>
   </clipPath>
  </defs>

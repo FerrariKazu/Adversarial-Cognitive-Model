@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-07-05T18:56:22.734557</dc:date>
+    <dc:date>2026-07-05T19:10:27.363532</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -35,7 +35,7 @@ L 444.096 125.19
 L 444.096 94.41 
 L 160.704 94.41 
 z
-" clip-path="url(#pe33e0ab7ae)" style="fill: #fafafa; stroke: #b0bec5; stroke-width: 1.5"/>
+" clip-path="url(#p5be8a43087)" style="fill: #fafafa; stroke: #b0bec5; stroke-width: 1.5"/>
    </g>
    <g id="patch_3">
     <path d="M 160.704 179.91 
@@ -43,7 +43,7 @@ L 444.096 179.91
 L 444.096 149.13 
 L 160.704 149.13 
 z
-" clip-path="url(#pe33e0ab7ae)" style="fill: #fafafa; stroke: #b0bec5; stroke-width: 1.5"/>
+" clip-path="url(#p5be8a43087)" style="fill: #fafafa; stroke: #b0bec5; stroke-width: 1.5"/>
    </g>
    <g id="patch_4">
     <path d="M 160.704 234.63 
@@ -51,7 +51,7 @@ L 444.096 234.63
 L 444.096 203.85 
 L 160.704 203.85 
 z
-" clip-path="url(#pe33e0ab7ae)" style="fill: #fafafa; stroke: #b0bec5; stroke-width: 1.5"/>
+" clip-path="url(#p5be8a43087)" style="fill: #fafafa; stroke: #b0bec5; stroke-width: 1.5"/>
    </g>
    <g id="patch_5">
     <path d="M 160.704 289.35 
@@ -59,7 +59,7 @@ L 444.096 289.35
 L 444.096 258.57 
 L 160.704 258.57 
 z
-" clip-path="url(#pe33e0ab7ae)" style="fill: #fafafa; stroke: #b0bec5; stroke-width: 1.5"/>
+" clip-path="url(#p5be8a43087)" style="fill: #fafafa; stroke: #b0bec5; stroke-width: 1.5"/>
    </g>
    <g id="patch_6">
     <path d="M 160.704 344.07 
@@ -67,7 +67,7 @@ L 444.096 344.07
 L 444.096 313.29 
 L 160.704 313.29 
 z
-" clip-path="url(#pe33e0ab7ae)" style="fill: #fafafa; stroke: #b0bec5; stroke-width: 1.5"/>
+" clip-path="url(#p5be8a43087)" style="fill: #fafafa; stroke: #b0bec5; stroke-width: 1.5"/>
    </g>
    <g id="patch_7">
     <path d="M 160.704 398.79 
@@ -75,7 +75,7 @@ L 444.096 398.79
 L 444.096 368.01 
 L 160.704 368.01 
 z
-" clip-path="url(#pe33e0ab7ae)" style="fill: #fafafa; stroke: #b0bec5; stroke-width: 1.5"/>
+" clip-path="url(#p5be8a43087)" style="fill: #fafafa; stroke: #b0bec5; stroke-width: 1.5"/>
    </g>
    <g id="text_1">
     <!-- Tensor Shape Evolution through RHAN -->
@@ -1491,7 +1491,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="pe33e0ab7ae">
+  <clipPath id="p5be8a43087">
    <rect x="7.2" y="7.2" width="590.4" height="410.4"/>
   </clipPath>
  </defs>
