@@ -64,8 +64,16 @@ def main():
     ckpt_path = os.path.abspath(os.path.join(script_dir, ckpt_rel))
     
     if os.path.exists(ckpt_path):
-        model.load_state_dict(torch.load(ckpt_path, map_location=device))
-        print(f"Loaded checkpoint: {ckpt_path}")
+        ckpt = torch.load(ckpt_path, map_location=device)
+        if isinstance(ckpt, dict) and 'model_state_dict' in ckpt:
+            model.load_state_dict(ckpt['model_state_dict'])
+            print(f"Loaded resume checkpoint (epoch {ckpt['epoch']}): {ckpt_path}")
+        elif isinstance(ckpt, dict) and 'state_dict' in ckpt:
+            model.load_state_dict(ckpt['state_dict'])
+            print(f"Loaded checkpoint state_dict: {ckpt_path}")
+        else:
+            model.load_state_dict(ckpt)
+            print(f"Loaded raw state dict checkpoint: {ckpt_path}")
     else:
         print(f"Error: Checkpoint {ckpt_path} not found.")
         sys.exit(1)
