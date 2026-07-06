@@ -147,20 +147,24 @@ def pgd_attack(model, x, y, eps, steps=20):
 def run_pgd_full(model, imgs, lbls, eps, steps=20):
     """Run PGD and return predictions on full dataset."""
     model.eval()
-    # Disable recurrent feedback during attack for speed
     orig_recurrent = model.feedback.num_recurrent_steps
-    model.feedback.num_recurrent_steps = 0
     all_preds = []
     n = imgs.size(0)
     for i in range(0, n, BS):
         x_b = imgs[i:i+BS].to(device)
         y_b = lbls[i:i+BS].to(device)
+        
+        # Disable recurrent feedback during attack generation
+        model.feedback.num_recurrent_steps = 0
         x_adv = pgd_attack(model, x_b, y_b, eps, steps=steps)
+        
+        # Restore recurrent feedback for evaluation
+        model.feedback.num_recurrent_steps = orig_recurrent
         with torch.no_grad():
             all_preds.append(model(x_adv).argmax(1).cpu())
+            
         del x_b, y_b, x_adv
         torch.cuda.empty_cache()
-    model.feedback.num_recurrent_steps = orig_recurrent
     return torch.cat(all_preds)
 
 def clean_predict(model, imgs):
