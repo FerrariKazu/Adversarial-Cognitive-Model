@@ -136,9 +136,11 @@ def pgd_attack(model, x, y, eps, steps=20):
     alpha = eps / 4
     x_adv = x.clone().detach() + torch.empty_like(x).uniform_(-eps, eps)
     x_adv = torch.clamp(x_adv, clip_min, clip_max).detach()
+    from torch.amp import autocast
     for _ in range(steps):
         x_adv.requires_grad_(True)
-        loss = nn.CrossEntropyLoss()(model(x_adv), y)
+        with autocast('cuda'):
+            loss = nn.CrossEntropyLoss()(model(x_adv), y)
         grad = torch.autograd.grad(loss, x_adv)[0]
         x_adv = x_adv.detach() + alpha * grad.sign()
         x_adv = torch.clamp(x + torch.clamp(x_adv - x, -eps, eps), clip_min, clip_max).detach()
@@ -161,7 +163,9 @@ def run_pgd_full(model, imgs, lbls, eps, steps=20):
         # Restore recurrent feedback for evaluation
         model.feedback.num_recurrent_steps = orig_recurrent
         with torch.no_grad():
-            all_preds.append(model(x_adv).argmax(1).cpu())
+            from torch.amp import autocast
+            with autocast('cuda'):
+                all_preds.append(model(x_adv).argmax(1).cpu())
             
         del x_b, y_b, x_adv
         torch.cuda.empty_cache()
@@ -170,9 +174,11 @@ def run_pgd_full(model, imgs, lbls, eps, steps=20):
 def clean_predict(model, imgs):
     all_preds = []
     with torch.no_grad():
+        from torch.amp import autocast
         for i in range(0, imgs.size(0), BS):
             x_b = imgs[i:i+BS].to(device)
-            all_preds.append(model(x_b).argmax(1).cpu())
+            with autocast('cuda'):
+                all_preds.append(model(x_b).argmax(1).cpu())
     return torch.cat(all_preds)
 
 # ── 1. PGD-20 sweep ───────────────────────────────────────────────────────
@@ -221,13 +227,18 @@ from autoattack import AutoAttack
 
 class Wrapper(nn.Module):
     def __init__(self, m): super().__init__(); self.m = m
-    def forward(self, x): return self.m(x)
+    def forward(self, x):
+        from torch.amp import autocast
+        with autocast('cuda'):
+            return self.m(x)
 
 x_aa = test_imgs[:1000].to(device)
 y_aa = test_lbls[:1000].to(device)
 
 with torch.no_grad():
-    clean_preds_aa = model(x_aa).argmax(1)
+    from torch.amp import autocast
+    with autocast('cuda'):
+        clean_preds_aa = model(x_aa).argmax(1)
 clean_acc_aa = 100.0 * clean_preds_aa.eq(y_aa).sum().item() / y_aa.size(0)
 print(f"Clean acc (n=1000): {clean_acc_aa:.2f}%", flush=True)
 
