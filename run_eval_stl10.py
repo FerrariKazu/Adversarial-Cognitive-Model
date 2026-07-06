@@ -19,20 +19,91 @@ import torch.nn as nn
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'phase1_training'))
 
-from model_rhan_stl10 import RHANSTL10
 from dataset_stl10 import STL10_CLASSES, STL10_MEAN, STL10_STD, STL10_MIN, STL10_MAX, get_stl10_loaders
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Device: {device}", flush=True)
 
+# ── Command Line Arguments ──────────────────────────────────────────────────
+import argparse
+parser = argparse.ArgumentParser(description='RHAN STL-10 Gray-Box Recurrent Evaluation')
+parser.add_argument('--model-size', type=str, default='large', choices=['base', 'large'],
+                    help='Model size architecture to instantiate (default: large)')
+parser.add_argument('--checkpoint', type=str, default=None,
+                    help='Path to the model checkpoint file')
+parser.add_argument('--samples', type=int, default=None,
+                    help='Number of samples to evaluate on (default: full test set)')
+args, unknown = parser.parse_known_args()
+
 # ── Model ──────────────────────────────────────────────────────────────────
-ckpt_path = os.path.join(os.path.dirname(__file__), 'checkpoints', 'rhan_stl10_best.pth')
+if args.model_size == 'large':
+    from model_rhan_stl10_large import RHANLargeSTL10
+    model = RHANLargeSTL10().to(device)
+    default_ckpt = os.path.join(os.path.dirname(__file__), 'checkpoints', 'rhan_stl10_large_video_tdv.pth')
+else:
+    from model_rhan_stl10 import RHANSTL10
+    model = RHANSTL10(head_type='linear').to(device)
+    default_ckpt = os.path.join(os.path.dirname(__file__), 'checkpoints', 'rhan_stl10_best.pth')
+
+ckpt_path = args.checkpoint if args.checkpoint is not None else default_ckpt
+
+if not os.path.exists(ckpt_path):
+    # Try fallback to resume checkpoint if final checkpoint doesn't exist yet
+    if args.model_size == 'large':
+        resume_fallback = os.path.join(os.path.dirname(__file__), 'checkpoints', 'rhan_stl10_large_video_tdv_resume.pth')
+        if os.path.exists(resume_fallback):
+            print(f"Primary checkpoint not found. Falling back to resume checkpoint: {resume_fallback}", flush=True)
+            ckpt_path = resume_fallback
+
+if not os.path.exists(ckpt_path):
+    print(f"Checkpoint not found locally at {ckpt_path}. Attempting to download from Hugging Face...", flush=True)
+    try:
+        from huggingface_hub import hf_hub_download
+        hf_token = os.environ.get("HF_TOKEN")
+        if not hf_token:
+            try:
+                from kaggle_secrets import UserSecretsClient
+                hf_token = UserSecretsClient().get_secret("HF_TOKEN")
+            except Exception:
+                pass
+        if not hf_token:
+            try:
+                from google.colab import userdata
+                hf_token = userdata.get('HF_TOKEN')
+            except Exception:
+                pass
+        filename = os.path.basename(ckpt_path)
+        os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
+        print(f"Downloading {filename} from FerrariKazu/rhan-checkpoints...", flush=True)
+        downloaded_path = hf_hub_download(
+            repo_id='FerrariKazu/rhan-checkpoints',
+            filename=filename,
+            repo_type='dataset',
+            local_dir=os.path.dirname(ckpt_path),
+            token=hf_token
+        )
+        ckpt_path = downloaded_path
+        print(f"Successfully downloaded to: {ckpt_path}", flush=True)
+    except Exception as e:
+        print(f"Hugging Face download failed: {e}", flush=True)
+        print("Please verify the file path or pass it explicitly via --checkpoint.", flush=True)
+        sys.exit(1)
+
 ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
-model = RHANSTL10(head_type='linear').to(device)
-model.load_state_dict(ckpt)
+
+if isinstance(ckpt, dict) and 'model_state_dict' in ckpt:
+    model.load_state_dict(ckpt['model_state_dict'])
+    print(f"Loaded resume checkpoint (epoch {ckpt.get('epoch', 'unknown')}): {ckpt_path}", flush=True)
+elif isinstance(ckpt, dict) and 'state_dict' in ckpt:
+    model.load_state_dict(ckpt['state_dict'])
+    print(f"Loaded checkpoint state_dict: {ckpt_path}", flush=True)
+else:
+    model.load_state_dict(ckpt)
+    print(f"Loaded raw state dict checkpoint: {ckpt_path}", flush=True)
+
 model.eval()
 n_params = sum(p.numel() for p in model.parameters())
-print(f"Loaded: {ckpt_path}  ({n_params:,} params)", flush=True)
+print(f"Model instantiated with {n_params:,} parameters", flush=True)
 
 # ── Data ────────────────────────────────────────────────────────────────────
 _, test_loader = get_stl10_loaders(batch_size=128)
@@ -46,7 +117,13 @@ for x, y in test_loader:
 test_imgs = torch.cat(all_imgs, dim=0)
 test_lbls = torch.cat(all_lbls, dim=0)
 N = test_imgs.size(0)
-print(f"Full test set: {N} images", flush=True)
+if args.samples is not None:
+    test_imgs = test_imgs[:args.samples]
+    test_lbls = test_lbls[:args.samples]
+    N = test_imgs.size(0)
+    print(f"Subsampled test set: {N} images", flush=True)
+else:
+    print(f"Full test set: {N} images", flush=True)
 
 EPSILONS = [0.00, 0.01, 0.05, 0.10, 0.20, 0.30]
 BS = 64
