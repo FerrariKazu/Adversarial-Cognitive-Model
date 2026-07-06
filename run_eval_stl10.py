@@ -232,7 +232,10 @@ class Wrapper(nn.Module):
     def forward(self, x):
         from torch.amp import autocast
         with autocast('cuda'):
-            return self.m(x)
+            out = self.m(x)
+        if isinstance(out, tuple):
+            out = out[0]
+        return out.float()
 
 x_aa = test_imgs[:1000].to(device)
 y_aa = test_lbls[:1000].to(device)
