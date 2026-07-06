@@ -1,6 +1,6 @@
 # RHAN Scientific Evidence Figure Suite (v2)
 
-Hey! Welcome to the v2 visualization suite. The figures in this directory are designed to serve as the core empirical evidence for the **Robust Hierarchical Attention Network (RHAN)** paper. While the v1 figures layout the network's structural wiring, this suite provides the quantitative and qualitative plots that reviewers look for to understand *why* the model behaves robustly under severe noise where traditional vision models collapse.
+Hey! Welcome to the v2 visualization suite. The figures in this directory are designed to serve as the core empirical evidence for the **Recurrent Hybrid Attention Network (RHAN)** paper. While the v1 figures layout the network's structural wiring, this suite provides the quantitative and qualitative plots that reviewers look for to understand *why* the model behaves robustly under severe noise where traditional vision models collapse.
 
 ---
 
