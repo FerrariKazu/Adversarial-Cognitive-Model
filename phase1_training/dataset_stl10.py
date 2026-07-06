@@ -116,9 +116,9 @@ def get_stl10_loaders(batch_size=64, data_root='./data/stl10'):
     ])
 
     train_ds = STL10(data_root, split='train',
-                     transform=train_transform, download=False)
+                     transform=train_transform, download=True)
     test_ds  = STL10(data_root, split='test',
-                     transform=test_transform, download=False)
+                     transform=test_transform, download=True)
 
     train_loader = DataLoader(train_ds, batch_size=batch_size,
                               shuffle=True, num_workers=4,
@@ -139,7 +139,7 @@ def get_stl10_unlabeled_loader(batch_size=128, data_root='./data/stl10'):
         T.Normalize(STL10_MEAN, STL10_STD),
     ])
     unlabeled_ds = STL10(data_root, split='unlabeled',
-                         transform=transform, download=False)
+                         transform=transform, download=True)
     return DataLoader(unlabeled_ds, batch_size=batch_size,
                       shuffle=True, num_workers=4,
                       pin_memory=True, persistent_workers=True)
