@@ -33,6 +33,8 @@ parser.add_argument('--checkpoint', type=str, default=None,
                     help='Path to the model checkpoint file')
 parser.add_argument('--samples', type=int, default=None,
                     help='Number of samples to evaluate on (default: full test set)')
+parser.add_argument('--batch-size', type=int, default=128,
+                    help='Batch size for evaluation (default: 128)')
 args, unknown = parser.parse_known_args()
 
 # ── Model ──────────────────────────────────────────────────────────────────
@@ -126,7 +128,7 @@ else:
     print(f"Full test set: {N} images", flush=True)
 
 EPSILONS = [0.00, 0.01, 0.05, 0.10, 0.20, 0.30]
-BS = 64
+BS = args.batch_size
 
 # ── PGD attack ─────────────────────────────────────────────────────────────
 
