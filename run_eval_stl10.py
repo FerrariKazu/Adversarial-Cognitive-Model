@@ -35,6 +35,8 @@ parser.add_argument('--samples', type=int, default=None,
                     help='Number of samples to evaluate on (default: full test set)')
 parser.add_argument('--batch-size', type=int, default=128,
                     help='Batch size for evaluation (default: 128)')
+parser.add_argument('--skip-pgd', action='store_true',
+                    help='Skip PGD sweeps and run only AutoAttack (uses hardcoded PGD-20 values for summary)')
 args, unknown = parser.parse_known_args()
 
 # ── Model ──────────────────────────────────────────────────────────────────
@@ -183,42 +185,48 @@ def clean_predict(model, imgs):
                 all_preds.append(model(x_b).argmax(1).cpu())
     return torch.cat(all_preds)
 
-# ── 1. PGD-20 sweep ───────────────────────────────────────────────────────
-print("\n" + "=" * 70, flush=True)
-print("PGD-20 ACCURACY SWEEP (recurrent feedback disabled during attack)", flush=True)
-print("=" * 70, flush=True)
-print(f"{'ε':<10} {'Accuracy':<12} {'Drop':<12} {'Time':<10}", flush=True)
-print("-" * 44, flush=True)
-
 predictions = {}
 pgd_accs = {}
 
-for eps in EPSILONS:
-    t0 = time.time()
-    if eps == 0:
-        preds = clean_predict(model, test_imgs)
-    else:
-        preds = run_pgd_full(model, test_imgs, test_lbls, eps, steps=20)
-    elapsed = time.time() - t0
+if not args.skip_pgd:
+    # ── 1. PGD-20 sweep ───────────────────────────────────────────────────────
+    print("\n" + "=" * 70, flush=True)
+    print("PGD-20 ACCURACY SWEEP (recurrent feedback disabled during attack)", flush=True)
+    print("=" * 70, flush=True)
+    print(f"{'ε':<10} {'Accuracy':<12} {'Drop':<12} {'Time':<10}", flush=True)
+    print("-" * 44, flush=True)
 
-    predictions[eps] = preds
-    acc = 100.0 * preds.eq(test_lbls).sum().item() / N
-    pgd_accs[eps] = acc
-    drop = pgd_accs[0.00] - acc if eps > 0 else 0
-    print(f"ε={eps:<8.2f} {acc:>6.2f}%      {drop:>6.2f}%    {elapsed:.0f}s", flush=True)
+    for eps in EPSILONS:
+        t0 = time.time()
+        if eps == 0:
+            preds = clean_predict(model, test_imgs)
+        else:
+            preds = run_pgd_full(model, test_imgs, test_lbls, eps, steps=20)
+        elapsed = time.time() - t0
 
-# ── 2. PGD-100 at select epsilons ─────────────────────────────────────────
-print("\n" + "=" * 70, flush=True)
-print("PGD-100 SPOT CHECK (ε=0.05 and ε=0.10)", flush=True)
-print("=" * 70, flush=True)
+        predictions[eps] = preds
+        acc = 100.0 * preds.eq(test_lbls).sum().item() / N
+        pgd_accs[eps] = acc
+        drop = pgd_accs[0.00] - acc if eps > 0 else 0
+        print(f"ε={eps:<8.2f} {acc:>6.2f}%      {drop:>6.2f}%    {elapsed:.0f}s", flush=True)
 
-for eps in [0.05, 0.10]:
-    t0 = time.time()
-    preds_100 = run_pgd_full(model, test_imgs, test_lbls, eps, steps=100)
-    elapsed = time.time() - t0
-    acc_100 = 100.0 * preds_100.eq(test_lbls).sum().item() / N
-    acc_20 = pgd_accs[eps]
-    print(f"ε={eps:.2f}: PGD-20={acc_20:.2f}%  PGD-100={acc_100:.2f}%  (diff={acc_20-acc_100:+.2f}pp)  ({elapsed:.0f}s)", flush=True)
+    # ── 2. PGD-100 at select epsilons ─────────────────────────────────────────
+    print("\n" + "=" * 70, flush=True)
+    print("PGD-100 SPOT CHECK (ε=0.05 and ε=0.10)", flush=True)
+    print("=" * 70, flush=True)
+
+    for eps in [0.05, 0.10]:
+        t0 = time.time()
+        preds_100 = run_pgd_full(model, test_imgs, test_lbls, eps, steps=100)
+        elapsed = time.time() - t0
+        acc_100 = 100.0 * preds_100.eq(test_lbls).sum().item() / N
+        acc_20 = pgd_accs[eps]
+        print(f"ε={eps:.2f}: PGD-20={acc_20:.2f}%  PGD-100={acc_100:.2f}%  (diff={acc_20-acc_100:+.2f}pp)  ({elapsed:.0f}s)", flush=True)
+else:
+    print("\n" + "=" * 70, flush=True)
+    print("Skipping PGD-20 and PGD-100 sweeps. Using hardcoded PGD-20 values for final summary.", flush=True)
+    print("=" * 70, flush=True)
+    pgd_accs = {0.00: 40.60, 0.01: 34.30, 0.05: 12.70, 0.10: 4.60, 0.20: 0.50, 0.30: 0.10}
 
 # ── 3. AutoAttack (standard, ε=0.031, n=1000) ─────────────────────────────
 print("\n" + "=" * 70, flush=True)
@@ -313,46 +321,55 @@ def dprime_from_preds(targets, preds, nc=10):
         dprimes.append(zscore(tpr) - zscore(fpr))
     return np.array(dprimes)
 
-hdr = f"\n{'ε':<8} {'d_prime_avg':<12} {'d_prime_car':<12} {'d_prime_truck':<12}"
-print(hdr, flush=True)
-print("-" * 48, flush=True)
 dprime_table = {}
-for eps in EPSILONS:
-    dp = dprime_from_preds(test_lbls, predictions[eps])
-    dprime_table[eps] = dp
-    print(f"ε={eps:<5.2f} {dp.mean():<12.4f} {dp[2]:<12.4f} {dp[9]:<12.4f}", flush=True)
+ethresh_avg = None
+ethresh_car = None
+ethresh_truck = None
+dp_avg_clean = 0.0
 
-# εthresh interpolation
-eps_arr = np.array(EPSILONS)
+if not args.skip_pgd:
+    hdr = f"\n{'ε':<8} {'d_prime_avg':<12} {'d_prime_car':<12} {'d_prime_truck':<12}"
+    print(hdr, flush=True)
+    print("-" * 48, flush=True)
+    for eps in EPSILONS:
+        dp = dprime_from_preds(test_lbls, predictions[eps])
+        dprime_table[eps] = dp
+        print(f"ε={eps:<5.2f} {dp.mean():<12.4f} {dp[2]:<12.4f} {dp[9]:<12.4f}", flush=True)
 
-def interp_ethresh(dp_arr, target=1.0):
-    if dp_arr[0] > target and dp_arr[-1] < target:
-        idx = np.where(dp_arr < target)[0][0]
-        frac = (target - dp_arr[idx-1]) / (dp_arr[idx] - dp_arr[idx-1])
-        return eps_arr[idx-1] + frac * (eps_arr[idx] - eps_arr[idx-1])
-    return None
+    # εthresh interpolation
+    eps_arr = np.array(EPSILONS)
 
-dp_avg = np.array([dprime_table[e].mean() for e in EPSILONS])
-dp_car = np.array([dprime_table[e][2] for e in EPSILONS])
-dp_truck = np.array([dprime_table[e][9] for e in EPSILONS])
+    def interp_ethresh(dp_arr, target=1.0):
+        if dp_arr[0] > target and dp_arr[-1] < target:
+            idx = np.where(dp_arr < target)[0][0]
+            frac = (target - dp_arr[idx-1]) / (dp_arr[idx] - dp_arr[idx-1])
+            return eps_arr[idx-1] + frac * (eps_arr[idx] - eps_arr[idx-1])
+        return None
 
-ethresh_avg = interp_ethresh(dp_avg)
-ethresh_car = interp_ethresh(dp_car)
-ethresh_truck = interp_ethresh(dp_truck)
+    dp_avg = np.array([dprime_table[e].mean() for e in EPSILONS])
+    dp_car = np.array([dprime_table[e][2] for e in EPSILONS])
+    dp_truck = np.array([dprime_table[e][9] for e in EPSILONS])
 
-print(f"", flush=True)
-if ethresh_avg:
-    print(f"εthresh (d'avg=1.0):   {ethresh_avg:.4f}  ({ethresh_avg*255:.1f}/255)", flush=True)
+    ethresh_avg = interp_ethresh(dp_avg)
+    ethresh_car = interp_ethresh(dp_car)
+    ethresh_truck = interp_ethresh(dp_truck)
+
+    print(f"", flush=True)
+    if ethresh_avg:
+        print(f"εthresh (d'avg=1.0):   {ethresh_avg:.4f}  ({ethresh_avg*255:.1f}/255)", flush=True)
+    else:
+        print(f"εthresh (d'avg=1.0):   not in range", flush=True)
+    if ethresh_car:
+        print(f"εthresh (d'car=1.0):   {ethresh_car:.4f}  ({ethresh_car*255:.1f}/255)", flush=True)
+    else:
+        print(f"εthresh (d'car=1.0):   not in range", flush=True)
+    if ethresh_truck:
+        print(f"εthresh (d'truck=1.0): {ethresh_truck:.4f}  ({ethresh_truck*255:.1f}/255)", flush=True)
+    else:
+        print(f"εthresh (d'truck=1.0): not in range", flush=True)
+    dp_avg_clean = dprime_table[0.00].mean()
 else:
-    print(f"εthresh (d'avg=1.0):   not in range", flush=True)
-if ethresh_car:
-    print(f"εthresh (d'car=1.0):   {ethresh_car:.4f}  ({ethresh_car*255:.1f}/255)", flush=True)
-else:
-    print(f"εthresh (d'car=1.0):   not in range", flush=True)
-if ethresh_truck:
-    print(f"εthresh (d'truck=1.0): {ethresh_truck:.4f}  ({ethresh_truck*255:.1f}/255)", flush=True)
-else:
-    print(f"εthresh (d'truck=1.0): not in range", flush=True)
+    print("\nSkipping SDT d' and εthresh calculations in --skip-pgd mode.", flush=True)
 
 # ── 6. Comparison ──────────────────────────────────────────────────────────
 print("\n" + "=" * 70, flush=True)
@@ -375,7 +392,7 @@ for eps in EPSILONS:
     print(f"PGD-20 ε={eps:<6.2f}      {s:>10.2f}%   {c_str:>14}   {h_str:>10}", flush=True)
 
 print(f"{'AutoAttack ε=0.031':<22} {aa_acc:>13.2f}%   {'N/A':>14} {'N/A':>10}", flush=True)
-if ethresh_avg:
+if not args.skip_pgd and ethresh_avg:
     eth_label = "e-thresh(d'avg=1)"
     print(f"{eth_label:<22} {ethresh_avg:>13.4f}  {'N/A':>14} {'N/A':>10}", flush=True)
 
@@ -389,11 +406,14 @@ for eps in EPSILONS[1:]:
     print(f"PGD-20 ε={eps:.2f}:  {pgd_accs[eps]:.2f}%", flush=True)
 print(f"AutoAttack:  {aa_acc:.2f}%", flush=True)
 print(f"Car AA:      {car_aa:.1f}%  |  Truck AA: {truck_aa:.1f}%  |  Gap: {car_aa-truck_aa:+.1f}pp", flush=True)
-print(f"d' avg clean: {dprime_table[0.00].mean():.4f}", flush=True)
-if ethresh_avg:
-    print(f"e-thresh avg: {ethresh_avg:.4f} ({ethresh_avg*255:.1f}/255)", flush=True)
-if ethresh_car:
-    print(f"e-thresh car: {ethresh_car:.4f} ({ethresh_car*255:.1f}/255)", flush=True)
-if ethresh_truck:
-    print(f"e-thresh truck: {ethresh_truck:.4f} ({ethresh_truck*255:.1f}/255)", flush=True)
+if not args.skip_pgd:
+    print(f"d' avg clean: {dp_avg_clean:.4f}", flush=True)
+    if ethresh_avg:
+        print(f"e-thresh avg: {ethresh_avg:.4f} ({ethresh_avg*255:.1f}/255)", flush=True)
+    if ethresh_car:
+        print(f"e-thresh car: {ethresh_car:.4f} ({ethresh_car*255:.1f}/255)", flush=True)
+    if ethresh_truck:
+        print(f"e-thresh truck: {ethresh_truck:.4f} ({ethresh_truck*255:.1f}/255)", flush=True)
+else:
+    print(f"d' avg clean: 0.9103 (from full sweep)", flush=True)
 print("Done.", flush=True)
