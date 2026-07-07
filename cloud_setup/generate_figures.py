@@ -16,7 +16,7 @@ from matplotlib.path import Path
 os.makedirs("figures", exist_ok=True)
 
 # Modern scientific color palette (NeurIPS / Nature style)
-PALETTE = {
+LIGHT_PALETTE = {
     'bg': '#FFFFFF',
     'box_bg_default': '#F8F9FA',
     'box_bg_ventral': '#FFF0F5', # Soft rose for ventral
@@ -32,11 +32,33 @@ PALETTE = {
     'cluster_b': '#C8E6C9'
 }
 
+DARK_PALETTE = {
+    'bg': '#0D1117',
+    'box_bg_default': '#161B22',
+    'box_bg_ventral': '#2A1F2D', # Dark rose
+    'box_bg_dorsal': '#1F2E35',  # Dark cyan
+    'box_border': '#58A6FF',
+    'text': '#FFFFFF',
+    'forward': '#58A6FF',
+    'feedback': '#FF7B72',
+    'annotation': '#8B949E',
+    'grid': '#21262D',
+    'highlight': '#D29922',
+    'cluster_a': '#3D1B1E',
+    'cluster_b': '#1E3E20'
+}
+
+PALETTE = LIGHT_PALETTE
+
 # Typography helper
 plt.rcParams['font.sans-serif'] = 'DejaVu Sans'
 plt.rcParams['font.family'] = 'sans-serif'
 
-def draw_box(ax, x, y, w, h, text, subtitle=None, bg=PALETTE['box_bg_default'], border=PALETTE['box_border'], lw=1.5):
+def draw_box(ax, x, y, w, h, text, subtitle=None, bg=None, border=None, lw=1.5):
+    if bg is None:
+        bg = PALETTE['box_bg_default']
+    if border is None:
+        border = PALETTE['box_border']
     # Rectangle with clean border
     rect = patches.Rectangle(
         (x - w/2, y - h/2), w, h,
@@ -51,7 +73,9 @@ def draw_box(ax, x, y, w, h, text, subtitle=None, bg=PALETTE['box_bg_default'], 
     else:
         ax.text(x, y, text, ha='center', va='center', fontsize=9.5, fontweight='bold', color=PALETTE['text'])
 
-def draw_arrow(ax, x1, y1, x2, y2, color=PALETTE['forward'], style='solid', lw=1.5):
+def draw_arrow(ax, x1, y1, x2, y2, color=None, style='solid', lw=1.5):
+    if color is None:
+        color = PALETTE['forward']
     linestyle = '-' if style == 'solid' else '--'
     ax.annotate(
         "", xy=(x2, y2), xytext=(x1, y1),
@@ -59,11 +83,32 @@ def draw_arrow(ax, x1, y1, x2, y2, color=PALETTE['forward'], style='solid', lw=1
     )
 
 def save_and_close(filename):
+    fig = plt.gcf()
+    fig.patch.set_facecolor(PALETTE['bg'])
+    for ax in fig.axes:
+        ax.set_facecolor(PALETTE['bg'])
+        ax.xaxis.label.set_color(PALETTE['text'])
+        ax.yaxis.label.set_color(PALETTE['text'])
+        ax.title.set_color(PALETTE['text'])
+        for text in ax.texts:
+            if PALETTE == DARK_PALETTE:
+                if text.get_color() in ['#111111', 'black', '#111']:
+                    text.set_color('white')
+            else:
+                if text.get_color() in ['white', '#ffffff', '#fff']:
+                    text.set_color('#111111')
     plt.tight_layout()
-    plt.savefig(f"figures/{filename}.svg", format='svg', bbox_inches='tight')
-    plt.savefig(f"figures/{filename}.png", format='png', dpi=300, bbox_inches='tight')
+    theme_suffix = "_light" if PALETTE == LIGHT_PALETTE else "_dark"
+    base_dir = "figures_v3"
+    os.makedirs(base_dir, exist_ok=True)
+    path = os.path.join(base_dir, f"{filename}{theme_suffix}")
+    
+    if PALETTE == LIGHT_PALETTE:
+        plt.savefig(f"{path}.svg", format='svg', bbox_inches='tight', facecolor=PALETTE['bg'])
+        plt.savefig(f"{path}.pdf", format='pdf', bbox_inches='tight', facecolor=PALETTE['bg'])
+    plt.savefig(f"{path}.png", format='png', dpi=300, bbox_inches='tight', facecolor=PALETTE['bg'])
     plt.close()
-    print(f"Exported: figures/{filename}.svg & .png")
+    print(f"Exported: {path}")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # FIGURE 1: Complete RHAN Architecture
@@ -678,18 +723,30 @@ def gen_figure_13():
     save_and_close("figure_13_rhan_ecosystem")
 
 if __name__ == "__main__":
-    print("Generating all scientific figures...")
-    gen_figure_1()
-    gen_figure_2()
-    gen_figure_3()
-    gen_figure_4()
-    gen_figure_5()
-    gen_figure_6()
-    gen_figure_7()
-    gen_figure_8()
-    gen_figure_9()
-    gen_figure_10()
-    gen_figure_11()
-    gen_figure_12()
-    gen_figure_13()
-    print("\nGeneration complete. Figures are available in figures/ folder.")
+    funcs = [
+        ("figure_1_rhan_architecture", gen_figure_1),
+        ("figure_2_biological_inspiration", gen_figure_2),
+        ("figure_3_predictive_coding_loop", gen_figure_3),
+        ("figure_4_dual_transformer", gen_figure_4),
+        ("figure_5_spherical_prototype", gen_figure_5),
+        ("figure_6_sail_flowchart", gen_figure_6),
+        ("figure_7_geometric_sail", gen_figure_7),
+        ("figure_8_tdv_framework", gen_figure_8),
+        ("figure_9_adversarial_tdv", gen_figure_9),
+        ("figure_10_training_pipeline", gen_figure_10),
+        ("figure_11_loss_landscape", gen_figure_11),
+        ("figure_12_information_flow", gen_figure_12),
+        ("figure_13_rhan_ecosystem", gen_figure_13)
+    ]
+    
+    print("Generating all scientific figures in Light Theme...")
+    PALETTE = LIGHT_PALETTE
+    for _, func in funcs:
+        func()
+        
+    print("\nGenerating all scientific figures in Dark Theme...")
+    PALETTE = DARK_PALETTE
+    for _, func in funcs:
+        func()
+        
+    print("\nGeneration complete. Figures are available in figures_v3/ folder.")
