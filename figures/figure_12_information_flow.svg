@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-07-05T18:36:54.702447</dc:date>
+    <dc:date>2026-07-07T07:10:54.654093</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -35,7 +35,7 @@ L 251.64 153.216
 L 251.64 115.776 
 L 111.96 115.776 
 z
-" clip-path="url(#p561f6a9610)" style="fill: #e3f2fd; stroke: #1e88e5; stroke-width: 1.5"/>
+" clip-path="url(#p959606d198)" style="fill: #e3f2fd; stroke: #1e88e5; stroke-width: 1.5"/>
    </g>
    <g id="patch_3">
     <path d="M 111.96 220.608 
@@ -43,7 +43,7 @@ L 251.64 220.608
 L 251.64 183.168 
 L 111.96 183.168 
 z
-" clip-path="url(#p561f6a9610)" style="fill: #e8f5e9; stroke: #43a047; stroke-width: 1.5"/>
+" clip-path="url(#p959606d198)" style="fill: #e8f5e9; stroke: #43a047; stroke-width: 1.5"/>
    </g>
    <g id="patch_4">
     <path d="M 111.96 288 
@@ -51,7 +51,7 @@ L 251.64 288
 L 251.64 250.56 
 L 111.96 250.56 
 z
-" clip-path="url(#p561f6a9610)" style="fill: #fff3e0; stroke: #fb8c00; stroke-width: 1.5"/>
+" clip-path="url(#p959606d198)" style="fill: #fff3e0; stroke: #fb8c00; stroke-width: 1.5"/>
    </g>
    <g id="patch_5">
     <path d="M 111.96 355.392 
@@ -59,7 +59,7 @@ L 251.64 355.392
 L 251.64 317.952 
 L 111.96 317.952 
 z
-" clip-path="url(#p561f6a9610)" style="fill: #ffebee; stroke: #e53935; stroke-width: 1.5"/>
+" clip-path="url(#p959606d198)" style="fill: #ffebee; stroke: #e53935; stroke-width: 1.5"/>
    </g>
    <g id="patch_6">
     <path d="M 454.176 153.216 
@@ -67,7 +67,7 @@ L 607.824 153.216
 L 607.824 115.776 
 L 454.176 115.776 
 z
-" clip-path="url(#p561f6a9610)" style="fill: #e3f2fd; stroke: #1e88e5; stroke-width: 1.5"/>
+" clip-path="url(#p959606d198)" style="fill: #e3f2fd; stroke: #1e88e5; stroke-width: 1.5"/>
    </g>
    <g id="patch_7">
     <path d="M 454.176 220.608 
@@ -75,7 +75,7 @@ L 607.824 220.608
 L 607.824 183.168 
 L 454.176 183.168 
 z
-" clip-path="url(#p561f6a9610)" style="fill: #e8f5e9; stroke: #43a047; stroke-width: 1.5"/>
+" clip-path="url(#p959606d198)" style="fill: #e8f5e9; stroke: #43a047; stroke-width: 1.5"/>
    </g>
    <g id="patch_8">
     <path d="M 454.176 288 
@@ -83,7 +83,7 @@ L 607.824 288
 L 607.824 250.56 
 L 454.176 250.56 
 z
-" clip-path="url(#p561f6a9610)" style="fill: #fff3e0; stroke: #fb8c00; stroke-width: 1.5"/>
+" clip-path="url(#p959606d198)" style="fill: #fff3e0; stroke: #fb8c00; stroke-width: 1.5"/>
    </g>
    <g id="patch_9">
     <path d="M 454.176 355.392 
@@ -91,7 +91,7 @@ L 607.824 355.392
 L 607.824 317.952 
 L 454.176 317.952 
 z
-" clip-path="url(#p561f6a9610)" style="fill: #ffebee; stroke: #e53935; stroke-width: 1.5"/>
+" clip-path="url(#p959606d198)" style="fill: #ffebee; stroke: #e53935; stroke-width: 1.5"/>
    </g>
    <g id="text_1">
     <!-- Human Visual Pathway vs. RHAN Component Mapping -->
@@ -2311,7 +2311,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="p561f6a9610">
+  <clipPath id="p959606d198">
    <rect x="7.2" y="7.2" width="698.4" height="374.4"/>
   </clipPath>
  </defs>

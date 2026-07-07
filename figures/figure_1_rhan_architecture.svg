@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-07-05T18:36:49.754028</dc:date>
+    <dc:date>2026-07-07T07:10:49.600035</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -35,7 +35,7 @@ L 109.491429 227.52
 L 109.491429 175.68 
 L 25.251429 175.68 
 z
-" clip-path="url(#p48a860a2fd)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p3ed4a2ec73)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_3">
     <path d="M 145.594286 230.76 
@@ -43,7 +43,7 @@ L 253.902857 230.76
 L 253.902857 172.44 
 L 145.594286 172.44 
 z
-" clip-path="url(#p48a860a2fd)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p3ed4a2ec73)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_4">
     <path d="M 290.005714 227.52 
@@ -51,7 +51,7 @@ L 386.28 227.52
 L 386.28 175.68 
 L 290.005714 175.68 
 z
-" clip-path="url(#p48a860a2fd)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p3ed4a2ec73)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_5">
     <path d="M 428.4 153 
@@ -59,7 +59,7 @@ L 548.742857 153
 L 548.742857 94.68 
 L 428.4 94.68 
 z
-" clip-path="url(#p48a860a2fd)" style="fill: #fff0f5; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p3ed4a2ec73)" style="fill: #fff0f5; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_6">
     <path d="M 428.4 308.52 
@@ -67,7 +67,7 @@ L 548.742857 308.52
 L 548.742857 250.2 
 L 428.4 250.2 
 z
-" clip-path="url(#p48a860a2fd)" style="fill: #e0ffff; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p3ed4a2ec73)" style="fill: #e0ffff; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_7">
     <path d="M 596.88 227.52 
@@ -75,7 +75,7 @@ L 717.222857 227.52
 L 717.222857 175.68 
 L 596.88 175.68 
 z
-" clip-path="url(#p48a860a2fd)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p3ed4a2ec73)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_8">
     <path d="M 747.308571 227.52 
@@ -83,7 +83,7 @@ L 831.548571 227.52
 L 831.548571 175.68 
 L 747.308571 175.68 
 z
-" clip-path="url(#p48a860a2fd)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p3ed4a2ec73)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_9">
     <path d="M 602.897143 434.88 
@@ -91,7 +91,7 @@ L 711.205714 434.88
 L 711.205714 383.04 
 L 602.897143 383.04 
 z
-" clip-path="url(#p48a860a2fd)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p3ed4a2ec73)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_10">
     <path d="M 434.417143 434.88 
@@ -99,7 +99,7 @@ L 542.725714 434.88
 L 542.725714 383.04 
 L 434.417143 383.04 
 z
-" clip-path="url(#p48a860a2fd)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p3ed4a2ec73)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_11">
     <path d="M 290.005714 434.88 
@@ -107,7 +107,7 @@ L 386.28 434.88
 L 386.28 383.04 
 L 290.005714 383.04 
 z
-" clip-path="url(#p48a860a2fd)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p3ed4a2ec73)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="patch_12">
     <path d="M 145.594286 434.88 
@@ -115,7 +115,7 @@ L 253.902857 434.88
 L 253.902857 383.04 
 L 145.594286 383.04 
 z
-" clip-path="url(#p48a860a2fd)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
+" clip-path="url(#p3ed4a2ec73)" style="fill: #f8f9fa; stroke: #1f77b4; stroke-width: 1.5"/>
    </g>
    <g id="text_1">
     <!-- Complete RHAN Architecture &amp; Information Flow -->
@@ -2619,7 +2619,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="p48a860a2fd">
+  <clipPath id="p3ed4a2ec73">
    <rect x="7.2" y="7.2" width="842.4" height="518.4"/>
   </clipPath>
  </defs>
