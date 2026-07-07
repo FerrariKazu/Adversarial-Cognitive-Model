@@ -246,6 +246,49 @@ def ensure_checkpoint_exists(ckpt_path):
         print(f"Hugging Face download failed for {ckpt_path}: {e}", flush=True)
         return ckpt_path
 
+def sync_to_hf(file_path):
+    if not os.path.exists(file_path):
+        return
+    try:
+        from huggingface_hub import HfApi, create_repo
+        hf_token = os.environ.get("HF_TOKEN")
+        if not hf_token:
+            try:
+                from google.colab import userdata
+                hf_token = userdata.get('HF_TOKEN')
+            except Exception:
+                pass
+        if not hf_token:
+            try:
+                from kaggle_secrets import UserSecretsClient
+                hf_token = UserSecretsClient().get_secret("HF_TOKEN")
+            except Exception:
+                pass
+        if hf_token:
+            api = HfApi(token=hf_token)
+            username = api.whoami()['name']
+            repo_id = f"{username}/rhan-checkpoints"
+            
+            try:
+                create_repo(repo_id=repo_id, repo_type="dataset", private=True, exist_ok=True, token=hf_token)
+            except Exception:
+                pass
+                
+            filename = os.path.basename(file_path)
+            print(f"Syncing {filename} to Hugging Face ({repo_id})...", flush=True)
+            api.upload_file(
+                path_or_fileobj=file_path,
+                path_in_repo=filename,
+                repo_id=repo_id,
+                repo_type="dataset",
+                token=hf_token
+            )
+            print("Sync complete.", flush=True)
+        else:
+            print("WARNING: HF_TOKEN not found. Skipping Hugging Face sync.", flush=True)
+    except Exception as e:
+        print(f"Hugging Face sync failed: {e}", flush=True)
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # MAIN ENTRYPOINT
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -378,6 +421,10 @@ def main():
     rolling_path = os.path.join(ckpt_dir, 'rhan_stl10_large_pseudolabel_rolling.pth')
 
     # 6. Automatic Resume Check
+    # Attempt to pull rolling checkpoint from Hugging Face if not present locally
+    if not os.path.exists(rolling_path):
+        rolling_path = ensure_checkpoint_exists(rolling_path)
+
     if os.path.exists(rolling_path):
         print(f"\nFound rolling checkpoint at {rolling_path}. Attempting to resume...")
         checkpoint_data = torch.load(rolling_path, map_location=device)
@@ -501,6 +548,7 @@ def main():
             best_acc = val_acc
             torch.save(raw_model.state_dict(), best_path)
             marker = ' ★'
+            sync_to_hf(best_path)
 
         print(
             f"Epoch {epoch:03d}/120 (ε={eps:.3f}) | Loss:{total_loss/n_total:.3f} | "
@@ -516,6 +564,8 @@ def main():
             'scaler': scaler.state_dict(),
             'best_acc': best_acc,
         }, rolling_path)
+        # Sync the rolling checkpoint to Hugging Face so we can resume across runtimes
+        sync_to_hf(rolling_path)
 
     print(f"Training Complete. Best Model saved to {best_path}")
 
