@@ -376,11 +376,13 @@ def main():
         # Training loop
         model.train()
         total_loss = n_total = correct = 0
-        num_batches = len(trainloader)
+        num_batches = min(len(trainloader), 600)
         
         optimizer.zero_grad(set_to_none=True)
         
         for batch_idx, (imgs, lbls, weights) in enumerate(trainloader):
+            if batch_idx >= 600:
+                break
             imgs = imgs.to(device, non_blocking=True)
             lbls = lbls.to(device, non_blocking=True)
             weights = weights.to(device, non_blocking=True)
