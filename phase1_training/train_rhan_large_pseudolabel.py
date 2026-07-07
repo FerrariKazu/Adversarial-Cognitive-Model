@@ -326,6 +326,11 @@ def main():
         print(f"Error: Labeling checkpoint {best_labeling_ckpt} not found! Required for pseudo-labeling.")
         sys.exit(1)
 
+    # Parallelize pseudo-label generation if multiple GPUs are available
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs for pseudo-labeling")
+        labeling_model = nn.DataParallel(labeling_model)
+
     # Detect CPU cores to optimize dataloader workers for Google Colab (typically has 2 vCPUs)
     num_cpus = os.cpu_count() or 2
     num_workers = min(2, num_cpus) if os.path.exists('/content') else min(4, num_cpus)
