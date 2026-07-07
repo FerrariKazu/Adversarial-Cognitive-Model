@@ -208,6 +208,45 @@ def trades_loss_weighted(model, imgs, lbls, weights,
     return l_total.mean()
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# HUGGING FACE DOWNLOAD HELPER
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def ensure_checkpoint_exists(ckpt_path):
+    if os.path.exists(ckpt_path):
+        return ckpt_path
+    print(f"Checkpoint not found locally at {ckpt_path}. Attempting to download from Hugging Face...", flush=True)
+    try:
+        from huggingface_hub import hf_hub_download
+        hf_token = os.environ.get("HF_TOKEN")
+        if not hf_token:
+            try:
+                from kaggle_secrets import UserSecretsClient
+                hf_token = UserSecretsClient().get_secret("HF_TOKEN")
+            except Exception:
+                pass
+        if not hf_token:
+            try:
+                from google.colab import userdata
+                hf_token = userdata.get('HF_TOKEN')
+            except Exception:
+                pass
+        filename = os.path.basename(ckpt_path)
+        os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
+        print(f"Downloading {filename} from FerrariKazu/rhan-checkpoints...", flush=True)
+        downloaded_path = hf_hub_download(
+            repo_id='FerrariKazu/rhan-checkpoints',
+            filename=filename,
+            repo_type='dataset',
+            local_dir=os.path.dirname(ckpt_path),
+            token=hf_token
+        )
+        print(f"Successfully downloaded to: {downloaded_path}", flush=True)
+        return downloaded_path
+    except Exception as e:
+        print(f"Hugging Face download failed for {ckpt_path}: {e}", flush=True)
+        return ckpt_path
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # MAIN ENTRYPOINT
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -236,6 +275,7 @@ def main():
     # 1. Generate new pseudo-labels using the BEST labeling model
     labeling_model = RHANUnifiedSTL10().to(device)
     best_labeling_ckpt = args.labeling_ckpt if args.labeling_ckpt else os.path.join(ckpt_dir, 'rhan_stl10_pseudolabel_best.pth')
+    best_labeling_ckpt = ensure_checkpoint_exists(best_labeling_ckpt)
     if os.path.exists(best_labeling_ckpt):
         labeling_model.load_state_dict(torch.load(best_labeling_ckpt, map_location=device))
         print(f"Loaded labeling model checkpoint: {best_labeling_ckpt}")
@@ -297,6 +337,7 @@ def main():
 
     # 5. Load Target (TDV pretrained) checkpoint
     best_target_ckpt = args.target_ckpt if args.target_ckpt else os.path.join(ckpt_dir, 'rhan_stl10_large_video_tdv.pth')
+    best_target_ckpt = ensure_checkpoint_exists(best_target_ckpt)
     if os.path.exists(best_target_ckpt):
         ckpt = torch.load(best_target_ckpt, map_location=device)
         if isinstance(ckpt, dict) and 'model_state_dict' in ckpt:
