@@ -53,7 +53,7 @@ if os.path.exists(ckpt_path):
 # THEME EXPORTER UTILITY
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def save_themed_fig(fig, folder, filename):
-    base_dir = os.path.join("figures_v2", folder)
+    base_dir = os.path.join("figures_v3", folder)
     os.makedirs(base_dir, exist_ok=True)
     base_path = os.path.join(base_dir, filename)
 
@@ -83,11 +83,7 @@ def save_themed_fig(fig, folder, filename):
     fig.savefig(f"{base_path}_light.pdf", format='pdf', bbox_inches='tight', facecolor='white')
     fig.savefig(f"{base_path}_light.png", format='png', dpi=300, bbox_inches='tight', facecolor='white')
 
-    # 2. TRANSPARENT THEME (PNG)
-    fig.patch.set_alpha(0.0)
-    for ax in fig.axes:
-        ax.patch.set_alpha(0.0)
-    fig.savefig(f"{base_path}_transparent.png", format='png', dpi=300, bbox_inches='tight', transparent=True)
+    # (Removed transparent theme)
 
     # 3. DARK THEME (PowerPoint Presentation Style: PNG)
     fig.patch.set_facecolor(DARK_BG)
@@ -1026,9 +1022,9 @@ For every figure in each folder, there are 5 files exported:
 * **Figure J1 — Grad-CAM Comparison (`figure_j1_explainability_gradcam`)**: Comparison of saliency maps under Clean and PGD-attacked inputs between ResNet-18, ViT-Small, and RHAN.
 """
 
-    with open("figures_v2/README.md", "w") as f:
+    with open("figures_v3/README.md", "w") as f:
         f.write(readme_v2)
         
     print("\n======================================================================")
-    print("Scientific Visualization Suite (v2) successfully generated under figures_v2/")
+    print("Scientific Visualization Suite (v3) successfully generated under figures_v3/")
     print("======================================================================")
