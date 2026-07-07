@@ -214,9 +214,9 @@ def trades_loss_weighted(model, imgs, lbls, weights,
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data-root', type=str, default='./data/stl10')
-    parser.add_argument('--batch-size', type=int, default=64, help='Batch size for training combined loader')
-    parser.add_argument('--unlabeled-batch-size', type=int, default=512, help='Batch size for pseudo-label generation')
-    parser.add_argument('--accum-steps', type=int, default=4, help='Gradient accumulation steps')
+    parser.add_argument('--batch-size', type=int, default=16, help='Batch size for training combined loader (default: 16 for T4)')
+    parser.add_argument('--unlabeled-batch-size', type=int, default=256, help='Batch size for pseudo-label generation (default: 256 for T4)')
+    parser.add_argument('--accum-steps', type=int, default=16, help='Gradient accumulation steps (default: 16 for effective batch size 256)')
     parser.add_argument('--confidence-threshold', type=float, default=0.65)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--labeling-ckpt', type=str, default='')
@@ -243,8 +243,15 @@ def main():
         print(f"Error: Labeling checkpoint {best_labeling_ckpt} not found! Required for pseudo-labeling.")
         sys.exit(1)
 
+    # Detect CPU cores to optimize dataloader workers for Google Colab (typically has 2 vCPUs)
+    num_cpus = os.cpu_count() or 2
+    num_workers = min(2, num_cpus) if os.path.exists('/content') else min(4, num_cpus)
+    p_workers = num_workers > 0
+    print(f"Optimal dataloader workers detected: {num_workers} (persistent_workers={p_workers})")
+
     unlabeled_dataset = STL10RawUnlabeledDataset(args.data_root)
-    unlabeled_loader = DataLoader(unlabeled_dataset, batch_size=args.unlabeled_batch_size, shuffle=False, num_workers=4)
+    unlabeled_loader = DataLoader(unlabeled_dataset, batch_size=args.unlabeled_batch_size, shuffle=False, 
+                                  num_workers=num_workers, pin_memory=True, persistent_workers=p_workers)
     pseudo_indices, pseudo_lbls, _ = generate_pseudo_labels(labeling_model, unlabeled_loader, device, args.confidence_threshold)
 
     # Free labeling model VRAM cache
@@ -279,7 +286,8 @@ def main():
     real_indices = list(range(len(real_imgs)))
     pseudo_indices_list = list(range(len(real_imgs), len(real_imgs) + len(pseudo_indices)))
     sampler = BalancedBatchSampler(real_indices, pseudo_indices_list, batch_size=args.batch_size)
-    trainloader = DataLoader(combined_dataset, batch_sampler=sampler, num_workers=4, pin_memory=True)
+    trainloader = DataLoader(combined_dataset, batch_sampler=sampler, num_workers=num_workers, 
+                              pin_memory=True, persistent_workers=p_workers)
 
     _, testloader, stl_min, stl_max = get_stl10_dataloaders(args.data_root, batch_size=64)
     stl_min, stl_max = stl_min.to(device), stl_max.to(device)
