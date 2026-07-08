@@ -98,6 +98,9 @@ ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
 if isinstance(ckpt, dict) and 'model_state_dict' in ckpt:
     model.load_state_dict(ckpt['model_state_dict'])
     print(f"Loaded resume checkpoint (epoch {ckpt.get('epoch', 'unknown')}): {ckpt_path}", flush=True)
+elif isinstance(ckpt, dict) and 'model' in ckpt:
+    model.load_state_dict(ckpt['model'])
+    print(f"Loaded resume checkpoint model state (epoch {ckpt.get('epoch', 'unknown')}): {ckpt_path}", flush=True)
 elif isinstance(ckpt, dict) and 'state_dict' in ckpt:
     model.load_state_dict(ckpt['state_dict'])
     print(f"Loaded checkpoint state_dict: {ckpt_path}", flush=True)
