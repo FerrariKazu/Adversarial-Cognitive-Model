@@ -303,7 +303,7 @@ def main():
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--labeling-ckpt', type=str, default='')
     parser.add_argument('--target-ckpt', type=str, default='')
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
 
     set_seed(args.seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
