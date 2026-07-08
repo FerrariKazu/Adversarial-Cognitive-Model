@@ -71,7 +71,7 @@ def main():
     parser.add_argument('--unlabeled-batch-size', type=int, default=256)
     parser.add_argument('--accum-steps', type=int, default=16)
     parser.add_argument('--confidence-threshold', type=float, default=0.65)
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
 
     target_workspace = "/content/Adversarial-Cognitive-Model"
 
