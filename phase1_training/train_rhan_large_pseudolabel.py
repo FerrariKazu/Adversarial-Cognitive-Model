@@ -243,8 +243,15 @@ def ensure_checkpoint_exists(ckpt_path):
         print(f"Successfully downloaded to: {downloaded_path}", flush=True)
         return downloaded_path
     except Exception as e:
-        print(f"Hugging Face download failed for {ckpt_path}: {e}", flush=True)
-        return ckpt_path
+        err_str = str(e)
+        if "404" in err_str:
+            print(f"Checkpoint not found on Hugging Face (404). Starting from scratch.", flush=True)
+            return ckpt_path
+        else:
+            print(f"\n[FATAL ERROR]: Hugging Face download failed: {e}", flush=True)
+            print("To prevent accidentally overwriting your training progress, the script is aborting.", flush=True)
+            print("Please check your HF_TOKEN, Google Drive storage space, or internet connection, then try again.", flush=True)
+            sys.exit(1)
 
 def sync_to_hf(file_path):
     if not os.path.exists(file_path):
