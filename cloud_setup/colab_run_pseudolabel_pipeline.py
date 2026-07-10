@@ -65,6 +65,28 @@ def setup_checkpoints_dir():
 
     return local_ckpt_dir
 
+def setup_data_dir():
+    local_data_dir = "/content/data"
+    gdrive_mount = "/content/drive"
+    gdrive_data_dir = "/content/drive/MyDrive/Adversarial-Cognitive-Model/data"
+
+    if os.path.exists(gdrive_mount):
+        print(">>> Google Drive detected. Setting up persistent dataset storage...")
+        os.makedirs(gdrive_data_dir, exist_ok=True)
+
+        # If local data dir exists and is not a symlink, migrate files
+        if os.path.exists(local_data_dir) and not os.path.islink(local_data_dir):
+            print(">>> Migrating existing local dataset to Google Drive...")
+            shutil.copytree(local_data_dir, gdrive_data_dir, dirs_exist_ok=True)
+            shutil.rmtree(local_data_dir)
+
+        # Create symlink
+        if not os.path.exists(local_data_dir):
+            os.symlink(gdrive_data_dir, local_data_dir)
+            print(f">>> Symlinked {local_data_dir} -> {gdrive_data_dir}")
+    else:
+        os.makedirs(local_data_dir, exist_ok=True)
+
 def main():
     parser = argparse.ArgumentParser(description="Colab Pipeline for Pseudo-Label Training")
     parser.add_argument('--batch-size', type=int, default=16)
@@ -118,6 +140,7 @@ def main():
 
     # 2. Configure symlinks
     setup_checkpoints_dir()
+    setup_data_dir()
 
     # 3. Install dependencies
     install_dependencies()
