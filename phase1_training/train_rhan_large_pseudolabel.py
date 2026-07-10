@@ -433,12 +433,55 @@ def main():
     rolling_path = os.path.join(ckpt_dir, 'rhan_stl10_large_pseudolabel_rolling.pth')
 
     # 6. Automatic Resume Check
-    # Attempt to pull rolling checkpoint from Hugging Face if not present locally
+    # Fetch HF Token
+    hf_token = os.environ.get("HF_TOKEN")
+    if not hf_token:
+        try:
+            from kaggle_secrets import UserSecretsClient
+            hf_token = UserSecretsClient().get_secret("HF_TOKEN")
+        except Exception:
+            pass
+    if not hf_token:
+        try:
+            from google.colab import userdata
+            hf_token = userdata.get('HF_TOKEN')
+        except Exception:
+            pass
+
+    # Compare local checkpoint with remote checkpoint to always use the newer one
+    local_epoch = -1
+    if os.path.exists(rolling_path):
+        try:
+            local_data = torch.load(rolling_path, map_location='cpu')
+            local_epoch = local_data.get('epoch', -1)
+        except Exception:
+            pass
+
+    remote_checkpoint_data = None
+    try:
+        from huggingface_hub import hf_hub_download
+        print("Checking for a newer checkpoint on Hugging Face...", flush=True)
+        temp_rolling_path = hf_hub_download(
+            repo_id='FerrariKazu/rhan-checkpoints',
+            filename='rhan_stl10_large_pseudolabel_rolling.pth',
+            repo_type='dataset',
+            token=hf_token
+        )
+        remote_data = torch.load(temp_rolling_path, map_location='cpu')
+        remote_epoch = remote_data.get('epoch', -1)
+        if remote_epoch > local_epoch:
+            print(f"Hugging Face has a newer checkpoint (Epoch {remote_epoch}) than local (Epoch {local_epoch}). Synchronizing...", flush=True)
+            os.makedirs(os.path.dirname(rolling_path), exist_ok=True)
+            shutil.copy(temp_rolling_path, rolling_path)
+    except Exception as e:
+        print(f"Hugging Face sync check skipped/failed: {e}", flush=True)
+
+    # Attempt to pull rolling checkpoint from Hugging Face if still not present locally
     if not os.path.exists(rolling_path):
         rolling_path = ensure_checkpoint_exists(rolling_path)
 
     if os.path.exists(rolling_path):
-        print(f"\nFound rolling checkpoint at {rolling_path}. Attempting to resume...")
+        print(f"\nFound rolling checkpoint at {rolling_path}. Attempting to resume...", flush=True)
         checkpoint_data = torch.load(rolling_path, map_location=device)
         raw_model.load_state_dict(checkpoint_data['model'])
         best_acc = checkpoint_data.get('best_acc', 0.0)
