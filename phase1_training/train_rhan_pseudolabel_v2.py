@@ -346,6 +346,11 @@ def main():
             
             # TRADES Adversarial PGD generation
             model.eval()
+            with torch.no_grad():
+                with autocast('cuda'):
+                    logits_c = model(imgs)
+            probs_c = F.softmax(logits_c.float(), dim=1)
+
             x_adv = imgs.clone().detach() + 0.001 * torch.randn_like(imgs)
             x_adv = torch.clamp(x_adv, stl_min, stl_max)
             for _ in range(steps):
@@ -353,9 +358,6 @@ def main():
                 with torch.enable_grad():
                     with autocast('cuda'):
                         logits_a = model(x_adv)
-                        with torch.no_grad():
-                            logits_c = model(imgs)
-                        probs_c = F.softmax(logits_c.float(), dim=1)
                         loss_adv = F.kl_div(
                             F.log_softmax(logits_a.float(), dim=1),
                             probs_c, reduction='batchmean'

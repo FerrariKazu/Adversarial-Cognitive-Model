@@ -32,10 +32,20 @@ def install_dependencies():
     print(">>> Python environment successfully configured.")
 
 def main():
+    # Detect available GPUs to adjust batch size dynamically and avoid OOM on single-GPU session
+    import torch
+    num_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
+    default_bs = 32 if num_gpus >= 2 else 16
+    default_accum = 8 if num_gpus >= 2 else 16
+    
+    print(f"\n>>> Hardware Detection: Found {num_gpus} GPU(s).")
+    print(f"    Setting default batch-size={default_bs}, accum-steps={default_accum} "
+          f"(effective batch size = {default_bs * default_accum}).")
+
     parser = argparse.ArgumentParser(description="Kaggle Pipeline for Pseudo-Label Training")
-    parser.add_argument('--batch-size', type=int, default=32, help='Batch size across active GPUs (default: 32 for Kaggle 2xT4)')
+    parser.add_argument('--batch-size', type=int, default=default_bs, help=f'Batch size across active GPUs (default: {default_bs})')
     parser.add_argument('--unlabeled-batch-size', type=int, default=256)
-    parser.add_argument('--accum-steps', type=int, default=8, help='Gradient accumulation steps (default: 8 for effective batch size 256)')
+    parser.add_argument('--accum-steps', type=int, default=default_accum, help=f'Gradient accumulation steps (default: {default_accum})')
     parser.add_argument('--confidence-threshold', type=float, default=0.65)
     args, _ = parser.parse_known_args()
 
