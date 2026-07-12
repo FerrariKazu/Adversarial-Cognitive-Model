@@ -718,10 +718,10 @@ def main():
                 weights = weights.to(device, non_blocking=True)
                 
                 # TRADES Adversarial PGD generation
-                model.eval()
+                raw_model.eval()
                 with torch.no_grad():
                     with autocast('cuda'):
-                        logits_c = model(imgs)
+                        logits_c = raw_model(imgs)
                 probs_c = F.softmax(logits_c.float(), dim=1)
 
                 x_adv = imgs.clone().detach() + 0.001 * torch.randn_like(imgs)
@@ -730,7 +730,7 @@ def main():
                     x_adv.requires_grad_(True)
                     with torch.enable_grad():
                         with autocast('cuda'):
-                            logits_a = model(x_adv)
+                            logits_a = raw_model(x_adv)
                             loss_adv = F.kl_div(
                                 F.log_softmax(logits_a.float(), dim=1),
                                 probs_c, reduction='batchmean'
