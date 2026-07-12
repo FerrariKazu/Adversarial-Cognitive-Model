@@ -71,10 +71,10 @@ class CombinedSTL10Dataset(Dataset):
     """
     def __init__(self, real_imgs, real_labels, 
                  unlabeled_dataset, pseudo_indices, pseudo_labels, transform=None):
-        self.real_imgs = real_imgs
-        self.real_labels = real_labels
-        self.pseudo_indices = pseudo_indices
-        self.pseudo_labels = pseudo_labels
+        self.real_imgs = real_imgs.cpu()
+        self.real_labels = real_labels.cpu()
+        self.pseudo_indices = pseudo_indices.cpu()
+        self.pseudo_labels = pseudo_labels.cpu()
         self.transform = transform
         
         self.n_real = len(real_imgs)
@@ -467,8 +467,8 @@ def main():
         dist.barrier() # wait for rank 0 to finish generation
 
     if rank != 0:
-        # Load from temp file
-        temp_data = torch.load(os.path.join(ckpt_dir, 'temp_pseudo_labels.pth'), map_location=device)
+        # Load from temp file and keep on CPU to avoid device mismatch during DataLoader collation
+        temp_data = torch.load(os.path.join(ckpt_dir, 'temp_pseudo_labels.pth'), map_location='cpu')
         pseudo_indices = temp_data['indices']
         pseudo_lbls = temp_data['labels']
 

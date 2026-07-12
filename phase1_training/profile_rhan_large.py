@@ -41,10 +41,10 @@ class STL10RawUnlabeledDataset(Dataset):
 class CombinedSTL10Dataset(Dataset):
     def __init__(self, real_imgs, real_labels, 
                  unlabeled_dataset, pseudo_indices, pseudo_labels, transform=None):
-        self.real_imgs = real_imgs
-        self.real_labels = real_labels
-        self.pseudo_indices = pseudo_indices
-        self.pseudo_labels = pseudo_labels
+        self.real_imgs = real_imgs.cpu()
+        self.real_labels = real_labels.cpu()
+        self.pseudo_indices = pseudo_indices.cpu()
+        self.pseudo_labels = pseudo_labels.cpu()
         self.transform = transform
         
         self.n_real = len(real_imgs)
