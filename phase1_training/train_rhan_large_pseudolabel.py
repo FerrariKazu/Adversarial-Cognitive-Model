@@ -713,11 +713,6 @@ def main():
                 
                 # TRADES Adversarial PGD generation
                 model.eval()
-                
-                # Disable gradient tracking for model parameters during PGD to save VRAM and CPU graph construction overhead
-                for p in model.parameters():
-                    p.requires_grad = False
-                    
                 with torch.no_grad():
                     with autocast('cuda'):
                         logits_c = model(imgs)
@@ -739,10 +734,6 @@ def main():
                     delta = torch.clamp(x_adv - imgs, -eps, eps)
                     x_adv = torch.clamp(imgs + delta, stl_min, stl_max).detach()
                 
-                # Re-enable gradient tracking for backpropagation
-                for p in model.parameters():
-                    p.requires_grad = True
-                    
                 model.train()
 
                 with autocast('cuda'):
