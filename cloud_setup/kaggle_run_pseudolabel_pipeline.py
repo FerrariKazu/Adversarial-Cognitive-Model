@@ -85,10 +85,15 @@ def main():
     # 1. Install dependencies
     install_dependencies()
 
-    # 2. Launch Pseudo-Label Training (supports nn.DataParallel across dual-T4 GPUs automatically)
+    # 2. Launch Pseudo-Label Training (uses torchrun for DDP if multi-GPU, fallback to single-GPU)
     print("\n>>> Launching Large Model + Pseudo-Label Training...")
+    if num_gpus >= 2:
+        launcher = f"torchrun --nproc_per_node={num_gpus}"
+    else:
+        launcher = "python3"
+        
     train_cmd = (
-        f"python3 phase1_training/train_rhan_large_pseudolabel.py "
+        f"{launcher} phase1_training/train_rhan_large_pseudolabel.py "
         f"--data-root ./data "
         f"--batch-size {args.batch_size} "
         f"--unlabeled-batch-size {args.unlabeled_batch_size} "

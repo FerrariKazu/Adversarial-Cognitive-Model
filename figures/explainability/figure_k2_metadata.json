@@ -1,0 +1,65 @@
+{
+  "idx": 806,
+  "stl_label": 0,
+  "c10_label": 0,
+  "stl_name": "Airplane",
+  "rhan_eps_survived": 0.2,
+  "rhan_preds": {
+    "0.0": {
+      "name": "Airplane",
+      "conf": 0.8123533129692078,
+      "correct": true
+    },
+    "0.031": {
+      "name": "Airplane",
+      "conf": 0.7889109253883362,
+      "correct": true
+    },
+    "0.05": {
+      "name": "Airplane",
+      "conf": 0.7718588709831238,
+      "correct": true
+    },
+    "0.1": {
+      "name": "Airplane",
+      "conf": 0.7143347859382629,
+      "correct": true
+    },
+    "0.2": {
+      "name": "Airplane",
+      "conf": 0.5227570533752441,
+      "correct": true
+    }
+  },
+  "resnet_preds": {
+    "0.0": {
+      "name": "Airplane",
+      "conf": 0.9999860525131226,
+      "correct": true
+    },
+    "0.031": {
+      "name": "Ship",
+      "conf": 0.9999785423278809,
+      "correct": false
+    },
+    "0.05": {
+      "name": "Ship",
+      "conf": 0.9999936819076538,
+      "correct": false
+    },
+    "0.1": {
+      "name": "Ship",
+      "conf": 0.999990701675415,
+      "correct": false
+    },
+    "0.2": {
+      "name": "Ship",
+      "conf": 0.9999998807907104,
+      "correct": false
+    }
+  },
+  "attack": "PGD-20 grey-box (RHAN) / white-box (ResNet-18)",
+  "search_note": "Specimen index 806 (Airplane) selected from STL-10 test set sweep. RHAN survives eps=0.20 under official grey-box PGD-20 attack configuration.",
+  "resnet_eps_failed": 0.031,
+  "robustness_gap": 0.169
+}

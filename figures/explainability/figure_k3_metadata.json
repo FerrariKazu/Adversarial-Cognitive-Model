@@ -1,0 +1,65 @@
+{
+  "idx": 5636,
+  "stl_label": 1,
+  "c10_label": 2,
+  "stl_name": "Bird",
+  "rhan_eps_survived": 0.3,
+  "rhan_preds": {
+    "0.0": {
+      "name": "Bird",
+      "conf": 0.7790150046348572,
+      "correct": true
+    },
+    "0.031": {
+      "name": "Bird",
+      "conf": 0.7641697525978088,
+      "correct": true
+    },
+    "0.05": {
+      "name": "Bird",
+      "conf": 0.7428573966026306,
+      "correct": true
+    },
+    "0.1": {
+      "name": "Bird",
+      "conf": 0.6635949611663818,
+      "correct": true
+    },
+    "0.3": {
+      "name": "Bird",
+      "conf": 0.3969222903251648,
+      "correct": true
+    }
+  },
+  "resnet_preds": {
+    "0.0": {
+      "name": "Bird",
+      "conf": 0.9996464252471924,
+      "correct": true
+    },
+    "0.031": {
+      "name": "Horse",
+      "conf": 0.9280979037284851,
+      "correct": false
+    },
+    "0.05": {
+      "name": "Horse",
+      "conf": 0.9981642365455627,
+      "correct": false
+    },
+    "0.1": {
+      "name": "Horse",
+      "conf": 0.9999374151229858,
+      "correct": false
+    },
+    "0.3": {
+      "name": "Ship",
+      "conf": 1.0,
+      "correct": false
+    }
+  },
+  "attack": "PGD-20 grey-box (RHAN) / white-box (ResNet-18)",
+  "search_note": "Specimen index 5636 (Bird) selected from STL-10 test set sweep. RHAN survives eps=0.30 under official grey-box PGD-20 attack configuration (seed=3).",
+  "resnet_eps_failed": 0.031,
+  "robustness_gap": 0.269
+}

@@ -12,5 +12,7 @@ phase5_sdt/figures/
 runs/
 *.pyc
 .env
-*.model
 *.pth
+
+# Presentation assets directory
+presentational/
