@@ -567,7 +567,13 @@ def main():
 
     # Multi-GPU / DDP support
     if is_ddp:
-        model = nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], output_device=local_rank, find_unused_parameters=False)
+        model = nn.parallel.DistributedDataParallel(
+            model, 
+            device_ids=[local_rank], 
+            output_device=local_rank, 
+            find_unused_parameters=False,
+            broadcast_buffers=False
+        )
     elif torch.cuda.device_count() > 1:
         if rank == 0:
             print(f"Using {torch.cuda.device_count()} GPUs for training (DataParallel)", flush=True)
