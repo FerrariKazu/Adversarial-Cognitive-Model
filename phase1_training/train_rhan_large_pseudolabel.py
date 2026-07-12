@@ -743,7 +743,7 @@ def main():
                 model.train()
 
                 with autocast('cuda'):
-                    l_trades = trades_loss_weighted(model, imgs, lbls, weights, x_adv, beta)
+                    l_trades = trades_loss_weighted(raw_model, imgs, lbls, weights, x_adv, beta)
                     loss = l_trades / args.accum_steps
 
                 scaler.scale(loss).backward()
