@@ -1,0 +1,67 @@
+\contentsline {section}{\numberline {1}Introduction: The Mystery of Machine Hallucination}{6}{section.1}%
+\contentsline {subsection}{\numberline {1.1}The Empirical Chasm}{6}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}The Biological Gap: What Humans Have That Machines Don't}{7}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Our Approach: The Recurrent Hybrid Attention Network}{7}{subsection.1.3}%
+\contentsline {subsection}{\numberline {1.4}The STL-10 Evaluation: Empirical Results}{8}{subsection.1.4}%
+\contentsline {subsection}{\numberline {1.5}The Theoretical Horizon: Active Inference}{8}{subsection.1.5}%
+\contentsline {section}{\numberline {2}Related Work}{10}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Adversarial Attack Methods}{10}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Architectural Comparisons and the Texture-Shape Debate}{10}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Human-Machine Comparison}{11}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Adversarial Training and TRADES}{11}{subsection.2.4}%
+\contentsline {subsection}{\numberline {2.5}Predictive Coding and Active Inference}{11}{subsection.2.5}%
+\contentsline {section}{\numberline {3}Methods}{12}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Datasets}{12}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Model Architectures}{12}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Adversarial Attacks}{13}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Human Psychophysics Study}{13}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Signal Detection Theory}{14}{subsection.3.5}%
+\contentsline {section}{\numberline {4}The Adversarial Cognition Divergence: Psychophysics}{14}{section.4}%
+\contentsline {subsection}{\numberline {4.1}PGD Accuracy Collapse on CIFAR-10}{14}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Signal Detection Theory: The $d'$ Collapse}{15}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}The Overconfidence Pathology}{16}{subsection.4.3}%
+\contentsline {section}{\numberline {5}Mathematical Foundations of RHAN}{17}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Epistemic Autopoiesis: The Network Asks ``Does What I See Match What I Expect?''}{18}{subsection.5.1}%
+\contentsline {subsubsection}{\numberline {5.1.1}Adversarial Noise Annihilation}{19}{subsubsection.5.1.1}%
+\contentsline {subsection}{\numberline {5.2}MAP Bayesian Inference: Perception as Hypothesis Testing}{19}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Banach Contraction: Guaranteed Geometric Convergence}{20}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}GroupNorm as Orthogonal Projection: The Circuit Breaker}{21}{subsection.5.4}%
+\contentsline {subsection}{\numberline {5.5}Spherical Prototype Classification: Angular Decision Geometry}{21}{subsection.5.5}%
+\contentsline {subsection}{\numberline {5.6}Deep Equilibrium Fixed-Point Dynamics}{22}{subsection.5.6}%
+\contentsline {section}{\numberline {6}Empirical Evaluation on STL-10}{22}{section.6}%
+\contentsline {subsection}{\numberline {6.1}The Data Starvation Challenge}{23}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Gray-Box PGD-20 Accuracy Sweep}{23}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}White-Box AutoAttack: The Gold Standard}{23}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}The Gradient Masking Proof}{24}{subsection.6.4}%
+\contentsline {section}{\numberline {7}Discussion: The Anatomy of Failure}{25}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Class-Wise Forensics: Survivors and Casualties}{25}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}The Overconfidence Mechanism: Missing the Bayesian Prior}{25}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Three Negative Results}{26}{subsection.7.3}%
+\contentsline {section}{\numberline {8}The Horizon: Tripartite Active Inference}{26}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Equation 1: Cognitive Assimilation (Perceptual Update)}{27}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Equation 2: Epistemic Foraging (Motor Action)}{27}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8.3}Equation 3: Neuromodulatory Arousal (Precision Modulation)}{28}{subsection.8.3}%
+\contentsline {subsection}{\numberline {8.4}Thermodynamic Halting: Computation as Energy Minimization}{28}{subsection.8.4}%
+\contentsline {section}{\numberline {9}Limitations}{29}{section.9}%
+\contentsline {section}{\numberline {10}Future Work}{29}{section.10}%
+\contentsline {section}{\numberline {11}Conclusion}{30}{section.11}%
+\contentsline {section}{\numberline {A}Figure Index}{33}{appendix.A}%
+\contentsline {section}{\numberline {B}Probing the Remaining Gap: Seven Interventions}{35}{appendix.B}%
+\contentsline {subsection}{\numberline {B.1}Empirical Verification of the Gradient Masking Theorem}{36}{subsection.B.1}%
+\contentsline {subsection}{\numberline {B.2}The Irreducibility of Category Overlap on $32\times 32$ CIFAR-10}{37}{subsection.B.2}%
+\contentsline {section}{\numberline {C}Spectral Bias and Optimization Dynamics}{37}{appendix.C}%
+\contentsline {subsection}{\numberline {C.1}The Spectral Bias Theorem}{37}{subsection.C.1}%
+\contentsline {subsection}{\numberline {C.2}Destructive Gradient Interference}{37}{subsection.C.2}%
+\contentsline {subsection}{\numberline {C.3}Ill-Conditioned Joint Hessians in ACT}{38}{subsection.C.3}%
+\contentsline {section}{\numberline {D}RHAN Architecture Detailed Specification}{38}{appendix.D}%
+\contentsline {subsection}{\numberline {D.1}Recurrent Top-Down Feedback via Predictive Coding}{38}{subsection.D.1}%
+\contentsline {subsection}{\numberline {D.2}Dual-Stream Transformer Attention}{38}{subsection.D.2}%
+\contentsline {subsection}{\numberline {D.3}RHAN Curriculum Adversarial Training}{39}{subsection.D.3}%
+\contentsline {subsection}{\numberline {D.4}Self-Supervised Adversarial Invariance Learning (SAIL)}{39}{subsection.D.4}%
+\contentsline {subsection}{\numberline {D.5}Temporal Difference in Vision (TDV)}{39}{subsection.D.5}%
+\contentsline {section}{\numberline {E}Primary Psychophysical and Performance Curves}{40}{appendix.E}%
+\contentsline {section}{\numberline {F}Representation and Latent Space Topology}{41}{appendix.F}%
+\contentsline {section}{\numberline {G}Model-Specific Confusion Matrices}{44}{appendix.G}%
+\contentsline {section}{\numberline {H}Recurrent Feedback Gating Maps}{44}{appendix.H}%
+\contentsline {section}{\numberline {I}Visual Psychophysics Stimuli and Grad-CAM Explanations}{45}{appendix.I}%
+\contentsline {section}{\numberline {J}Implementation Details}{46}{appendix.J}%

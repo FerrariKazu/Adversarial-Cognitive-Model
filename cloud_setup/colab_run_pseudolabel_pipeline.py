@@ -30,18 +30,18 @@ def install_dependencies():
     run_cmd("pip install --quiet opencv-python datasets huggingface_hub")
     print(">>> Python environment successfully configured.")
 
-def setup_checkpoints_dir():
+def setup_checkpoints_dir(use_drive=True):
     if '__file__' in globals():
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     else:
         repo_root = "/content/Adversarial-Cognitive-Model"
     local_ckpt_dir = os.path.join(repo_root, "checkpoints")
 
-    # Check if Google Drive is mounted
+    # Check if Google Drive is mounted and allowed
     gdrive_mount = "/content/drive"
     gdrive_ckpt_dir = "/content/drive/MyDrive/Adversarial-Cognitive-Model/checkpoints"
 
-    if os.path.exists(gdrive_mount):
+    if use_drive and os.path.exists(gdrive_mount):
         print(">>> Google Drive detected. Setting up persistent storage...")
         os.makedirs(gdrive_ckpt_dir, exist_ok=True)
 
@@ -60,17 +60,17 @@ def setup_checkpoints_dir():
             os.symlink(gdrive_ckpt_dir, local_ckpt_dir)
             print(f">>> Symlinked {local_ckpt_dir} -> {gdrive_ckpt_dir}")
     else:
-        print(">>> WARNING: Google Drive not mounted. Checkpoints will be saved locally on the VM.")
+        print(">>> Checkpoints will be saved locally on the VM.")
         os.makedirs(local_ckpt_dir, exist_ok=True)
 
     return local_ckpt_dir
 
-def setup_data_dir():
+def setup_data_dir(use_drive=True):
     local_data_dir = "/content/data"
     gdrive_mount = "/content/drive"
     gdrive_data_dir = "/content/drive/MyDrive/Adversarial-Cognitive-Model/data"
 
-    if os.path.exists(gdrive_mount):
+    if use_drive and os.path.exists(gdrive_mount):
         print(">>> Google Drive detected. Setting up persistent dataset storage...")
         os.makedirs(gdrive_data_dir, exist_ok=True)
 
@@ -93,6 +93,7 @@ def main():
     parser.add_argument('--unlabeled-batch-size', type=int, default=256)
     parser.add_argument('--accum-steps', type=int, default=16)
     parser.add_argument('--confidence-threshold', type=float, default=0.65)
+    parser.add_argument('--no-drive', action='store_true', help="Disable Google Drive mounting and checkpoint syncing")
     args, _ = parser.parse_known_args()
 
     target_workspace = "/content/Adversarial-Cognitive-Model"
@@ -117,14 +118,15 @@ def main():
     # Set Python path to include repo root
     os.environ["PYTHONPATH"] = repo_root + ":" + os.environ.get("PYTHONPATH", "")
 
-    # 1. Mount Google Drive if not done
-    try:
-        from google.colab import drive
-        if not os.path.exists("/content/drive"):
-            print(">>> Mounting Google Drive...")
-            drive.mount('/content/drive')
-    except ImportError:
-        pass
+    # 1. Mount Google Drive if allowed and not done
+    if not args.no_drive:
+        try:
+            from google.colab import drive
+            if not os.path.exists("/content/drive"):
+                print(">>> Mounting Google Drive...")
+                drive.mount('/content/drive')
+        except ImportError:
+            pass
 
     # Inject Hugging Face Token from Colab secrets securely if available
     try:
@@ -139,8 +141,9 @@ def main():
         pass
 
     # 2. Configure symlinks
-    setup_checkpoints_dir()
-    setup_data_dir()
+    use_drive = not args.no_drive
+    setup_checkpoints_dir(use_drive=use_drive)
+    setup_data_dir(use_drive=use_drive)
 
     # 3. Install dependencies
     install_dependencies()
@@ -155,6 +158,8 @@ def main():
         f"--accum-steps {args.accum_steps} "
         f"--confidence-threshold {args.confidence_threshold}"
     )
+    if args.no_drive:
+        train_cmd += " --no-drive"
     run_cmd(train_cmd)
 
     print("\n>>> PSEUDO-LABEL PIPELINE EXECUTION COMPLETE!")
