@@ -98,14 +98,15 @@ def download_from_hf(file_path):
                 files = api.list_repo_files(repo_id=repo_id, repo_type="dataset")
                 if filename in files:
                     print(f"Downloading {filename} from Hugging Face ({repo_id})...")
-                    hf_hub_download(
+                    downloaded_cache_path = hf_hub_download(
                         repo_id=repo_id,
                         filename=filename,
                         repo_type="dataset",
-                        local_dir=os.path.dirname(file_path),
-                        local_dir_use_symlinks=False,
                         token=hf_token
                     )
+                    import shutil
+                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                    shutil.copy2(downloaded_cache_path, file_path)
                     print("Downloaded successfully from Hugging Face.")
                     return True
             except Exception as e:
