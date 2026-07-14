@@ -87,6 +87,9 @@ def setup_checkpoints_dir(use_drive=True):
             print(f">>> Symlinked {local_ckpt_dir} -> {gdrive_ckpt_dir}")
     else:
         print(">>> Checkpoints will be saved locally on the VM.")
+        if os.path.islink(local_ckpt_dir):
+            print(f">>> Removing existing Google Drive symlink for checkpoints: {local_ckpt_dir}")
+            os.unlink(local_ckpt_dir)
         os.makedirs(local_ckpt_dir, exist_ok=True)
         
     return local_ckpt_dir
