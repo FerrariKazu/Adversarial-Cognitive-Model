@@ -79,14 +79,14 @@ if not os.path.exists(ckpt_path):
         filename = os.path.basename(ckpt_path)
         os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
         print(f"Downloading {filename} from FerrariKazu/rhan-checkpoints...", flush=True)
-        downloaded_path = hf_hub_download(
+        downloaded_cache_path = hf_hub_download(
             repo_id='FerrariKazu/rhan-checkpoints',
             filename=filename,
             repo_type='dataset',
-            local_dir=os.path.dirname(ckpt_path),
             token=hf_token
         )
-        ckpt_path = downloaded_path
+        import shutil
+        shutil.copy2(downloaded_cache_path, ckpt_path)
         print(f"Successfully downloaded to: {ckpt_path}", flush=True)
     except Exception as e:
         print(f"Hugging Face download failed: {e}", flush=True)
