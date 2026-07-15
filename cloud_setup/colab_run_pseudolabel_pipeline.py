@@ -15,10 +15,22 @@ import shutil
 
 def run_cmd(cmd):
     print(f"\n[RUNNING]: {cmd}")
-    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    # Stream output in real-time
-    for line in process.stdout:
-        print(line, end="")
+    process = subprocess.Popen(
+        cmd, 
+        shell=True, 
+        stdout=subprocess.PIPE, 
+        stderr=subprocess.STDOUT, 
+        text=True, 
+        bufsize=1
+    )
+    
+    while True:
+        char = process.stdout.read(1)
+        if not char:
+            break
+        sys.stdout.write(char)
+        sys.stdout.flush()
+        
     process.wait()
     if process.returncode != 0:
         raise RuntimeError(f"Command failed with exit code {process.returncode}: {cmd}")

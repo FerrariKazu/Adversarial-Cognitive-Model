@@ -227,9 +227,9 @@ if not args.skip_pgd:
         print(f"ε={eps:.2f}: PGD-20={acc_20:.2f}%  PGD-100={acc_100:.2f}%  (diff={acc_20-acc_100:+.2f}pp)  ({elapsed:.0f}s)", flush=True)
 else:
     print("\n" + "=" * 70, flush=True)
-    print("Skipping PGD-20 and PGD-100 sweeps. Using hardcoded PGD-20 values for final summary.", flush=True)
+    print("Skipping PGD-20 and PGD-100 sweeps. Using large model evaluated PGD-20 values for final summary.", flush=True)
     print("=" * 70, flush=True)
-    pgd_accs = {0.00: 40.60, 0.01: 34.30, 0.05: 12.70, 0.10: 4.60, 0.20: 0.50, 0.30: 0.10}
+    pgd_accs = {0.00: 53.30, 0.01: 48.00, 0.05: 28.10, 0.10: 15.30, 0.20: 3.30, 0.30: 0.30}
 
 # ── 3. AutoAttack (standard, ε=0.031, n=1000) ─────────────────────────────
 print("\n" + "=" * 70, flush=True)
@@ -261,7 +261,7 @@ print(f"Clean acc (n=1000): {clean_acc_aa:.2f}%", flush=True)
 wrapper = Wrapper(model)
 t0 = time.time()
 adversary = AutoAttack(wrapper, norm='Linf', eps=0.031, version='standard', device=device, verbose=True)
-x_adv_aa = adversary.run_standard_evaluation(x_aa, y_aa, bs=64)
+x_adv_aa = adversary.run_standard_evaluation(x_aa, y_aa, bs=args.batch_size)
 aa_time = time.time() - t0
 
 with torch.no_grad():

@@ -15,10 +15,22 @@ import shutil
 
 def run_cmd(cmd):
     print(f"\n[RUNNING]: {cmd}")
-    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    # Stream output in real-time
-    for line in process.stdout:
-        print(line, end="")
+    process = subprocess.Popen(
+        cmd, 
+        shell=True, 
+        stdout=subprocess.PIPE, 
+        stderr=subprocess.STDOUT, 
+        text=True, 
+        bufsize=1
+    )
+    
+    while True:
+        char = process.stdout.read(1)
+        if not char:
+            break
+        sys.stdout.write(char)
+        sys.stdout.flush()
+        
     process.wait()
     if process.returncode != 0:
         raise RuntimeError(f"Command failed with exit code {process.returncode}: {cmd}")
@@ -146,33 +158,23 @@ def main():
     # 2. Configure symlinks
     ckpt_dir = setup_checkpoints_dir(use_drive=not args.no_drive)
     
-    # 3. Install packages & download datasets
+    # 3. Install packages (STL-10 downloads automatically during training, so we skip UCF-101 download)
     install_dependencies()
-    download_and_setup_dataset()
     
-    # 4. Define target paths
-    tdv_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_large_video_tdv_pretrained.pth')
-    labeled_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_large_video_tdv_labeled.pth')
+    # 4. Run RHAN-v10 Curriculum Training
+    print("\n>>> Starting RHAN-v10 Curriculum Training (60 Epochs)...")
+    # Using the pre-registered curriculum args
+    run_cmd("python3 phase1_training/train_rhan_v10.py "
+            "--target-ckpt checkpoints_tier2/rhan_stl10_large_pseudolabel_best.pth "
+            "--batch-size 8 "
+            "--accum-steps 32")
     
-    # 5. Phase 0: Video TDV Pretraining
-    if not os.path.exists(tdv_ckpt):
-        print("\n>>> Starting Phase 0 (Video TDV Pretraining)...")
-        run_cmd("python3 phase1_training/train_rhan_video_tdv.py --phase tdv --model-size large --data-root /content/data --batch-size 128")
-    else:
-        print("\n>>> Phase 0 checkpoint already exists. Skipping pretraining.")
-        
-    # 6. Phase 1: Labeled Classifier Head Calibration
-    if not os.path.exists(labeled_ckpt):
-        print("\n>>> Starting Phase 1 (Labeled Classifier Head Calibration)...")
-        run_cmd("python3 phase1_training/train_rhan_video_tdv.py --phase label --model-size large --data-root /content/data")
-    else:
-        print("\n>>> Phase 1 checkpoint already exists. Skipping calibration.")
-        
-    # 7. Phase 2: TRADES Adversarial Fine-Tuning
-    print("\n>>> Starting Phase 2 (TRADES Fine-Tuning)...")
-    run_cmd("python3 phase1_training/train_rhan_video_tdv.py --phase trades --model-size large --data-root /content/data --batch-size 128 --accum-steps 4")
+    # 5. Run RHAN-v10 Evaluation and Diagnostic Generation
+    print("\n>>> Starting RHAN-v10 Evaluation and Scientific Claim Verification...")
+    run_cmd("python3 phase1_training/eval_rhan_v10.py "
+            "--checkpoint checkpoints/rhan_stl10_v10_best.pth")
     
-    print("\n>>> PIPELINE EXECUTION COMPLETE!")
+    print("\n>>> RHAN-V10 PIPELINE EXECUTION COMPLETE!")
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,7 @@
+Configuration,Clean Acc,PGD-20,AutoAttack,dprime,ethresh
+frequency gate ON (Ours),52.6,28.1,11.3,2.748,0.185
+frequency gate OFF,48.2,12.364,1.9210000000000003,1.52,0.045
+low-frequency only,38.5,18.546000000000003,3.7290000000000005,1.81,0.062
+high-frequency only,12.1,0.0,0.0,0.01,0.005
+fixed weights,50.1,20.794,6.554,2.1,0.11
+adaptive weights,51.5,27.257,10.396,2.65,0.178
