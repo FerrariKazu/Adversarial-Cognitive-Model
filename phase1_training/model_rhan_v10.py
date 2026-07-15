@@ -128,12 +128,17 @@ def foveal_sample(x_image, action_a, fovea_size=48):
     """
     B = x_image.shape[0]
     scale = fovea_size / 96.0
+    device = x_image.device
+    dtype = x_image.dtype
 
-    theta = torch.zeros(B, 2, 3, device=x_image.device, dtype=x_image.dtype)
-    theta[:, 0, 0] = scale
-    theta[:, 1, 1] = scale
-    theta[:, 0, 2] = action_a[:, 0]  # x center
-    theta[:, 1, 2] = action_a[:, 1]  # y center
+    # Differentiable construction of theta to ensure autograd tracks the dependency on action_a
+    scale_col = torch.full((B, 1), scale, device=device, dtype=dtype)
+    zero_col = torch.zeros((B, 1), device=device, dtype=dtype)
+
+    row0 = torch.cat([scale_col, zero_col, action_a[:, 0:1]], dim=1)  # (B, 3)
+    row1 = torch.cat([zero_col, scale_col, action_a[:, 1:2]], dim=1)  # (B, 3)
+
+    theta = torch.stack([row0, row1], dim=1)  # (B, 2, 3)
 
     grid = F.affine_grid(theta, (B, 3, fovea_size, fovea_size),
                          align_corners=False)
@@ -427,13 +432,14 @@ class RHANv10(RHANLargeSTL10):
             # Only on non-final steps (gradient ascent on prediction error)
             if t < self.max_steps - 1:
                 a_grad = a.detach().requires_grad_(True)
-                x_fov_g = foveal_sample(x, a_grad, fovea_size=self.fovea_size)
-                f_g = self.foveal_stream(x_fov_g)
-                prior_pred = self.precision_ctrl.prior_predictor(s.detach())
-                error_for_grad = (f_g - prior_pred).norm(dim=-1).mean()
+                with torch.enable_grad():
+                    x_fov_g = foveal_sample(x, a_grad, fovea_size=self.fovea_size)
+                    f_g = self.foveal_stream(x_fov_g)
+                    prior_pred = self.precision_ctrl.prior_predictor(s.detach())
+                    error_for_grad = (f_g - prior_pred).norm(dim=-1).mean()
 
-                action_grad = torch.autograd.grad(
-                    error_for_grad, a_grad, create_graph=False)[0]
+                    action_grad = torch.autograd.grad(
+                        error_for_grad, a_grad, create_graph=False)[0]
 
                 # Move toward high-error region (epistemic curiosity)
                 step_size = 0.15 * pi_d.unsqueeze(-1)
