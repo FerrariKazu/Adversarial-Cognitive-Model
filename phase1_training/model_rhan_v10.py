@@ -62,8 +62,14 @@ class PrecisionController(nn.Module):
     def __init__(self, proj_dim=512, tau=0.1, init_precision=0.5):
         super().__init__()
         self.tau = tau
-        self.log_precision = nn.Parameter(
-            torch.tensor(init_precision).log())
+
+        # Derive initial Π_D from global context directly (FIX 2)
+        self.precision_init_net = nn.Sequential(
+            nn.Linear(proj_dim, 64),
+            nn.GELU(),
+            nn.Linear(64, 1),
+            nn.Sigmoid()  # output in [0, 1] directly
+        )
 
         # Prior predictor P(s): what should features look like
         # given current belief state?
@@ -84,20 +90,25 @@ class PrecisionController(nn.Module):
             updated_prec: (B,) — Π_D after one update step
             error_mag:    (B,) — prediction error magnitude
         """
-        B = features.shape[0]
-        precision = self.log_precision.exp().expand(B)
+        # Derive precision dynamically from global context (FIX 2)
+        precision = self.precision_init_net(global_context).squeeze(-1)
+        precision = precision * 0.6 + 0.2  # rescale to [0.2, 0.8]
 
         # P(s): predict what features SHOULD look like
         predicted = self.prior_predictor(global_context)
 
         # Prediction error (Eq. III numerator)
         error_vec = features - predicted                # (B, proj_dim)
-        error_mag = error_vec.norm(dim=-1)              # (B,)
+        
+        # Normalize prediction error to keep Π_D dynamics in a meaningful range (FIX 1)
+        error_mag = error_vec.norm(dim=-1) / (512 ** 0.5)
 
         # Eq. III: τ_π × dΠ/dt = ‖error‖² − Π_D
         d_precision = (error_mag ** 2 - precision) / self.tau
+        
+        # Tighten the clamp range to force differentiation (FIX 1)
         updated_prec = torch.clamp(
-            precision + 0.1 * d_precision, 0.05, 0.95)
+            precision + 0.1 * d_precision, 0.20, 0.80)
 
         return updated_prec, error_mag
 
@@ -283,7 +294,7 @@ class RHANv10(RHANLargeSTL10):
                  num_transformer_layers=8,
                  num_recurrent_steps=2,
                  stem_dropout=0.1,
-                 max_foraging_steps=4,
+                 max_foraging_steps=2,
                  fovea_size=48,
                  metabolic_cost=0.05,
                  precision_tau=0.1):
@@ -436,7 +447,8 @@ class RHANv10(RHANLargeSTL10):
                     x_fov_g = foveal_sample(x, a_grad, fovea_size=self.fovea_size)
                     f_g = self.foveal_stream(x_fov_g)
                     prior_pred = self.precision_ctrl.prior_predictor(s.detach())
-                    error_for_grad = (f_g - prior_pred).norm(dim=-1).mean()
+                    dim = f_g.shape[-1]
+                    error_for_grad = (f_g - prior_pred).norm(dim=-1).mean() / math.sqrt(dim)
 
                     action_grad = torch.autograd.grad(
                         error_for_grad, a_grad, create_graph=False)[0]

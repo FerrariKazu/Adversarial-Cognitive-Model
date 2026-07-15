@@ -591,8 +591,8 @@ def main():
                         help='If > 0, normalizes epoch length to this many images')
     parser.add_argument('--compile', action='store_true', help='Enable torch.compile()')
     parser.add_argument('--dry-run', action='store_true', help='Runs a single batch step and exits')
-    # v10-specific args
-    parser.add_argument('--max-foraging-steps', type=int, default=4,
+    parser.add_argument('--force-restart', action='store_true', help='Bypass resume checks and start training from Epoch 1')
+    parser.add_argument('--max-foraging-steps', type=int, default=2,
                         help='Maximum foraging steps in tripartite loop')
     parser.add_argument('--fovea-size', type=int, default=48,
                         help='Foveal crop size in pixels')
@@ -833,47 +833,65 @@ def main():
 
     local_epoch = -1
     checkpoint_data = None
-    if os.path.exists(rolling_path):
-        try:
-            local_data = torch.load(rolling_path, map_location='cpu')
-            local_epoch = local_data.get('epoch', -1)
-        except Exception:
-            pass
+    if not args.force_restart:
+        if os.path.exists(rolling_path):
+            try:
+                local_data = torch.load(rolling_path, map_location='cpu')
+                local_epoch = local_data.get('epoch', -1)
+            except Exception:
+                pass
 
-    if rank == 0:
-        try:
-            from huggingface_hub import hf_hub_download
-            print("Checking for a newer checkpoint on Hugging Face...", flush=True)
-            temp_rolling_path = hf_hub_download(
-                repo_id='FerrariKazu/rhan-checkpoints',
-                filename='rhan_stl10_v10_rolling.pth',
-                repo_type='dataset',
-                token=hf_token
-            )
-            remote_data = torch.load(temp_rolling_path, map_location='cpu')
-            remote_epoch = remote_data.get('epoch', -1)
-            if remote_epoch > local_epoch:
-                print(f"Hugging Face has a newer checkpoint (Epoch {remote_epoch}) than local (Epoch {local_epoch}). Synchronizing...", flush=True)
-                os.makedirs(os.path.dirname(rolling_path), exist_ok=True)
-                shutil.copy(temp_rolling_path, rolling_path)
-        except Exception as e:
-            print(f"Hugging Face sync check skipped/failed: {e}", flush=True)
-
-    if is_ddp:
-        import torch.distributed as dist
-        dist.barrier()
-
-    if os.path.exists(rolling_path):
         if rank == 0:
-            print(f"\nFound rolling checkpoint at {rolling_path}. Attempting to resume...", flush=True)
-        checkpoint_data = torch.load(rolling_path, map_location=device)
-        raw_model.load_state_dict(checkpoint_data['model'])
-        best_acc = checkpoint_data.get('best_acc', 0.0)
-        start_epoch = checkpoint_data['epoch'] + 1
+            try:
+                from huggingface_hub import hf_hub_download
+                print("Checking for a newer checkpoint on Hugging Face...", flush=True)
+                temp_rolling_path = hf_hub_download(
+                    repo_id='FerrariKazu/rhan-checkpoints',
+                    filename='rhan_stl10_v10_rolling.pth',
+                    repo_type='dataset',
+                    token=hf_token
+                )
+                remote_data = torch.load(temp_rolling_path, map_location='cpu')
+                remote_epoch = remote_data.get('epoch', -1)
+                if remote_epoch > local_epoch:
+                    print(f"Hugging Face has a newer checkpoint (Epoch {remote_epoch}) than local (Epoch {local_epoch}). Synchronizing...", flush=True)
+                    os.makedirs(os.path.dirname(rolling_path), exist_ok=True)
+                    shutil.copy(temp_rolling_path, rolling_path)
+            except Exception as e:
+                print(f"Hugging Face sync check skipped/failed: {e}", flush=True)
+
+        if is_ddp:
+            import torch.distributed as dist
+            dist.barrier()
+
+        if os.path.exists(rolling_path):
+            if rank == 0:
+                print(f"\nFound rolling checkpoint at {rolling_path}. Attempting to resume...", flush=True)
+            checkpoint_data = torch.load(rolling_path, map_location=device)
+            raw_model.load_state_dict(checkpoint_data['model'])
+            best_acc = checkpoint_data.get('best_acc', 0.0)
+            start_epoch = checkpoint_data['epoch'] + 1
+            if rank == 0:
+                print(f"Resuming from Epoch {start_epoch} (Best validation accuracy so far: {best_acc:.2f}%)")
+    else:
         if rank == 0:
-            print(f"Resuming from Epoch {start_epoch} (Best validation accuracy so far: {best_acc:.2f}%)")
+            print("\n>>> --force-restart active. Bypassing all rolling checkpoint resume checks. Starting from Epoch 1.", flush=True)
 
     # ── 8. Training loop ─────────────────────────────────────────
+    WARMUP_EPOCHS = 5
+
+    def set_new_component_training(model, trainable):
+        """Toggle training state of new v10 components only."""
+        for name, param in model.named_parameters():
+            if any(x in name for x in [
+                'foveal_stream', 'precision_ctrl', 
+                'action_init', 'halt_net'
+            ]):
+                param.requires_grad = trainable
+            else:
+                # Backbone stays trainable throughout
+                param.requires_grad = True
+
     diagnostics = EpochDiagnostics()
 
     for epoch in range(start_epoch, 61):
@@ -907,6 +925,16 @@ def main():
 
         eps, beta, steps = phase_params
 
+        # Freeze/unfreeze new components based on WARMUP phase (FIX 3)
+        if epoch <= WARMUP_EPOCHS:
+            if rank == 0:
+                print(f"Warmup Phase: Freezing new components (foveal_stream, precision_ctrl, action_init, halt_net)")
+            set_new_component_training(model, False)
+        else:
+            if rank == 0:
+                print(f"Main Phase: Training all components")
+            set_new_component_training(model, True)
+
         # Training loop
         model.train()
         total_loss = n_total = correct = 0
@@ -935,53 +963,75 @@ def main():
                 lbls = lbls.to(device, non_blocking=True)
                 weights = weights.to(device, non_blocking=True)
 
-                # ── PGD adversarial example generation ───────────
-                raw_model.eval()
-                with torch.no_grad():
+                if epoch <= WARMUP_EPOCHS:
+                    # Warmup: train new heads on CLEAN loss only
+                    # No adversarial training yet
+                    # Let foveal stream and precision controller adapt to backbone
                     with autocast('cuda'):
-                        logits_c_pgd = raw_model(imgs)
-                probs_c = F.softmax(logits_c_pgd.float(), dim=1)
-
-                x_adv = imgs.clone().detach() + 0.001 * torch.randn_like(imgs)
-                x_adv = torch.clamp(x_adv, stl_min, stl_max)
-                for _ in range(steps):
-                    x_adv.requires_grad_(True)
-                    with torch.enable_grad():
+                        logits = model(imgs)
+                        l_trades = nn.CrossEntropyLoss()(logits, lbls)
+                        loss = l_trades / args.accum_steps
+                        
+                        # Mock dynamic trades variables for diagnostics
+                        beta_dyn = torch.full((imgs.shape[0],), beta, device=device)
+                        traj_c = {
+                            'steps': 1.0,
+                            'precisions': [torch.full((imgs.shape[0],), 0.5, device=device)],
+                            'errors': [torch.zeros(imgs.shape[0], device=device)]
+                        }
+                    
+                    scaler.scale(loss).backward()
+                    
+                    # Collect diagnostics
+                    diagnostics.update(beta_dyn, traj_c, lbls)
+                else:
+                    # ── PGD adversarial example generation ───────────
+                    raw_model.eval()
+                    with torch.no_grad():
                         with autocast('cuda'):
-                            logits_a_pgd = raw_model(x_adv)
-                            loss_adv = F.kl_div(
-                                F.log_softmax(logits_a_pgd.float(), dim=1),
-                                probs_c, reduction='batchmean'
-                            )
-                    grad = torch.autograd.grad(loss_adv, x_adv)[0]
-                    x_adv = x_adv.detach() + (eps / steps) * grad.sign()
-                    delta = torch.clamp(x_adv - imgs, -eps, eps)
-                    x_adv = torch.clamp(imgs + delta, stl_min, stl_max).detach()
+                            logits_c_pgd = raw_model(imgs)
+                    probs_c = F.softmax(logits_c_pgd.float(), dim=1)
 
-                model.train()
+                    x_adv = imgs.clone().detach() + 0.001 * torch.randn_like(imgs)
+                    x_adv = torch.clamp(x_adv, stl_min, stl_max)
+                    for _ in range(steps):
+                        x_adv.requires_grad_(True)
+                        with torch.enable_grad():
+                            with autocast('cuda'):
+                                logits_a_pgd = raw_model(x_adv)
+                                loss_adv = F.kl_div(
+                                    F.log_softmax(logits_a_pgd.float(), dim=1),
+                                    probs_c, reduction='batchmean'
+                                )
+                        grad = torch.autograd.grad(loss_adv, x_adv)[0]
+                        x_adv = x_adv.detach() + (eps / steps) * grad.sign()
+                        delta = torch.clamp(x_adv - imgs, -eps, eps)
+                        x_adv = torch.clamp(imgs + delta, stl_min, stl_max).detach()
 
-                # ── Combined loss computation ────────────────────
-                with autocast('cuda'):
-                    # Dynamic TRADES loss (core innovation)
-                    l_trades, traj_c, traj_a, beta_dyn = dynamic_trades_loss(
-                        raw_model, imgs, lbls, weights, x_adv, beta)
+                    model.train()
 
-                    # Auxiliary losses
+                    # ── Combined loss computation ────────────────────
                     with autocast('cuda'):
-                        logits_c_aux = raw_model(imgs)
-                    l_foraging, l_precision_cal, l_halt = compute_auxiliary_losses(
-                        raw_model, traj_c, traj_a, logits_c_aux, lbls)
+                        # Dynamic TRADES loss (core innovation)
+                        l_trades, traj_c, traj_a, beta_dyn = dynamic_trades_loss(
+                            raw_model, imgs, lbls, weights, x_adv, beta)
 
-                    # Total combined loss
-                    loss = (args.w_trades * l_trades +
-                            args.w_foraging * l_foraging +
-                            args.w_precision * l_precision_cal +
-                            args.w_halt * l_halt) / args.accum_steps
+                        # Auxiliary losses
+                        with autocast('cuda'):
+                            logits_c_aux = raw_model(imgs)
+                        l_foraging, l_precision_cal, l_halt = compute_auxiliary_losses(
+                            raw_model, traj_c, traj_a, logits_c_aux, lbls)
 
-                scaler.scale(loss).backward()
+                        # Total combined loss
+                        loss = (args.w_trades * l_trades +
+                                args.w_foraging * l_foraging +
+                                args.w_precision * l_precision_cal +
+                                args.w_halt * l_halt) / args.accum_steps
 
-                # Collect diagnostics
-                diagnostics.update(beta_dyn, traj_c, lbls)
+                    scaler.scale(loss).backward()
+
+                    # Collect diagnostics
+                    diagnostics.update(beta_dyn, traj_c, lbls)
 
             if (batch_idx + 1) % args.accum_steps == 0:
                 scaler.unscale_(optimizer)
@@ -1061,6 +1111,9 @@ def main():
 
             # Print diagnostic telemetry
             diagnostics.report(epoch, eps)
+
+            if epoch <= WARMUP_EPOCHS and epoch % 2 == 0:
+                print(f"\nWarmup epoch {epoch}: TeAcc should rise from 32% toward 50%+\n", flush=True)
 
             # Save rolling checkpoint
             torch.save({
