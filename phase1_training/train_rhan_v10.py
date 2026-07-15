@@ -25,6 +25,10 @@ Saves to: checkpoints/rhan_stl10_v10_best.pth
 
 import os
 import sys
+
+# Disable Hugging Face Hub progress bars to keep output silent and clean
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+
 import time
 import random
 import argparse
@@ -117,6 +121,7 @@ class CombinedSTL10Dataset(Dataset):
                  unlabeled_dataset, pseudo_indices, pseudo_labels, transform=None):
         self.real_imgs = real_imgs.cpu()
         self.real_labels = real_labels.cpu()
+        self.unlabeled_dataset = unlabeled_dataset
         self.pseudo_indices = pseudo_indices.cpu()
         self.pseudo_labels = pseudo_labels.cpu()
         self.transform = transform
@@ -124,22 +129,8 @@ class CombinedSTL10Dataset(Dataset):
         self.n_real = len(real_imgs)
         self.n_pseudo = len(pseudo_indices)
 
-        # Cache normalized pseudo-labeled images in RAM
-        print(f"Caching {self.n_pseudo} pseudo-labeled images in RAM...", flush=True)
-        self.cached_pseudo_imgs = torch.zeros(self.n_pseudo, 3, 96, 96, dtype=torch.float16)
-        temp_loader = DataLoader(
-            torch.utils.data.Subset(unlabeled_dataset, pseudo_indices.tolist()),
-            batch_size=256, shuffle=False, num_workers=0,
-            pin_memory=False
-        )
-        idx_start = 0
-        for batch_imgs, _ in temp_loader:
-            num_imgs = batch_imgs.size(0)
-            self.cached_pseudo_imgs[idx_start : idx_start + num_imgs] = batch_imgs.to(torch.float16)
-            idx_start += num_imgs
-
         print(f"Combined dataset: {self.n_real} real + "
-              f"{self.n_pseudo} pseudo = {self.n_real+self.n_pseudo} total. Caching complete.", flush=True)
+              f"{self.n_pseudo} pseudo = {self.n_real+self.n_pseudo} total. Loading on-the-fly active.", flush=True)
 
     def __len__(self):
         return self.n_real + self.n_pseudo
@@ -150,7 +141,9 @@ class CombinedSTL10Dataset(Dataset):
             label = self.real_labels[idx]
             weight = 1.0
         else:
-            img = self.cached_pseudo_imgs[idx - self.n_real].to(torch.float32)
+            pseudo_idx = self.pseudo_indices[idx - self.n_real].item()
+            # Fetch on-the-fly from the preloaded STL-10 dataset (which is already in RAM as uint8/float32)
+            img, _ = self.unlabeled_dataset[pseudo_idx]
             label = self.pseudo_labels[idx - self.n_real]
             weight = 0.5
 
@@ -455,10 +448,21 @@ def ensure_checkpoint_exists(ckpt_path):
             sys.exit(1)
 
 
+hf_upload_thread = None
+
 def sync_to_hf(file_path):
+    global hf_upload_thread
     if not os.path.exists(file_path):
         return
     import threading
+
+    # Wait for the previous upload to finish to prevent thread pileup and OOM
+    if hf_upload_thread is not None and hf_upload_thread.is_alive():
+        print(f"Waiting for previous Hugging Face upload to complete before syncing {os.path.basename(file_path)}...", flush=True)
+        try:
+            hf_upload_thread.join()
+        except Exception as e:
+            print(f"Failed to join previous upload thread: {e}", flush=True)
 
     # Create copy synchronously to prevent write-during-upload race conditions
     sync_path = file_path + ".sync"
@@ -514,7 +518,8 @@ def sync_to_hf(file_path):
                 except Exception:
                     pass
 
-    threading.Thread(target=_async_sync, args=(sync_path, os.path.basename(file_path)), daemon=True).start()
+    hf_upload_thread = threading.Thread(target=_async_sync, args=(sync_path, os.path.basename(file_path)), daemon=True)
+    hf_upload_thread.start()
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1123,6 +1128,11 @@ def main():
                 'best_acc': best_acc,
             }, rolling_path)
             sync_to_hf(rolling_path)
+
+            # Force garbage collection and empty CUDA cache to prevent RAM/VRAM accumulation
+            import gc
+            gc.collect()
+            torch.cuda.empty_cache()
 
         if args.dry_run:
             if is_ddp:
