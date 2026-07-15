@@ -977,7 +977,8 @@ def main():
                         traj_c = {
                             'steps': 1.0,
                             'precisions': [torch.full((imgs.shape[0],), 0.5, device=device)],
-                            'errors': [torch.zeros(imgs.shape[0], device=device)]
+                            'errors': [torch.zeros(imgs.shape[0], device=device)],
+                            'actions': [torch.zeros((imgs.shape[0], 2), device=device)]
                         }
                     
                     scaler.scale(loss).backward()
