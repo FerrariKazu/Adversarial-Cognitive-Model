@@ -167,7 +167,8 @@ def main():
     run_cmd("python3 phase1_training/train_rhan_v10.py "
             "--target-ckpt checkpoints_tier2/rhan_stl10_large_pseudolabel_best.pth "
             "--batch-size 8 "
-            "--accum-steps 32")
+            "--accum-steps 32 "
+            "--force-restart")
     
     # 5. Run RHAN-v10 Evaluation and Diagnostic Generation
     print("\n>>> Starting RHAN-v10 Evaluation and Scientific Claim Verification...")
