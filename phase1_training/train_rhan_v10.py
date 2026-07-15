@@ -968,18 +968,15 @@ def main():
                     # No adversarial training yet
                     # Let foveal stream and precision controller adapt to backbone
                     with autocast('cuda'):
-                        logits = model(imgs)
+                        logits, traj_c = model(imgs, return_trajectory=True)
                         l_trades = nn.CrossEntropyLoss()(logits, lbls)
                         loss = l_trades / args.accum_steps
                         
-                        # Mock dynamic trades variables for diagnostics
-                        beta_dyn = torch.full((imgs.shape[0],), beta, device=device)
-                        traj_c = {
-                            'steps': 1.0,
-                            'precisions': [torch.full((imgs.shape[0],), 0.5, device=device)],
-                            'errors': [torch.zeros(imgs.shape[0], device=device)],
-                            'actions': [torch.zeros((imgs.shape[0], 2), device=device)]
-                        }
+                        # Calculate actual beta_dyn from model trajectory for diagnostics
+                        if len(traj_c['precisions']) > 0:
+                            beta_dyn = beta * (0.5 + traj_c['precisions'][-1])
+                        else:
+                            beta_dyn = torch.full((imgs.shape[0],), beta, device=device)
                     
                     scaler.scale(loss).backward()
                     
