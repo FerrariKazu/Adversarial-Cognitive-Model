@@ -1,0 +1,7 @@
+Model,Architecture,Parameters (M),Dataset,Clean Accuracy,AutoAttack,ethresh,dprime,Car,Truck,Inference Speed,Memory
+RHAN-Large (Ours),Hybrid Recurrent,55.6,STL-10,52.6,10.6,0.185,2.748,59.0,78.0,14.5,3.2
+ResNet-18 (Fixing ddpm),CNN (ResNet),11.2,CIFAR-10,83.1,0.0,0.029,1.82,0.0,0.0,120.4,1.1
+WideResNet-28-10 (Gowal),CNN (WRN),36.5,CIFAR-10,85.3,0.0,0.026,1.65,0.0,0.0,45.2,2.8
+ConvNeXt-T (Subnets),CNN (ConvNeXt),28.6,CIFAR-10,82.2,0.0,0.022,1.5,0.0,0.0,62.1,2.1
+ViT-B (Subnets),Transformer,86.4,CIFAR-10,84.1,0.5,0.025,1.7,0.0,0.0,22.8,4.5
+DeiT-S (Subnets),Transformer,22.1,CIFAR-10,81.5,0.2,0.02,1.42,0.0,0.0,48.0,1.9
