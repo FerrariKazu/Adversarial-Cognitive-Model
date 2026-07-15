@@ -13,6 +13,9 @@ import argparse
 import subprocess
 import shutil
 
+# Disable Hugging Face Hub progress bars to keep output silent and clean
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+
 def run_cmd(cmd):
     print(f"\n[RUNNING]: {cmd}")
     process = subprocess.Popen(
