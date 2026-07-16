@@ -497,16 +497,18 @@ def sync_to_hf(file_path):
                     repo_id = f"{username}/rhan-checkpoints-rolling"
                     try:
                         api.delete_repo(repo_id=repo_id, repo_type="dataset", token=hf_token)
+                        import time
+                        time.sleep(2)
                     except Exception:
                         pass
                     try:
-                        create_repo(repo_id=repo_id, repo_type="dataset", private=True, token=hf_token)
+                        create_repo(repo_id=repo_id, repo_type="dataset", private=False, token=hf_token)
                     except Exception:
                         pass
                 else:
                     repo_id = f"{username}/rhan-checkpoints"
                     try:
-                        create_repo(repo_id=repo_id, repo_type="dataset", private=True, exist_ok=True, token=hf_token)
+                        create_repo(repo_id=repo_id, repo_type="dataset", private=False, exist_ok=True, token=hf_token)
                     except Exception:
                         pass
 
