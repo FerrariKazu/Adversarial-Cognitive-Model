@@ -90,9 +90,9 @@ class PrecisionController(nn.Module):
             updated_prec: (B,) — Π_D after one update step
             error_mag:    (B,) — prediction error magnitude
         """
-        # Derive precision dynamically from global context (FIX 2)
+        # This MUST use the context-dependent init, not a global param
         precision = self.precision_init_net(global_context).squeeze(-1)
-        precision = precision * 0.6 + 0.2  # rescale to [0.2, 0.8]
+        precision = precision * 0.6 + 0.2  # [0.2, 0.8] range
 
         # P(s): predict what features SHOULD look like
         predicted = self.prior_predictor(global_context)
@@ -100,13 +100,13 @@ class PrecisionController(nn.Module):
         # Prediction error (Eq. III numerator)
         error_vec = features - predicted                # (B, proj_dim)
         
-        # Normalize prediction error to keep Π_D dynamics in a meaningful range (FIX 1)
+        # AND the error normalization must divide by sqrt(dim):
         error_mag = error_vec.norm(dim=-1) / (512 ** 0.5)
 
         # Eq. III: τ_π × dΠ/dt = ‖error‖² − Π_D
         d_precision = (error_mag ** 2 - precision) / self.tau
         
-        # Tighten the clamp range to force differentiation (FIX 1)
+        # AND the clamp must use [0.20, 0.80] not [0.05, 0.95]:
         updated_prec = torch.clamp(
             precision + 0.1 * d_precision, 0.20, 0.80)
 
