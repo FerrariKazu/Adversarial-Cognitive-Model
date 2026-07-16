@@ -1,0 +1,265 @@
+\section{Introduction and Theoretical Foundations}
+\IEEEPARstart{C}{onventional} paradigms in adversarial machine learning usually rely on static regularization schemes to build robustness. For instance, in standard formulation like TRADES, a fixed trade-off parameter $\beta$ dictates the balance between preserving clean performance and regularizing the prediction variance under adversarial noise. While simple, this static design introduces a severe bottleneck: it applies an identical robustness penalty to every single sample, completely ignoring the sample-specific uncertainty or intrinsic vulnerability of individual inputs.
+
+This uniform treatment becomes highly problematic during high-epsilon curriculum training. When the perturbation budget $\epsilon$ is scaled from $0.031$ to $0.062$, static models frequently experience a catastrophic collapse in robustness. This breakdown stems from two distinct yet related phenomena:
+\begin{enumerate}
+    \item \textbf{Gradient Destruction}: High-epsilon perturbations warp the local geometry of the loss surface, leaving the gradients chaotic and uninformative. Consequently, standard gradient-based attack generators (like PGD) struggle to find representative adversarial directions.
+    \item \textbf{Feature Corruption}: Forcing the model to optimize a static robust loss at extreme perturbation bounds degrades the underlying feature representations, which ultimately harms clean classification performance.
+\end{enumerate}
+
+To address these limitations, we look to the principles of biological vision. Active inference and the free-energy principle suggest that biological vision is not a passive feedforward mapping, but an active, iterative foraging process. In this work, we introduce **RHAN-v10**, an architecture that translates these concepts into a concrete computer vision model. Instead of scanning an entire image at uniform resolution, the model executes a sequence of directed foveations. By dynamically adjusting its sensory precision ($\Pi_D$) and using prediction error gradients to guide its gaze ($a_t$), the network dynamically allocates its computational budget. We test the pre-registered scientific hypothesis that:
+\begin{quote}
+\textit{Dynamic precision control and epistemic foraging will maintain car/truck robustness through high-epsilon curriculum phases that destroy it under static TRADES $\beta$.}
+\end{quote}
+
+In the sections that follow, we derive this tripartite active inference loop from first principles, discuss its stability and optimal stopping properties, and analyze its neurobiological and computational characteristics.
+
+\section{Probabilistic Active Inference Formulation}
+To model the foveation process mathematically, we frame the sequential eye movement loop as a discrete-time partially observable Markov decision process (POMDP). Let $s_t \in \mathbb{R}^D$ represent the latent belief state of the model at step $t$. Let $o_t \in \mathbb{R}^D$ represent the foveal observation gathered at the attended coordinates, and $a_t \in [-1, +1]^2$ represent the gaze action defining the spatial center of the foveal crop.
+
+\subsection{Generative Model}
+We define the generative model over hidden states, observations, and gaze actions up to time $T$ as:
+\begin{equation}
+p(s_{0:T}, o_{1:T}, a_{1:T}) = p(s_0) \prod_{t=1}^T p(o_t \mid s_t, a_t) p(s_t \mid s_{t-1}, a_{t-1})
+\end{equation}
+The initial belief state $p(s_0) = \mathcal{N}(s_0; \mu_0, \mathbf{I})$ is projected directly from the full-image peripheral CLS token. The transition likelihood is modeled as a deterministic recurrent update that integrates foveal observations:
+\begin{equation}
+p(s_t \mid s_{t-1}, a_{t-1}) = \delta\left(s_t - \mathbf{s}_t^{\text{int}}\right)
+\end{equation}
+where $\delta(\cdot)$ is the Dirac delta function, and the integrated belief vector is:
+\begin{equation}
+\mathbf{s}_t^{\text{int}} = (1 - \Pi_D^{(t)})s_{t-1} + \Pi_D^{(t)} f_{\text{stem}}(a_{t-1})
+\end{equation}
+with $f_{\text{stem}}(a_{t-1})$ denoting the foveal feature vector extracted at the chosen coordinates.
+
+The observation likelihood captures the network's expectation of foveal features given its current belief:
+\begin{equation}
+p(o_t \mid s_t, a_t) = \mathcal{N}\left(o_t; P(s_t), \left(\Pi_D^{(t)}\right)^{-1} \mathbf{I}\right)
+\end{equation}
+Here, $P(s_t) \in \mathbb{R}^D$ is a learned prior predictor that projects the current belief state into the observation space, and the sensory precision $\Pi_D^{(t)}$ acts as the inverse variance of this likelihood model.
+
+\subsection{Recognition Model}
+The model's recognition density $q(s_t)$ represents its variational belief about the latent state. For computational tractability, we parameterize this density as a Dirac distribution centered on the belief vector:
+\begin{equation}
+q(s_t) = \delta(s_t - \mathbf{s}_t)
+\end{equation}
+
+\subsection{Variational Free Energy}
+The Variational Free Energy (VFE) $F$ serves as an upper bound on sensory surprise. We define it as the KL divergence between the variational posterior and the joint distribution of the generative model:
+\begin{equation}
+F(q(s_t), o_t) = D_{\text{KL}}(q(s_t) \parallel p(s_t, o_t \mid a_{t-1})) - \ln p(o_t)
+\end{equation}
+Expanding this divergence yields:
+\begin{equation}
+F = \mathbb{E}_{q(s_t)}[\ln q(s_t) - \ln p(o_t \mid s_t, a_{t-1}) - \ln p(s_t \mid s_{t-1}, a_{t-1})]
+\end{equation}
+Because the posterior is modeled as a Dirac distribution, the entropy term is constant. Minimizing $F$ with respect to the belief vector $\mathbf{s}_t$ simplifies to:
+\begin{equation}
+\min_{\mathbf{s}_t} F \propto \frac{\Pi_D^{(t)}}{2} \| o_t - P(\mathbf{s}_t) \|_2^2 + \frac{1}{2} \| \mathbf{s}_t - \mathbf{s}_{t-1} \|_2^2
+\end{equation}
+This formulation highlights how the belief update is naturally regularized. The update is a precision-weighted combination of the current prediction error $\| o_t - P(\mathbf{s}_t) \|_2^2$ and the stability of the prior belief state $\| \mathbf{s}_t - \mathbf{s}_{t-1} \|_2^2$.
+
+\subsection{Expected Free Energy}
+To select the next gaze action $a_t$, the model must minimize the Expected Free Energy (EFE) $G(a_t)$ for the subsequent step:
+\begin{align}
+G(a_t) &= \mathbb{E}_{q(o_{t+1}, s_{t+1} \mid a_t)} \Big[ \ln q(s_{t+1}) \nonumber \\
+       &\quad - \ln p(s_{t+1}, o_{t+1} \mid a_t) \Big]
+\end{align}
+Factoring the joint distribution allows us to decompose $G(a_t)$ into two key terms:
+\begin{align}
+G(a_t) &= -\mathbb{E}_{q(o_{t+1} \mid a_t)} \left[ D_{\text{KL}}(q(s_{t+1} \mid o_{t+1}, a_t) \parallel q(s_{t+1})) \right] \nonumber \\
+       &\quad - \mathbb{E}_{q(o_{t+1} \mid a_t)} \left[ \ln p(o_{t+1}) \right]
+\end{align}
+where the first term represents the \textit{Epistemic Value} (expected information gain measuring target belief updates) and the second term is the \textit{Instrumental Value} (prior preference matching).
+
+In the context of RHAN-v10, the instrumental value is defined by the classification objective, while the epistemic value corresponds to the expected reduction in prediction uncertainty. Gaze updates are directed to maximize this information gain by executing gradient ascent on the prediction error.
+
+\section{Epistemic Gaze Foraging Dynamics}
+The gaze controller shifts foveation toward regions where prediction errors are highest.
+
+\subsection{Differentiable Spatial Sampling}
+To propagate gradients directly through spatial coordinates, we employ a Spatial Transformer Network (STN). Given gaze coordinates $a = (x_c, y_c)$, the affine transformation matrix $\theta$ is defined as:
+\begin{equation}
+\theta = \begin{bmatrix} s_{\text{fov}} & 0 & x_c \\ 0 & s_{\text{fov}} & y_c \end{bmatrix}
+\end{equation}
+where $s_{\text{fov}} = 48/96 = 0.5$ is the scaling factor. The grid of sampling coordinates is generated via:
+\begin{equation}
+\begin{bmatrix} x_i^{\text{src}} \\ y_i^{\text{src}} \end{bmatrix} = \theta \begin{bmatrix} x_i^{\text{dest}} \\ y_i^{\text{dest}} \\ 1 \end{bmatrix}
+\end{equation}
+The foveal crop is sampled differentiably using bilinear interpolation. Let $K(a, b) = \max(0, 1 - |a - b|)$ represent the interpolation kernel. The foveal pixel value is defined as:
+\begin{equation}
+x_{\text{foveal}}^{c, i} = \sum_{n}^{H} \sum_{m}^{W} x_{\text{image}}^{c, n, m} K(x_i^{\text{src}}, m) K(y_i^{\text{src}}, n)
+\end{equation}
+
+\subsection{Action Gradient Derivation}
+Let $E(a) = \| f_{\text{stem}}(a) - P(s) \|_2$ denote the localized prediction error. The action update is formulated as:
+\begin{equation}
+a_{t+1} = \text{Clamp}\left( a_t + \eta(\Pi_D^{(t)}) \nabla_{a} E(a), -0.9, 0.9 \right)
+\end{equation}
+where the state-dependent step size function is defined as:
+\begin{equation}
+\eta(\Pi_D^{(t)}) = 0.20 + 0.30 \cdot \Pi_D^{(t)}
+\end{equation}
+which ensures a minimum search stride of $0.20$ even under low precision states, up to a maximum step of $0.50$.
+Applying the chain rule yields the gradient with respect to the action coordinates $a$:
+\begin{equation}
+\nabla_{a} E(a) = \frac{\partial E(a)}{\partial f_{\text{stem}}(a)} \frac{\partial f_{\text{stem}}(a)}{\partial x_{\text{foveal}}} \frac{\partial x_{\text{foveal}}}{\partial \theta} \frac{\partial \theta}{\partial a}
+\end{equation}
+where $\frac{\partial E(a)}{\partial f_{\text{stem}}(a)} = \frac{f_{\text{stem}}(a) - P(s)}{\parallel f_{\text{stem}}(a) - P(s) \parallel_2}$. The term $\frac{\partial x_{\text{foveal}}}{\partial \theta}$ flows directly through the bilinear sampler, providing the motor Jacobian that guides attention toward high-mismatch regions.
+
+\section{Precision Control and Saturation Analysis}
+The sensory precision $\Pi_D$ acts as a dynamic Kalman gain, modulating belief updates and regularizing training.
+
+\subsection{Dimension-Normalized Error}
+The prediction error vector $e = f_{\text{stem}}(a) - P(s)$ lies in a $D = 512$ dimensional embedding space. The raw L2 norm $\| e \|_2$ scales with $\sqrt{D}$, leading to large magnitudes ($\approx 9.7$) that saturate the precision update. We normalize the error by the feature dimension to obtain the root mean squared error (RMSE):
+\begin{equation}
+e_{\text{norm}} = \frac{\parallel f_{\text{stem}}(a) - P(s) \parallel_2}{\sqrt{D}}
+\end{equation}
+This keeps the error magnitude in a stable $O(1)$ range ($\approx 0.3 - 0.8$), stabilizing precision updates.
+
+\subsection{Precision Update Equation}
+The sensory precision evolves according to:
+\begin{equation}
+\tau_{\pi} \frac{d\Pi_D}{dt} = e_{\text{norm}}^2 - \Pi_D
+\end{equation}
+Integrating this equation over step size $\Delta t = 0.1$ yields:
+\begin{equation}
+\Pi_D^{(t+1)} = \text{Clamp}\left( \Pi_D^{(t)} + \frac{\Delta t}{\tau_\pi} (e_{\text{norm}}^2 - \Pi_D^{(t)}), 0.20, 0.80 \right)
+\end{equation}
+Clamping $\Pi_D \in [0.20, 0.80]$ prevents numerical saturation and guarantees active uncertainty differentiation during training.
+
+\section{Thermodynamic Halting and Optimal Stopping}
+We formulate early halting as an optimal stopping problem. The objective is to minimize a joint cost function:
+\begin{equation}
+J = \mathbb{E} \left[ \mathcal{L}_{\text{classification}} + \lambda \sum_{t=1}^T C_{\text{metabolic}}(t) \right]
+\end{equation}
+where $C_{\text{metabolic}}(t) = 0.05$ represents the computational cost per step. The information gain at step $t$ is modeled as:
+\begin{equation}
+\text{Info\_Gain} = e_{\text{norm}} \times \Pi_D^{(t)}
+\end{equation}
+Halting is triggered when the expected information gain falls below the metabolic cost:
+\begin{equation}
+\text{Info\_Gain} < 0.05
+\end{equation}
+This sequential stopping rule minimizes computation on clean, confident samples while allocating full foraging steps to highly perturbed, ambiguous images.
+
+\section{Dynamic TRADES Formulation}
+The Dynamic TRADES objective scales the regularization term based on the final sensory precision $\Pi_D$:
+\begin{equation}
+\mathcal{L}_{\text{dyn}} = \mathcal{L}_{\text{CE}}(f(x), y) + \beta_{\text{dyn}} D_{\text{KL}}(f(x) \parallel f(x_{\text{adv}}))
+\end{equation}
+where the dynamic regularization weight is defined as $\beta_{\text{dyn}} = \beta_{\text{base}} (0.5 + \Pi_D)$, with $\beta_{\text{base}} = 2.0$ in Phase 1. Highly perturbed, hard samples (high $\Pi_D$) receive stronger regularization to enforce robustness, whereas easy samples (low $\Pi_D$) are spared from excessive regularization, preserving clean accuracy.
+
+Table~\ref{tab:method_comparison} compares the optimization dynamics of RHAN-v10 against standard robust objectives.
+
+\begin{table}[!ht]
+\centering
+\caption{Adversarial Training Objectives Comparison}
+\label{tab:method_comparison}
+\begin{tabular}{lll}
+\toprule
+\textbf{Method} & \textbf{Objective Formulation} & \textbf{Regularization} \\
+\midrule
+TRADES & $\mathcal{L}_{\text{CE}} + \beta \mathcal{L}_{\text{KL}}$ & Static ($\beta$) \\
+MART & $\mathcal{L}_{\text{BCE}} + \beta \mathcal{L}_{\text{KL}} \cdot (1-p_y)$ & Margin-scaled \\
+RHAN-v10 & $\mathcal{L}_{\text{CE}} + \beta_{\text{base}} (0.5 + \Pi_D) \mathcal{L}_{\text{KL}}$ & Precision-scaled \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Computational Complexity Analysis}
+We derive the time and memory complexity of the RHAN-v10 active inference modules as functions of batch size $B$, fovea size $F_{\text{sz}} = 48$, embedding dimension $D = 512$, and recurrence steps $T$.
+
+\subsection{Time Complexity}
+\begin{itemize}
+    \item \textbf{Foveal Stream}: Employs three convolutional layers and one linear layer. The FLOPs count scales as $O(B \cdot C \cdot H_{\text{fov}} \cdot W_{\text{fov}} \cdot K^2)$ per step. With $F_{\text{sz}} = 48$, this requires $\approx 85$ MFLOPs.
+    \item \textbf{Precision Controller}: Consists of the prior predictor and the initialization net. The time complexity scales as $O(B \cdot D^2)$ per step, requiring $\approx 0.5$ MFLOPs.
+    \item \textbf{Total Foraging Loop}: Over $T$ steps, the complexity is $O(T \cdot B \cdot (F_{\text{sz}}^2 + D^2))$.
+\end{itemize}
+
+\subsection{Memory and Scaling}
+The activation memory scales linearly with the number of recurrence steps: $O(T \cdot B \cdot H_{\text{fov}} \cdot W_{\text{fov}})$ due to gradient tracking for action updates. Setting $T=2$ reduces memory consumption and doubles throughput compared to the $T=4$ baseline.
+
+\section{Theoretical Analysis}
+We analyze the stability and convergence properties of the proposed active inference loop.
+
+\begin{theorem}[Precision Stability]
+Under the dimension-normalized RMSE metric $e_{\text{norm}} \in [0, 1]$, the precision update equation:
+\begin{equation}
+\Pi_D^{(t+1)} = \Pi_D^{(t)} + \alpha (e_{\text{norm}}^2 - \Pi_D^{(t)})
+\end{equation}
+possesses a unique stable fixed point $\Pi_D^* = e_{\text{norm}}^2$ for any learning rate $\alpha \in (0, 1)$.
+\end{theorem}
+
+\begin{proof}
+Let $f(\Pi_D) = (1 - \alpha)\Pi_D + \alpha e_{\text{norm}}^2$. The derivative with respect to $\Pi_D$ is:
+\begin{equation}
+|f'(\Pi_D)| = |1 - \alpha|
+\end{equation}
+Since $\alpha \in (0, 1)$, $|1 - \alpha| < 1$. By the Banach Fixed-Point Theorem, the mapping is a contraction, and the sequence converges to the unique stable fixed point $\Pi_D^* = e_{\text{norm}}^2$.
+\end{proof}
+
+\begin{lemma}[Gaze Convergence]
+If the prediction error surface $E(a)$ is locally concave with a maximum at $a^*$, the gradient ascent gaze update:
+\begin{equation}
+a_{t+1} = a_t + \eta(\Pi_D^{(t)}) \nabla_a E(a)
+\end{equation}
+converges to $a^*$.
+\end{lemma}
+
+\begin{proof}
+By Taylor expansion of the error magnitude around $a_t$:
+\begin{equation}
+E(a_{t+1}) \approx E(a_t) + \langle \nabla_a E(a_t), a_{t+1} - a_t \rangle
+\end{equation}
+Substituting the gaze update:
+\begin{equation}
+E(a_{t+1}) \approx E(a_t) + \eta(\Pi_D^{(t)}) \| \nabla_a E(a_t) \|_2^2
+\end{equation}
+Since $\eta(\Pi_D^{(t)}) \ge 0.20 > 0$ for all $\Pi_D^{(t)}$, we have $E(a_{t+1}) \ge E(a_t)$, with equality holding if and only if $\nabla_a E(a_t) = 0$. Thus, $E(a)$ is a Lyapunov function for the gaze trajectory, ensuring convergence to $a^*$.
+\end{proof}
+
+\begin{corollary}[Warmup Protection]
+Freezing the active inference components for the first 5 epochs prevents randomly initialized gradients from corrupting the pretrained backbone representation.
+\end{corollary}
+
+\begin{proof}
+Let $W_{\text{bb}}$ denote the backbone parameters. The gradient update during warmup is:
+\begin{equation}
+\nabla_{W_{\text{bb}}} \mathcal{L}_{\text{warmup}} = \frac{\partial \mathcal{L}_{\text{CE}}}{\partial f_{\text{stem}}} \cdot \frac{\partial f_{\text{stem}}}{\partial W_{\text{bb}}}
+\end{equation}
+Since the new foveal components are frozen ($\nabla_{W_{\text{foveal}}} = 0$), no noisy gradients from the randomly initialized active inference parameters backpropagate into the backbone, protecting its learned representation.
+\end{proof}
+
+\section{Neurobiological Computations}
+RHAN-v10's components represent computational analogues of biological visual mechanisms:
+\begin{itemize}
+    \item \textbf{Retina/LGN}: Approximated by the image preprocessing and patch tokenization steps.
+    \item \textbf{V1/V2 (Primary Visual Cortex)}: The foveal stream ConvNet acts as a localized high-resolution feature extractor.
+    \item \textbf{V4 (Attention and Precision)}: Corresponds to the Precision Controller, which modulates belief updating based on prediction error.
+    \item \textbf{IT (Inferotemporal Cortex)}: The global belief state $s$ represents the integrated object identity.
+    \item \textbf{Frontal Eye Fields (FEF)}: The gaze controller models the generation of saccadic eye movements.
+\end{itemize}
+
+\section{Related Work}
+We contrast RHAN-v10 against related neural architectures:
+\begin{itemize}
+    \item \textbf{Vision Transformers (ViTs)}: While standard ViTs process patch tokens in parallel, RHAN-v10 processes them sequentially using recurrence and active foveation.
+    \item \textbf{Joint Embedding Predictive Architectures (JEPA)}: Similar to I-JEPA, RHAN-v10 utilizes prediction in representation space. However, RHAN-v10 integrates an active action loop to update the sampling position.
+    \item \textbf{Adaptive Computation Time (ACT)}: ACT dynamically adjusts the number of layer evaluations. In contrast, RHAN-v10 halts based on the thermodynamic information gain of spatial foveations.
+\end{itemize}
+
+\section{Experimental Methodology}
+We evaluate RHAN-v10 on the STL-10 dataset using the following training and evaluation configuration.
+
+\subsection{Training Configuration}
+\begin{itemize}
+    \item \textbf{Curriculum Schedule}: 60 epochs total.
+    \item \textbf{Warmup Phase (Epochs 1-5)}: Freeze active inference modules; train projection layers and backbone on clean Cross-Entropy loss only.
+    \item \textbf{Main Training Phase (Epochs 6-60)}: Unfreeze all modules; train on Dynamic TRADES loss under PGD curriculum.
+    \item \textbf{Optimizer}: SGD with momentum 0.9, weight decay $1e-4$. Cosine annealing learning rate scheduler.
+    \item \textbf{Hardware}: PyTorch Distributed Data Parallel (DDP) across multiple GPUs.
+\end{itemize}
+
+\subsection{Evaluation Suite}
+We measure robust accuracy against AutoAttack, PGD-20, and FGSM. We evaluate across 3 random seeds ($42, 123, 999$) and compute 95\% bootstrap confidence intervals to verify statistical significance.

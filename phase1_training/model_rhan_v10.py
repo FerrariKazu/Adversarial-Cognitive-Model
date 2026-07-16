@@ -453,8 +453,10 @@ class RHANv10(RHANLargeSTL10):
                     action_grad = torch.autograd.grad(
                         error_for_grad, a_grad, create_graph=False)[0]
 
-                # Move toward high-error region (epistemic curiosity)
-                step_size = 0.15 * pi_d.unsqueeze(-1)
+                # Fixed base step plus precision-scaled component
+                # This ensures foraging happens even when precision is low
+                step_size = 0.20 + 0.30 * pi_d.unsqueeze(-1)
+                # Range: [0.20, 0.50] instead of [0.01, 0.14]
                 a = torch.clamp(a + step_size * action_grad, -0.9, 0.9)
 
         trajectory['steps'] = t + 1
@@ -506,7 +508,10 @@ class RHANv10(RHANLargeSTL10):
                     error_dir = foveal_feat - prior_pred
                     error_dir = error_dir[:, :2]  # Take first 2 dims as proxy
                     error_dir = error_dir / (error_dir.norm(dim=-1, keepdim=True) + 1e-8)
-                    step_size = 0.15 * pi_d.unsqueeze(-1)
+                    # Fixed base step plus precision-scaled component
+                    # This ensures foraging happens even when precision is low
+                    step_size = 0.20 + 0.30 * pi_d.unsqueeze(-1)
+                    # Range: [0.20, 0.50] instead of [0.01, 0.14]
                     a = torch.clamp(a + step_size * error_dir, -0.9, 0.9)
 
         final_belief = weighted_belief / (weight_sum.unsqueeze(-1) + 1e-8)
