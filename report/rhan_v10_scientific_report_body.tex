@@ -94,7 +94,7 @@ x_{\text{foveal}}^{c, i} = \sum_{n}^{H} \sum_{m}^{W} x_{\text{image}}^{c, n, m} 
 \subsection{Action Gradient Derivation}
 Let $E(a) = \| f_{\text{stem}}(a) - P(s) \|_2$ denote the localized prediction error. The action update is formulated as:
 \begin{equation}
-a_{t+1} = \text{Clamp}\left( a_t + \eta(\Pi_D^{(t)}) \nabla_{a} E(a), -0.9, 0.9 \right)
+a_{t+1} = \text{Clamp}\left( a_t + \eta(\Pi_D^{(t)}) \frac{\nabla_{a} E(a)}{\parallel \nabla_{a} E(a) \parallel_2}, -0.9, 0.9 \right)
 \end{equation}
 where the state-dependent step size function is defined as:
 \begin{equation}
@@ -202,7 +202,7 @@ Since $\alpha \in (0, 1)$, $|1 - \alpha| < 1$. By the Banach Fixed-Point Theorem
 \begin{lemma}[Gaze Convergence]
 If the prediction error surface $E(a)$ is locally concave with a maximum at $a^*$, the gradient ascent gaze update:
 \begin{equation}
-a_{t+1} = a_t + \eta(\Pi_D^{(t)}) \nabla_a E(a)
+a_{t+1} = a_t + \eta(\Pi_D^{(t)}) \frac{\nabla_a E(a)}{\parallel \nabla_a E(a) \parallel_2}
 \end{equation}
 converges to $a^*$.
 \end{lemma}
@@ -214,7 +214,7 @@ E(a_{t+1}) \approx E(a_t) + \langle \nabla_a E(a_t), a_{t+1} - a_t \rangle
 \end{equation}
 Substituting the gaze update:
 \begin{equation}
-E(a_{t+1}) \approx E(a_t) + \eta(\Pi_D^{(t)}) \| \nabla_a E(a_t) \|_2^2
+E(a_{t+1}) \approx E(a_t) + \eta(\Pi_D^{(t)}) \| \nabla_a E(a_t) \|_2
 \end{equation}
 Since $\eta(\Pi_D^{(t)}) \ge 0.20 > 0$ for all $\Pi_D^{(t)}$, we have $E(a_{t+1}) \ge E(a_t)$, with equality holding if and only if $\nabla_a E(a_t) = 0$. Thus, $E(a)$ is a Lyapunov function for the gaze trajectory, ensuring convergence to $a^*$.
 \end{proof}

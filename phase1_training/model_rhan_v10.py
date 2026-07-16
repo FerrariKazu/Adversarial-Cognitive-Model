@@ -453,11 +453,16 @@ class RHANv10(RHANLargeSTL10):
                     action_grad = torch.autograd.grad(
                         error_for_grad, a_grad, create_graph=False)[0]
 
+                # Move toward high-error region (epistemic curiosity)
+                # Normalize action_grad to have unit norm for stable step scaling
+                grad_norm = action_grad.norm(dim=-1, keepdim=True) + 1e-8
+                normed_grad = action_grad / grad_norm
+
                 # Fixed base step plus precision-scaled component
                 # This ensures foraging happens even when precision is low
                 step_size = 0.20 + 0.30 * pi_d.unsqueeze(-1)
                 # Range: [0.20, 0.50] instead of [0.01, 0.14]
-                a = torch.clamp(a + step_size * action_grad, -0.9, 0.9)
+                a = torch.clamp(a + step_size * normed_grad, -0.9, 0.9)
 
         trajectory['steps'] = t + 1
 

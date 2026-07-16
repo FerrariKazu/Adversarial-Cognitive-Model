@@ -491,12 +491,24 @@ def sync_to_hf(file_path):
             if hf_token:
                 api = HfApi(token=hf_token)
                 username = api.whoami()['name']
-                repo_id = f"{username}/rhan-checkpoints"
 
-                try:
-                    create_repo(repo_id=repo_id, repo_type="dataset", private=True, exist_ok=True, token=hf_token)
-                except Exception:
-                    pass
+                # Route rolling checkpoint to an isolated repository and delete/recreate it to reset git/LFS history
+                if "rolling" in original_filename:
+                    repo_id = f"{username}/rhan-checkpoints-rolling"
+                    try:
+                        api.delete_repo(repo_id=repo_id, repo_type="dataset", token=hf_token)
+                    except Exception:
+                        pass
+                    try:
+                        create_repo(repo_id=repo_id, repo_type="dataset", private=True, token=hf_token)
+                    except Exception:
+                        pass
+                else:
+                    repo_id = f"{username}/rhan-checkpoints"
+                    try:
+                        create_repo(repo_id=repo_id, repo_type="dataset", private=True, exist_ok=True, token=hf_token)
+                    except Exception:
+                        pass
 
                 print(f"Syncing {original_filename} to Hugging Face ({repo_id}) asynchronously...", flush=True)
                 api.upload_file(
@@ -851,7 +863,7 @@ def main():
                 from huggingface_hub import hf_hub_download
                 print("Checking for a newer checkpoint on Hugging Face...", flush=True)
                 temp_rolling_path = hf_hub_download(
-                    repo_id='FerrariKazu/rhan-checkpoints',
+                    repo_id='FerrariKazu/rhan-checkpoints-rolling',
                     filename='rhan_stl10_v10_rolling.pth',
                     repo_type='dataset',
                     token=hf_token
