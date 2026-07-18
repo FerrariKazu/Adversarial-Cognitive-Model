@@ -380,7 +380,7 @@ def generate_diagnostic_plots(model, test_loader, device, output_dir='tier1/resu
             sns.histplot(precisions[mask], bins=15, kde=True, label=class_names[c], color=colors[c], alpha=0.6)
 
     plt.title(r'$\Pi_D$ Sensory Precision Distribution by Class', fontsize=14)
-    plt.xlabel('Precision ($\Pi_D$)', fontsize=12)
+    plt.xlabel(r'Precision ($\Pi_D$)', fontsize=12)
     plt.ylabel('Count', fontsize=12)
     plt.legend()
     plt.grid(True, linestyle='--', alpha=0.5)
@@ -493,7 +493,7 @@ def main():
     print(f"Evaluating RHAN-v10 on {device}...")
 
     # Load data loader
-    _, test_loader, _, _ = get_stl10_loaders(args.data_root, batch_size=32)
+    _, test_loader = get_stl10_loaders(batch_size=32, data_root=args.data_root)
 
     # Instantiate model
     model = RHANv10().to(device)
