@@ -75,7 +75,14 @@ where the first term represents the \textit{Epistemic Value} (expected informati
 In the context of RHAN-v10, the instrumental value is defined by the classification objective, while the epistemic value corresponds to the expected reduction in prediction uncertainty. Gaze updates are directed to maximize this information gain by executing gradient ascent on the prediction error.
 
 \section{Epistemic Gaze Foraging Dynamics}
-The gaze controller shifts foveation toward regions where prediction errors are highest.
+The gaze controller shifts foveation toward regions where prediction errors are highest. 
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{assets/foveal_stream_arch.png}
+\caption{VisualTorch architecture of the Foveal Stream ConvNet. The block processes a localized $48\times 48$ crop centered at $a_t$ and outputs a $512$-dimensional foveal feature vector representing local high-resolution details.}
+\label{fig:foveal_stream}
+\end{figure}
 
 \subsection{Differentiable Spatial Sampling}
 To propagate gradients directly through spatial coordinates, we employ a Spatial Transformer Network (STN). Given gaze coordinates $a = (x_c, y_c)$, the affine transformation matrix $\theta$ is defined as:
@@ -100,7 +107,17 @@ where the state-dependent step size function is defined as:
 \begin{equation}
 \eta(\Pi_D^{(t)}) = 0.20 + 0.30 \cdot \Pi_D^{(t)}
 \end{equation}
-which ensures a minimum search stride of $0.20$ even under low precision states, up to a maximum step of $0.50$.
+which ensures a minimum search stride of $0.20$ even under low precision states, up to a maximum step of $0.50$. 
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\columnwidth]{assets/gaze_trajectory.png}
+\caption{Matplotlib visualization of the Epistemic Gaze Foraging path. Starting from the center ($t=0$), the gaze moves dynamically toward the region with the highest local prediction error to gather foveal information.}
+\label{fig:gaze_trajectory}
+\end{figure}
+
+Crucially, the gradient $\nabla_a E(a)$ backpropagated through a deep convolutional network (like the foveal stream) is naturally tiny in magnitude ($\approx 0.03$). Without normalizing this gradient to unit norm, the fovea would only shift by a fraction of a percent of the image space, resulting in static foveation. Normalizing by the L2 norm $\parallel \nabla_a E(a) \parallel_2$ guarantees that foveal attention shifts by exactly the intended step size $\eta(\Pi_D^{(t)})$, making the gaze trajectories active and diverse.
+
 Applying the chain rule yields the gradient with respect to the action coordinates $a$:
 \begin{equation}
 \nabla_{a} E(a) = \frac{\partial E(a)}{\partial f_{\text{stem}}(a)} \frac{\partial f_{\text{stem}}(a)}{\partial x_{\text{foveal}}} \frac{\partial x_{\text{foveal}}}{\partial \theta} \frac{\partial \theta}{\partial a}
@@ -109,6 +126,13 @@ where $\frac{\partial E(a)}{\partial f_{\text{stem}}(a)} = \frac{f_{\text{stem}}
 
 \section{Precision Control and Saturation Analysis}
 The sensory precision $\Pi_D$ acts as a dynamic Kalman gain, modulating belief updates and regularizing training.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\columnwidth]{assets/precision_init_net_arch.png}
+\caption{VisualTorch visualization of the context-dependent Precision Initialization Network. It maps the current global belief state $s_t$ to an initial sensory precision estimate in $[0.2, 0.8]$.}
+\label{fig:precision_init}
+\end{figure}
 
 \subsection{Dimension-Normalized Error}
 The prediction error vector $e = f_{\text{stem}}(a) - P(s)$ lies in a $D = 512$ dimensional embedding space. The raw L2 norm $\| e \|_2$ scales with $\sqrt{D}$, leading to large magnitudes ($\approx 9.7$) that saturate the precision update. We normalize the error by the feature dimension to obtain the root mean squared error (RMSE):
@@ -128,6 +152,13 @@ Integrating this equation over step size $\Delta t = 0.1$ yields:
 \end{equation}
 Clamping $\Pi_D \in [0.20, 0.80]$ prevents numerical saturation and guarantees active uncertainty differentiation during training.
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{assets/precision_vs_epoch.png}
+\caption{Divergent class-wise convergence profiles of the sensory precision $\Pi_D$ across training epochs. Out-of-distribution or highly ambiguous classes (like car/truck under perturbation) converge to higher precision bounds near $0.80$, while easy classes converge toward $0.20$.}
+\label{fig:precision_vs_epoch}
+\end{figure}
+
 \section{Thermodynamic Halting and Optimal Stopping}
 We formulate early halting as an optimal stopping problem. The objective is to minimize a joint cost function:
 \begin{equation}
@@ -143,12 +174,40 @@ Halting is triggered when the expected information gain falls below the metaboli
 \end{equation}
 This sequential stopping rule minimizes computation on clean, confident samples while allocating full foraging steps to highly perturbed, ambiguous images.
 
+\section{Hugging Face Cloud Synchronization and LFS Pruning}
+Training deep active inference architectures over multiple epochs requires uploading checkpoints to the cloud to prevent local data loss in transient runtimes. Let $\Theta_k$ denote the serialized state dictionary at epoch $k$:
+\begin{equation}
+\Theta_k = \{k, W_k, \phi_k, \gamma_k, \delta_{\text{best}}\}
+\end{equation}
+where $W_k$, $\phi_k$, and $\gamma_k$ represent the model parameters, optimizer, and scheduler states respectively, and $\delta_{\text{best}}$ is the running validation accuracy.
+
+Under standard Git LFS, committing a new checkpoint $\Theta_k$ at every epoch appends a new file version to the repository history. For $E = 60$ epochs and a checkpoint size of $|\Theta| \approx 250$ MB (which expands to $\approx 467$ MB when serializing active gradients and optimizer variables), the total LFS storage scales as:
+\begin{equation}
+\text{Storage Complexity} = O(E \cdot |\Theta|) \approx 15 \text{ GB} - 28 \text{ GB}
+\end{equation}
+which exceeds the global private dataset storage quota ($10$ GB) of the Hugging Face free tier.
+
+To bypass this ceiling and achieve $O(1)$ LFS storage overhead, we isolate the rolling checkpoint to a dedicated public repository $R_{\text{rolling}}$ and execute a clean state reset on each push. The synchronization thread executes:
+\begin{enumerate}
+    \item \textbf{Purge}: Call $\mathcal{D}(R_{\text{rolling}})$ to delete the remote repository.
+    \item \textbf{Re-creation}: Call $\mathcal{C}(R_{\text{rolling}})$ with public visibility after a short delay ($\Delta t_{\text{wait}} = 2$ s) to allow backend deletion to finish.
+    \item \textbf{Upload}: Call $\mathcal{U}(R_{\text{rolling}}, \Theta_k)$ to push the new checkpoint.
+\end{enumerate}
+This forces the Git commit history of $R_{\text{rolling}}$ to remain at depth $1$ containing exactly one LFS object, keeping total LFS storage at exactly $1 \times 250$ MB. The best validation checkpoints are saved to a separate repository $R_{\text{best}}$ without deletion, which scales as $O(1)$ because validation accuracy improvements occur rarely.
+
 \section{Dynamic TRADES Formulation}
 The Dynamic TRADES objective scales the regularization term based on the final sensory precision $\Pi_D$:
 \begin{equation}
 \mathcal{L}_{\text{dyn}} = \mathcal{L}_{\text{CE}}(f(x), y) + \beta_{\text{dyn}} D_{\text{KL}}(f(x) \parallel f(x_{\text{adv}}))
 \end{equation}
 where the dynamic regularization weight is defined as $\beta_{\text{dyn}} = \beta_{\text{base}} (0.5 + \Pi_D)$, with $\beta_{\text{base}} = 2.0$ in Phase 1. Highly perturbed, hard samples (high $\Pi_D$) receive stronger regularization to enforce robustness, whereas easy samples (low $\Pi_D$) are spared from excessive regularization, preserving clean accuracy.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{assets/robustness_curve.png}
+\caption{Robust test accuracy comparison under $L_\infty$ adversarial epsilon scaling. Under high-epsilon bounds ($\epsilon \ge 0.031$), static TRADES models suffer from a complete collapse in robustness, whereas RHAN-v10's active inference and dynamic precision maintain high robust accuracy.}
+\label{fig:robustness_curve}
+\end{figure}
 
 Table~\ref{tab:method_comparison} compares the optimization dynamics of RHAN-v10 against standard robust objectives.
 

@@ -103,7 +103,7 @@ epsilons = [0.00, 0.01, 0.05, 0.10, 0.20, 0.30]
 
 dprime_data = {
     'Human (Visual Cognition)': ([4.790, 4.567, 3.985, 3.368, 2.440, 1.769], '#10B981', 'o', '-'),      # Emerald Green
-    'RHAN-trades-curriculum (Ours)': ([2.748, 2.589, 2.159, 1.696, 0.877, 0.010], '#D97706', 'D', '-'),  # Amber Orange
+    'RHAN-Large-Pseudolabel (Ours)': ([1.710, 1.523, 0.826, 0.293, -0.598, -1.526], '#D97706', 'D', '-'), # Amber Orange
     'RHAN-TRADES-Hardened': ([3.260, 3.032, 2.238, 1.357, -0.094, -1.664], '#8B5CF6', 's', '--'),       # Purple
     'RHAN-v5-TRADES': ([3.383, 3.186, 2.230, 1.231, -0.291, -1.602], '#EC4899', '^', '--'),             # Pink
     'RHAN-v3 (Unified Recurrent)': ([3.710, 3.189, 1.983, 0.753, -1.039, -3.044], '#3B82F6', 'v', ':'),  # Blue
@@ -130,8 +130,8 @@ plt.grid(True, linestyle=':', alpha=0.6)
 plt.legend(fontsize=10.5, loc='lower left', frameon=True, facecolor='white', edgecolor='none')
 
 # Annotate epsilon threshold for curriculum
-plt.axvline(x=0.185, color='#D97706', linestyle=':', alpha=0.8, linewidth=1.5)
-plt.text(0.188, -2.8, "RHAN-curriculum\nε_thresh = 0.185", color='#D97706', fontweight='bold', fontsize=10,
+plt.axvline(x=0.040, color='#D97706', linestyle=':', alpha=0.8, linewidth=1.5)
+plt.text(0.043, -2.8, "RHAN-Large-Pseudolabel\nε_thresh = 0.040", color='#D97706', fontweight='bold', fontsize=10,
          bbox=dict(facecolor='white', alpha=0.8, edgecolor='none'))
 
 # Annotate ResNet-18 collapse threshold
@@ -151,7 +151,7 @@ print("Saved sdt_sensitivity_decay.png successfully.")
 # ----------------------------------------------------------------------
 acc_data = {
     'Human (Visual Cognition)': ([73.33, np.nan, 69.17, 59.17, 62.22, 58.61], '#10B981', 'o', '-'),      # Emerald Green
-    'RHAN-trades-curriculum (Ours)': ([78.12, 75.00, 65.23, 52.93, 29.49, 10.16], '#D97706', 'D', '-'),  # Amber Orange
+    'RHAN-Large-Pseudolabel (Ours)': ([53.30, 48.00, 28.10, 15.30, 3.30, 0.30], '#D97706', 'D', '-'),  # Amber Orange
     'RHAN-TRADES-Hardened': ([86.33, 83.01, 67.19, 43.16, 8.59, 0.20], '#8B5CF6', 's', '--'),       # Purple
     'RHAN-v5-TRADES': ([87.30, 84.77, 65.82, 37.89, 5.47, 0.20], '#EC4899', '^', '--'),             # Pink
     'ResNet-18 (Feedforward)': ([95.82, 75.57, 2.84, 0.21, 0.02, 0.00], '#EF4444', 'x', '-.'),   # Red
@@ -176,7 +176,7 @@ plt.legend(fontsize=10.5, loc='upper right', frameon=True, facecolor='white', ed
 plt.text(0.18, 64, "Humans maintain ~60% accuracy\neven at extreme noise (ε=0.30)", color='#10B981', fontweight='semibold', fontsize=10,
          bbox=dict(facecolor='white', alpha=0.8, edgecolor='none'))
 
-plt.text(0.06, 15, "RHAN-curriculum preserves\nrobust accuracy far longer\nthan standard models.", color='#D97706', fontweight='semibold', fontsize=10,
+plt.text(0.06, 15, "RHAN-Large-Pseudolabel preserves\nrobust accuracy far longer\nthan standard models.", color='#D97706', fontweight='semibold', fontsize=10,
          bbox=dict(facecolor='white', alpha=0.8, edgecolor='none'))
 
 plt.tight_layout()
