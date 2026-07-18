@@ -12,7 +12,24 @@ phase5_sdt/figures/
 runs/
 *.pyc
 .env
-*.pth
 
-# Presentation assets directory
+# Monograph, report, figure, and documentation folders
+report/
+rhan_math/
 presentational/
+figures/
+figures_v2/
+figures_v3/
+docs/
+competition/
+Paper/
+paper/
+RHANarch.md
+*.pdf
+*.zip
+*.tar.gz
+*.pth
+*.pth:Zone.Identifier
+*.pdf:Zone.Identifier
+*.html:Zone.Identifier
+*.png:Zone.Identifier
