@@ -112,6 +112,25 @@ def run_pgd_eval(model, x, y, eps, steps=20, stl_min=None, stl_max=None):
     return x_adv
 
 
+def get_predictions_batched(model, x_test, y_test, eps, steps=20, batch_size=32):
+    model.eval()
+    corrects = []
+    n = x_test.size(0)
+    for i in range(0, n, batch_size):
+        x_b = x_test[i:i+batch_size]
+        y_b = y_test[i:i+batch_size]
+        if eps > 0:
+            x_adv = run_pgd_eval(model, x_b, y_b, eps, steps=steps)
+        else:
+            x_adv = x_b
+        with torch.no_grad():
+            logits = model(x_adv)
+            if isinstance(logits, tuple):
+                logits = logits[0]
+            corrects.append(logits.argmax(dim=1).eq(y_b).cpu())
+    return torch.cat(corrects).float()
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # SUITE 1 — STATISTICAL SIGNIFICANCE (3 SEEDS) & BOOTSTRAP CI
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -151,25 +170,13 @@ def run_statistical_significance(model, test_loader, device, num_samples=200):
         results[seed]['robust_acc'] = {}
 
         # Evaluate clean accuracy
-        model.eval()
-        with torch.no_grad():
-            logits = model(x_test)
-            if isinstance(logits, tuple):
-                logits = logits[0]
-            preds = logits.argmax(dim=1)
-            correct = preds.eq(y_test).float()
-            results[seed]['clean_acc'] = 100.0 * correct.mean().item()
+        clean_correct = get_predictions_batched(model, x_test, y_test, eps=0.0, batch_size=32)
+        results[seed]['clean_acc'] = 100.0 * clean_correct.mean().item()
 
         # Evaluate at each epsilon
         for eps in epsilons[1:]:
-            x_adv = run_pgd_eval(model, x_test, y_test, eps, steps=20)
-            with torch.no_grad():
-                logits_a = model(x_adv)
-                if isinstance(logits_a, tuple):
-                    logits_a = logits_a[0]
-                preds_a = logits_a.argmax(dim=1)
-                correct_a = preds_a.eq(y_test).float()
-                results[seed]['robust_acc'][eps] = 100.0 * correct_a.mean().item()
+            rob_correct = get_predictions_batched(model, x_test, y_test, eps=eps, steps=20, batch_size=32)
+            results[seed]['robust_acc'][eps] = 100.0 * rob_correct.mean().item()
 
     # Aggregate stats
     print("\n  Summary statistics (Mean ± Std):")
@@ -185,21 +192,11 @@ def run_statistical_significance(model, test_loader, device, num_samples=200):
     boot_robust_accs = {eps: [] for eps in epsilons[1:]}
 
     # Evaluate final state to get per-sample predictions
-    model.eval()
-    with torch.no_grad():
-        clean_preds = model(x_test)
-        if isinstance(clean_preds, tuple):
-            clean_preds = clean_preds[0]
-        clean_corrects = clean_preds.argmax(dim=1).eq(y_test).cpu().numpy()
+    clean_corrects = get_predictions_batched(model, x_test, y_test, eps=0.0, batch_size=32).numpy()
 
     robust_corrects = {}
     for eps in epsilons[1:]:
-        x_adv = run_pgd_eval(model, x_test, y_test, eps, steps=20)
-        with torch.no_grad():
-            logits_a = model(x_adv)
-            if isinstance(logits_a, tuple):
-                logits_a = logits_a[0]
-            robust_corrects[eps] = logits_a.argmax(dim=1).eq(y_test).cpu().numpy()
+        robust_corrects[eps] = get_predictions_batched(model, x_test, y_test, eps=eps, steps=20, batch_size=32).numpy()
 
     np.random.seed(42)
     for _ in range(10000):
@@ -247,19 +244,11 @@ def run_sota_comparison(model, test_loader, device):
     x_test = torch.cat(subset_imgs).to(device)
     y_test = torch.cat(subset_lbls).to(device)
 
-    model.eval()
-    with torch.no_grad():
-        logits_c = model(x_test)
-        if isinstance(logits_c, tuple):
-            logits_c = logits_c[0]
-        clean_acc = 100.0 * logits_c.argmax(dim=1).eq(y_test).float().mean().item()
+    clean_corrects = get_predictions_batched(model, x_test, y_test, eps=0.0, batch_size=32)
+    clean_acc = 100.0 * clean_corrects.mean().item()
 
-    x_adv = run_pgd_eval(model, x_test, y_test, 0.031, steps=20)
-    with torch.no_grad():
-        logits_a = model(x_adv)
-        if isinstance(logits_a, tuple):
-            logits_a = logits_a[0]
-        robust_acc = 100.0 * logits_a.argmax(dim=1).eq(y_test).float().mean().item()
+    robust_corrects = get_predictions_batched(model, x_test, y_test, eps=0.031, steps=20, batch_size=32)
+    robust_acc = 100.0 * robust_corrects.mean().item()
 
     print(f"\n  Main SOTA Comparison Table (STL-10):")
     print(f"    {'Model':<30} | {'Clean Acc':<10} | {'Adversarial Acc (ε=0.031)':<25}")
@@ -361,12 +350,17 @@ def generate_diagnostic_plots(model, test_loader, device, output_dir='tier1/resu
     x_test = torch.cat(subset_imgs).to(device)
     y_test = torch.cat(subset_lbls).to(device)
 
+    precisions_list = []
+    errors_list = []
     model.eval()
     with torch.no_grad():
-        logits, traj = model(x_test, return_trajectory=True)
-        precisions = traj['precisions'][-1].cpu().numpy()
-        errors = traj['errors'][-1].cpu().numpy()
-        steps = traj['steps']
+        for i in range(0, x_test.size(0), 32):
+            x_b = x_test[i:i+32]
+            _, traj_b = model(x_b, return_trajectory=True)
+            precisions_list.append(traj_b['precisions'][-1].cpu())
+            errors_list.append(traj_b['errors'][-1].cpu())
+    precisions = torch.cat(precisions_list).numpy()
+    errors = torch.cat(errors_list).numpy()
 
     # 1. Π_D distribution histogram
     plt.figure(figsize=(8, 5))
@@ -458,11 +452,16 @@ def generate_diagnostic_plots(model, test_loader, device, output_dir='tier1/resu
     epsilons = [0.0, 0.031, 0.062, 0.094]
     mean_steps = []
     for eps in epsilons:
-        x_adv = run_pgd_eval(model, x_test[:100], y_test[:100], eps, steps=20)
-        with torch.no_grad():
-            _, traj_eps = model(x_adv, return_trajectory=True)
-            # simulate step count distribution (we can average actual steps)
-            mean_steps.append(float(traj_eps['steps']))
+        total_steps = 0.0
+        n_sub = 100
+        for i in range(0, n_sub, 32):
+            x_b = x_test[i:i+32]
+            y_b = y_test[i:i+32]
+            x_adv_b = run_pgd_eval(model, x_b, y_b, eps, steps=20)
+            with torch.no_grad():
+                _, traj_eps_b = model(x_adv_b, return_trajectory=True)
+                total_steps += float(traj_eps_b['steps']) * x_b.size(0)
+        mean_steps.append(total_steps / n_sub)
 
     plt.plot(epsilons, mean_steps, '-o', color='#2ecc71', linewidth=2.5, markersize=8)
     plt.title('Average Foraging Steps vs Adversarial Noise Level (ε)', fontsize=14)
