@@ -104,20 +104,20 @@ def generate_matplotlib_figures():
 
     # 4. Robustness Comparison Curve
     plt.figure(figsize=(6, 4))
-    epsilons = [0.0, 0.01, 0.02, 0.031, 0.04, 0.05, 0.062]
+    epsilons = [0.0, 0.01, 0.05, 0.10, 0.20, 0.30]
     
-    # Simulating standard TRADES collapse vs RHAN-v10 maintenance
-    trades_acc = [51.5, 41.2, 28.5, 11.7, 5.2, 2.1, 0.5]
-    rhan_v10_acc = [53.2, 49.5, 46.2, 42.8, 38.5, 33.2, 26.5]
+    # Real STL-10 PGD-20 accuracies for ResNet-18 vs RHAN Large Pseudolabel (120 epochs)
+    trades_acc = [95.82, 75.57, 2.84, 0.21, 0.02, 0.00]
+    rhan_v10_acc = [53.30, 48.00, 28.10, 15.30, 3.30, 0.30]
     
-    plt.plot(epsilons, rhan_v10_acc, marker='o', label="RHAN-v10 (Tripartite Active Inference)", color="#8E44AD", linewidth=2.5)
-    plt.plot(epsilons, trades_acc, marker='s', label="Static TRADES ($\\beta=2.0$)", color="#E67E22", linewidth=2.0)
+    plt.plot(epsilons, rhan_v10_acc, marker='o', label="RHAN-Large-Pseudolabel (Ours)", color="#8E44AD", linewidth=2.5)
+    plt.plot(epsilons, trades_acc, marker='s', label="ResNet-18 (Feedforward Baseline)", color="#E67E22", linewidth=2.0)
     
     plt.title("Adversarial Robustness under Epsilon Scaling", fontsize=11, fontweight='bold', pad=10)
     plt.xlabel("Adversarial Perturbation $\\epsilon$ ($L_\\infty$)", fontsize=10)
     plt.ylabel("Robust Test Accuracy (%)", fontsize=10)
-    plt.ylim(0.0, 60.0)
-    plt.xlim(0.0, 0.065)
+    plt.ylim(-2.0, 102.0)
+    plt.xlim(-0.01, 0.31)
     plt.legend(loc="upper right", fontsize=9, frameon=True)
     plt.tight_layout()
     plt.savefig("report/assets/robustness_curve.png", dpi=300)
