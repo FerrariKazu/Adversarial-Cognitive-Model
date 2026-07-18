@@ -1170,7 +1170,7 @@ def main():
             try:
                 subprocess.run([
                     sys.executable, eval_script,
-                    "--model-size", "v10",
+                    "--model-size", "large",
                     "--checkpoint", best_path,
                     "--samples", "1000",
                     "--batch-size", "64"
