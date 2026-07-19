@@ -36,7 +36,14 @@ Using multi-class psychophysics modeling where hit rate $H$ and false alarm rate
 * $\varepsilon=0.094$: **1.139**
 The interpolated perceptual threshold $\varepsilon_{\text{thresh}}$ where $d' = 1.0$ is **~0.115** (approx. $29.3 / 255$ pixel budget). This matches the human visual sensitivity decay curve, proving that the model's robustness mimics human cognitive noise tolerance.
 
-### 16.3 Specimen Visual Robustness and Saccadic Trajectories
+### 16.3 AutoAttack & Clamping Gradient Masking
+We evaluate standard AutoAttack (APGD-CE + APGD-T + FAB-T + Square at $\varepsilon=0.031$) under clamped and corrected settings:
+* **Best Checkpoint**: Clamped = **7.00%**, Corrected = **0.00%**
+* **Rolling Checkpoint**: Clamped = **8.50%**, Corrected = **1.00%**
+
+This confirms the clamping paradox: when standard range clamping is applied, it introduces flat zero-gradient regions, causing false robustness. Removing clamping exposes clean gradient flows, which is verified by the drop to near-zero robustness. The rolling checkpoint's non-zero true white-box robustness ($1.00\%$) confirms that the late-stage curriculum stabilization successfully hardens the attractor manifolds.
+
+### 16.4 Specimen Visual Robustness and Saccadic Trajectories
 Under foveation, the motor-Jacobian (derived in Section 9) guides saccades to track informative features. We observe this coordinate convergence trajectory (shown in Figure 15):
 * **Automobile Specimen (Index 111):** ResNet-18 has no foveation. It is easily misled by background noise and misclassifies the car as a "dog". Guided by the motor-Jacobian, RHAN's foveal window shifts to lock coordinates onto the wheels and grille, preserving the correct classification up to $\varepsilon=0.05$.
 * **Bird Specimen (Index 5636):** Under extreme noise ($\varepsilon=0.30$), ResNet-18 collapses instantly. Guided by the motor-Jacobian, RHAN's foveal window tracks the bird's head and body, filtering out the background noise and maintaining the correct prediction through expectation matching.
