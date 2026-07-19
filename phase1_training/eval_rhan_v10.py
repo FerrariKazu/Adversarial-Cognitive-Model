@@ -509,7 +509,7 @@ def main():
     parser.add_argument('--checkpoint', type=str, default='checkpoints/rhan_stl10_v10_best.pth',
                         help='Path to RHAN-v10 checkpoint')
     parser.add_argument('--data-root', type=str, default='./data/stl10')
-    parser.add_argument('--num-samples', type=int, default=200,
+    parser.add_argument('--num-samples', type=int, default=500,
                         help='Number of samples for statistical significance')
     args = parser.parse_known_args()[0]
 

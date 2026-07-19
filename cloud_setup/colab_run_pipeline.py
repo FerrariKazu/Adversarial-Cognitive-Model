@@ -140,13 +140,16 @@ def main():
     
     # 5. Run RHAN-v10 Evaluation and Diagnostic Generation
     print("\n>>> Starting RHAN-v10 Evaluation and Scientific Claim Verification...")
+    print("\n>>> Evaluating STATIC TRADES Large baseline model...")
+    run_cmd("python3 phase1_training/eval_static_baseline.py")
+
     print("\n>>> Evaluating BEST checkpoint...")
     run_cmd("python3 phase1_training/eval_rhan_v10.py "
-            "--checkpoint checkpoints/rhan_stl10_v10_best.pth")
+            "--checkpoint checkpoints/rhan_stl10_v10_best.pth --num-samples 500")
     
     print("\n>>> Evaluating FINAL ROLLING checkpoint (60th Epoch)...")
     run_cmd("python3 phase1_training/eval_rhan_v10.py "
-            "--checkpoint checkpoints/rhan_stl10_v10_rolling.pth")
+            "--checkpoint checkpoints/rhan_stl10_v10_rolling.pth --num-samples 500")
     
     print("\n>>> RHAN-V10 PIPELINE EXECUTION COMPLETE!")
 
