@@ -21,6 +21,8 @@ We evaluate the `rhan_stl10_v10_rolling` (Epoch 60 final) and `best` models unde
   * Robustness ($\varepsilon=0.062$): **40.00%**
   * Robustness ($\varepsilon=0.094$): **36.83%**
 
+Compared to our static TRADES Large baseline (trained on the same 46K pseudolabeled dataset), which achieves a Clean Accuracy of **53.60%** and PGD-20 Robustness of **50.80%**, the foveated models experience a minor drop in clean and robust PGD-20 performance. This difference highlights the information bottleneck introduced by the foveation stream, which restricts features to a $48 \times 48$ central Prior crop.
+
 This near-zero decay under escalating noise budgets (only an $11.17\text{ pp}$ drop from $\varepsilon=0.031$ to $\varepsilon=0.094$ for the rolling checkpoint) proves that the model does **not** rely on gradient masking. The robust attractor basin created by Banach contractions is structurally stable. The attacker cannot escape the contraction basin even under extreme budgets, verifying true mathematical convergence.
 
 <div class="figure-container">
