@@ -99,9 +99,10 @@ def main():
             os.chdir("/content")
             subprocess.run("git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git", shell=True, check=True)
         else:
-            print(">>> Repository exists locally. Pulling latest commits from GitHub...")
+            print(">>> Repository exists locally. Resetting and pulling latest commits from GitHub...")
             os.chdir(target_workspace)
-            subprocess.run("git pull origin main", shell=True)
+            subprocess.run("git fetch origin main", shell=True, check=True)
+            subprocess.run("git reset --hard origin/main", shell=True, check=True)
 
     if '__file__' in globals():
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
