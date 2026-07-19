@@ -60,6 +60,36 @@ def load_dotenv_fallback():
 load_dotenv_fallback()
 
 
+def download_checkpoint_from_hf(ckpt_path):
+    filename = os.path.basename(ckpt_path)
+    print(f"Checkpoint not found locally at {ckpt_path}. Attempting to download {filename} from Hugging Face...", flush=True)
+    try:
+        from huggingface_hub import hf_hub_download
+        hf_token = os.environ.get("HF_TOKEN")
+        os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
+        
+        for repo in ['FerrariKazu/rhan-checkpoints-rolling', 'FerrariKazu/rhan-checkpoints']:
+            try:
+                print(f"Checking {repo}...", flush=True)
+                downloaded_cache_path = hf_hub_download(
+                    repo_id=repo,
+                    filename=filename,
+                    repo_type='dataset',
+                    token=hf_token
+                )
+                import shutil
+                shutil.copy2(downloaded_cache_path, ckpt_path)
+                print(f"Successfully downloaded to: {ckpt_path}", flush=True)
+                return True
+            except Exception as e:
+                print(f"Failed to download from {repo}: {e}", flush=True)
+        
+        return False
+    except Exception as e:
+        print(f"Hugging Face download failed: {e}", flush=True)
+        return False
+
+
 def set_seed(seed):
     import random
     random.seed(seed)
@@ -499,11 +529,18 @@ def main():
 
     # Load checkpoint
     ckpt_path = args.checkpoint
+    if not os.path.exists(ckpt_path):
+        download_checkpoint_from_hf(ckpt_path)
+    
     # Try fallback check to checkpoints_tier2/ if not found in checkpoints/
     if not os.path.exists(ckpt_path):
         fallback_tier2 = os.path.join('checkpoints_tier2', os.path.basename(ckpt_path))
         if os.path.exists(fallback_tier2):
             ckpt_path = fallback_tier2
+        else:
+            # Try downloading to fallback
+            if download_checkpoint_from_hf(fallback_tier2):
+                ckpt_path = fallback_tier2
 
     if os.path.exists(ckpt_path):
         print(f"Loading checkpoint: {ckpt_path}")
