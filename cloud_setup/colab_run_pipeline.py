@@ -131,28 +131,28 @@ def main():
     # 3. Install packages (STL-10 downloads automatically during training, so we skip UCF-101 download)
     install_dependencies()
     
-    # 4. Run RHAN-v10 Curriculum Training
-    print("\n>>> Starting RHAN-v10 Curriculum Training (60 Epochs)...")
+    # 4. Run RHAN-v11 Curriculum Training
+    print("\n>>> Starting RHAN-v11 Curriculum Training (60 Epochs)...")
     # Using the pre-registered curriculum args without --force-restart to allow auto-resume
-    run_cmd("python3 phase1_training/train_rhan_v10.py "
-            "--target-ckpt checkpoints_tier2/rhan_stl10_large_pseudolabel_best.pth "
+    run_cmd("python3 phase1_training/train_rhan_v11.py "
+            "--target-ckpt checkpoints/rhan_stl10_large_pseudolabel_best.pth "
             "--batch-size 8 "
             "--accum-steps 32")
     
-    # 5. Run RHAN-v10 Evaluation and Diagnostic Generation
-    print("\n>>> Starting RHAN-v10 Evaluation and Scientific Claim Verification...")
+    # 5. Run RHAN-v11 Evaluation and Diagnostic Generation
+    print("\n>>> Starting RHAN-v11 Evaluation and Scientific Claim Verification...")
     print("\n>>> Evaluating STATIC TRADES Large baseline model...")
     run_cmd("python3 phase1_training/eval_static_baseline.py")
 
     print("\n>>> Evaluating BEST checkpoint...")
-    run_cmd("python3 phase1_training/eval_rhan_v10.py "
-            "--checkpoint checkpoints/rhan_stl10_v10_best.pth --num-samples 500")
+    run_cmd("python3 phase1_training/eval_rhan_v11.py "
+            "--checkpoint checkpoints/rhan_stl10_v11_best.pth --num-samples 500")
     
     print("\n>>> Evaluating FINAL ROLLING checkpoint (60th Epoch)...")
-    run_cmd("python3 phase1_training/eval_rhan_v10.py "
-            "--checkpoint checkpoints/rhan_stl10_v10_rolling.pth --num-samples 500")
+    run_cmd("python3 phase1_training/eval_rhan_v11.py "
+            "--checkpoint checkpoints/rhan_stl10_v11_rolling.pth --num-samples 500")
     
-    print("\n>>> RHAN-V10 PIPELINE EXECUTION COMPLETE!")
+    print("\n>>> RHAN-V11 PIPELINE EXECUTION COMPLETE!")
 
 if __name__ == "__main__":
     main()

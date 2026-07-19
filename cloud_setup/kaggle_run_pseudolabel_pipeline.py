@@ -85,15 +85,15 @@ def main():
     # 1. Install dependencies
     install_dependencies()
 
-    # 2. Launch Pseudo-Label Training (uses torchrun for DDP if multi-GPU, fallback to single-GPU)
-    print("\n>>> Launching Large Model + Pseudo-Label Training...")
+    # 2. Launch RHAN-v11 active inference training (uses torchrun for DDP if multi-GPU, fallback to single-GPU)
+    print("\n>>> Launching RHAN-v11 Active Inference Training...")
     if num_gpus >= 2:
         launcher = f"torchrun --nproc_per_node={num_gpus}"
     else:
         launcher = "python3"
         
     train_cmd = (
-        f"{launcher} phase1_training/train_rhan_large_pseudolabel.py "
+        f"{launcher} phase1_training/train_rhan_v11.py "
         f"--data-root ./data "
         f"--batch-size {args.batch_size} "
         f"--unlabeled-batch-size {args.unlabeled_batch_size} "
@@ -102,7 +102,7 @@ def main():
     )
     run_cmd(train_cmd)
 
-    print("\n>>> PSEUDO-LABEL PIPELINE EXECUTION COMPLETE!")
+    print("\n>>> RHAN-V11 PIPELINE EXECUTION COMPLETE!")
 
 if __name__ == "__main__":
     main()
