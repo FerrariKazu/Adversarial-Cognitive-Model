@@ -54,6 +54,35 @@ def run_pgd_eval(model, x, y, eps, steps=20):
         x_adv = torch.clamp(x + delta, stl_min, stl_max).detach()
     return x_adv
 
+def download_checkpoint_from_hf(ckpt_path):
+    filename = os.path.basename(ckpt_path)
+    print(f"Checkpoint not found locally at {ckpt_path}. Attempting to download {filename} from Hugging Face...", flush=True)
+    try:
+        from huggingface_hub import hf_hub_download
+        hf_token = os.environ.get("HF_TOKEN")
+        os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
+        
+        for repo in ['FerrariKazu/rhan-checkpoints-rolling', 'FerrariKazu/rhan-checkpoints']:
+            try:
+                print(f"Checking {repo}...", flush=True)
+                downloaded_cache_path = hf_hub_download(
+                    repo_id=repo,
+                    filename=filename,
+                    repo_type='dataset',
+                    token=hf_token
+                )
+                import shutil
+                shutil.copy2(downloaded_cache_path, ckpt_path)
+                print(f"Successfully downloaded to: {ckpt_path}", flush=True)
+                return True
+            except Exception as e:
+                print(f"Failed to download from {repo}: {e}", flush=True)
+        
+        return False
+    except Exception as e:
+        print(f"Hugging Face download failed: {e}", flush=True)
+        return False
+
 def main():
     print(f"\n{'='*80}")
     print(" EVALUATING STATIC TRADES LARGE BASELINE MODEL")
@@ -67,8 +96,17 @@ def main():
         ckpt_path = 'checkpoints/rhan_stl10_large_pseudolabel_best.pth'
     
     if not os.path.exists(ckpt_path):
-        print(f"Error: Static baseline checkpoint not found at {ckpt_path}.")
-        sys.exit(1)
+        # Default to checkpoints/ folder for download target
+        ckpt_path = 'checkpoints/rhan_stl10_large_pseudolabel_best.pth'
+        success = download_checkpoint_from_hf(ckpt_path)
+        if not success:
+            # Try checkpoints_tier2/ as fallback
+            ckpt_path = 'checkpoints_tier2/rhan_stl10_large_pseudolabel_best.pth'
+            success = download_checkpoint_from_hf(ckpt_path)
+            
+        if not os.path.exists(ckpt_path):
+            print(f"Error: Static baseline checkpoint not found locally and download failed.")
+            sys.exit(1)
         
     model = RHANLargeSTL10().to(device)
     ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
