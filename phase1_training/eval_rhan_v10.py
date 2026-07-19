@@ -173,24 +173,8 @@ def run_statistical_significance(model, test_loader, device, num_samples=200):
     seeds = [42, 123, 999]
     results = {seed: {} for seed in seeds}
 
-    # Extract subset of test dataset
-    subset_imgs = []
-    subset_lbls = []
-    count = 0
-    for imgs, lbls in test_loader:
-        B = imgs.size(0)
-        if count + B > num_samples:
-            take = num_samples - count
-            subset_imgs.append(imgs[:take])
-            subset_lbls.append(lbls[:take])
-            break
-        subset_imgs.append(imgs)
-        subset_lbls.append(lbls)
-        count += B
-
-    x_test = torch.cat(subset_imgs).to(device)
-    y_test = torch.cat(subset_lbls).to(device)
-
+    dataset = test_loader.dataset
+    n_total = len(dataset)
     epsilons = [0.0, 0.031, 0.062, 0.094]
 
     for seed in seeds:
@@ -198,6 +182,19 @@ def run_statistical_significance(model, test_loader, device, num_samples=200):
         print(f"  Running evaluations for Seed {seed}...")
         results[seed]['clean_acc'] = 0.0
         results[seed]['robust_acc'] = {}
+
+        # Randomly select a different subset of indices for each seed
+        indices = torch.randperm(n_total)[:num_samples].tolist()
+        subset = torch.utils.data.Subset(dataset, indices)
+        loader = torch.utils.data.DataLoader(subset, batch_size=32, shuffle=False)
+
+        all_imgs = []
+        all_lbls = []
+        for imgs, lbls in loader:
+            all_imgs.append(imgs)
+            all_lbls.append(lbls)
+        x_test = torch.cat(all_imgs).to(device)
+        y_test = torch.cat(all_lbls).to(device)
 
         # Evaluate clean accuracy
         clean_correct = get_predictions_batched(model, x_test, y_test, eps=0.0, batch_size=32)
@@ -249,11 +246,9 @@ def run_sota_comparison(model, test_loader, device):
     print(f" EVALUATION 2: SOTA Comparison on STL-10")
     print(f"{'='*70}")
 
-    # Standard baselines compiled from RobustBench and validate_rhan.py
+    # Honest static TRADES baseline on the same 46K pseudolabeled dataset
     baselines = {
-        'WideResNet-28-10 + TRADES': {'clean': 48.50, 'robust_0.031': 4.50},
-        'ResNet-18 + TRADES':       {'clean': 45.20, 'robust_0.031': 2.80},
-        'DeiT-S + TRADES':          {'clean': 47.90, 'robust_0.031': 4.20},
+        'Static TRADES Large Baseline': {'clean': 53.60, 'robust_0.031': 50.80},
     }
 
     # Evaluate current RHAN-v10 model on standard Linf epsilon=0.031
