@@ -1,0 +1,568 @@
+#!/usr/bin/env python3
+"""
+Comprehensive evaluation script for RHAN-v11 (Multi-Resolution Active Inference).
+==================================================================================
+
+Runs five evaluation suites to validate the tripartite active inference architecture:
+  1. Statistical Significance Sweep (3 seeds, 95% bootstrap CI)
+  2. SOTA comparison on STL-10 (Static TRADES Large vs RHAN-v11)
+  3. Biological Claim Validation (M-pathway gate, prediction error magnitude, active foraging path)
+  4. Diagnostic Plot Generation (Π_D distribution, foraging trajectory, β_dynamic, steps vs eps)
+  5. Multi-Resolution and Reconstruction Visualizations (Gate weight vs step, predicted vs actual crop)
+
+Usage:
+  python phase1_training/eval_rhan_v11.py --checkpoint checkpoints/rhan_stl10_v11_best.pth
+"""
+
+import os
+import sys
+import time
+import argparse
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision.transforms as T
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from model_rhan_v11 import RHANv11, foveal_sample
+from dataset_stl10 import STL10_CLASSES, get_stl10_loaders
+
+
+def load_dotenv_fallback():
+    """Manual fallback to load HF_TOKEN from .env file in project root."""
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        return
+    except ImportError:
+        pass
+    
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    for base_dir in [script_dir, os.path.join(script_dir, '..')]:
+        env_path = os.path.join(base_dir, '.env')
+        if os.path.exists(env_path):
+            try:
+                with open(env_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            k, v = line.split('=', 1)
+                            v = v.strip().strip('"').strip("'")
+                            os.environ[k.strip()] = v
+            except Exception:
+                pass
+
+load_dotenv_fallback()
+
+
+def download_checkpoint_from_hf(ckpt_path):
+    filename = os.path.basename(ckpt_path)
+    print(f"Checkpoint not found locally at {ckpt_path}. Attempting to download {filename} from Hugging Face...", flush=True)
+    try:
+        from huggingface_hub import hf_hub_download
+        import shutil
+        hf_token = os.environ.get("HF_TOKEN")
+        os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
+        
+        for repo in ['FerrariKazu/rhan-checkpoints-rolling', 'FerrariKazu/rhan-checkpoints']:
+            try:
+                print(f"Checking {repo}...", flush=True)
+                downloaded_cache_path = hf_hub_download(
+                    repo_id=repo,
+                    filename=filename,
+                    repo_type='dataset',
+                    token=hf_token
+                )
+                shutil.copy2(downloaded_cache_path, ckpt_path)
+                print(f"Successfully downloaded to: {ckpt_path}", flush=True)
+                return True
+            except Exception as e:
+                print(f"Failed to download from {repo}: {e}", flush=True)
+        
+        return False
+    except Exception as e:
+        print(f"Hugging Face download failed: {e}", flush=True)
+        return False
+
+
+def set_seed(seed):
+    import random
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PGD ATTACK FOR EVALUATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def run_pgd_eval(model, x, y, eps, steps=20, stl_min=None, stl_max=None):
+    if eps == 0:
+        return x.clone().detach()
+
+    device = x.device
+    if stl_min is None:
+        stl_min = torch.tensor([-1.7161, -1.7140, -1.4987], device=device).view(1,3,1,1)
+    if stl_max is None:
+        stl_max = torch.tensor([2.1256, 2.1832, 2.1872], device=device).view(1,3,1,1)
+
+    model.eval()
+    with torch.no_grad():
+        logits_c = model(x)
+    if isinstance(logits_c, tuple):
+        logits_c = logits_c[0]
+    probs_c = F.softmax(logits_c.float(), dim=1)
+
+    x_adv = x.clone().detach() + 0.001 * torch.randn_like(x)
+    x_adv = torch.clamp(x_adv, stl_min, stl_max)
+
+    for _ in range(steps):
+        x_adv.requires_grad_(True)
+        with torch.enable_grad():
+            logits_a = model(x_adv)
+            if isinstance(logits_a, tuple):
+                logits_a = logits_a[0]
+            loss = F.kl_div(
+                F.log_softmax(logits_a.float(), dim=1),
+                probs_c, reduction='batchmean'
+            )
+        grad = torch.autograd.grad(loss, x_adv)[0]
+        x_adv = x_adv.detach() + (eps / steps) * grad.sign()
+        delta = torch.clamp(x_adv - x, -eps, eps)
+        x_adv = torch.clamp(x + delta, stl_min, stl_max).detach()
+
+    return x_adv
+
+
+def get_predictions_batched(model, x_test, y_test, eps, steps=20, batch_size=32):
+    model.eval()
+    corrects = []
+    n = x_test.size(0)
+    for i in range(0, n, batch_size):
+        x_b = x_test[i:i+batch_size]
+        y_b = y_test[i:i+batch_size]
+        if eps > 0:
+            x_adv = run_pgd_eval(model, x_b, y_b, eps, steps=steps)
+        else:
+            x_adv = x_b
+        with torch.no_grad():
+            logits = model(x_adv)
+            if isinstance(logits, tuple):
+                logits = logits[0]
+            corrects.append(logits.argmax(dim=1).eq(y_b).cpu())
+    return torch.cat(corrects).float()
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SUITE 1 — STATISTICAL SIGNIFICANCE (3 SEEDS) & BOOTSTRAP CI
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def run_statistical_significance(model, test_loader, device, num_samples=200):
+    print(f"\n{'='*70}")
+    print(f" EVALUATION 1: Statistical Significance Sweep (3 Seeds)")
+    print(f"{'='*70}")
+
+    seeds = [42, 123, 999]
+    results = {seed: {} for seed in seeds}
+
+    dataset = test_loader.dataset
+    n_total = len(dataset)
+    epsilons = [0.0, 0.031, 0.062, 0.094]
+
+    for seed in seeds:
+        set_seed(seed)
+        print(f"  Running evaluations for Seed {seed}...")
+        results[seed]['clean_acc'] = 0.0
+        results[seed]['robust_acc'] = {}
+
+        indices = torch.randperm(n_total)[:num_samples].tolist()
+        subset = torch.utils.data.Subset(dataset, indices)
+        loader = torch.utils.data.DataLoader(subset, batch_size=32, shuffle=False)
+
+        all_imgs = []
+        all_lbls = []
+        for imgs, lbls in loader:
+            all_imgs.append(imgs)
+            all_lbls.append(lbls)
+        x_test = torch.cat(all_imgs).to(device)
+        y_test = torch.cat(all_lbls).to(device)
+
+        clean_correct = get_predictions_batched(model, x_test, y_test, eps=0.0, batch_size=32)
+        results[seed]['clean_acc'] = 100.0 * clean_correct.mean().item()
+
+        for eps in epsilons[1:]:
+            rob_correct = get_predictions_batched(model, x_test, y_test, eps=eps, steps=20, batch_size=32)
+            results[seed]['robust_acc'][eps] = 100.0 * rob_correct.mean().item()
+
+    print("\n  Summary statistics (Mean ± Std):")
+    clean_accs = [results[s]['clean_acc'] for s in seeds]
+    print(f"    Clean Accuracy: {np.mean(clean_accs):.2f}% ± {np.std(clean_accs):.2f}%")
+    for eps in epsilons[1:]:
+        rob_accs = [results[s]['robust_acc'][eps] for s in seeds]
+        print(f"    PGD Robustness (ε={eps:.3f}): {np.mean(rob_accs):.2f}% ± {np.std(rob_accs):.2f}%")
+
+    print("\n  Computing 95% Bootstrap Confidence Intervals (n=10000 iterations)...")
+    boot_clean_accs = []
+    boot_robust_accs = {eps: [] for eps in epsilons[1:]}
+
+    clean_corrects = get_predictions_batched(model, x_test, y_test, eps=0.0, batch_size=32).numpy()
+    robust_corrects = {}
+    for eps in epsilons[1:]:
+        robust_corrects[eps] = get_predictions_batched(model, x_test, y_test, eps=eps, steps=20, batch_size=32).numpy()
+
+    np.random.seed(42)
+    for _ in range(10000):
+        indices = np.random.randint(0, len(x_test), size=len(x_test))
+        boot_clean_accs.append(100.0 * clean_corrects[indices].mean())
+        for eps in epsilons[1:]:
+            boot_robust_accs[eps].append(100.0 * robust_corrects[eps][indices].mean())
+
+    print(f"    Bootstrap 95% CI (Clean): [{np.percentile(boot_clean_accs, 2.5):.2f}%, {np.percentile(boot_clean_accs, 97.5):.2f}%]")
+    for eps in epsilons[1:]:
+        print(f"    Bootstrap 95% CI (ε={eps:.3f}): [{np.percentile(boot_robust_accs[eps], 2.5):.2f}%, {np.percentile(boot_robust_accs[eps], 97.5):.2f}%]")
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SUITE 2 — SOTA COMPARISON ON STL-10
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def run_sota_comparison(model, test_loader, device):
+    print(f"\n{'='*70}")
+    print(f" EVALUATION 2: SOTA Comparison on STL-10")
+    print(f"{'='*70}")
+
+    baselines = {
+        'Static TRADES Large Baseline': {'clean': 53.60, 'robust_0.031': 50.80},
+    }
+
+    print("  Evaluating RHAN-v11 at benchmark ε=0.031...")
+    subset_imgs = []
+    subset_lbls = []
+    count = 0
+    for imgs, lbls in test_loader:
+        if count + imgs.size(0) > 500:
+            take = 500 - count
+            subset_imgs.append(imgs[:take])
+            subset_lbls.append(lbls[:take])
+            break
+        subset_imgs.append(imgs)
+        subset_lbls.append(lbls)
+        count += imgs.size(0)
+
+    x_test = torch.cat(subset_imgs).to(device)
+    y_test = torch.cat(subset_lbls).to(device)
+
+    clean_corrects = get_predictions_batched(model, x_test, y_test, eps=0.0, batch_size=32)
+    clean_acc = 100.0 * clean_corrects.mean().item()
+
+    robust_corrects = get_predictions_batched(model, x_test, y_test, eps=0.031, steps=20, batch_size=32)
+    robust_acc = 100.0 * robust_corrects.mean().item()
+
+    print(f"\n  Main SOTA Comparison Table (STL-10):")
+    print(f"    {'Model':<30} | {'Clean Acc':<10} | {'Adversarial Acc (ε=0.031)':<25}")
+    print(f"    {'-'*30}-+-{'-'*10}-+-{'-'*25}")
+    for name, stats in baselines.items():
+        print(f"    {name:<30} | {stats['clean']:>8.2f}% | {stats['robust_0.031']:>23.2f}%")
+    print(f"    **RHAN-v11 (Ours)**            | {clean_acc:>8.2f}% | {robust_acc:>23.2f}%")
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SUITE 3 — BIOLOGICAL CLAIM VALIDATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def run_biological_claims(model, test_loader, device):
+    print(f"\n{'='*70}")
+    print(f" EVALUATION 3: Biological Claim Validation")
+    print(f"{'='*70}")
+
+    # Claim 1: M-pathway gate dominance
+    print("  [Claim 1]: M-pathway gate dominance")
+    if hasattr(model, 'freq_weight_low') and hasattr(model, 'freq_weight_high'):
+        w_low = torch.sigmoid(model.freq_weight_low).item()
+        w_high = torch.sigmoid(model.freq_weight_high).item()
+        print(f"    Low frequency weight wL:  {w_low:.4f}")
+        print(f"    High frequency weight wH: {w_high:.4f}")
+        if w_low > w_high:
+            print(f"    ✓ Dominance Confirmed: wL ({w_low:.3f}) > wH ({w_high:.3f})")
+        else:
+            print(f"    ✗ Dominance Refuted: wL ({w_low:.3f}) <= wH ({w_high:.3f})")
+    else:
+        print("    Frequency weight parameters not found. Skipping Claim 1.")
+
+    # Claim 2: Predictive coding error signal vs epsilon
+    print("\n  [Claim 2]: Predictive coding error signal increases with noise")
+    epsilons = [0.0, 0.031, 0.062, 0.094]
+    avg_errors = []
+
+    imgs, lbls = next(iter(test_loader))
+    imgs, lbls = imgs[:32].to(device), lbls[:32].to(device)
+
+    for eps in epsilons:
+        x_adv = run_pgd_eval(model, imgs, lbls, eps, steps=20)
+        with torch.no_grad():
+            _, traj = model(x_adv, return_trajectory=True)
+            final_err = traj['errors'][-1].mean().item()
+            avg_errors.append(final_err)
+        print(f"    ε={eps:.3f} -> Mean prediction error: {final_err:.4f}")
+
+    if all(avg_errors[i] < avg_errors[i+1] for i in range(len(avg_errors)-1)):
+        print("    ✓ Error Correlation Confirmed: prediction error magnitude increases monotonically with noise level.")
+    else:
+        print("    ✗ Error Correlation Refuted: error did not increase monotonically.")
+
+    # Claim 3: Epistemic foraging path diversity
+    print("\n  [Claim 3]: Epistemic foraging path diversity")
+    with torch.no_grad():
+        _, traj = model(imgs, return_trajectory=True)
+        if len(traj['actions']) > 1:
+            actions_step0 = traj['actions'][0]
+            actions_step1 = traj['actions'][1]
+            distances = torch.norm(actions_step0 - actions_step1, dim=-1)
+            mean_dist = distances.mean().item()
+            print(f"    Average gaze movement distance (Step 0 -> Step 1): {mean_dist:.4f}")
+            if mean_dist > 0.05:
+                print("    ✓ Active Foraging Confirmed: gaze trajectories move dynamically to acquire diagnostic features.")
+            else:
+                print("    ✗ Active Foraging Refuted: gaze coordinates remain static.")
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SUITE 4 — DIAGNOSTIC PLOT GENERATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def generate_diagnostic_plots(model, test_loader, device, output_dir='tier1/results/plots2'):
+    print(f"\n{'='*70}")
+    print(f" EVALUATION 4: Diagnostic Plot Generation")
+    print(f"{'='*70}")
+
+    os.makedirs(output_dir, exist_ok=True)
+    print(f"  Saving plots to: {output_dir}")
+
+    subset_imgs = []
+    subset_lbls = []
+    count = 0
+    for imgs, lbls in test_loader:
+        if count + imgs.size(0) > 300:
+            take = 300 - count
+            subset_imgs.append(imgs[:take])
+            subset_lbls.append(lbls[:take])
+            break
+        subset_imgs.append(imgs)
+        subset_lbls.append(lbls)
+        count += imgs.size(0)
+
+    x_test = torch.cat(subset_imgs).to(device)
+    y_test = torch.cat(subset_lbls).to(device)
+
+    precisions_list = []
+    errors_list = []
+    alphas_list = []
+    model.eval()
+    with torch.no_grad():
+        for i in range(0, x_test.size(0), 32):
+            x_b = x_test[i:i+32]
+            _, traj_b = model(x_b, return_trajectory=True)
+            precisions_list.append(traj_b['precisions'][-1].cpu())
+            errors_list.append(traj_b['errors'][-1].cpu())
+            alphas_list.append(traj_b['gate_alphas'][-1].squeeze(-1).cpu())
+    precisions = torch.cat(precisions_list).numpy()
+    errors = torch.cat(errors_list).numpy()
+    alphas = torch.cat(alphas_list).numpy()
+
+    # 1. Π_D distribution histogram
+    plt.figure(figsize=(8, 5))
+    classes_of_interest = [2, 9, 0] # car, truck, airplane
+    class_names = {2: 'Car', 9: 'Truck', 0: 'Airplane'}
+    colors = {2: '#e74c3c', 9: '#f39c12', 0: '#3498db'}
+
+    for c in classes_of_interest:
+        mask = (y_test.cpu().numpy() == c)
+        if mask.any():
+            sns.histplot(precisions[mask], bins=15, kde=True, label=class_names[c], color=colors[c], alpha=0.6)
+
+    plt.title(r'$\Pi_D$ Sensory Precision Distribution by Class', fontsize=14)
+    plt.xlabel(r'Precision ($\Pi_D$)', fontsize=12)
+    plt.ylabel('Count', fontsize=12)
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.tight_layout()
+    plot_path1 = os.path.join(output_dir, 'v11_pi_distribution.png')
+    plt.savefig(plot_path1, dpi=300)
+    plt.close()
+    print(f"    ✓ Generated {plot_path1}")
+
+    # 2. Foraging trajectory overlay visualizer
+    plt.figure(figsize=(10, 5))
+    car_mask = (y_test.cpu().numpy() == 2)
+    if car_mask.any():
+        car_idx = np.where(car_mask)[0][0]
+        img_single = x_test[car_idx:car_idx+1]
+        _, traj_single = model(img_single, return_trajectory=True)
+
+        actions = [a[0].cpu().numpy() for a in traj_single['actions']]
+        img_np = img_single[0].cpu().numpy().transpose(1, 2, 0)
+        mean = np.array([0.4467, 0.4398, 0.4066])
+        std = np.array([0.2603, 0.2566, 0.2713])
+        img_np = np.clip(img_np * std + mean, 0, 1)
+
+        plt.subplot(1, 2, 1)
+        plt.imshow(img_np)
+        ax = plt.gca()
+        # map to 96x96 image space
+        x_coords = [(a[0] + 1) * 48 for a in actions]
+        y_coords = [(a[1] + 1) * 48 for a in actions]
+        plt.plot(x_coords, y_coords, '-o', color='yellow', markersize=8, linewidth=2, label='Gaze trajectory')
+        for i, (xc, yc) in enumerate(zip(x_coords, y_coords)):
+            plt.text(xc + 2, yc - 2, f"T={i}", color='yellow', fontweight='bold')
+        plt.title('Gaze Paths on Car Image', fontsize=12)
+        plt.legend()
+
+        # Plot foveated crop at step 1
+        plt.subplot(1, 2, 2)
+        action_t = traj_single['actions'][0]
+        foveal_crop = foveal_sample(img_single, action_t, fovea_size=48)
+        fov_np = foveal_crop[0].cpu().numpy().transpose(1, 2, 0)
+        fov_np = np.clip(fov_np * std + mean, 0, 1)
+        plt.imshow(fov_np)
+        plt.title('Foveal Crop at Step 1', fontsize=12)
+
+        plt.tight_layout()
+        plot_path2 = os.path.join(output_dir, 'v11_foraging_trajectory.png')
+        plt.savefig(plot_path2, dpi=300)
+        plt.close()
+        print(f"    ✓ Generated {plot_path2}")
+
+    # 3. β_dynamic distribution at different curriculum phases
+    plt.figure(figsize=(8, 5))
+    beta_bases = [2.0, 2.5]
+    for beta_base in beta_bases:
+        beta_dyn = beta_base * (0.5 + precisions)
+        sns.kdeplot(beta_dyn, fill=True, label=f'Base β = {beta_base}', alpha=0.5)
+    plt.title(r'Dynamic $\beta$ Distribution across Curriculum Phases', fontsize=14)
+    plt.xlabel(r'Effective $\beta_{dynamic}$', fontsize=12)
+    plt.ylabel('Density', fontsize=12)
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.tight_layout()
+    plot_path3 = os.path.join(output_dir, 'v11_beta_distribution.png')
+    plt.savefig(plot_path3, dpi=300)
+    plt.close()
+    print(f"    ✓ Generated {plot_path3}")
+
+    # 4. Steps used vs epsilon
+    plt.figure(figsize=(8, 5))
+    epsilons = [0.0, 0.031, 0.062, 0.094]
+    mean_steps = []
+    for eps in epsilons:
+        total_steps = 0.0
+        n_sub = 100
+        for i in range(0, n_sub, 32):
+            x_b = x_test[i:i+32]
+            y_b = y_test[i:i+32]
+            x_adv_b = run_pgd_eval(model, x_b, y_b, eps, steps=20)
+            with torch.no_grad():
+                _, traj_eps_b = model(x_adv_b, return_trajectory=True)
+                total_steps += float(traj_eps_b['steps']) * x_b.size(0)
+        mean_steps.append(total_steps / n_sub)
+
+    plt.plot(epsilons, mean_steps, '-o', color='#2ecc71', linewidth=2.5, markersize=8)
+    plt.title('Average Foraging Steps vs Adversarial Noise Level (ε)', fontsize=14)
+    plt.xlabel('Noise Budget (ε)', fontsize=12)
+    plt.ylabel('Mean Steps Used (Reaction Time Proxy)', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.tight_layout()
+    plot_path4 = os.path.join(output_dir, 'v11_steps_vs_epsilon.png')
+    plt.savefig(plot_path4, dpi=300)
+    plt.close()
+    print(f"    ✓ Generated {plot_path4}")
+
+    # 5. Generative Prior crop vs predicted crop side-by-side
+    plt.figure(figsize=(10, 5))
+    with torch.no_grad():
+        _, traj_single = model(img_single, return_trajectory=True)
+        # get final predicted crop
+        pred_crop = model.generative_prior(model.peripheral_proj(model._peripheral_pass(img_single)))
+        pred_np = pred_crop[0].cpu().numpy().transpose(1, 2, 0)
+        pred_np = np.clip(pred_np * std + mean, 0, 1)
+
+        plt.subplot(1, 2, 1)
+        plt.imshow(fov_np)
+        plt.title('Actual Foveal Crop', fontsize=12)
+
+        plt.subplot(1, 2, 2)
+        plt.imshow(pred_np)
+        plt.title('Predicted Crop (Generative Prior)', fontsize=12)
+
+        plt.tight_layout()
+        plot_path5 = os.path.join(output_dir, 'v11_generative_prior_recon.png')
+        plt.savefig(plot_path5, dpi=300)
+        plt.close()
+        print(f"    ✓ Generated {plot_path5}")
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# MAIN EVALUATION RUNNER
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def main():
+    parser = argparse.ArgumentParser(description="Evaluate RHAN-v11 Tripartite Model")
+    parser.add_argument('--checkpoint', type=str, default='checkpoints/rhan_stl10_v11_best.pth',
+                        help='Path to RHAN-v11 checkpoint')
+    parser.add_argument('--data-root', type=str, default='./data/stl10')
+    parser.add_argument('--num-samples', type=int, default=500,
+                        help='Number of samples for statistical significance')
+    args = parser.parse_known_args()[0]
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Evaluating RHAN-v11 on {device}...")
+
+    _, test_loader = get_stl10_loaders(batch_size=32, data_root=args.data_root)
+
+    model = RHANv11().to(device)
+
+    ckpt_path = args.checkpoint
+    if not os.path.exists(ckpt_path):
+        download_checkpoint_from_hf(ckpt_path)
+    
+    if not os.path.exists(ckpt_path):
+        fallback_tier2 = os.path.join('checkpoints_tier2', os.path.basename(ckpt_path))
+        if os.path.exists(fallback_tier2):
+            ckpt_path = fallback_tier2
+        else:
+            if download_checkpoint_from_hf(fallback_tier2):
+                ckpt_path = fallback_tier2
+
+    if os.path.exists(ckpt_path):
+        print(f"Loading checkpoint: {ckpt_path}")
+        state = torch.load(ckpt_path, map_location=device)
+        if isinstance(state, dict) and 'model' in state:
+            state = state['model']
+        elif isinstance(state, dict) and 'model_state_dict' in state:
+            state = state['model_state_dict']
+        elif isinstance(state, dict) and 'state_dict' in state:
+            state = state['state_dict']
+
+        missing, unexpected = model.load_state_dict(state, strict=False)
+        print(f"  Missing: {len(missing)}, Unexpected: {len(unexpected)}")
+    else:
+        print(f"Warning: Checkpoint {ckpt_path} not found. Running evaluations on random/mock weights.")
+
+    run_statistical_significance(model, test_loader, device, num_samples=args.num_samples)
+    run_sota_comparison(model, test_loader, device)
+    run_biological_claims(model, test_loader, device)
+    generate_diagnostic_plots(model, test_loader, device)
+
+    print(f"\n{'='*70}")
+    print(f" All evaluations complete!")
+    print(f"{'='*70}\n")
+
+
+if __name__ == '__main__':
+    main()
