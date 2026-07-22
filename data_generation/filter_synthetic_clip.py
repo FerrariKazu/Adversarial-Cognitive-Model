@@ -218,7 +218,7 @@ def main():
     print(f"\n============================================================", flush=True)
     print(f"  Sprint 2 Phase B: Quality & Diversity Filtering", flush=True)
     print(f"  Input: {args.input_dir}  --> Output: {args.output_dir}", flush=True)
-    print(f"  Similarity Threshold: {args.sim-threshold}", flush=True)
+    print(f"  Similarity Threshold: {args.sim_threshold}", flush=True)
     print(f"============================================================", flush=True)
 
     for cls_name in STL10_CLASSES:

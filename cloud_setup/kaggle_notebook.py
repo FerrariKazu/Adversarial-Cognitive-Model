@@ -41,9 +41,13 @@ def run_command(cmd, shell=True):
 
 print("\n>>> Installing Python Dependencies for Sprint 2...")
 run_command("pip install --quiet --upgrade pip setuptools wheel")
+# diffusers + transformers + accelerate for SDXL Turbo; webdataset for shard I/O
 run_command("pip install --quiet diffusers transformers accelerate webdataset")
+# CLIP for Phase B quality/diversity filtering (openai/CLIP — no PyPI release)
 run_command("pip install --quiet git+https://github.com/openai/CLIP.git")
-run_command("pip install --quiet opencv-python datasets huggingface_hub PIL")
+# opencv-python, datasets, huggingface_hub are standard; note: PIL is the import
+# name — the PyPI package is Pillow (usually pre-installed on Kaggle, listed just in case)
+run_command("pip install --quiet opencv-python datasets huggingface_hub Pillow")
 
 # %% [markdown]
 # # Step 2: Clone and Sync Repository
