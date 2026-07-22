@@ -618,13 +618,13 @@ def make_group_e():
     save_themed_fig(fig, "evaluation", "figure_e2_dprime_vs_epsilon")
 
     # Figure E3: Epsilon Threshold horizontal bar plot
-    fig, ax = plt.subplots(figsize=(7.5, 4.5))
-    models = ['ResNet-18', 'ViT-Small', 'Static Baseline', 'RHANv10 (Ours)', 'Human limit']
+    fig, ax = plt.subplots(figsize=(8.0, 5.0))
+    models = ['ResNet-18', 'ViT-Small', 'Static Baseline', 'RHANv10 (Ours)', 'RHANv11 (Ours)', 'Human limit']
     
     # Retrieve thresholds from JSON
     t_dict = metrics["thresholds"]
-    thresholds = [t_dict["resnet"], t_dict["vit"], t_dict["static_trades"], t_dict["rhan_v10"], t_dict["human"]]
-    colors = ['#EF5350', '#AB47BC', '#42A5F5', '#66BB6A', GOLD]
+    thresholds = [t_dict["resnet"], t_dict["vit"], t_dict["static_trades"], t_dict["rhan_v10"], t_dict["rhan_v11"], t_dict["human"]]
+    colors = ['#EF5350', '#AB47BC', '#42A5F5', '#81C784', '#2E7D32', GOLD]
     
     bars = ax.barh(models, thresholds, color=colors, edgecolor='#555555', height=0.55)
     ax.set_xlabel("Robustness Threshold Epsilon ($\\varepsilon_{thresh}$ at $d'=1.0$)")

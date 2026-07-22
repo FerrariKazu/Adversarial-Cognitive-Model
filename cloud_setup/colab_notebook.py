@@ -162,125 +162,34 @@ def run_command(cmd, shell=True):
         raise subprocess.CalledProcessError(rc, cmd)
     return rc
 
-# 1. Upgrade packaging utilities first to restore legacy distutils support on Python 3.12+
+## 1. Upgrade packaging utilities first to restore legacy distutils support on Python 3.12+
 run_command("pip install --upgrade pip setuptools wheel")
 
-# 2. Install autoattack from source (directly from GitHub) to resolve Python 3.12 compatibility
+# 2. Install autoattack and other necessary libraries for evaluation
 run_command("pip install git+https://github.com/fra31/auto-attack.git")
-
-# 3. Install remaining dependencies (without --quiet to see exact error logs if they fail)
-run_command("pip install opencv-python gdown datasets")
-run_command("pip install git+https://github.com/openai/CLIP.git")
-run_command("pip install git+https://github.com/wielandbrendel/bag-of-local-features-models.git")
-run_command("pip install git+https://github.com/dicarlolab/CORnet.git")
+run_command("pip install opencv-python scipy datasets")
 
 # %% [markdown]
-# ## Step 4: Download & Setup UCF-101 Video Dataset
-# Downloads the UCF-101 dataset to the fast local container disk (`/content/data`) so training has fast file access without FUSE lag or hitting Google Drive storage limits.
-
-# %%
-## Store dataset on local scratch disk (fastest, does not consume GDrive storage)
-local_data_dir = "/content/data"
-os.makedirs(local_data_dir, exist_ok=True)
-
-ucf_dir = os.path.join(local_data_dir, "ucf101")
-if not os.path.exists(ucf_dir):
-    print("UCF-101 Video Dataset not found on local VM scratch space. Downloading (13GB)...")
-    print("Downloading in quiet mode (no progress logs shown to prevent browser tab crash)...")
-    run_command(
-        f"wget -q --no-check-certificate "
-        f"https://www.crcv.ucf.edu/data/UCF101/UCF101.rar -O {local_data_dir}/UCF101.rar"
-    )
-    print("Download complete. Extracting dataset (this will take a few minutes)...")
-    # -o+ forces unrar to overwrite existing files without prompting, keeping execution non-interactive
-    run_command(f"unrar x -o+ {local_data_dir}/UCF101.rar {local_data_dir}/")
-    if os.path.exists(f"{local_data_dir}/UCF-101"):
-        os.rename(f"{local_data_dir}/UCF-101", ucf_dir)
-    # Clean up rar file to save local disk space
-    if os.path.exists(f"{local_data_dir}/UCF101.rar"):
-        os.remove(f"{local_data_dir}/UCF101.rar")
-    print("UCF-101 Dataset successfully downloaded, extracted, and cleaned up.")
-else:
-    print("UCF-101 Dataset already present locally on VM scratch space.")
-
-# %% [markdown]
-# ## Step 5: Launch Training (Experiment 2 or 3)
-# Set your target GPU parameters. The training script automatically detects if a `_resume.pth` file exists in the `checkpoints/` folder and resumes training from the exact epoch if it was interrupted.
+# ## Step 4: Run STL-10 Empirical Epsilon Sweep Evaluation
+# Run the evaluation script across all 5 checkpoints. This will evaluate clean accuracy and robustness (using PGD-50) on 500 random test samples to calculate the $d'(\varepsilon)$ sensitivity metrics and d'=1.0 crossing thresholds.
 # 
-# Adjust `--batch-size` and `--accum-steps` based on the GPU allocated:
-# - **A100 (40GB VRAM)**: `--batch-size 256 --accum-steps 2` (or `--batch-size 512 --accum-steps 1`)
-# - **V100 (16GB VRAM)**: `--batch-size 128 --accum-steps 4`
-# - **T4 (15GB VRAM)**: `--batch-size 64 --accum-steps 8` (or `--batch-size 128 --accum-steps 4`)
-# 
-# *(Note: Both batch size combinations maintain the target effective batch size of 512).*
+# STL-10 dataset will be automatically downloaded by torchvision during runtime.
 
-# %%
-def run_interactive_command(cmd):
-    try:
-        from IPython import get_ipython
-        ipy = get_ipython()
-        if ipy is not None:
-            # IPython system runner prints stdout/stderr directly in real-time
-            ipy.system(cmd)
-            return
-    except Exception:
-        pass
-    # Fallback to standard subprocess
-    subprocess.run(cmd, shell=True, check=True)
-
-# %%
 # %%
 # RUNTIME CONFIGURATION
 # ---------------------
-MODEL_SIZE = "large"      # 'base' or 'large'
-BATCH_SIZE_TDV = 128
-BATCH_SIZE_TRADES = 128  # Set to 256 for A100/V100, 64/128 for lower end GPUs
-ACCUM_STEPS_TRADES = 4   # 2 for batch_size 256, 4 for batch_size 128, 8 for batch_size 64
+N_SAMPLES = 500
+PGD_STEPS = 50
+OUTPUT_FILE = "report/empirical_sweep_results_stl10.json"
 
-# Determine checkpoint paths
-ckpt_dir = "checkpoints"
-if MODEL_SIZE == 'large':
-    tdv_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_large_video_tdv_pretrained.pth')
-    labeled_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_large_video_tdv_labeled.pth')
-else:
-    tdv_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_base_video_tdv_pretrained.pth')
-    labeled_ckpt = os.path.join(ckpt_dir, 'rhan_stl10_base_video_tdv_labeled.pth')
-
-# 1. Run Phase 0 (Video TDV Pretraining) if not complete
-if not os.path.exists(tdv_ckpt):
-    print(f"Starting Phase 0 (Video TDV Pretraining) for {MODEL_SIZE} model...")
-    run_interactive_command(
-        f"python3 phase1_training/train_rhan_video_tdv.py "
-        f"--phase tdv "
-        f"--model-size {MODEL_SIZE} "
-        f"--data-root /content/data "
-        f"--batch-size {BATCH_SIZE_TDV}"
-    )
-else:
-    print(">>> Phase 0 (Pretraining) checkpoint found. Skipping.")
-
-# 2. Run Phase 1 (Labeled Classifier Head Calibration) if not complete
-if not os.path.exists(labeled_ckpt):
-    print(f"Starting Phase 1 (Classifier Head Calibration) for {MODEL_SIZE} model...")
-    run_interactive_command(
-        f"python3 phase1_training/train_rhan_video_tdv.py "
-        f"--phase label "
-        f"--model-size {MODEL_SIZE} "
-        f"--data-root /content/data"
-    )
-else:
-    print(">>> Phase 1 (Head Calibration) checkpoint found. Skipping.")
-
-# 3. Run Phase 2 (TRADES Adversarial Fine-Tuning)
-print(f"Starting/Resuming Phase 2 (TRADES Adversarial Fine-Tuning) for {MODEL_SIZE} model...")
+print(f"Launching Empirical Epsilon Sweep (n={N_SAMPLES}, pgd_steps={PGD_STEPS})...")
 run_interactive_command(
-    f"python3 phase1_training/train_rhan_video_tdv.py "
-    f"--phase trades "
-    f"--model-size {MODEL_SIZE} "
-    f"--data-root /content/data "
-    f"--batch-size {BATCH_SIZE_TRADES} "
-    f"--accum-steps {ACCUM_STEPS_TRADES}"
+    f"python3 phase2_attacks/eval_empirical_epsilon_sweep.py "
+    f"--n-samples {N_SAMPLES} "
+    f"--pgd-steps {PGD_STEPS} "
+    f"--output-json {OUTPUT_FILE}"
 )
+
 
 
 # %% [markdown]

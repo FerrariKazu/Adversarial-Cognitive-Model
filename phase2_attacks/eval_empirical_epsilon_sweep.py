@@ -35,6 +35,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../p
 # Import model architectures
 from phase1_training.model_rhan_stl10 import RHANSTL10
 from phase1_training.model_rhan_stl10_large import RHANLargeSTL10
+from phase1_training.model_rhan_stl10_pretrained import RHANUnifiedSTL10
 from phase1_training.model_rhan_v11 import RHANv11
 
 MEAN = torch.tensor([0.4467, 0.4398, 0.4066]).view(1, 3, 1, 1)
@@ -112,10 +113,7 @@ def run_pgd_attack(model, images, labels, eps, steps=50, alpha=None, model_type=
     
     for _ in range(steps):
         x_adv.requires_grad_()
-        if model_type == "rhan_v11":
-            logits, _, _, _ = model(x_adv, steps=4)
-        else:
-            logits = model(x_adv)
+        logits = model(x_adv)  # All models return logits directly
             
         loss = F.cross_entropy(logits, labels)
         grad = torch.autograd.grad(loss, x_adv)[0]
@@ -144,10 +142,7 @@ def eval_model_at_epsilon(model, dataloader, eps, device, model_type="static", p
             x_eval = images
             
         with torch.no_grad():
-            if model_type == "rhan_v11":
-                logits, _, _, _ = model(x_eval, steps=4)
-            else:
-                logits = model(x_eval)
+            logits = model(x_eval)  # All models return logits directly
                 
             preds = logits.argmax(dim=-1)
             
@@ -222,8 +217,8 @@ def main():
 
     # Checkpoint paths
     ckpt_map = {
-        "static_trades_large": ("checkpoints/rhan_stl10_tdv_trades_actual.pth", "static_base"),
-        "rhan_stl10_large_ep45": ("checkpoints/rhan_stl10_large_pseudolabel_best.pth", "static_large"),
+        "static_trades_large": ("checkpoints/rhan_stl10_tdv_trades_actual.pth", "unified_base"),
+        "rhan_stl10_large_ep45": ("checkpoints/rhan_stl10_large_pseudolabel_rolling.pth", "rhan_v10"),
         "rhan_v10_final": ("checkpoints/rhan_stl10_v10_best.pth", "rhan_v10"),
         "rhan_v11_best": ("checkpoints/rhan_stl10_v11_best.pth", "rhan_v11"),
         "rhan_v11_rolling": ("checkpoints/rhan_stl10_v11_rolling.pth", "rhan_v11"),
@@ -239,16 +234,33 @@ def main():
             continue
 
         # Load Architecture
-        if model_type == "static_base":
-            model = RHANSTL10().to(device)
+        if model_type == "unified_base":
+            model = RHANUnifiedSTL10().to(device)
         elif model_type in ["static_large", "rhan_v10"]:
             model = RHANLargeSTL10().to(device)
-        else: # rhan_v11
+        else:  # rhan_v11
             model = RHANv11().to(device)
 
         checkpoint = torch.load(ckpt_path, map_location=device)
-        state_dict = checkpoint.get('model_state_dict', checkpoint)
-        model.load_state_dict(state_dict, strict=False)
+        # Handle different checkpoint nesting formats:
+        #   format A: flat dict (the checkpoint IS the state dict)
+        #   format B: {'model_state_dict': {...}, ...}
+        #   format C: {'model': {...}, 'optimizer': {...}, 'epoch': ..., ...}
+        if 'model_state_dict' in checkpoint:
+            state_dict = checkpoint['model_state_dict']
+        elif 'model' in checkpoint and isinstance(checkpoint['model'], dict):
+            state_dict = checkpoint['model']
+        else:
+            state_dict = checkpoint
+        # Strip 'model.' prefix if present
+        if state_dict and all(k.startswith('model.') for k in list(state_dict.keys())[:5]):
+            state_dict = {k[len('model.'):]: v for k, v in state_dict.items()}
+        missing, unexpected = model.load_state_dict(state_dict, strict=False)
+        matched = len(state_dict) - len(unexpected)
+        print(f"  Loaded {matched}/{len(state_dict)} keys ({len(missing)} missing, {len(unexpected)} unexpected)", flush=True)
+        if matched == 0:
+            print(f"  ❌ ERROR: Zero keys matched — wrong architecture for this checkpoint. Skipping.", flush=True)
+            continue
         model.eval()
 
         is_rhan = (model_type in ["rhan_v10", "rhan_v11"])
