@@ -171,13 +171,8 @@ def main():
         "stabilityai/sdxl-turbo",
         torch_dtype=torch.float16 if is_cuda else torch.float32,
         variant="fp16" if is_cuda else None,
-        # Load tensors directly onto target device — avoids CPU→GPU double-copy
-        # and halves peak CPU RAM usage (critical on Kaggle T4)
-        device_map=args.device if is_cuda else None,
         low_cpu_mem_usage=True,
-    )
-    if not is_cuda:
-        pipe = pipe.to(args.device)
+    ).to(args.device)
     pipe.set_progress_bar_config(disable=True)
     print("    ✓ Pipeline ready.", flush=True)
 
