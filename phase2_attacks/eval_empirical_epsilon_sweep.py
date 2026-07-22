@@ -230,7 +230,41 @@ def main():
     for model_name, (ckpt_path, model_type) in ckpt_map.items():
         print(f"\n[-->] Evaluating Checkpoint: '{model_name}' ({ckpt_path})...")
         if not os.path.exists(ckpt_path):
-            print(f"  ⚠️ Warning: Checkpoint file '{ckpt_path}' not found! Skipping.", flush=True)
+            print(f"  Checkpoint not found locally at {ckpt_path}. Attempting to download from Hugging Face...", flush=True)
+            try:
+                from huggingface_hub import hf_hub_download
+                import shutil
+                
+                # Fetch token from common cloud secret locations
+                hf_token = os.environ.get("HF_TOKEN")
+                if not hf_token:
+                    try:
+                        from kaggle_secrets import UserSecretsClient
+                        hf_token = UserSecretsClient().get_secret("HF_TOKEN")
+                    except Exception:
+                        pass
+                if not hf_token:
+                    try:
+                        from google.colab import userdata
+                        hf_token = userdata.get('HF_TOKEN')
+                    except Exception:
+                        pass
+                        
+                filename = os.path.basename(ckpt_path)
+                os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
+                downloaded = hf_hub_download(
+                    repo_id='FerrariKazu/rhan-checkpoints',
+                    filename=filename,
+                    repo_type='dataset',
+                    token=hf_token
+                )
+                shutil.copy2(downloaded, ckpt_path)
+                print(f"  Successfully downloaded checkpoint: {ckpt_path}", flush=True)
+            except Exception as e:
+                print(f"  Hugging Face download failed for {ckpt_path}: {e}", flush=True)
+
+        if not os.path.exists(ckpt_path):
+            print(f"  ❌ ERROR: Checkpoint file '{ckpt_path}' not found! Skipping.", flush=True)
             continue
 
         # Load Architecture
