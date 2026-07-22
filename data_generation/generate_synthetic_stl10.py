@@ -25,6 +25,9 @@ import tarfile
 import io
 import argparse
 import random
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["DIFFUSERS_NO_PROGRESS_BAR"] = "1"
+os.environ["PYTHONUNBUFFERED"] = "1"
 import numpy as np
 from PIL import Image
 import torch

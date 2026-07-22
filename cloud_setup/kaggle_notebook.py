@@ -31,8 +31,9 @@ if not hf_token:
 if hf_token:
     os.environ["HF_TOKEN"] = hf_token
     print("✓ HF_TOKEN successfully loaded and injected into environment.")
-else:
-    print("⚠️ WARNING: HF_TOKEN not found in environment or Kaggle secrets. Hugging Face upload will be disabled.")
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["DIFFUSERS_NO_PROGRESS_BAR"] = "1"
+os.environ["PYTHONUNBUFFERED"] = "1"
 
 def run_command(cmd, shell=True):
     print(f"\n[RUNNING]: {cmd}")
