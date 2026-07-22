@@ -164,11 +164,20 @@ def main():
     # Load Diffusers pipeline
     from diffusers import AutoPipelineForText2Image
     print("--> Loading stabilityai/sdxl-turbo pipeline (FP16)...", flush=True)
+    print("    (Large model ~6.9 GB — initial load may take 3-5 min on T4 network storage)", flush=True)
+
+    is_cuda = 'cuda' in args.device
     pipe = AutoPipelineForText2Image.from_pretrained(
         "stabilityai/sdxl-turbo",
-        torch_dtype=torch.float16 if 'cuda' in args.device else torch.float32,
-        variant="fp16" if 'cuda' in args.device else None
-    ).to(args.device)
+        torch_dtype=torch.float16 if is_cuda else torch.float32,
+        variant="fp16" if is_cuda else None,
+        # Load tensors directly onto target device — avoids CPU→GPU double-copy
+        # and halves peak CPU RAM usage (critical on Kaggle T4)
+        device_map=args.device if is_cuda else None,
+        low_cpu_mem_usage=True,
+    )
+    if not is_cuda:
+        pipe = pipe.to(args.device)
     pipe.set_progress_bar_config(disable=True)
     print("    ✓ Pipeline ready.", flush=True)
 
