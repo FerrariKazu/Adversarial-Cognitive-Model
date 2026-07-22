@@ -84,14 +84,15 @@ print("============================================================")
 raw_output_dir = "./data/synthetic_stl10_raw"
 os.makedirs(raw_output_dir, exist_ok=True)
 
-# Parallel processes on CUDA 0 and CUDA 1
-cmd_gpu0 = f"python3 data_generation/generate_synthetic_stl10.py --output-dir {raw_output_dir} --gpu-split even --device cuda:0"
-cmd_gpu1 = f"python3 data_generation/generate_synthetic_stl10.py --output-dir {raw_output_dir} --gpu-split odd --device cuda:1"
+# Parallel processes with strict CUDA_VISIBLE_DEVICES isolation
+# GPU 0 handles even classes (0, 2, 4, 6, 8), GPU 1 handles odd classes (1, 3, 5, 7, 9)
+cmd_gpu0 = f"CUDA_VISIBLE_DEVICES=0 python3 data_generation/generate_synthetic_stl10.py --output-dir {raw_output_dir} --gpu-split even --device cuda:0"
+cmd_gpu1 = f"CUDA_VISIBLE_DEVICES=1 python3 data_generation/generate_synthetic_stl10.py --output-dir {raw_output_dir} --gpu-split odd --device cuda:0"
 
-print(f"Launching GPU 0 process (Even classes)...")
+print(f"Launching GPU 0 process (Even classes: airplane, car, deer, horse, ship)...")
 p0 = subprocess.Popen(cmd_gpu0, shell=True)
 
-print(f"Launching GPU 1 process (Odd classes)...")
+print(f"Launching GPU 1 process (Odd classes: bird, cat, dog, monkey, truck)...")
 p1 = subprocess.Popen(cmd_gpu1, shell=True)
 
 # Wait for both generation streams to complete
