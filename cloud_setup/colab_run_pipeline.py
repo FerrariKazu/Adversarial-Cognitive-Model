@@ -16,36 +16,60 @@ import shutil
 # Disable Hugging Face Hub progress bars to keep output silent and clean
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 
+def _is_progress_bar_line(line):
+    """Return True for tqdm-style lines we want to suppress.
+
+    Matches patterns like:
+      8%|▊         | 223M/2.64G [00:30<05:30, 7.32MB/s]
+      Downloading: 100%|██████| 500M/500M [01:23<00:00, 6.0MB/s]
+    """
+    stripped = line.strip()
+    if not stripped:
+        return False
+    # tqdm lines always contain a pipe-delimited bar and a % sign
+    if '|' in stripped and '%' in stripped:
+        return True
+    # Bare carriage-return lines (overwrite-style progress)
+    if stripped.startswith('\r'):
+        return True
+    return False
+
+
 def run_cmd(cmd):
     print(f"\n[RUNNING]: {cmd}")
+
+    # Inherit the current environment and disable tqdm in all subprocesses
+    env = os.environ.copy()
+    env["TQDM_DISABLE"] = "1"
+    env["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+
     process = subprocess.Popen(
-        cmd, 
-        shell=True, 
-        stdout=subprocess.PIPE, 
-        stderr=subprocess.STDOUT, 
-        text=True, 
-        bufsize=1
+        cmd,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        env=env,
     )
-    
-    while True:
-        char = process.stdout.read(1)
-        if not char:
-            break
-        sys.stdout.write(char)
-        sys.stdout.flush()
-        
+
+    for line in process.stdout:
+        if not _is_progress_bar_line(line):
+            sys.stdout.write(line)
+            sys.stdout.flush()
+
     process.wait()
     if process.returncode != 0:
         raise RuntimeError(f"Command failed with exit code {process.returncode}: {cmd}")
 
 def install_dependencies():
     print("\n>>> Installing Python Dependencies...")
-    run_cmd("pip install --quiet --upgrade pip setuptools wheel")
-    run_cmd("pip install --quiet git+https://github.com/fra31/auto-attack.git")
-    run_cmd("pip install --quiet opencv-python gdown datasets")
-    run_cmd("pip install --quiet git+https://github.com/openai/CLIP.git")
-    run_cmd("pip install --quiet git+https://github.com/wielandbrendel/bag-of-local-features-models.git")
-    run_cmd("pip install --quiet git+https://github.com/dicarlolab/CORnet.git")
+    run_cmd("pip install --quiet --progress-bar off --upgrade pip setuptools wheel")
+    run_cmd("pip install --quiet --progress-bar off git+https://github.com/fra31/auto-attack.git")
+    run_cmd("pip install --quiet --progress-bar off opencv-python gdown datasets")
+    run_cmd("pip install --quiet --progress-bar off git+https://github.com/openai/CLIP.git")
+    run_cmd("pip install --quiet --progress-bar off git+https://github.com/wielandbrendel/bag-of-local-features-models.git")
+    run_cmd("pip install --quiet --progress-bar off git+https://github.com/dicarlolab/CORnet.git")
     print(">>> Python environment successfully configured.")
 
 def download_and_setup_dataset():
