@@ -84,6 +84,9 @@ print("============================================================")
 raw_output_dir = "./data/synthetic_stl10_raw"
 os.makedirs(raw_output_dir, exist_ok=True)
 
+print("--> Pre-downloading SDXL Turbo pipeline to HuggingFace cache to prevent lockups...")
+run_command("python3 -c \"from diffusers import AutoPipelineForText2Image; AutoPipelineForText2Image.from_pretrained('stabilityai/sdxl-turbo', variant='fp16', low_cpu_mem_usage=True)\"")
+
 # Parallel processes with strict CUDA_VISIBLE_DEVICES isolation
 # GPU 0 handles even classes (0, 2, 4, 6, 8), GPU 1 handles odd classes (1, 3, 5, 7, 9)
 cmd_gpu0 = f"CUDA_VISIBLE_DEVICES=0 python3 data_generation/generate_synthetic_stl10.py --output-dir {raw_output_dir} --gpu-split even --device cuda:0"
@@ -91,6 +94,9 @@ cmd_gpu1 = f"CUDA_VISIBLE_DEVICES=1 python3 data_generation/generate_synthetic_s
 
 print(f"Launching GPU 0 process (Even classes: airplane, car, deer, horse, ship)...")
 p0 = subprocess.Popen(cmd_gpu0, shell=True)
+
+print("Waiting 10 seconds for GPU 0 initialization before launching GPU 1...")
+time.sleep(10)
 
 print(f"Launching GPU 1 process (Odd classes: bird, cat, dog, monkey, truck)...")
 p1 = subprocess.Popen(cmd_gpu1, shell=True)
