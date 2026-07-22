@@ -131,8 +131,8 @@ def main():
                         help='Directory to output WebDataset tar shards')
     parser.add_argument('--target-per-class', type=int, default=10000,
                         help='Target image count per class (default: 10000)')
-    parser.add_argument('--batch-size', type=int, default=8,
-                        help='Generation batch size (default: 8)')
+    parser.add_argument('--batch-size', type=int, default=4,
+                        help='Generation batch size (default: 4 for T4 VRAM safety)')
     parser.add_argument('--shard-size', type=int, default=1000,
                         help='Images per WebDataset .tar shard (default: 1000)')
     parser.add_argument('--gpu-split', type=str, choices=['all', 'even', 'odd'], default='all',
@@ -176,6 +176,9 @@ def main():
         variant="fp16" if is_cuda else None,
         low_cpu_mem_usage=True,
     ).to(args.device)
+    # Enable VAE slicing & tiling to prevent OOM during 512x512 VAE decoding on T4 GPUs
+    pipe.enable_vae_slicing()
+    pipe.enable_vae_tiling()
     pipe.set_progress_bar_config(disable=True)
     print("    ✓ Pipeline ready.", flush=True)
 
