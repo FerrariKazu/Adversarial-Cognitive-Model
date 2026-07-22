@@ -20,6 +20,7 @@ presentational/
 figures/
 figures_v2/
 figures_v3/
+RHANv10Report/
 docs/
 competition/
 Paper/
@@ -33,3 +34,4 @@ RHANarch.md
 *.pdf:Zone.Identifier
 *.html:Zone.Identifier
 *.png:Zone.Identifier
+.agent/

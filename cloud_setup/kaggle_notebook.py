@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 """
-Kaggle 2xT4 Setup & Execution Script for Experiment 3 (Large Model TRADES)
-===========================================================================
-This file can be run directly as a python script or imported into a Kaggle Notebook.
-It uses '#' and '%%' cell markers to allow easy import into Jupyter cells.
+Kaggle 2xT4 Notebook Execution Pipeline for Sprint 2 (Synthetic Generation & Filtering)
+=======================================================================================
+This script automates Sprint 2 Phase A (SDXL Turbo generation on T4x2) and Phase B
+(CLIP quality & diversity filtering + HuggingFace dataset upload).
+
+It is formatted with '# %%' markers for direct execution in Kaggle Notebook cells.
 """
 
 # %% [markdown]
 # # Step 1: Environment Setup & Dependencies
-# Installs necessary package dependencies and injects the Hugging Face Token.
+# Installs packages needed for SDXL Turbo generation, CLIP filtering, and WebDataset packaging.
 
 # %%
 import os
 import sys
 import subprocess
 import shutil
+import time
 
-# Fetch HF_TOKEN and inject it into the environment so the training process inherits it
+# Fetch HF_TOKEN from environment or Kaggle secrets
 hf_token = os.environ.get("HF_TOKEN")
 if not hf_token:
     try:
@@ -27,26 +30,24 @@ if not hf_token:
 
 if hf_token:
     os.environ["HF_TOKEN"] = hf_token
-    print("HF_TOKEN successfully loaded and injected into environment.")
+    print("✓ HF_TOKEN successfully loaded and injected into environment.")
 else:
-    print("WARNING: HF_TOKEN not found in environment or secrets. Hugging Face sync will be disabled.")
+    print("⚠️ WARNING: HF_TOKEN not found in environment or Kaggle secrets. Hugging Face upload will be disabled.")
 
 def run_command(cmd, shell=True):
-    print(f"Executing: {cmd}")
+    print(f"\n[RUNNING]: {cmd}")
     result = subprocess.run(cmd, shell=shell, check=True, text=True)
     return result.returncode
 
-print("Installing Python packages...")
-run_command("pip install --quiet git+https://github.com/fra31/auto-attack.git")
+print("\n>>> Installing Python Dependencies for Sprint 2...")
+run_command("pip install --quiet --upgrade pip setuptools wheel")
+run_command("pip install --quiet diffusers transformers accelerate webdataset")
 run_command("pip install --quiet git+https://github.com/openai/CLIP.git")
-run_command("pip install --quiet git+https://github.com/wielandbrendel/bag-of-local-features-models.git")
-run_command("pip install --quiet git+https://github.com/dicarlolab/CORnet.git")
-run_command("pip install --quiet opencv-python datasets huggingface_hub")
+run_command("pip install --quiet opencv-python datasets huggingface_hub PIL")
 
 # %% [markdown]
 # # Step 2: Clone and Sync Repository
-# Clones the repository to Kaggle's writable VM scratch disk (`/kaggle/working`)
-# and pulls the latest commits.
+# Syncs latest code from GitHub to `/kaggle/working/Adversarial-Cognitive-Model`.
 
 # %%
 REPO_NAME = 'Adversarial-Cognitive-Model'
@@ -62,96 +63,68 @@ os.chdir(f'/kaggle/working/{REPO_NAME}')
 print('Syncing repository to latest commit...')
 subprocess.run('git fetch origin main && git reset --hard origin/main', shell=True, check=True)
 
-# Create checkpoints directory and clean up stale files if FORCE_DOWNLOAD is active
-FORCE_DOWNLOAD = True
-os.makedirs('checkpoints', exist_ok=True)
-if FORCE_DOWNLOAD:
-    print("FORCE_DOWNLOAD is True. Clearing stale local checkpoints to force download from HF...")
-    for item in os.listdir('checkpoints'):
-        if item.endswith('.pth'):
-            item_path = os.path.join('checkpoints', item)
-            os.remove(item_path)
-            print(f"Removed local checkpoint: {item}")
+# Set PYTHONPATH
+os.environ["PYTHONPATH"] = f"/kaggle/working/{REPO_NAME}:{os.environ.get('PYTHONPATH', '')}"
 print(f"Working directory successfully set to: {os.getcwd()}")
 
 # %% [markdown]
-# # Step 3: Setup UCF-101 Video Dataset
-# Searches for the UCF-101 dataset inside Kaggle inputs and symlinks it.
-# If not found, downloads and extracts the official UCF-101 archive.
+# # Step 3: Phase A — Parallel SDXL Turbo Synthetic Generation (T4×2)
+# Runs GPU 0 for even class indices (0, 2, 4, 6, 8) and GPU 1 for odd class indices (1, 3, 5, 7, 9)
+# simultaneously to maximize dual-GPU throughput on Kaggle.
 
 # %%
-print('Locating UCF-101 dataset...')
-ucf_src_path = None
-kaggle_input_dir = '/kaggle/input'
-if os.path.exists(kaggle_input_dir):
-    for item in os.listdir(kaggle_input_dir):
-        item_path = os.path.join(kaggle_input_dir, item)
-        if os.path.isdir(item_path):
-            try:
-                contents = os.listdir(item_path)
-                if 'UCF-101' in contents or 'ucf101' in contents:
-                    ucf_src_path = os.path.join(item_path, 'UCF-101' if 'UCF-101' in contents else 'ucf101')
-                    break
-                if any(cat in contents for cat in ['ApplyEyeMakeup', 'Archery', 'Basketball']):
-                    ucf_src_path = item_path
-                    break
-            except Exception:
-                pass
+print("\n============================================================")
+print("  Sprint 2 Phase A: Parallel Generation on Kaggle T4x2")
+print("============================================================")
 
-os.makedirs('data', exist_ok=True)
-if ucf_src_path:
-    print(f"Found mounted UCF-101 dataset in inputs at: {ucf_src_path}")
-    target_link = 'data/ucf101'
-    if os.path.exists(target_link):
-        if os.path.islink(target_link):
-            os.unlink(target_link)
-        else:
-            shutil.rmtree(target_link)
-    os.symlink(ucf_src_path, target_link)
-    print("Successfully symlinked dataset to data/ucf101.")
-else:
-    # Direct download fallback
-    if not os.path.exists('data/ucf101'):
-        print("UCF-101 dataset not found in inputs. Downloading archive...")
-        download_cmd = "wget --no-check-certificate -q --show-progress https://www.crcv.ucf.edu/data/UCF101/UCF101.rar -O data/UCF101.rar"
-        try:
-            subprocess.run(download_cmd, shell=True, check=True)
-            print("Extracting UCF-101 dataset...")
-            extract_cmd = "unrar x data/UCF101.rar data/ > /dev/null"
-            subprocess.run(extract_cmd, shell=True, check=True)
-            if os.path.exists('data/UCF-101'):
-                os.rename('data/UCF-101', 'data/ucf101')
-            print("Dataset downloaded and extracted successfully.")
-        except Exception as e:
-            print(f"Download/Extraction failed: {e}")
-        finally:
-            if os.path.exists('data/UCF101.rar'):
-                os.remove('data/UCF101.rar')
-    else:
-        print("UCF-101 dataset already present at data/ucf101.")
+raw_output_dir = "./data/synthetic_stl10_raw"
+os.makedirs(raw_output_dir, exist_ok=True)
+
+# Parallel processes on CUDA 0 and CUDA 1
+cmd_gpu0 = f"python3 data_generation/generate_synthetic_stl10.py --output-dir {raw_output_dir} --gpu-split even --device cuda:0"
+cmd_gpu1 = f"python3 data_generation/generate_synthetic_stl10.py --output-dir {raw_output_dir} --gpu-split odd --device cuda:1"
+
+print(f"Launching GPU 0 process (Even classes)...")
+p0 = subprocess.Popen(cmd_gpu0, shell=True)
+
+print(f"Launching GPU 1 process (Odd classes)...")
+p1 = subprocess.Popen(cmd_gpu1, shell=True)
+
+# Wait for both generation streams to complete
+p0.wait()
+p1.wait()
+
+if p0.returncode != 0 or p1.returncode != 0:
+    raise RuntimeError(f"Generation failed! GPU 0 code: {p0.returncode}, GPU 1 code: {p1.returncode}")
+
+print("\n✓ Phase A Generation Finished!")
 
 # %% [markdown]
-# # Step 4: Run training (Experiment 3 Phase B: Large Model TRADES)
-# Uses Kaggle's dual-T4 multi-GPU capability. `nn.DataParallel` splits the batch
-# size across both GPUs, so a batch size of 256 will allocate 128 samples per T4 GPU,
-# fully saturating the VRAM without OOM.
+# # Step 4: Phase B — CLIP Quality Gate & Pairwise Diversity Filtering
+# Filters raw images using CLIP similarity threshold (> 0.25) and calculates pairwise
+# diversity to flag homogeneous classes (> 0.75).
 
 # %%
-print("Launching Experiment 3 Phase B...")
-# Target batch size 256 + 2 gradient accumulation steps = 512 effective batch size.
-cmd = (
-    "python3 phase1_training/train_rhan_video_tdv.py "
-    "--phase trades "
-    "--model-size large "
-    "--data-root ./data "
-    "--batch-size 256 "
-    "--accum-steps 2"
-)
+print("\n============================================================")
+print("  Sprint 2 Phase B: CLIP Quality & Diversity Filtering")
+print("============================================================")
 
-try:
-    # Set PYTHONPATH to include project root
-    os.environ["PYTHONPATH"] = f"/kaggle/working/{REPO_NAME}:{os.environ.get('PYTHONPATH', '')}"
-    run_command(cmd)
-    print("Training phase completed successfully.")
-except Exception as e:
-    print(f"Training run failed: {e}")
+filtered_output_dir = "./data/synthetic_stl10_filtered"
+cmd_filter = f"python3 data_generation/filter_synthetic_clip.py --input-dir {raw_output_dir} --output-dir {filtered_output_dir}"
+
+run_command(cmd_filter)
+
+# %% [markdown]
+# # Step 5: Phase B — HuggingFace Dataset Upload
+# Uploads filtered shards to HuggingFace dataset repo `FerrariKazu/stl10-synthetic`.
+
+# %%
+print("\n============================================================")
+print("  Sprint 2 Phase B: Uploading Dataset to HuggingFace")
+print("============================================================")
+
+cmd_upload = f"python3 data_generation/upload_synthetic_hf.py --input-dir {filtered_output_dir} --repo-id FerrariKazu/stl10-synthetic"
+
+run_command(cmd_upload)
+
+print("\n🎉 Sprint 2 Kaggle Pipeline Execution Completed Successfully!")

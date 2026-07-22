@@ -53,7 +53,7 @@ if os.path.exists(ckpt_path):
 # THEME EXPORTER UTILITY
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def save_themed_fig(fig, folder, filename):
-    base_dir = os.path.join("figures_v3", folder)
+    base_dir = os.path.join("RHANv10Report", folder)
     os.makedirs(base_dir, exist_ok=True)
     base_path = os.path.join(base_dir, filename)
 
@@ -570,21 +570,22 @@ def make_group_d():
 # GROUP E: ROBUSTNESS PERFORMANCE SWEEPS
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def make_group_e():
-    eps = np.linspace(0, 0.15, 100)
+    import json
+    # Load true empirical metrics from json
+    with open("report/true_empirical_metrics.json", "r") as f:
+        metrics = json.load(f)
+        
+    eps = np.array(metrics["epsilons"])
 
     # Figure E1: Clean vs. Robust Accuracy
     fig, ax = plt.subplots(figsize=(8.5, 5))
-    ax.plot(eps, 76.5 * np.exp(-140 * eps**2), color='#E91E63', lw=2.0, label='ResNet-18')
-    ax.plot(eps, 78.2 * np.exp(-90 * eps**1.8), color='#9C27B0', lw=2.0, label='ViT-Small')
-    ax.plot(eps, 74.3 * np.exp(-12 * eps**1.3), color='#1565C0', lw=2.2, label='RHAN-base (Trades)')
-    
-    # Large model curve (stable clean + robust decay)
-    large_acc = 85.2 * np.exp(-4 * eps**1.2)
-    ax.plot(eps, large_acc, color='#4CAF50', lw=2.8, label='RHANLargeSTL10 (Ours)')
+    ax.plot(eps, metrics["accuracy"]["resnet"], color='#E91E63', lw=2.0, label='ResNet-18')
+    ax.plot(eps, metrics["accuracy"]["vit"], color='#9C27B0', lw=2.0, label='ViT-Small')
+    ax.plot(eps, metrics["accuracy"]["static_trades"], color='#1565C0', lw=2.2, label='Static TRADES Baseline')
+    ax.plot(eps, metrics["accuracy"]["rhan_v10"], color='#4CAF50', lw=2.8, label='RHANv10 (Ours)')
     
     # Human boundary representation
-    human_acc = 74.15 * np.exp(-0.25 * eps)
-    ax.plot(eps, human_acc, color=GOLD, lw=2.5, ls='--', label='Human Visual Ceiling')
+    ax.plot(eps, metrics["accuracy"]["human"], color=GOLD, lw=2.5, ls='--', label='Human Visual Ceiling')
 
     ax.set_xlabel("Perturbation Level $\\epsilon$")
     ax.set_ylabel("Classification Accuracy (%)")
@@ -598,15 +599,11 @@ def make_group_e():
     # Figure E2: Sensitivity d' vs Epsilon
     fig, ax = plt.subplots(figsize=(8.5, 5))
     
-    human_dp = 4.790 * np.exp(-6.8 * eps)
-    resnet_dp = 3.1 * np.exp(-150 * eps**2)
-    vit_dp = 3.2 * np.exp(-100 * eps**1.8)
-    rhan_dp = 3.24 * np.exp(-9.5 * eps)
-
-    ax.plot(eps, resnet_dp, color='#E91E63', lw=2.0, label='ResNet-18')
-    ax.plot(eps, vit_dp, color='#9C27B0', lw=2.0, label='ViT-Small')
-    ax.plot(eps, rhan_dp, color='#4CAF50', lw=2.8, label='RHANLargeSTL10 (Ours)')
-    ax.plot(eps, human_dp, color=GOLD, lw=2.5, ls='--', label='Human Control')
+    ax.plot(eps, metrics["dprime"]["resnet"], color='#E91E63', lw=2.0, label='ResNet-18')
+    ax.plot(eps, metrics["dprime"]["vit"], color='#9C27B0', lw=2.0, label='ViT-Small')
+    ax.plot(eps, metrics["dprime"]["static_trades"], color='#1565C0', lw=2.2, label='Static TRADES Baseline')
+    ax.plot(eps, metrics["dprime"]["rhan_v10"], color='#4CAF50', lw=2.8, label='RHANv10 (Ours)')
+    ax.plot(eps, metrics["dprime"]["human"], color=GOLD, lw=2.5, ls='--', label='Human Control')
     
     ax.axhline(1.0, color='gray', ls=':', alpha=0.8)
     ax.text(0.005, 1.05, "$d'=1$ Boundary Threshold", fontsize=8.5, color='gray')
@@ -615,20 +612,23 @@ def make_group_e():
     ax.set_ylabel("Sensitivity Index ($d'$)")
     ax.set_title("Sensitivity Index ($d'$) Decay Comparison", fontsize=12, fontweight='bold')
     ax.set_xlim(0, 0.15)
-    ax.set_ylim(0, 5.0)
+    ax.set_ylim(-1.0, 5.5)
     ax.legend()
     ax.grid(ls=':')
     save_themed_fig(fig, "evaluation", "figure_e2_dprime_vs_epsilon")
 
     # Figure E3: Epsilon Threshold horizontal bar plot
     fig, ax = plt.subplots(figsize=(7.5, 4.5))
-    models = ['ResNet-18', 'ViT-Small', 'RHAN-base', 'RHANLargeSTL10 (Ours)', 'Human limit']
-    thresholds = [0.030, 0.040, 0.076, 0.250, 0.300]
+    models = ['ResNet-18', 'ViT-Small', 'Static Baseline', 'RHANv10 (Ours)', 'Human limit']
+    
+    # Retrieve thresholds from JSON
+    t_dict = metrics["thresholds"]
+    thresholds = [t_dict["resnet"], t_dict["vit"], t_dict["static_trades"], t_dict["rhan_v10"], t_dict["human"]]
     colors = ['#EF5350', '#AB47BC', '#42A5F5', '#66BB6A', GOLD]
     
     bars = ax.barh(models, thresholds, color=colors, edgecolor='#555555', height=0.55)
     ax.set_xlabel("Robustness Threshold Epsilon ($\\varepsilon_{thresh}$ at $d'=1.0$)")
-    ax.set_title("Adversarial Robustness Limit Comparison ($\mu$)", fontsize=11, fontweight='bold')
+    ax.set_title("Adversarial Robustness Limit Comparison ($\\mu$)", fontsize=11, fontweight='bold')
     ax.set_xlim(0, 0.35)
     ax.grid(axis='x', ls=':')
     
@@ -668,6 +668,55 @@ def make_group_e():
             
     fig.colorbar(im, label="Accuracy (%)")
     save_themed_fig(fig, "evaluation", "figure_e4_class_robustness_heatmap")
+
+    # Figure E5: RobustBench SOTA Comparison
+    fig, ax = plt.subplots(figsize=(8.5, 5.5))
+    lit_models = metrics["robustbench"]["models"]
+    lit_acc = metrics["robustbench"]["autoattack_acc"]
+    colors = ['#1565C0' if 'RHAN' in m else '#888888' for m in lit_models]
+    
+    bars = ax.barh(lit_models, lit_acc, color=colors, edgecolor='#555555', height=0.6)
+    ax.set_xlabel('AutoAttack Robust Accuracy (%) at $\\varepsilon=0.031$')
+    ax.set_title('RobustBench / Published Literature Comparison', fontsize=12, fontweight='bold')
+    ax.text(0.5, -0.12, "Values reproduced from RobustBench leaderboards or original publications.", 
+            transform=ax.transAxes, ha='center', fontsize=8.5, style='italic')
+    ax.invert_yaxis()
+    ax.grid(axis='x', ls=':')
+    
+    for bar in bars:
+        width = bar.get_width()
+        ax.text(width + 0.5, bar.get_y() + bar.get_height()/2, f"{width:.1f}%", ha='left', va='center', fontweight='bold', fontsize=8.5)
+        
+    save_themed_fig(fig, "evaluation", "figure_e5_sota_robustbench_comparison")
+
+    # Figure E6: Pareto Robustness Frontier
+    fig, ax = plt.subplots(figsize=(8.5, 5.5))
+    lit_params = metrics["robustbench"]["parameters_M"]
+    
+    # Separate ours vs others
+    ours_idx = [i for i, m in enumerate(lit_models) if 'RHAN' in m][0]
+    others_idx = [i for i in range(len(lit_models)) if i != ours_idx]
+    
+    ax.scatter([lit_params[i] for i in others_idx], [lit_acc[i] for i in others_idx], 
+               color='#888888', marker='s', s=80, edgecolors='#555555', label='RobustBench Baselines')
+               
+    for i in others_idx:
+        ax.text(lit_params[i] * 1.08, lit_acc[i] - 0.5, lit_models[i], fontsize=8, color='#555555')
+        
+    ax.scatter(lit_params[ours_idx], lit_acc[ours_idx], 
+               color='#1565C0', marker='o', s=160, edgecolors='black', label='RHANv10 (Ours)', zorder=5)
+    ax.text(lit_params[ours_idx] * 1.08, lit_acc[ours_idx] - 0.5, 'RHAN-v10 (Ours)', fontsize=9, color='#1565C0', weight='bold')
+    
+    ax.set_xscale('log')
+    ax.set_xlabel('Parameter Count (Millions, Log Scale)')
+    ax.set_ylabel('AutoAttack Robust Accuracy (%)')
+    ax.set_title('Pareto Frontier: Parameter Complexity vs. Robustness Efficiency', fontsize=12, fontweight='bold')
+    ax.grid(True, which="both", ls=':')
+    ax.set_xlim(5, 500)
+    ax.set_ylim(0, 50)
+    ax.legend(loc='lower left')
+    
+    save_themed_fig(fig, "evaluation", "figure_e6_pareto_complexity_frontier")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # GROUP F: BIOLOGICAL ANALYSIS
@@ -1022,9 +1071,9 @@ For every figure in each folder, there are 5 files exported:
 * **Figure J1 — Grad-CAM Comparison (`figure_j1_explainability_gradcam`)**: Comparison of saliency maps under Clean and PGD-attacked inputs between ResNet-18, ViT-Small, and RHAN.
 """
 
-    with open("figures_v3/README.md", "w") as f:
+    with open("RHANv10Report/README.md", "w") as f:
         f.write(readme_v2)
         
     print("\n======================================================================")
-    print("Scientific Visualization Suite (v3) successfully generated under figures_v3/")
+    print("Scientific Visualization Suite (v3) successfully generated under RHANv10Report/")
     print("======================================================================")

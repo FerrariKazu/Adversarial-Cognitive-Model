@@ -100,47 +100,70 @@ class STL10RawUnlabeledDataset(Dataset):
 
 class CombinedSTL10Dataset(Dataset):
     def __init__(self, real_imgs, real_labels,
-                 unlabeled_dataset, pseudo_indices, pseudo_labels, transform=None):
+                 unlabeled_dataset=None, pseudo_indices=None, pseudo_labels=None,
+                 synthetic_imgs=None, synthetic_labels=None, transform=None):
         self.real_imgs = real_imgs.cpu()
         self.real_labels = real_labels.cpu()
-        self.pseudo_labels = pseudo_labels.cpu()
         self.transform = transform
 
         self.n_real = len(real_imgs)
-        self.n_pseudo = len(pseudo_indices)
-
-        print(f"Pre-extracting {self.n_pseudo} pseudo-labeled images as uint8 to save RAM...", flush=True)
-        self.pseudo_imgs = torch.zeros(self.n_pseudo, 3, 96, 96, dtype=torch.uint8)
         
-        # Access raw unlabeled data directly to avoid repeated transformation/slicing overhead
-        raw_data = unlabeled_dataset.stl10.data  # shape (100000, 3, 96, 96)
-        
-        chunk_size = 5000
-        for i in range(0, self.n_pseudo, chunk_size):
-            end_idx = min(i + chunk_size, self.n_pseudo)
-            indices_chunk = pseudo_indices[i:end_idx].numpy()
-            self.pseudo_imgs[i:end_idx] = torch.from_numpy(raw_data[indices_chunk])
+        # Pseudo-labeled images
+        if pseudo_indices is not None and len(pseudo_indices) > 0 and unlabeled_dataset is not None:
+            self.n_pseudo = len(pseudo_indices)
+            self.pseudo_labels = pseudo_labels.cpu()
+            print(f"Pre-extracting {self.n_pseudo} pseudo-labeled images as uint8 to save RAM...", flush=True)
+            self.pseudo_imgs = torch.zeros(self.n_pseudo, 3, 96, 96, dtype=torch.uint8)
+            raw_data = unlabeled_dataset.stl10.data  # shape (100000, 3, 96, 96)
+            chunk_size = 5000
+            for i in range(0, self.n_pseudo, chunk_size):
+                end_idx = min(i + chunk_size, self.n_pseudo)
+                indices_chunk = pseudo_indices[i:end_idx].numpy()
+                self.pseudo_imgs[i:end_idx] = torch.from_numpy(raw_data[indices_chunk])
+        else:
+            self.n_pseudo = 0
+            self.pseudo_imgs = None
+            self.pseudo_labels = None
 
-        print(f"Combined dataset: {self.n_real} real + {self.n_pseudo} pseudo = {self.n_real+self.n_pseudo} total.", flush=True)
+        # Synthetic images
+        if synthetic_imgs is not None and len(synthetic_imgs) > 0:
+            self.n_synth = len(synthetic_imgs)
+            self.synth_imgs = synthetic_imgs.cpu() if isinstance(synthetic_imgs, torch.Tensor) else torch.tensor(synthetic_imgs, dtype=torch.uint8)
+            self.synth_labels = synthetic_labels.cpu() if isinstance(synthetic_labels, torch.Tensor) else torch.tensor(synthetic_labels, dtype=torch.long)
+        else:
+            self.n_synth = 0
+            self.synth_imgs = None
+            self.synth_labels = None
+
+        total_count = self.n_real + self.n_pseudo + self.n_synth
+        print(f"Combined dataset: {self.n_real} real + {self.n_pseudo} pseudo + {self.n_synth} synthetic = {total_count} total.", flush=True)
 
         # Normalization constants (held on cpu to avoid recreation on every getitem)
         self.mean = torch.tensor((0.4467, 0.4398, 0.4066)).view(3, 1, 1)
         self.std = torch.tensor((0.2603, 0.2566, 0.2713)).view(3, 1, 1)
 
     def __len__(self):
-        return self.n_real + self.n_pseudo
+        return self.n_real + self.n_pseudo + self.n_synth
 
     def __getitem__(self, idx):
         if idx < self.n_real:
             img = self.real_imgs[idx]
             label = self.real_labels[idx]
             weight = 1.0
-        else:
-            # On-the-fly normalization of the uint8 image
+        elif idx < self.n_real + self.n_pseudo:
+            # On-the-fly normalization of pseudo uint8 image
             img_uint8 = self.pseudo_imgs[idx - self.n_real]
             img = img_uint8.float() / 255.0
             img = (img - self.mean) / self.std
             label = self.pseudo_labels[idx - self.n_real]
+            weight = 0.5
+        else:
+            # On-the-fly normalization of synthetic uint8 image
+            synth_idx = idx - self.n_real - self.n_pseudo
+            img_uint8 = self.synth_imgs[synth_idx]
+            img = img_uint8.float() / 255.0
+            img = (img - self.mean) / self.std
+            label = self.synth_labels[synth_idx]
             weight = 0.5
 
         if self.transform:
