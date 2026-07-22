@@ -35,7 +35,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../phase1_training')))
 
 from phase1_training.model_rhan_v11 import RHANv11
-from phase1_training.model_rhan_stl10_large import RHANUnifiedSTL10Large
+from phase1_training.model_rhan_stl10_large import RHANLargeSTL10
 
 # STL-10 mean & std
 MEAN = torch.tensor([0.4467, 0.4398, 0.4066]).view(1, 3, 1, 1)
@@ -194,7 +194,7 @@ def main():
             continue
 
         if model_type == "static":
-            model = RHANUnifiedSTL10Large().to(device)
+            model = RHANLargeSTL10().to(device)
         else:
             model = RHANv11().to(device)
 

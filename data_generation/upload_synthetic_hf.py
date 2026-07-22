@@ -44,11 +44,11 @@ def main():
         sys.exit(1)
 
     api = HfApi(token=token)
-    print(f"--> Initializing upload to HuggingFace ({args.repo-id})...", flush=True)
+    print(f"--> Initializing upload to HuggingFace ({args.repo_id})...", flush=True)
 
     try:
-        create_repo(repo_id=args.repo-id, repo_type="dataset", token=token, private=args.private, exist_ok=True)
-        print(f"    ✓ Dataset repository '{args.repo-id}' ready.", flush=True)
+        create_repo(repo_id=args.repo_id, repo_type="dataset", token=token, private=args.private, exist_ok=True)
+        print(f"    ✓ Dataset repository '{args.repo_id}' ready.", flush=True)
     except Exception as e:
         print(f"    Notice: {e}", flush=True)
 
@@ -67,14 +67,14 @@ def main():
         api.upload_file(
             path_or_fileobj=fpath,
             path_in_repo=fname,
-            repo_id=args.repo-id,
+            repo_id=args.repo_id,
             repo_type="dataset",
             token=token
         )
 
     print("\n============================================================", flush=True)
     print(f"  ✓ Upload Complete! Dataset available at:", flush=True)
-    print(f"    https://huggingface.co/datasets/{args.repo-id}", flush=True)
+    print(f"    https://huggingface.co/datasets/{args.repo_id}", flush=True)
     print("============================================================", flush=True)
 
 if __name__ == '__main__':
