@@ -30,8 +30,10 @@ from scipy.stats import norm
 from scipy.interpolate import interp1d
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../phase1_training')))
 
 # Import model architectures
+from phase1_training.model_rhan_stl10 import RHANSTL10
 from phase1_training.model_rhan_stl10_large import RHANLargeSTL10
 from phase1_training.model_rhan_v11 import RHANv11
 
@@ -220,8 +222,8 @@ def main():
 
     # Checkpoint paths
     ckpt_map = {
-        "static_trades_large": ("checkpoints/rhan_stl10_tdv_trades_actual.pth", "static"),
-        "rhan_stl10_large_ep45": ("checkpoints/rhan_stl10_large_pseudolabel_best.pth", "static"),
+        "static_trades_large": ("checkpoints/rhan_stl10_tdv_trades_actual.pth", "static_base"),
+        "rhan_stl10_large_ep45": ("checkpoints/rhan_stl10_large_pseudolabel_best.pth", "static_large"),
         "rhan_v10_final": ("checkpoints/rhan_stl10_v10_best.pth", "rhan_v10"),
         "rhan_v11_best": ("checkpoints/rhan_stl10_v11_best.pth", "rhan_v11"),
         "rhan_v11_rolling": ("checkpoints/rhan_stl10_v11_rolling.pth", "rhan_v11"),
@@ -237,9 +239,9 @@ def main():
             continue
 
         # Load Architecture
-        if model_type in ["static"]:
-            model = RHANLargeSTL10().to(device)
-        elif model_type in ["rhan_v10"]:
+        if model_type == "static_base":
+            model = RHANSTL10().to(device)
+        elif model_type in ["static_large", "rhan_v10"]:
             model = RHANLargeSTL10().to(device)
         else: # rhan_v11
             model = RHANv11().to(device)
