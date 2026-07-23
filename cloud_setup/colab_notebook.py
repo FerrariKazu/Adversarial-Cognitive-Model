@@ -195,13 +195,12 @@ N_SAMPLES = 500
 PGD_STEPS = 50
 OUTPUT_FILE = "report/empirical_sweep_results_stl10.json"
 
-print(f"Launching Empirical Epsilon Sweep (n={N_SAMPLES}, pgd_steps={PGD_STEPS})...")
+print(f"Launching VERIFIED Empirical Epsilon Sweep (n={N_SAMPLES}, pgd_steps={PGD_STEPS})...")
 run_interactive_command(
-    f"python3 phase2_attacks/eval_empirical_epsilon_sweep.py "
+    f"python3 phase2_attacks/eval_empirical_sweep_verified.py "
     f"--n-samples {N_SAMPLES} "
     f"--pgd-steps {PGD_STEPS} "
-    f"--output-json {OUTPUT_FILE} "
-    f"--skip-models static_trades_large,rhan_stl10_large_ep45,rhan_v10_final,rhan_v11_best"
+    f"--output-json {OUTPUT_FILE}"
 )
 
 
