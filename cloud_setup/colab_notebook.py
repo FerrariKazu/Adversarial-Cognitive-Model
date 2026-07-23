@@ -176,6 +176,19 @@ run_command("pip install opencv-python scipy datasets")
 # STL-10 dataset will be automatically downloaded by torchvision during runtime.
 
 # %%
+def run_interactive_command(cmd):
+    try:
+        from IPython import get_ipython
+        ipy = get_ipython()
+        if ipy is not None:
+            # IPython system runner prints stdout/stderr directly in real-time
+            ipy.system(cmd)
+            return
+    except Exception:
+        pass
+    # Fallback to standard subprocess
+    subprocess.run(cmd, shell=True, check=True)
+
 # RUNTIME CONFIGURATION
 # ---------------------
 N_SAMPLES = 500
@@ -187,7 +200,8 @@ run_interactive_command(
     f"python3 phase2_attacks/eval_empirical_epsilon_sweep.py "
     f"--n-samples {N_SAMPLES} "
     f"--pgd-steps {PGD_STEPS} "
-    f"--output-json {OUTPUT_FILE}"
+    f"--output-json {OUTPUT_FILE} "
+    f"--skip-models static_trades_large,rhan_stl10_large_ep45"
 )
 
 
