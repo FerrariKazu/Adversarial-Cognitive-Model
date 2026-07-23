@@ -194,13 +194,17 @@ def run_interactive_command(cmd):
 N_SAMPLES = 500
 PGD_STEPS = 50
 OUTPUT_FILE = "report/empirical_sweep_results_stl10.json"
+SKIP_MODELS = ""  # comma-separated; "" runs all 4. Skip order (least → most important): static_trades_large, rhan_stl10_large_ep45, rhan_v10_final, rhan_v11_best (most important, skip last)
 
-print(f"Launching VERIFIED Empirical Epsilon Sweep (n={N_SAMPLES}, pgd_steps={PGD_STEPS})...")
+skip_flag = f"--skip-models {SKIP_MODELS}" if SKIP_MODELS else ""
+
+print(f"Launching Domain-Clamped Empirical Epsilon Sweep (n={N_SAMPLES}, pgd_steps={PGD_STEPS})...")
 run_interactive_command(
-    f"python3 phase2_attacks/eval_empirical_sweep_verified.py "
+    f"python3 phase2_attacks/eval_sweep_domain_clamped.py "
     f"--n-samples {N_SAMPLES} "
     f"--pgd-steps {PGD_STEPS} "
-    f"--output-json {OUTPUT_FILE}"
+    f"--output-json {OUTPUT_FILE} "
+    f"{skip_flag}"
 )
 
 
