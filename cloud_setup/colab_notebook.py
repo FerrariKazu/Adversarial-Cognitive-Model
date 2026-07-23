@@ -194,7 +194,7 @@ def run_interactive_command(cmd):
 N_SAMPLES = 500
 PGD_STEPS = 50
 OUTPUT_FILE = "report/empirical_sweep_results_stl10.json"
-SKIP_MODELS = ""  # comma-separated; "" runs all 4. Skip order (least → most important): static_trades_large, rhan_stl10_large_ep45, rhan_v10_final, rhan_v11_best (most important, skip last)
+SKIP_MODELS = "static_trades_large,rhan_stl10_large_ep45,rhan_v10_final"  # only rhan_v11_best runs; static_trades_large not on HF
 
 skip_flag = f"--skip-models {SKIP_MODELS}" if SKIP_MODELS else ""
 
