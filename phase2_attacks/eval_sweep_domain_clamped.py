@@ -16,7 +16,9 @@ Bug Reference: eval_empirical_epsilon_sweep.py line 108 used
 which applied the same scalar bound to all channels, inflating the effective
 attack by 3.81× (std.mean() ≈ 0.2627 vs per-channel stds of 0.2603/0.2565/0.2713).
 
-Epsilon Grid (pixel space [0,1]): [0.0000, 0.0313, 0.0625, 0.0940, 0.1500, 0.2000, 0.3000]
+Epsilon Grid (pixel space [0,1]): [0.0000, 0.0020, 0.0040, 0.0080, 0.0160, 0.0240, 0.0313]
+  ~normalized:  [0.0000, 0.0076, 0.0152, 0.0305, 0.0609, 0.0914, 0.1191]
+  Covers standard ε=0.031 attack (~eps_pixel=0.0080) with finer low-end resolution.
 Per-channel normalized equivalents are printed for visual verification.
 
 Models:
@@ -51,7 +53,7 @@ MEAN_VALS = (0.4467, 0.4398, 0.4066)
 MEAN = torch.tensor(MEAN_VALS).view(1, 3, 1, 1)
 STD = torch.tensor(STD_VALS).view(1, 3, 1, 1)
 
-EPS_GRID = [0.0000, 0.0313, 0.0625, 0.0940, 0.1500, 0.2000, 0.3000]
+EPS_GRID = [0.0000, 0.0020, 0.0040, 0.0080, 0.0160, 0.0240, 0.0313]
 
 
 def normalize(x_pixel):
