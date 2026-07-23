@@ -201,7 +201,7 @@ run_interactive_command(
     f"--n-samples {N_SAMPLES} "
     f"--pgd-steps {PGD_STEPS} "
     f"--output-json {OUTPUT_FILE} "
-    f"--skip-models static_trades_large,rhan_stl10_large_ep45,rhan_v10_final"
+    f"--skip-models static_trades_large,rhan_stl10_large_ep45,rhan_v10_final,rhan_v11_best"
 )
 
 
