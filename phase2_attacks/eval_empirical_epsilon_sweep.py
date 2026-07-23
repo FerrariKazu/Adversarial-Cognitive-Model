@@ -192,6 +192,7 @@ def main():
     parser.add_argument('--pgd-steps', type=int, default=50, help='PGD attack steps (default: 50)')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for dataset subsetting')
     parser.add_argument('--output-json', type=str, default='report/empirical_sweep_results_stl10.json', help='Output JSON path')
+    parser.add_argument('--skip-models', type=str, default='', help='Comma-separated model names to skip')
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -224,10 +225,15 @@ def main():
         "rhan_v11_rolling": ("checkpoints/rhan_stl10_v11_rolling.pth", "rhan_v11"),
     }
 
+    skip_list = [s.strip() for s in args.skip_models.split(',') if s.strip()]
+
     eps_grid = [0.000, 0.0313, 0.0625, 0.0940, 0.1500, 0.2000, 0.3000]
     sweep_results = {}
 
     for model_name, (ckpt_path, model_type) in ckpt_map.items():
+        if model_name in skip_list:
+            print(f"\n[-->] Skipping Checkpoint: '{model_name}' (explicitly requested to skip)", flush=True)
+            continue
         print(f"\n[-->] Evaluating Checkpoint: '{model_name}' ({ckpt_path})...")
         if not os.path.exists(ckpt_path):
             print(f"  Checkpoint not found locally at {ckpt_path}. Attempting to download from Hugging Face...", flush=True)
