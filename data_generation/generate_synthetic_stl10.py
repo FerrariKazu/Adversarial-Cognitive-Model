@@ -37,11 +37,9 @@ STL10_CLASSES = [
     'dog', 'horse', 'monkey', 'ship', 'truck'
 ]
 
-# Per-class inference step overrides (default 1 for speed; increase for challenging classes)
-# Car: 3 steps for better fidelity at cost of 3× slower generation
-CLASS_INFERENCE_STEPS = {
-    "car": 3,
-}
+# Per-class inference step overrides (default 1 for speed)
+# All classes at 1 step — car matched to same prompt style as others
+CLASS_INFERENCE_STEPS = {}
 DEFAULT_INFERENCE_STEPS = 1
 
 # 5-8 prompts per class (car has 8 with simpler prompts for better 1-step fidelity)
@@ -61,14 +59,14 @@ PROMPTS = {
         "exotic bird in tropical rainforest, vibrant colors, photorealistic, 96x96",
     ],
     "car": [
-        "a car, side view, simple background",
-        "a red car, front view, clear lighting",
-        "a blue car, three-quarter view, plain background",
-        "a white car, parked, side profile",
-        "a silver car, outdoor daylight",
-        "a black car, street view",
-        "a yellow car, parked on road",
-        "a car, close-up, front grille visible",
+        "a car on a road, photorealistic, side view, 96x96",
+        "a red car parked on street, clear daylight, photorealistic, 96x96",
+        "a blue car, three-quarter view, outdoor lighting, photorealistic, 96x96",
+        "a white sedan on highway, photorealistic, side profile, 96x96",
+        "a silver car in parking lot, photorealistic, front view, 96x96",
+        "a black car on residential street, photorealistic, 96x96",
+        "a yellow sports car, dynamic angle, photorealistic, 96x96",
+        "a car close-up showing headlights and grille, photorealistic, 96x96",
     ],
     "cat": [
         "domestic cat, photorealistic, clear background, 96x96",
