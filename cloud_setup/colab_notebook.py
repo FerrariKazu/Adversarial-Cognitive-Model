@@ -193,21 +193,32 @@ def run_interactive_command(cmd):
 # ---------------------
 N_SAMPLES = 500
 PGD_STEPS = 50
-OUTPUT_FILE = "report/empirical_sweep_results_stl10.json"
-SKIP_MODELS = "static_trades_large,rhan_v11_best"  # skip HF-missing + already-evaluated
-QUICK_TRIAGE = True  # True: 3 eps points [0, 0.008, 0.0313], n=200; False: full 7-point grid, n=500
+SWEEP_JSON = "report/empirical_sweep_results_stl10.json"
+SQUARE_JSON = "report/square_sanity_stl10.json"
 
-skip_flag = f"--skip-models {SKIP_MODELS}" if SKIP_MODELS else ""
-quick_flag = "--quick" if QUICK_TRIAGE else ""
-
-print(f"Launching Domain-Clamped Empirical Epsilon Sweep (n={'200' if QUICK_TRIAGE else str(N_SAMPLES)}, pgd_steps={PGD_STEPS}, quick={QUICK_TRIAGE})...")
+# ── Stage 1: Full PGD-50 ε-sweep, all 4 checkpoints, fine grid ──
+print("=" * 70)
+print("  STAGE 1: FULL PGD-50 ε-SWEEP (n=500, fine grid [0-0.006-0.0313])")
+print("  Models: static_trades_large, ep45, v10_final, v11_best")
+print("=" * 70)
 run_interactive_command(
     f"python3 phase2_attacks/eval_sweep_domain_clamped.py "
     f"--n-samples {N_SAMPLES} "
     f"--pgd-steps {PGD_STEPS} "
-    f"--output-json {OUTPUT_FILE} "
-    f"{skip_flag} "
-    f"{quick_flag}"
+    f"--output-json {SWEEP_JSON} "
+)
+
+# ── Stage 2: Square Attack (gradient-free) sanity check at ε=0.008 on ep45 + v10 ──
+print("\n" + "=" * 70)
+print("  STAGE 2: SQUARE ATTACK SANITY CHECK (ε=0.008, n=500)")
+print("  Models: ep45, v10_final  —  gradient-free verification")
+print("=" * 70)
+run_interactive_command(
+    f"python3 phase2_attacks/eval_sweep_domain_clamped.py "
+    f"--n-samples {N_SAMPLES} "
+    f"--output-json {SQUARE_JSON} "
+    f"--skip-models static_trades_large,rhan_v11_best "
+    f"--square-eps 0.008 "
 )
 
 

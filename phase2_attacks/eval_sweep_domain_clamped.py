@@ -53,7 +53,7 @@ MEAN_VALS = (0.4467, 0.4398, 0.4066)
 MEAN = torch.tensor(MEAN_VALS).view(1, 3, 1, 1)
 STD = torch.tensor(STD_VALS).view(1, 3, 1, 1)
 
-eps_grid = [0.0000, 0.0020, 0.0040, 0.0080, 0.0160, 0.0240, 0.0313]
+eps_grid = [0.0000, 0.0020, 0.0040, 0.0060, 0.0080, 0.0160, 0.0240, 0.0313]
 
 
 def normalize(x_pixel):
@@ -149,6 +149,40 @@ def find_dprime_crossing(eps_list, dprime_list, target_d=1.0):
         return 0.0
 
 
+def run_square_pixel_space(model_wrapper, x_pixel, y, eps_pixel, batch_size=32):
+    if eps_pixel == 0.0:
+        with torch.no_grad():
+            return model_wrapper(x_pixel), x_pixel.clone()
+    try:
+        from autoattack import AutoAttack
+        device = x_pixel.device
+        wrapper_eval = model_wrapper.eval()
+        adversary = AutoAttack(
+            wrapper_eval, norm='Linf', eps=eps_pixel,
+            version='standard', verbose=False
+        )
+        adversary.apgd = None
+        adversary.apgd_targeted = None
+        adversary.fab = None
+        n = len(x_pixel)
+        all_logits = []
+        all_x_adv = []
+        for i in range(0, n, batch_size):
+            bx = x_pixel[i:i+batch_size].clone().detach().to(device)
+            by = y[i:i+batch_size].to(device)
+            x_adv_i = adversary.run_standard_evaluation(bx, by, bs=batch_size)
+            with torch.no_grad():
+                logits_i = model_wrapper(x_adv_i)
+            all_logits.append(logits_i.cpu())
+            all_x_adv.append(x_adv_i.cpu())
+        logits = torch.cat(all_logits, dim=0).to(device)
+        x_adv_all = torch.cat(all_x_adv, dim=0).to(device)
+        return logits, x_adv_all
+    except Exception as e:
+        print(f"  Square Attack failed: {e}", flush=True)
+        raise
+
+
 def download_checkpoint_if_missing(ckpt_path):
     if not os.path.exists(ckpt_path):
         print(f"  Checkpoint not found locally at {ckpt_path}. Attempting download from HuggingFace...", flush=True)
@@ -206,19 +240,27 @@ def main():
     parser.add_argument('--output-json', type=str, default='report/empirical_sweep_results_stl10.json')
     parser.add_argument('--skip-models', type=str, default='')
     parser.add_argument('--quick', action='store_true', help='Triage mode: 3 eps points [0, 0.008, 0.0313], n=200')
+    parser.add_argument('--square-eps', type=float, default=None,
+                        help='Run Square Attack (gradient-free) at this epsilon instead of PGD sweep')
     args = parser.parse_args()
 
-    eps_grid = [0.0000, 0.0020, 0.0040, 0.0080, 0.0160, 0.0240, 0.0313]
+    eps_grid = [0.0000, 0.0020, 0.0040, 0.0060, 0.0080, 0.0160, 0.0240, 0.0313]
     n_samples = args.n_samples
+    attack_name = "PGD-{}".format(args.pgd_steps)
     if args.quick:
         eps_grid = [0.0, 0.0080, 0.0313]
         n_samples = min(n_samples, 200)
+    if args.square_eps is not None:
+        eps_grid = [args.square_eps]
+        attack_name = "Square"
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("=" * 70)
     mode = "QUICK TRIAGE" if args.quick else "FULL SWEEP"
+    if args.square_eps is not None:
+        mode = f"SQUARE ATTACK at ε={args.square_eps}"
     print(f"  DOMAIN-CLAMPED Empirical Epsilon Sweep & SDT Evaluation [{mode}]")
-    print(f"  Device: {device} | Samples: n={n_samples} | PGD Steps: {args.pgd_steps}")
+    print(f"  Device: {device} | Samples: n={n_samples} | Attack: {attack_name}")
     print("=" * 70)
 
     std_r, std_g, std_b = STD_VALS
@@ -327,9 +369,15 @@ def main():
                 batch_pixel = x_pixel[i:i + batch_size]
                 batch_y = y_test[i:i + batch_size]
 
-                logits_adv, _ = run_pgd_pixel_space(
-                    wrapper, batch_pixel, batch_y, eps_pixel=eps, steps=args.pgd_steps
-                )
+                is_square = args.square_eps is not None
+                if is_square:
+                    logits_adv, _ = run_square_pixel_space(
+                        wrapper, batch_pixel, batch_y, eps_pixel=eps, batch_size=args.batch_size
+                    )
+                else:
+                    logits_adv, _ = run_pgd_pixel_space(
+                        wrapper, batch_pixel, batch_y, eps_pixel=eps, steps=args.pgd_steps
+                    )
                 preds = logits_adv.argmax(dim=-1)
                 all_targets.extend(batch_y.cpu().numpy())
                 all_preds.extend(preds.cpu().numpy())
