@@ -159,11 +159,8 @@ def run_square_pixel_space(model_wrapper, x_pixel, y, eps_pixel, batch_size=32):
         wrapper_eval = model_wrapper.eval()
         adversary = AutoAttack(
             wrapper_eval, norm='Linf', eps=eps_pixel,
-            version='standard', verbose=False
+            version='custom', attacks_to_run=['square'], verbose=False
         )
-        adversary.apgd = None
-        adversary.apgd_targeted = None
-        adversary.fab = None
         n = len(x_pixel)
         all_logits = []
         all_x_adv = []
