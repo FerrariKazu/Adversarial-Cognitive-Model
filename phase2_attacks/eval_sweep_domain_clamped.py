@@ -53,7 +53,7 @@ MEAN_VALS = (0.4467, 0.4398, 0.4066)
 MEAN = torch.tensor(MEAN_VALS).view(1, 3, 1, 1)
 STD = torch.tensor(STD_VALS).view(1, 3, 1, 1)
 
-EPS_GRID = [0.0000, 0.0020, 0.0040, 0.0080, 0.0160, 0.0240, 0.0313]
+eps_grid = [0.0000, 0.0020, 0.0040, 0.0080, 0.0160, 0.0240, 0.0313]
 
 
 def normalize(x_pixel):
@@ -205,19 +205,27 @@ def main():
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--output-json', type=str, default='report/empirical_sweep_results_stl10.json')
     parser.add_argument('--skip-models', type=str, default='')
+    parser.add_argument('--quick', action='store_true', help='Triage mode: 3 eps points [0, 0.008, 0.0313], n=200')
     args = parser.parse_args()
+
+    eps_grid = [0.0000, 0.0020, 0.0040, 0.0080, 0.0160, 0.0240, 0.0313]
+    n_samples = args.n_samples
+    if args.quick:
+        eps_grid = [0.0, 0.0080, 0.0313]
+        n_samples = min(n_samples, 200)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("=" * 70)
-    print("  DOMAIN-CLAMPED Empirical Epsilon Sweep & SDT Evaluation")
-    print(f"  Device: {device} | Samples: n={args.n_samples} | PGD Steps: {args.pgd_steps}")
+    mode = "QUICK TRIAGE" if args.quick else "FULL SWEEP"
+    print(f"  DOMAIN-CLAMPED Empirical Epsilon Sweep & SDT Evaluation [{mode}]")
+    print(f"  Device: {device} | Samples: n={n_samples} | PGD Steps: {args.pgd_steps}")
     print("=" * 70)
 
     std_r, std_g, std_b = STD_VALS
     print("\n--- PER-CHANNEL NORMALIZED EPSILON VERIFICATION ---")
     print("Pixel Eps | Raw Fraction | Norm Eps R (s={}) | Norm Eps G (s={}) | Norm Eps B (s={})".format(std_r, std_g, std_b))
     print("-" * 95)
-    for eps in EPS_GRID:
+    for eps in eps_grid:
         eps_r = eps / std_r
         eps_g = eps / std_g
         eps_b = eps / std_b
@@ -233,8 +241,8 @@ def main():
     np.random.seed(args.seed)
 
     # Load test samples in pixel space [0, 1]
-    print(f"Loading {args.n_samples} STL-10 test samples...", flush=True)
-    x_pixel, y_test = load_test_samples_pixel(n_samples=args.n_samples, seed=args.seed)
+    print(f"Loading {n_samples} STL-10 test samples...", flush=True)
+    x_pixel, y_test = load_test_samples_pixel(n_samples=n_samples, seed=args.seed)
     x_pixel, y_test = x_pixel.to(device), y_test.to(device)
 
     # Checkpoint map
@@ -294,7 +302,7 @@ def main():
         wrapper.eval()
 
         ckpt_metrics = {
-            "epsilons": EPS_GRID,
+            "epsilons": eps_grid,
             "accuracy": [],
             "macro_dprime": [],
             "pooled_dprime": [],
@@ -302,7 +310,7 @@ def main():
         }
 
         t0 = time.time()
-        for eps in EPS_GRID:
+        for eps in eps_grid:
             eps_r = eps / std_r
             eps_g = eps / std_g
             eps_b = eps / std_b
@@ -352,8 +360,8 @@ def main():
             print(f" Acc: {acc:>5.2f}% | Macro d': {macro_dp:>6.4f} | Pooled d': {pooled_dp:>6.4f} ({dt:.1f}s)", flush=True)
 
         elapsed = time.time() - t0
-        thresh_macro = find_dprime_crossing(EPS_GRID, ckpt_metrics["macro_dprime"], target_d=1.0)
-        thresh_pooled = find_dprime_crossing(EPS_GRID, ckpt_metrics["pooled_dprime"], target_d=1.0)
+        thresh_macro = find_dprime_crossing(eps_grid, ckpt_metrics["macro_dprime"], target_d=1.0)
+        thresh_pooled = find_dprime_crossing(eps_grid, ckpt_metrics["pooled_dprime"], target_d=1.0)
 
         ckpt_metrics["thresh_dprime_1_macro"] = round(thresh_macro, 4)
         ckpt_metrics["thresh_dprime_1_pooled"] = round(thresh_pooled, 4)
@@ -378,7 +386,7 @@ def main():
     header = f"{'Epsilon':<9} | " + " | ".join([f"{name:<20}" for name in model_names])
     print(header)
     print("-" * len(header))
-    for i, eps in enumerate(EPS_GRID):
+    for i, eps in enumerate(eps_grid):
         row = f"{eps:<9.4f} | "
         for name in model_names:
             acc = sweep_results[name]["accuracy"][i]

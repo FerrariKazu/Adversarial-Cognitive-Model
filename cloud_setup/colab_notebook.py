@@ -194,17 +194,20 @@ def run_interactive_command(cmd):
 N_SAMPLES = 500
 PGD_STEPS = 50
 OUTPUT_FILE = "report/empirical_sweep_results_stl10.json"
-SKIP_MODELS = "static_trades_large,rhan_stl10_large_ep45,rhan_v10_final"  # only rhan_v11_best runs; static_trades_large not on HF
+SKIP_MODELS = "static_trades_large,rhan_v11_best"  # skip HF-missing + already-evaluated
+QUICK_TRIAGE = True  # True: 3 eps points [0, 0.008, 0.0313], n=200; False: full 7-point grid, n=500
 
 skip_flag = f"--skip-models {SKIP_MODELS}" if SKIP_MODELS else ""
+quick_flag = "--quick" if QUICK_TRIAGE else ""
 
-print(f"Launching Domain-Clamped Empirical Epsilon Sweep (n={N_SAMPLES}, pgd_steps={PGD_STEPS})...")
+print(f"Launching Domain-Clamped Empirical Epsilon Sweep (n={'200' if QUICK_TRIAGE else str(N_SAMPLES)}, pgd_steps={PGD_STEPS}, quick={QUICK_TRIAGE})...")
 run_interactive_command(
     f"python3 phase2_attacks/eval_sweep_domain_clamped.py "
     f"--n-samples {N_SAMPLES} "
     f"--pgd-steps {PGD_STEPS} "
     f"--output-json {OUTPUT_FILE} "
-    f"{skip_flag}"
+    f"{skip_flag} "
+    f"{quick_flag}"
 )
 
 
