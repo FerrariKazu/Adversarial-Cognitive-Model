@@ -196,16 +196,17 @@ PGD_STEPS = 50
 SWEEP_JSON = "report/empirical_sweep_results_stl10.json"
 SQUARE_JSON = "report/square_sanity_stl10.json"
 
-# ── Stage 1: Full PGD-50 ε-sweep, all 4 checkpoints, fine grid ──
+# ── Stage 1: Finish v11_best PGD-50 sweep only (ep45 + v10 already done) ──
 print("=" * 70)
-print("  STAGE 1: FULL PGD-50 ε-SWEEP (n=500, fine grid [0-0.006-0.0313])")
-print("  Models: static_trades_large, ep45, v10_final, v11_best")
+print("  STAGE 1: FINISH v11_best PGD-50 SWEEP (n=500, fine grid)")
+print("  ep45 + v10_final already evaluated in prior run — skipping")
 print("=" * 70)
 run_interactive_command(
     f"python3 phase2_attacks/eval_sweep_domain_clamped.py "
     f"--n-samples {N_SAMPLES} "
     f"--pgd-steps {PGD_STEPS} "
     f"--output-json {SWEEP_JSON} "
+    f"--skip-models static_trades_large,rhan_stl10_large_ep45,rhan_v10_final "
 )
 
 # ── Stage 2: Square Attack (gradient-free) sanity check at ε=0.008 on ep45 + v10 ──

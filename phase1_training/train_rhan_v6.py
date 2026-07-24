@@ -147,7 +147,7 @@ def main():
     is_resumed = False
     if args.resume and os.path.exists(checkpoint_path):
         print(f"Resuming from checkpoint: {checkpoint_path}")
-        checkpoint = torch.load(checkpoint_path, map_location=device)
+        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
         model.load_state_dict(checkpoint['model_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
         best_test_acc = checkpoint.get('best_test_acc', 0.0)
@@ -167,13 +167,13 @@ def main():
             print("Run pretrain_noise_estimator.py first!")
             return
         
-        model.load_state_dict(torch.load(clip_init_ckpt, map_location=device))
+        model.load_state_dict(torch.load(clip_init_ckpt, map_location=device, weights_only=False))
         print(f"RHANv6 loaded from CLIP initialization checkpoint: {clip_init_ckpt}")
         model.load_noise_estimator_weights(noise_est_ckpt, device=device)
 
     # ── CORnet-S teacher (frozen) ──
     teacher = CIFARCORnet().to(device)
-    teacher.load_state_dict(torch.load(cornet_ckpt, map_location=device))
+    teacher.load_state_dict(torch.load(cornet_ckpt, map_location=device, weights_only=False))
     teacher.eval()
     for p in teacher.parameters():
         p.requires_grad = False
@@ -406,7 +406,7 @@ def main():
     # =====================================================================
     print("Loading best checkpoint for post-training diagnostics...")
     eval_model = RHANv6(head_type='cosine').to(device)
-    eval_model.load_state_dict(torch.load(output_ckpt, map_location=device))
+    eval_model.load_state_dict(torch.load(output_ckpt, map_location=device, weights_only=False))
     eval_model.eval()
     for p in eval_model.parameters():
         p.requires_grad = False
