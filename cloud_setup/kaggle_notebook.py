@@ -73,66 +73,36 @@ os.environ["PYTHONPATH"] = f"/kaggle/working/{REPO_NAME}:{os.environ.get('PYTHON
 print(f"Working directory successfully set to: {os.getcwd()}")
 
 # %% [markdown]
-# # Step 3: Phase A — Parallel SDXL Turbo Synthetic Generation (T4×2)
-# Runs GPU 0 for even class indices (0, 2, 4, 6, 8) and GPU 1 for odd class indices (1, 3, 5, 7, 9)
-# simultaneously to maximize dual-GPU throughput on Kaggle.
+# # Step 3: Car-Only Regeneration with Improved Prompts + More Steps
+# Car had 12.8% pass rate at threshold 0.25 — prompts were too elaborate for SDXL
+# Turbo at 1 step. Regenerate with simpler concrete prompts and 3 inference steps.
+# 
+# ~4.5 hours on T4 for 20K images at 3 steps. Other classes are not regenerated
+# (their raw data from the first pass is expected in ./data/synthetic_stl10_raw).
 
 # %%
-print("\n============================================================")
-print("  Sprint 2 Phase A: Parallel Generation on Kaggle T4x2")
-print("============================================================")
-
 raw_output_dir = "./data/synthetic_stl10_raw"
 os.makedirs(raw_output_dir, exist_ok=True)
 
-print("--> Pre-downloading SDXL Turbo pipeline to HuggingFace cache to prevent lockups...")
+print("--> Pre-downloading SDXL Turbo pipeline to HuggingFace cache...")
 run_command("python3 -c \"from diffusers import AutoPipelineForText2Image; AutoPipelineForText2Image.from_pretrained('stabilityai/sdxl-turbo', variant='fp16', low_cpu_mem_usage=True)\"")
 
-# Parallel processes with strict CUDA_VISIBLE_DEVICES isolation
-# GPU 0 handles even classes (0, 2, 4, 6, 8), GPU 1 handles odd classes (1, 3, 5, 7, 9)
-cmd_gpu0 = f"CUDA_VISIBLE_DEVICES=0 python3 data_generation/generate_synthetic_stl10.py --output-dir {raw_output_dir} --gpu-split even --device cuda:0"
-cmd_gpu1 = f"CUDA_VISIBLE_DEVICES=1 python3 data_generation/generate_synthetic_stl10.py --output-dir {raw_output_dir} --gpu-split odd --device cuda:0"
-
-print(f"Launching GPU 0 process (Even classes: airplane, car, deer, horse, ship)...")
-p0 = subprocess.Popen(cmd_gpu0, shell=True)
-
-print("Waiting 10 seconds for GPU 0 initialization before launching GPU 1...")
-time.sleep(10)
-
-print(f"Launching GPU 1 process (Odd classes: bird, cat, dog, monkey, truck)...")
-p1 = subprocess.Popen(cmd_gpu1, shell=True)
-
-# Wait for both generation streams to complete
-p0.wait()
-p1.wait()
-
-if p0.returncode != 0 or p1.returncode != 0:
-    raise RuntimeError(f"Generation failed! GPU 0 code: {p0.returncode}, GPU 1 code: {p1.returncode}")
-
-print("\n✓ Phase A Generation Finished!")
-
-# %% [markdown]
-# # Step 4: Phase A.5 — Car-Only Regeneration with Improved Prompts + More Steps
-# Car had 12.8% pass rate at threshold 0.25. Regenerate with simpler prompts
-# and 3 inference steps (instead of 1) for better fidelity.
-
-# %%
 print("\n============================================================")
-print("  Car Regeneration with Improved Prompts + 3 Inference Steps")
+print("  Sprint 2 Phase A.5: Car-Only Regeneration (3 steps, simpler prompts)")
 print("============================================================")
 cmd_car = f"CUDA_VISIBLE_DEVICES=0 python3 data_generation/generate_synthetic_stl10.py --output-dir {raw_output_dir} --class-index 2 --target-per-class 20000"
-print("Regenerating car (class-index 2 = car, target 20K raw for ~2-4K filtered)...")
+print("Regenerating car (class-index 2, target 20K raw for ~2-4K filtered at threshold 0.30)...")
 subprocess.run(cmd_car, shell=True, check=True)
 print("✓ Car regeneration complete.")
 
 # %% [markdown]
-# # Step 5: Phase B — CLIP Quality Gate & Pairwise Diversity Filtering
-# Filters raw images using CLIP similarity threshold (0.30, up from 0.25 after
-# diagnosing 100% pass rates on deer/horse/monkey at the old threshold).
+# # Step 4: Phase B — CLIP Quality Gate at Threshold 0.30
+# Filters ALL raw data (car from new generation + other classes from first pass)
+# at the recalibrated threshold 0.30 (was 0.25, which let through 100% on some classes).
 
 # %%
 print("\n============================================================")
-print("  Sprint 2 Phase B: CLIP Quality & Diversity Filtering")
+print("  Sprint 2 Phase B: CLIP Quality & Diversity Filtering (threshold=0.30)")
 print("============================================================")
 
 filtered_output_dir = "./data/synthetic_stl10_filtered"
@@ -141,7 +111,7 @@ cmd_filter = f"python3 data_generation/filter_synthetic_clip.py --input-dir {raw
 run_command(cmd_filter)
 
 # %% [markdown]
-# # Step 6: Phase B — HuggingFace Dataset Upload
+# # Step 5: Phase B — HuggingFace Dataset Upload
 # Uploads filtered shards to HuggingFace dataset repo `FerrariKazu/stl10-synthetic`.
 
 # %%
