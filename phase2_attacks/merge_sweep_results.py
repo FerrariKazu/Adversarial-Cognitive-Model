@@ -56,6 +56,13 @@ def main():
     print(f"\n[merge] Final results written to {args.output_json}")
     print(f"Models in final table: {list(final.keys())}")
 
+    # 5. Print copy-pasteable JSON block
+    print("\n" + "=" * 70)
+    print("  COPY THIS SECTION — PASTE TO CHAT")
+    print("=" * 70)
+    print(json.dumps(final, indent=2))
+    print("=" * 70)
+
 
 if __name__ == '__main__':
     main()
