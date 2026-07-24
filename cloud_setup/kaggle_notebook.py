@@ -112,9 +112,23 @@ if p0.returncode != 0 or p1.returncode != 0:
 print("\n✓ Phase A Generation Finished!")
 
 # %% [markdown]
-# # Step 4: Phase B — CLIP Quality Gate & Pairwise Diversity Filtering
-# Filters raw images using CLIP similarity threshold (> 0.25) and calculates pairwise
-# diversity to flag homogeneous classes (> 0.75).
+# # Step 4: Phase A.5 — Car-Only Regeneration with Improved Prompts + More Steps
+# Car had 12.8% pass rate at threshold 0.25. Regenerate with simpler prompts
+# and 3 inference steps (instead of 1) for better fidelity.
+
+# %%
+print("\n============================================================")
+print("  Car Regeneration with Improved Prompts + 3 Inference Steps")
+print("============================================================")
+cmd_car = f"CUDA_VISIBLE_DEVICES=0 python3 data_generation/generate_synthetic_stl10.py --output-dir {raw_output_dir} --class-index 2 --target-per-class 20000"
+print("Regenerating car (class-index 2 = car, target 20K raw for ~2-4K filtered)...")
+subprocess.run(cmd_car, shell=True, check=True)
+print("✓ Car regeneration complete.")
+
+# %% [markdown]
+# # Step 5: Phase B — CLIP Quality Gate & Pairwise Diversity Filtering
+# Filters raw images using CLIP similarity threshold (0.30, up from 0.25 after
+# diagnosing 100% pass rates on deer/horse/monkey at the old threshold).
 
 # %%
 print("\n============================================================")
@@ -122,12 +136,12 @@ print("  Sprint 2 Phase B: CLIP Quality & Diversity Filtering")
 print("============================================================")
 
 filtered_output_dir = "./data/synthetic_stl10_filtered"
-cmd_filter = f"python3 data_generation/filter_synthetic_clip.py --input-dir {raw_output_dir} --output-dir {filtered_output_dir}"
+cmd_filter = f"python3 data_generation/filter_synthetic_clip.py --input-dir {raw_output_dir} --output-dir {filtered_output_dir} --sim-threshold 0.30"
 
 run_command(cmd_filter)
 
 # %% [markdown]
-# # Step 5: Phase B — HuggingFace Dataset Upload
+# # Step 6: Phase B — HuggingFace Dataset Upload
 # Uploads filtered shards to HuggingFace dataset repo `FerrariKazu/stl10-synthetic`.
 
 # %%

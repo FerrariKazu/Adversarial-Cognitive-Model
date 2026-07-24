@@ -37,7 +37,14 @@ STL10_CLASSES = [
     'dog', 'horse', 'monkey', 'ship', 'truck'
 ]
 
-# 5 prompts per class (50 prompts total)
+# Per-class inference step overrides (default 1 for speed; increase for challenging classes)
+# Car: 3 steps for better fidelity at cost of 3× slower generation
+CLASS_INFERENCE_STEPS = {
+    "car": 3,
+}
+DEFAULT_INFERENCE_STEPS = 1
+
+# 5-8 prompts per class (car has 8 with simpler prompts for better 1-step fidelity)
 PROMPTS = {
     "airplane": [
         "aircraft flying in blue sky, photorealistic, side view, 96x96",
@@ -54,11 +61,14 @@ PROMPTS = {
         "exotic bird in tropical rainforest, vibrant colors, photorealistic, 96x96",
     ],
     "car": [
-        "automobile parked on street, front three-quarter view, photorealistic, 96x96",
-        "modern sedan driving on asphalt road, motion blur, photorealistic, 96x96",
-        "classic sports car in bright sunlight, side profile, photorealistic, 96x96",
-        "compact car in urban parking spot, sharp details, photorealistic, 96x96",
-        "luxury automobile on highway, dramatic reflection, photorealistic, 96x96",
+        "a car, side view, simple background",
+        "a red car, front view, clear lighting",
+        "a blue car, three-quarter view, plain background",
+        "a white car, parked, side profile",
+        "a silver car, outdoor daylight",
+        "a black car, street view",
+        "a yellow car, parked on road",
+        "a car, close-up, front grille visible",
     ],
     "cat": [
         "domestic cat, photorealistic, clear background, 96x96",
@@ -130,7 +140,7 @@ def main():
     parser.add_argument('--output-dir', type=str, default='./data/synthetic_stl10_raw',
                         help='Directory to output WebDataset tar shards')
     parser.add_argument('--target-per-class', type=int, default=10000,
-                        help='Target image count per class (default: 10000)')
+                        help='Target image count per class (default: 10000; use 20000 for car to compensate for ~12% pass rate)')
     parser.add_argument('--batch-size', type=int, default=4,
                         help='Generation batch size (default: 4 for T4 VRAM safety)')
     parser.add_argument('--shard-size', type=int, default=1000,
@@ -210,10 +220,11 @@ def main():
             # Pick random prompts from the 5 class variations
             batch_prompts = [random.choice(prompts_for_class) for _ in range(bs)]
             
+            num_steps = CLASS_INFERENCE_STEPS.get(cls_name, DEFAULT_INFERENCE_STEPS)
             with torch.no_grad():
                 outputs = pipe(
                     prompt=batch_prompts,
-                    num_inference_steps=1,
+                    num_inference_steps=num_steps,
                     guidance_scale=0.0
                 ).images
 
