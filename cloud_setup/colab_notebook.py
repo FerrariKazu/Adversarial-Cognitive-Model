@@ -222,6 +222,18 @@ run_interactive_command(
     f"--square-eps 0.008 "
 )
 
+# ── Stage 3: Merge all results into final JSON ──
+print("\n" + "=" * 70)
+print("  STAGE 3: MERGE RESULTS INTO FINAL JSON")
+print("=" * 70)
+run_interactive_command(
+    f"python3 phase2_attacks/merge_sweep_results.py "
+    f"--prior-json report/prior_results.json "
+    f"--sweep-json {SWEEP_JSON} "
+    f"--square-json {SQUARE_JSON} "
+    f"--output-json report/final_sweep_results_stl10.json "
+)
+
 
 
 # %% [markdown]
