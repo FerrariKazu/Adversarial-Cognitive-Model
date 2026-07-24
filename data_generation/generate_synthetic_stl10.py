@@ -32,6 +32,13 @@ import numpy as np
 from PIL import Image
 import torch
 
+# Conditionally import HF — don't require it
+try:
+    from huggingface_hub import HfApi, create_repo
+    _HF_AVAILABLE = True
+except ImportError:
+    _HF_AVAILABLE = False
+
 STL10_CLASSES = [
     'airplane', 'bird', 'car', 'cat', 'deer',
     'dog', 'horse', 'monkey', 'ship', 'truck'
@@ -149,7 +156,22 @@ def main():
                         help='Generate for a single class index (0-9)')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu',
                         help='Device to run generation on (default: cuda)')
+    parser.add_argument('--hf-repo-id', type=str, default=None,
+                        help='HuggingFace dataset repo ID to upload shards incrementally (e.g. FerrariKazu/stl10-synthetic)')
     args = parser.parse_args()
+
+    hf_api = None
+    if args.hf_repo_id:
+        if not _HF_AVAILABLE:
+            print("Error: huggingface_hub not installed. Install with: pip install huggingface_hub")
+            sys.exit(1)
+        token = os.environ.get("HF_TOKEN")
+        if not token:
+            print("Error: HF_TOKEN environment variable required for --hf-repo-id")
+            sys.exit(1)
+        hf_api = HfApi(token=token)
+        create_repo(repo_id=args.hf_repo_id, repo_type="dataset", token=token, exist_ok=True)
+        print(f"    ✓ HF repo '{args.hf_repo_id}' ready for incremental uploads.", flush=True)
 
     os.makedirs(args.output_dir, exist_ok=True)
     manifest_path = os.path.join(args.output_dir, 'manifest.json')
@@ -267,6 +289,19 @@ def main():
                     manifest["shards"][shard_filename] = shard_samples
                     save_manifest(manifest, manifest_path)
                     
+                    # Upload completed shard + manifest to HF immediately
+                    if hf_api is not None:
+                        for fname in [shard_filename, 'manifest.json']:
+                            fpath = os.path.join(args.output_dir, fname)
+                            if os.path.exists(fpath):
+                                print(f"    [HF] Uploading {fname}...", flush=True)
+                                hf_api.upload_file(
+                                    path_or_fileobj=fpath,
+                                    path_in_repo=f"raw_shards/{fname}",
+                                    repo_id=args.hf_repo_id,
+                                    repo_type="dataset"
+                                )
+                    
                     if current_count < args.target_per_class:
                         shard_idx += 1
                         shard_samples = 0
@@ -285,6 +320,16 @@ def main():
 
         manifest["generated_counts"][cls_name] = current_count
         save_manifest(manifest, manifest_path)
+        
+        if hf_api is not None:
+            print(f"    [HF] Uploading final manifest.json for {cls_name}...", flush=True)
+            hf_api.upload_file(
+                path_or_fileobj=manifest_path,
+                path_in_repo="raw_shards/manifest.json",
+                repo_id=args.hf_repo_id,
+                repo_type="dataset"
+            )
+        
         print(f"  ✓ Class '{cls_name}' complete with {current_count} images.", flush=True)
 
     print("\n============================================================", flush=True)

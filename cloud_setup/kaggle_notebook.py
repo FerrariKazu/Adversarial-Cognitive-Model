@@ -1,40 +1,37 @@
 #!/usr/bin/env python3
 """
-Kaggle 2xT4 Notebook Execution Pipeline for Sprint 2 (Synthetic Generation & Filtering)
-=======================================================================================
+Kaggle Sprint 2 — Synthetic Data Pipeline (HF-persistent)
+=========================================================
+Every intermediate output is saved to HuggingFace immediately.
+If the Kaggle session dies (GPU quota, timeout), the next session
+checks what's already on HF and resumes from where it left off.
 
-Important: do NOT assume raw data from a prior session persists on /kaggle/working.
-Every session starts with a fresh VM. The only durable storage is:
-  - HuggingFace datasets (FerrariKazu/stl10-synthetic)
-  - Kaggle Dataset outputs (manually downloaded)
+Pipeline (each step is independently restartable via HF state):
+  STEP 1: Generate car raw shards → upload to HF per-shard
+  STEP 2: Filter car at 0.25 → upload filtered shards to HF
+  STEP 3: Merge all 10 classes → delete old car shards → upload final dataset
 
-Failure Chain Fixed (2026-07-24):
-  Problem: First session generated all 10 classes and uploaded filtered data to HF.
-           Second session regenerated car ONLY (raw data for 9 other classes was gone).
-           Filter at 0.30 got 0/20000 for car. Uploaded an empty report to HF,
-           overwriting the real report.json. The HF dataset was silently corrupted.
-
-  Fix:    This session generates car with improved prompts at 1 step (same as other classes).
-          Downloads the 9 intact classes from HF.
-          Re-filters car at 0.25 (same threshold that worked for 9 classes).
-          Merges everything into a clean upload.
-          Verifies every class has >0 images before uploading.
+Usage: Run on Kaggle with GPU T4 x2. Expects HF_TOKEN in secrets.
 """
 
 # %% [markdown]
-# # Step 1: Environment Setup & Dependencies
+# # Setup
 
 # %%
-import os
-import sys
-import subprocess
-import shutil
-import json
-import tarfile
-import io
-import time
-from PIL import Image
+import os, sys, subprocess, json, tarfile, io, time, threading, hashlib
+from pathlib import Path
 
+HF_DATASET = "FerrariKazu/stl10-synthetic"
+REPO_NAME = 'Adversarial-Cognitive-Model'
+WORK_DIR = f'/kaggle/working/{REPO_NAME}'
+RAW_DIR = './data/synthetic_stl10_raw'
+FILTERED_DIR = './data/synthetic_stl10_filtered'
+CAR_TARGET = 20000
+
+STL10_CLASSES = ['airplane', 'bird', 'car', 'cat', 'deer',
+                 'dog', 'horse', 'monkey', 'ship', 'truck']
+
+# Get HF token
 hf_token = os.environ.get("HF_TOKEN")
 if not hf_token:
     try:
@@ -42,210 +39,309 @@ if not hf_token:
         hf_token = UserSecretsClient().get_secret("HF_TOKEN")
     except Exception:
         pass
+if not hf_token:
+    raise RuntimeError("HF_TOKEN not found — set in Kaggle Secrets or env vars")
+os.environ["HF_TOKEN"] = hf_token
 
-if hf_token:
-    os.environ["HF_TOKEN"] = hf_token
-    print("HF_TOKEN loaded.")
-os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
-os.environ["DIFFUSERS_NO_PROGRESS_BAR"] = "1"
-os.environ["PYTHONUNBUFFERED"] = "1"
+def run(cmd, shell=True, check=True):
+    print(f"\n[RUN]: {cmd}")
+    subprocess.run(cmd, shell=shell, check=check)
 
-def run_command(cmd, shell=True):
-    print(f"\n[RUNNING]: {cmd}")
-    result = subprocess.run(cmd, shell=shell, check=True, text=True)
-    return result.returncode
-
-print("Installing dependencies...")
-run_command("pip install --quiet --upgrade pip setuptools wheel")
-run_command("pip install --quiet diffusers transformers accelerate webdataset")
-run_command("pip install --quiet git+https://github.com/openai/CLIP.git")
-run_command("pip install --quiet opencv-python datasets huggingface_hub Pillow")
-
-# %% [markdown]
-# # Step 2: Clone Repository
-
-# %%
-REPO_NAME = 'Adversarial-Cognitive-Model'
-REPO_URL = f'https://github.com/FerrariKazu/{REPO_NAME}.git'
+# Clone / sync repo
 os.chdir('/kaggle/working')
-if not os.path.exists(f'/kaggle/working/{REPO_NAME}'):
-    subprocess.run(f'git clone {REPO_URL}', shell=True, check=True)
-os.chdir(f'/kaggle/working/{REPO_NAME}')
-subprocess.run('git fetch origin main && git reset --hard origin/main', shell=True, check=True)
-os.environ["PYTHONPATH"] = f"/kaggle/working/{REPO_NAME}:{os.environ.get('PYTHONPATH', '')}"
-print(f"Working directory: {os.getcwd()}")
+if not os.path.exists(WORK_DIR):
+    run(f'git clone https://github.com/FerrariKazu/{REPO_NAME}.git')
+os.chdir(WORK_DIR)
+run('git fetch origin main && git reset --hard origin/main')
+os.environ["PYTHONPATH"] = f"{WORK_DIR}:{os.environ.get('PYTHONPATH', '')}"
+
+print("\nInstalling deps...")
+run("pip install --quiet --upgrade pip setuptools wheel")
+run("pip install --quiet diffusers transformers accelerate webdataset")
+run("pip install --quiet git+https://github.com/openai/CLIP.git")
+run("pip install --quiet opencv-python datasets huggingface_hub Pillow")
+
+from huggingface_hub import HfApi, list_repo_files, hf_hub_download, upload_file, delete_files
+from huggingface_hub import create_repo
+api = HfApi(token=hf_token)
+create_repo(repo_id=HF_DATASET, repo_type='dataset', exist_ok=True)
+
+os.makedirs(RAW_DIR, exist_ok=True)
+os.makedirs(FILTERED_DIR, exist_ok=True)
 
 # %% [markdown]
-# # Step 3: Car-Only Regeneration (new prompts, 1 step)
-# Generates 20K car images with improved prompts matching other classes' style.
-# All prompts now include "photorealistic, 96x96" — same structure as airplane/bird/etc.
+# # Detect pipeline state from HF (self-healing markers)
 
 # %%
-raw_output_dir = "./data/synthetic_stl10_raw"
-filtered_output_dir = "./data/synthetic_stl10_filtered"
-os.makedirs(raw_output_dir, exist_ok=True)
-os.makedirs(filtered_output_dir, exist_ok=True)
+def get_markers():
+    """Download pipeline_markers.json from HF. Returns dict (empty if not found)."""
+    try:
+        local = hf_hub_download(HF_DATASET, 'pipeline_markers.json', repo_type='dataset',
+                                local_dir='/kaggle/working', local_dir_use_symlinks=False)
+        with open(local) as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
-# Pre-download SDXL Turbo
-print("Pre-loading SDXL Turbo pipeline...")
-run_command("python3 -c \"from diffusers import AutoPipelineForText2Image; AutoPipelineForText2Image.from_pretrained('stabilityai/sdxl-turbo', variant='fp16', low_cpu_mem_usage=True)\"")
+def set_marker(key, value=True):
+    """Upload a marker to pipeline_markers.json (read-modify-write)."""
+    markers = get_markers()
+    markers[key] = value
+    upload_file(path_or_fileobj=io.BytesIO(json.dumps(markers, indent=2).encode()),
+                path_in_repo='pipeline_markers.json',
+                repo_id=HF_DATASET, repo_type='dataset')
 
-# Generate car (class-index 2) with new prompts, 1 step
-print("\n" + "=" * 60)
-print("  Generating car (20K, class-index 2, new prompts, 1 step)")
-print("=" * 60)
-cmd_car = (
-    f"CUDA_VISIBLE_DEVICES=0 python3 data_generation/generate_synthetic_stl10.py "
-    f"--output-dir {raw_output_dir} --class-index 2 --target-per-class 20000"
-)
-subprocess.run(cmd_car, shell=True, check=True)
-print("  Car generation complete.")
+def hf_file_exists(suffix):
+    try:
+        files = list_repo_files(HF_DATASET, repo_type='dataset')
+    except Exception:
+        return False
+    return any(suffix in f for f in files)
 
-# Save 10 sample car images for visual inspection
-print("Saving 10 sample car images for inspection...")
-sample_dir = "./kaggle/working/car_samples"
-os.makedirs(sample_dir, exist_ok=True)
-shard_files = sorted([f for f in os.listdir(raw_output_dir) if 'car' in f and f.endswith('.tar')])
-samples_saved = 0
-for sf in shard_files:
-    if samples_saved >= 10:
-        break
-    with tarfile.open(os.path.join(raw_output_dir, sf), 'r') as tar:
-        for m in tar.getmembers():
-            if m.name.endswith('.png') and samples_saved < 10:
-                img_bytes = tar.extractfile(m).read()
-                img = Image.open(io.BytesIO(img_bytes))
-                img.save(os.path.join(sample_dir, f"car_sample_{samples_saved:02d}.png"))
-                samples_saved += 1
-print(f"  Saved {samples_saved} car samples to {sample_dir}")
+# What's done?
+markers = get_markers()
+car_raw_done = markers.get('step1_car_raw', False)
+car_filter_done = markers.get('step2_car_filter', False)
+merge_done = markers.get('step3_merge', False)
+
+print(f"Pipeline state: car_raw={'✓' if car_raw_done else '—'}, "
+      f"car_filter={'✓' if car_filter_done else '—'}, "
+      f"merge={'✓' if merge_done else '—'}")
 
 # %% [markdown]
-# # Step 4: Filter car at threshold 0.25 (same as original validated threshold)
-# The 0.30 threshold was never validated — only 0.25 was confirmed to work on 9 classes.
-# Car gets re-filtered at 0.25 for consistency.
+# # STEP 1: Generate car raw shards
 
 # %%
-print("\n" + "=" * 60)
-print("  Filtering car at threshold=0.25")
-print("=" * 60)
-cmd_filter_car = (
-    f"python3 data_generation/filter_synthetic_clip.py "
-    f"--input-dir {raw_output_dir} --output-dir {filtered_output_dir} "
-    f"--sim-threshold 0.25"
-)
-subprocess.run(cmd_filter_car, shell=True, check=True)
+if not car_raw_done:
+    print("=" * 60)
+    print("  STEP 1: Generate car raw shards (20K, new prompts, 1 step)")
+    print("  Uploads each completed shard to HF immediately")
+    print("=" * 60)
+    
+    # Download any partial raw shards + manifest from HF to resume
+    try:
+        files = list_repo_files(HF_DATASET, repo_type='dataset')
+        raw_files = [f for f in files if f.startswith('raw_shards/') and f.endswith('.tar')]
+        if raw_files:
+            print(f"  Found {len(raw_files)} existing raw shards on HF. Downloading to resume...")
+            for hf_path in raw_files:
+                local = os.path.join(RAW_DIR, os.path.basename(hf_path))
+                if not os.path.exists(local):
+                    hf_hub_download(HF_DATASET, hf_path, repo_type='dataset',
+                                     local_dir=RAW_DIR, local_dir_use_symlinks=False)
+            # Also download manifest
+            try:
+                hf_hub_download(HF_DATASET, 'raw_shards/manifest.json', repo_type='dataset',
+                                 local_dir=RAW_DIR, local_dir_use_symlinks=False)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    
+    # Pre-cache the model (takes 3-5 min)
+    run("python3 -c \"from diffusers import AutoPipelineForText2Image; "
+        "AutoPipelineForText2Image.from_pretrained('stabilityai/sdxl-turbo', "
+        "variant='fp16', low_cpu_mem_usage=True)\"")
+    
+    run(
+        f"CUDA_VISIBLE_DEVICES=0 python3 data_generation/generate_synthetic_stl10.py "
+        f"--output-dir {RAW_DIR} --class-index 2 --target-per-class {CAR_TARGET} "
+        f"--hf-repo-id {HF_DATASET}"
+    )
+    
+    set_marker('step1_car_raw', True)
+    print("  ✓ Car raw generation complete. Shards on HF.")
+else:
+    print("  ✓ Car raw shards already complete on HF. Skipping.")
 
 # %% [markdown]
-# # Step 5: Download existing 9 classes from HF
-# The first run uploaded filtered data for all 10 classes. The 9 non-car classes are intact.
-# We download them and merge with the new car data.
+# # STEP 2: Filter car at threshold 0.25
 
 # %%
-print("\n" + "=" * 60)
-print("  Downloading intact classes from HF (FerrariKazu/stl10-synthetic)")
-print("=" * 60)
-from huggingface_hub import list_repo_files, hf_hub_download
-
-existing_files = list_repo_files('FerrariKazu/stl10-synthetic', repo_type='dataset')
-# Download all filtered shards EXCEPT car (we're replacing car)
-download_tars = [f for f in existing_files if 'car_filtered' not in f and f.endswith('.tar')]
-print(f"  Downloading {len(download_tars)} shards...")
-for f in sorted(download_tars):
-    local_path = os.path.join(filtered_output_dir, os.path.basename(f))
-    if not os.path.exists(local_path):
-        hf_hub_download(
-            'FerrariKazu/stl10-synthetic', f, repo_type='dataset',
-            local_dir=filtered_output_dir, local_dir_use_symlinks=False
-        )
-print(f"  Downloaded {len(download_tars)} shards to {filtered_output_dir}")
-
-# %% [markdown]
-# # Step 6: VERIFY before upload
-# Every class must have >0 filtered images. If any class has 0, abort.
-
-# %%
-print("\n" + "=" * 60)
-print("  VERIFICATION: checking all 10 classes have filtered images")
-print("=" * 60)
-
-STL10_CLASSES = ['airplane', 'bird', 'car', 'cat', 'deer',
-                 'dog', 'horse', 'monkey', 'ship', 'truck']
-
-all_files = os.listdir(filtered_output_dir)
-filtered_tars = [f for f in all_files if f.endswith('.tar')]
-
-per_class_counts = {}
-for cls in STL10_CLASSES:
-    cls_tars = [f for f in filtered_tars if f"_{cls}_filtered" in f]
-    total_images = 0
-    for t in cls_tars:
+if not car_raw_done:
+    print("  Raw car generation not yet complete. Can't filter until it is.")
+elif not car_filter_done:
+    print("=" * 60)
+    print("  STEP 2: Filter car at threshold 0.25")
+    print("=" * 60)
+    
+    # Ensure raw shards are local
+    try:
+        files = list_repo_files(HF_DATASET, repo_type='dataset')
+        raw_files = [f for f in files if f.startswith('raw_shards/') and f.endswith('.tar')]
+        for hf_path in raw_files:
+            local = os.path.join(RAW_DIR, os.path.basename(hf_path))
+            if not os.path.exists(local):
+                hf_hub_download(HF_DATASET, hf_path, repo_type='dataset',
+                                 local_dir=RAW_DIR, local_dir_use_symlinks=False)
+    except Exception:
+        pass
+    
+    # Save 10 car sample images BEFORE filtering (for visual QA)
+    sample_dir = "/kaggle/working/car_samples"
+    os.makedirs(sample_dir, exist_ok=True)
+    shard_files = sorted([f for f in os.listdir(RAW_DIR) if 'car' in f and f.endswith('.tar')])
+    samples_saved = 0
+    for sf in shard_files:
+        if samples_saved >= 10: break
         try:
-            with tarfile.open(os.path.join(filtered_output_dir, t), 'r') as tar:
-                png_count = sum(1 for m in tar.getmembers() if m.name.endswith('.png'))
-                total_images += png_count
-        except Exception as e:
-            print(f"  WARNING: could not read {t}: {e}")
-    per_class_counts[cls] = total_images
-    status = "OK" if total_images > 0 else "EMPTY"
-    print(f"  {cls}: {total_images} images [{status}]")
-
-zero_classes = [cls for cls, count in per_class_counts.items() if count == 0]
-if zero_classes:
-    print(f"\n  FATAL: {len(zero_classes)} class(es) have 0 images: {zero_classes}")
-    print("  Aborting upload. Check car sample images and fix prompts/threshold.")
-    sys.exit(1)
+            with tarfile.open(os.path.join(RAW_DIR, sf), 'r') as tar:
+                for m in tar.getmembers():
+                    if m.name.endswith('.png') and samples_saved < 10:
+                        png_data = tar.extractfile(m).read()
+                        from PIL import Image
+                        Image.open(io.BytesIO(png_data)).save(
+                            os.path.join(sample_dir, f"car_sample_{samples_saved:02d}.png"))
+                        samples_saved += 1
+        except Exception:
+            pass
+    print(f"  Saved {samples_saved} car samples to {sample_dir}")
+    
+    # Run filter
+    run(
+        f"CUDA_VISIBLE_DEVICES=0 python3 data_generation/filter_synthetic_clip.py "
+        f"--input-dir {RAW_DIR} --output-dir {FILTERED_DIR} --sim-threshold 0.25"
+    )
+    
+    # Upload filtered car shards to HF
+    filtered_tars = sorted([f for f in os.listdir(FILTERED_DIR) if 'car_filtered' in f and f.endswith('.tar')])
+    print(f"\nUploading {len(filtered_tars)} filtered car shards to HF...")
+    for fname in filtered_tars:
+        fpath = os.path.join(FILTERED_DIR, fname)
+        upload_file(path_or_fileobj=fpath, path_in_repo=fname,
+                     repo_id=HF_DATASET, repo_type='dataset')
+    
+    # Check count
+    car_count = 0
+    for t in filtered_tars:
+        with tarfile.open(os.path.join(FILTERED_DIR, t), 'r') as tar:
+            car_count += sum(1 for m in tar.getmembers() if m.name.endswith('.png'))
+    print(f"  Car filtered: {car_count} images")
+    
+    if car_count == 0:
+        print("  WARNING: Car has 0 filtered images! Check samples in /kaggle/working/car_samples/")
+        print("  Adjust prompts or threshold before next run. Pipeline ABORTING.")
+        
+        report_path = os.path.join(FILTERED_DIR, 'clip_diversity_report.json')
+        if os.path.exists(report_path):
+            upload_file(path_or_fileobj=report_path, path_in_repo='clip_diversity_report.json',
+                         repo_id=HF_DATASET, repo_type='dataset')
+        sys.exit(1)
+    
+    set_marker('step2_car_filter', True)
+    print(f"  ✓ Car filter complete ({car_count} images on HF).")
 else:
-    print(f"\n  All 10 classes have >0 images. Proceeding to upload.")
+    print("  ✓ Car filter already complete. Skipping.")
 
 # %% [markdown]
-# # Step 7: Generate correct report.json and upload
+# # STEP 3: Merge all 10 classes and upload final dataset
 
 # %%
-print("\n" + "=" * 60)
-print("  Generating correct clip_diversity_report.json")
-print("=" * 60)
-
-# Load the car-specific report
-car_report_path = os.path.join(filtered_output_dir, 'clip_diversity_report.json')
-if os.path.exists(car_report_path):
-    with open(car_report_path) as f:
-        car_report = json.load(f)
-else:
-    car_report = {}
-
-# Build full report
-full_report = {}
-for cls in STL10_CLASSES:
-    if cls == 'car' and cls in car_report:
-        full_report[cls] = car_report[cls]
-        full_report[cls]['final_usable_count'] = per_class_counts[cls]
-    else:
+if not merge_done and car_filter_done:
+    print("=" * 60)
+    print("  STEP 3: Merge all 10 classes and upload final dataset")
+    print("=" * 60)
+    
+    # --- Download 9 intact classes' filtered shards ---
+    print("Downloading 9 intact classes from HF...")
+    try:
+        hf_files = list_repo_files(HF_DATASET, repo_type='dataset')
+    except Exception:
+        hf_files = []
+    
+    existing_shards = [f for f in hf_files if f.endswith('.tar') and 'car_filtered' not in f]
+    print(f"  Found {len(existing_shards)} existing non-car filtered shards")
+    for hf_path in existing_shards:
+        local_path = os.path.join(FILTERED_DIR, os.path.basename(hf_path))
+        if not os.path.exists(local_path):
+            hf_hub_download(HF_DATASET, hf_path, repo_type='dataset',
+                             local_dir=FILTERED_DIR, local_dir_use_symlinks=False)
+    
+    # --- Delete OLD car filtered shards from HF ---
+    old_car_shards = [f for f in hf_files if f.endswith('.tar') and 'car_filtered' in f]
+    if old_car_shards:
+        print(f"  Removing {len(old_car_shards)} old car shards from HF...")
+        delete_files(repo_id=HF_DATASET, paths=old_car_shards, repo_type='dataset')
+    
+    # --- Upload NEW car filtered shards ---
+    new_car_tars = [f for f in os.listdir(FILTERED_DIR) if 'car_filtered' in f and f.endswith('.tar')]
+    print(f"  Uploading {len(new_car_tars)} new car filtered shards...")
+    for fname in new_car_tars:
+        fpath = os.path.join(FILTERED_DIR, fname)
+        upload_file(path_or_fileobj=fpath, path_in_repo=fname,
+                     repo_id=HF_DATASET, repo_type='dataset')
+    
+    # --- Verify all 10 classes have >0 images ---
+    all_tars = os.listdir(FILTERED_DIR)
+    print("\nVerification:")
+    all_ok = True
+    for cls in STL10_CLASSES:
+        cls_tars = [f for f in all_tars if f'_{cls}_filtered' in f and f.endswith('.tar')]
+        count = 0
+        for t in cls_tars:
+            with tarfile.open(os.path.join(FILTERED_DIR, t), 'r') as tar:
+                count += sum(1 for m in tar.getmembers() if m.name.endswith('.png'))
+        status = "OK" if count > 0 else "EMPTY"
+        print(f"  {cls}: {count} [{status}]")
+        if count == 0:
+            all_ok = False
+    
+    if not all_ok:
+        print("\n  FATAL: Some classes have 0 images. Aborting upload.")
+        sys.exit(1)
+    
+    # --- Generate clean report.json ---
+    full_report = {}
+    for cls in STL10_CLASSES:
+        cls_tars = [f for f in all_tars if f'_{cls}_filtered' in f and f.endswith('.tar')]
+        count = 0
+        for t in cls_tars:
+            with tarfile.open(os.path.join(FILTERED_DIR, t), 'r') as tar:
+                count += sum(1 for m in tar.getmembers() if m.name.endswith('.png'))
         full_report[cls] = {
             "class_name": cls,
-            "passed_quality": per_class_counts[cls],
+            "total_generated": 0,
+            "passed_quality": count,
             "pass_rate_pct": 100.0,
-            "final_usable_count": per_class_counts[cls]
+            "final_usable_count": count
         }
+    
+    report_path = os.path.join(FILTERED_DIR, 'clip_diversity_report.json')
+    with open(report_path, 'w') as f:
+        json.dump(full_report, f, indent=2)
+    
+    # --- Delete old report.json from HF and upload fresh ---
+    if 'clip_diversity_report.json' in hf_files:
+        delete_files(repo_id=HF_DATASET, paths=['clip_diversity_report.json'], repo_type='dataset')
+    
+    # Upload everything
+    all_final_files = [f for f in os.listdir(FILTERED_DIR) if f.endswith('.tar') or f.endswith('.json')]
+    print(f"\nUploading {len(all_final_files)} files to final dataset...")
+    for fname in all_final_files:
+        fpath = os.path.join(FILTERED_DIR, fname)
+        upload_file(path_or_fileobj=fpath, path_in_repo=fname,
+                     repo_id=HF_DATASET, repo_type='dataset')
+    
+    set_marker('step3_merge', True)
+    total = sum(full_report[c]['final_usable_count'] for c in STL10_CLASSES)
+    print(f"\n{'=' * 60}")
+    print(f"  SPRINT 2 COMPLETE")
+    print(f"  Total usable images: {total}")
+    print(f"  HF Dataset: {HF_DATASET}")
+    print(f"{'=' * 60}")
+else:
+    if merge_done:
+        print("  ✓ Merge already complete. Pipeline is done.")
 
-report_path = os.path.join(filtered_output_dir, 'clip_diversity_report.json')
-with open(report_path, 'w') as f:
-    json.dump(full_report, f, indent=2)
-print(f"  Report written to {report_path}")
+# %% [markdown]
+# # Summary
 
-print("\n" + "=" * 60)
-print("  Uploading clean dataset to FerrariKazu/stl10-synthetic")
-print("=" * 60)
-cmd_upload = (
-    f"python3 data_generation/upload_synthetic_hf.py "
-    f"--input-dir {filtered_output_dir} "
-    f"--repo-id FerrariKazu/stl10-synthetic"
-)
-run_command(cmd_upload)
-
-total_images = sum(per_class_counts.values())
-print(f"\n{'=' * 60}")
-print(f"  SPRINT 2 SYNTHETIC DATA PIPELINE COMPLETE")
-print(f"  Total usable images: {total_images}")
-print(f"  HF Dataset: FerrariKazu/stl10-synthetic")
-print(f"  Car sample images for inspection: /kaggle/working/car_samples/")
-print(f"{'=' * 60}")
+# %%
+print("\n--- Final HF state ---")
+try:
+    final_files = list_repo_files(HF_DATASET, repo_type='dataset')
+    for c in STL10_CLASSES:
+        count = sum(1 for f in final_files if f'_{c}_filtered' in f)
+        print(f"  {c}: {count} filtered shards")
+except Exception as e:
+    print(f"  Error checking HF: {e}")
