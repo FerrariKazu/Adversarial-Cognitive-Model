@@ -195,9 +195,18 @@ def main():
                         help='Directory to save filtered .tar shards')
     parser.add_argument('--sim-threshold', type=float, default=0.25,
                         help='Minimum CLIP text-image cosine similarity (default: 0.25)')
+    parser.add_argument('--class-sim-threshold', type=str, default=None,
+                        help='Per-class threshold overrides: car=0.20,bird=0.22')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu',
                         help='Device for CLIP evaluation (default: cuda)')
     args = parser.parse_args()
+
+    class_thresholds = {}
+    if args.class_sim_threshold:
+        for pair in args.class_sim_threshold.split(','):
+            if '=' in pair:
+                cls, val = pair.split('=', 1)
+                class_thresholds[cls.strip()] = float(val.strip())
 
     os.makedirs(args.output_dir, exist_ok=True)
     clip_model, clip_preprocess = load_clip(args.device)
@@ -218,7 +227,8 @@ def main():
     print(f"\n============================================================", flush=True)
     print(f"  Sprint 2 Phase B: Quality & Diversity Filtering", flush=True)
     print(f"  Input: {args.input_dir}  --> Output: {args.output_dir}", flush=True)
-    print(f"  Similarity Threshold: {args.sim_threshold}", flush=True)
+    print(f"  Similarity Threshold: {args.sim_threshold}" +
+          (f"  (overrides: {class_thresholds})" if class_thresholds else ""), flush=True)
     print(f"============================================================", flush=True)
 
     for cls_name in STL10_CLASSES:
@@ -226,10 +236,11 @@ def main():
         if not raw_shards:
             print(f"\n[!] No raw shards found for class '{cls_name}'. Skipping.", flush=True)
             continue
-            
+
+        threshold = class_thresholds.get(cls_name, args.sim_threshold)
         stats = process_class_shards(
             cls_name, raw_shards, args.input_dir, args.output_dir,
-            clip_model, clip_preprocess, args.sim_threshold, args.device
+            clip_model, clip_preprocess, threshold, args.device
         )
         summary_report[cls_name] = stats
         if stats["homogeneity_flag"]:

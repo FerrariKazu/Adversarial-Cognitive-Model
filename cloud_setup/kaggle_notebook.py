@@ -26,7 +26,7 @@ REPO_NAME = 'Adversarial-Cognitive-Model'
 WORK_DIR = f'/kaggle/working/{REPO_NAME}'
 RAW_DIR = './data/synthetic_stl10_raw'
 FILTERED_DIR = './data/synthetic_stl10_filtered'
-CAR_TARGET = 30000
+CAR_TARGET = 20000
 
 STL10_CLASSES = ['airplane', 'bird', 'car', 'cat', 'deer',
                  'dog', 'horse', 'monkey', 'ship', 'truck']
@@ -266,10 +266,11 @@ elif not car_filter_done:
             pass
     print(f"  Saved {samples_saved} car samples to {sample_dir}")
     
-    # Run filter
+    # Run filter (car uses lower threshold due to SDXL's poor car rendering)
     run(
         f"CUDA_VISIBLE_DEVICES=0 python3 data_generation/filter_synthetic_clip.py "
-        f"--input-dir {RAW_DIR} --output-dir {FILTERED_DIR} --sim-threshold 0.25"
+        f"--input-dir {RAW_DIR} --output-dir {FILTERED_DIR} --sim-threshold 0.25 "
+        f"--class-sim-threshold car=0.20"
     )
     
     # Upload filtered car shards to HF
