@@ -171,9 +171,7 @@ if car_filtered_count < MIN_CAR_SHARDS:
               f"Resetting all car markers to regenerate.")
     car_raw_done = False
     car_filter_done = False
-    markers['step1_car_raw'] = False
-    markers['step2_car_filter'] = False
-    markers['step3_merge'] = False
+    merge_done = False
     set_marker('step1_car_raw', False)
     set_marker('step2_car_filter', False)
     set_marker('step3_merge', False)
@@ -220,6 +218,7 @@ if not car_raw_done:
     )
     
     set_marker('step1_car_raw', True)
+    car_raw_done = True
     print("  ✓ Car raw generation complete. Shards on HF.")
 else:
     print("  ✓ Car raw shards already complete on HF. Skipping.")
@@ -300,6 +299,7 @@ elif not car_filter_done:
         sys.exit(1)
     
     set_marker('step2_car_filter', True)
+    car_filter_done = True
     print(f"  ✓ Car filter complete ({car_count} images on HF).")
 else:
     print("  ✓ Car filter already complete. Skipping.")
@@ -394,6 +394,7 @@ if not merge_done and car_filter_done:
                      repo_id=HF_DATASET, repo_type='dataset')
     
     set_marker('step3_merge', True)
+    merge_done = True
     total = sum(full_report[c]['final_usable_count'] for c in STL10_CLASSES)
     print(f"\n{'=' * 60}")
     print(f"  SPRINT 2 COMPLETE")
