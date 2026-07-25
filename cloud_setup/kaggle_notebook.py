@@ -26,7 +26,7 @@ REPO_NAME = 'Adversarial-Cognitive-Model'
 WORK_DIR = f'/kaggle/working/{REPO_NAME}'
 RAW_DIR = './data/synthetic_stl10_raw'
 FILTERED_DIR = './data/synthetic_stl10_filtered'
-CAR_TARGET = 20000
+CAR_TARGET = 30000
 
 STL10_CLASSES = ['airplane', 'bird', 'car', 'cat', 'deer',
                  'dog', 'horse', 'monkey', 'ship', 'truck']
@@ -45,7 +45,18 @@ os.environ["HF_TOKEN"] = hf_token
 
 def run(cmd, shell=True, check=True):
     print(f"\n[RUN]: {cmd}")
-    subprocess.run(cmd, shell=shell, check=check)
+    if shell:
+        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   universal_newlines=True, bufsize=1)
+    else:
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   universal_newlines=True, bufsize=1)
+    for line in process.stdout:
+        print(line, end='', flush=True)
+    rc = process.wait()
+    if check and rc != 0:
+        raise subprocess.CalledProcessError(rc, cmd)
+    return rc
 
 # Clone / sync repo
 os.chdir('/kaggle/working')
@@ -54,6 +65,8 @@ if not os.path.exists(WORK_DIR):
 os.chdir(WORK_DIR)
 run('git fetch origin main && git reset --hard origin/main')
 os.environ["PYTHONPATH"] = f"{WORK_DIR}:{os.environ.get('PYTHONPATH', '')}"
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 
 print("\nInstalling deps...")
 run("pip install --quiet --upgrade pip setuptools wheel")
@@ -61,9 +74,42 @@ run("pip install --quiet diffusers transformers accelerate webdataset")
 run("pip install --quiet git+https://github.com/openai/CLIP.git")
 run("pip install --quiet opencv-python datasets huggingface_hub Pillow")
 
-from huggingface_hub import HfApi, list_repo_files, hf_hub_download, upload_file, delete_files
-from huggingface_hub import create_repo
+# Clear any partially cached SDXL Turbo (prevents 7h hangs on corrupted downloads)
+import shutil
+sdxl_cache = os.path.expanduser("~/.cache/huggingface/hub/models--stabilityai--sdxl-turbo")
+if os.path.exists(sdxl_cache):
+    print("Clearing partial SDXL Turbo cache to prevent load hangs...")
+    shutil.rmtree(sdxl_cache, ignore_errors=True)
+
+from huggingface_hub import HfApi
 api = HfApi(token=hf_token)
+
+# huggingface_hub standalone helpers (upload_file, delete_files, etc.) change names
+# across versions. Using api.* methods is stable across all versions.
+def list_repo_files(repo_id, repo_type):
+    return api.list_repo_files(repo_id=repo_id, repo_type=repo_type)
+
+def hf_hub_download(repo_id, filename, repo_type, **kwargs):
+    local_dir = kwargs.pop('local_dir', None)
+    local_dir_use_symlinks = kwargs.pop('local_dir_use_symlinks', None)
+    return api.hf_hub_download(
+        repo_id=repo_id, filename=filename, repo_type=repo_type,
+        local_dir=local_dir, local_dir_use_symlinks=local_dir_use_symlinks,
+        **kwargs
+    )
+
+def upload_file(path_or_fileobj, path_in_repo, repo_id, repo_type):
+    return api.upload_file(
+        path_or_fileobj=path_or_fileobj, path_in_repo=path_in_repo,
+        repo_id=repo_id, repo_type=repo_type
+    )
+
+def create_repo(repo_id, repo_type, exist_ok=True):
+    return api.create_repo(repo_id=repo_id, repo_type=repo_type, exist_ok=exist_ok)
+
+def delete_files(repo_id, paths, repo_type):
+    return api.delete_files(repo_id=repo_id, paths=paths, repo_type=repo_type)
+
 create_repo(repo_id=HF_DATASET, repo_type='dataset', exist_ok=True)
 
 os.makedirs(RAW_DIR, exist_ok=True)
@@ -104,9 +150,32 @@ car_raw_done = markers.get('step1_car_raw', False)
 car_filter_done = markers.get('step2_car_filter', False)
 merge_done = markers.get('step3_merge', False)
 
+# Check actual car filtered shard count on HF
+car_filtered_count = 0
+try:
+    hf_files = list_repo_files(HF_DATASET, repo_type='dataset')
+    car_filtered_count = sum(1 for f in hf_files if 'car_filtered' in f and f.endswith('.tar'))
+except Exception:
+    hf_files = []
+    car_filtered_count = 0
+
 print(f"Pipeline state: car_raw={'✓' if car_raw_done else '—'}, "
-      f"car_filter={'✓' if car_filter_done else '—'}, "
+      f"car_filter={'✓' if car_filter_done else '—'} ({car_filtered_count} shards), "
       f"merge={'✓' if merge_done else '—'}")
+
+# If car has too few filtered shards, redo raw generation with higher target
+MIN_CAR_SHARDS = 8
+if car_filter_done and car_filtered_count < MIN_CAR_SHARDS:
+    print(f"\n  ⚠ Car only has {car_filtered_count} filtered shards (need {MIN_CAR_SHARDS}). "
+          f"Resetting car markers to regenerate with higher target.")
+    car_raw_done = False
+    car_filter_done = False
+    markers['step1_car_raw'] = False
+    markers['step2_car_filter'] = False
+    markers['step3_merge'] = False
+    set_marker('step1_car_raw', False)
+    set_marker('step2_car_filter', False)
+    set_marker('step3_merge', False)
 
 # %% [markdown]
 # # STEP 1: Generate car raw shards
@@ -261,7 +330,7 @@ if not merge_done and car_filter_done:
     old_car_shards = [f for f in hf_files if f.endswith('.tar') and 'car_filtered' in f]
     if old_car_shards:
         print(f"  Removing {len(old_car_shards)} old car shards from HF...")
-        delete_files(repo_id=HF_DATASET, paths=old_car_shards, repo_type='dataset')
+        delete_repo_files(repo_id=HF_DATASET, paths=old_car_shards, repo_type='dataset')
     
     # --- Upload NEW car filtered shards ---
     new_car_tars = [f for f in os.listdir(FILTERED_DIR) if 'car_filtered' in f and f.endswith('.tar')]
@@ -312,7 +381,7 @@ if not merge_done and car_filter_done:
     
     # --- Delete old report.json from HF and upload fresh ---
     if 'clip_diversity_report.json' in hf_files:
-        delete_files(repo_id=HF_DATASET, paths=['clip_diversity_report.json'], repo_type='dataset')
+        delete_repo_files(repo_id=HF_DATASET, paths=['clip_diversity_report.json'], repo_type='dataset')
     
     # Upload everything
     all_final_files = [f for f in os.listdir(FILTERED_DIR) if f.endswith('.tar') or f.endswith('.json')]
