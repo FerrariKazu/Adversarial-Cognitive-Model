@@ -45,8 +45,8 @@ STL10_CLASSES = [
 ]
 
 # Per-class inference step overrides (default 1 for speed)
-# All classes at 1 step — car matched to same prompt style as others
-CLASS_INFERENCE_STEPS = {}
+# Car needs 2 steps — 1-step SDXL produces poor car shapes that fail CLIP filtering
+CLASS_INFERENCE_STEPS = {"car": 2}
 DEFAULT_INFERENCE_STEPS = 1
 
 # 5-8 prompts per class (car has 8 with simpler prompts for better 1-step fidelity)
