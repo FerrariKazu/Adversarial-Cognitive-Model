@@ -163,11 +163,12 @@ print(f"Pipeline state: car_raw={'✓' if car_raw_done else '—'}, "
       f"car_filter={'✓' if car_filter_done else '—'} ({car_filtered_count} shards), "
       f"merge={'✓' if merge_done else '—'}")
 
-# If car has too few filtered shards, redo raw generation with higher target
+# If car has too few filtered shards, redo raw generation + filter
 MIN_CAR_SHARDS = 8
-if car_filter_done and car_filtered_count < MIN_CAR_SHARDS:
-    print(f"\n  ⚠ Car only has {car_filtered_count} filtered shards (need {MIN_CAR_SHARDS}). "
-          f"Resetting car markers to regenerate with higher target.")
+if car_filtered_count < MIN_CAR_SHARDS:
+    if car_raw_done or car_filter_done:
+        print(f"\n  ⚠ Car only has {car_filtered_count} filtered shards (need {MIN_CAR_SHARDS}). "
+              f"Resetting all car markers to regenerate.")
     car_raw_done = False
     car_filter_done = False
     markers['step1_car_raw'] = False
