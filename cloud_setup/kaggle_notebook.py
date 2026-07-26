@@ -195,12 +195,12 @@ if not car_raw_done:
             for hf_path in raw_files:
                 local = os.path.join(RAW_DIR, os.path.basename(hf_path))
                 if not os.path.exists(local):
-                    hf_hub_download(HF_DATASET, hf_path, repo_type='dataset',
-                                     local_dir=RAW_DIR, local_dir_use_symlinks=False)
+                    cached = hf_hub_download(HF_DATASET, hf_path, repo_type='dataset')
+                    shutil.copy2(cached, local)
             # Also download manifest
             try:
-                hf_hub_download(HF_DATASET, 'raw_shards/manifest.json', repo_type='dataset',
-                                 local_dir=RAW_DIR, local_dir_use_symlinks=False)
+                cached = hf_hub_download(HF_DATASET, 'raw_shards/manifest.json', repo_type='dataset')
+                shutil.copy2(cached, os.path.join(RAW_DIR, 'manifest.json'))
             except Exception:
                 pass
     except Exception:
@@ -241,8 +241,8 @@ elif not car_filter_done:
         for hf_path in raw_files:
             local = os.path.join(RAW_DIR, os.path.basename(hf_path))
             if not os.path.exists(local):
-                hf_hub_download(HF_DATASET, hf_path, repo_type='dataset',
-                                 local_dir=RAW_DIR, local_dir_use_symlinks=False)
+                cached = hf_hub_download(HF_DATASET, hf_path, repo_type='dataset')
+                shutil.copy2(cached, local)
     except Exception:
         pass
     
