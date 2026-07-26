@@ -165,20 +165,20 @@ def get_predictions_batched(model, x_test, y_test, eps, steps=20, batch_size=32)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def run_statistical_significance(model, test_loader, device, num_samples=200):
-    print(f"\n{'='*70}")
-    print(f" EVALUATION 1: Statistical Significance Sweep (3 Seeds)")
-    print(f"{'='*70}")
+    print(f"\n{'='*70}", flush=True)
+    print(f" EVALUATION 1: Statistical Significance Sweep (3 Seeds)", flush=True)
+    print(f"{'='*70}", flush=True)
 
     seeds = [42, 123, 999]
     results = {seed: {} for seed in seeds}
 
     dataset = test_loader.dataset
     n_total = len(dataset)
-    epsilons = [0.0, 0.031, 0.062, 0.094]
+    epsilons = [0.0, 0.031, 0.062, 0.094}
 
     for seed in seeds:
         set_seed(seed)
-        print(f"  Running evaluations for Seed {seed}...")
+        print(f"  Running evaluations for Seed {seed}...", flush=True)
         results[seed]['clean_acc'] = 0.0
         results[seed]['robust_acc'] = {}
 
@@ -234,9 +234,9 @@ def run_statistical_significance(model, test_loader, device, num_samples=200):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def run_sota_comparison(model, test_loader, device):
-    print(f"\n{'='*70}")
-    print(f" EVALUATION 2: SOTA Comparison on STL-10")
-    print(f"{'='*70}")
+    print(f"\n{'='*70}", flush=True)
+    print(f" EVALUATION 2: SOTA Comparison on STL-10", flush=True)
+    print(f"{'='*70}", flush=True)
 
     baselines = {
         'Static TRADES Large Baseline': {'clean': 53.60, 'robust_0.031': 50.80},
@@ -278,9 +278,9 @@ def run_sota_comparison(model, test_loader, device):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def run_biological_claims(model, test_loader, device):
-    print(f"\n{'='*70}")
-    print(f" EVALUATION 3: Biological Claim Validation")
-    print(f"{'='*70}")
+    print(f"\n{'='*70}", flush=True)
+    print(f" EVALUATION 3: Biological Claim Validation", flush=True)
+    print(f"{'='*70}", flush=True)
 
     # Claim 1: M-pathway gate dominance
     print("  [Claim 1]: M-pathway gate dominance")
@@ -338,9 +338,9 @@ def run_biological_claims(model, test_loader, device):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def generate_diagnostic_plots(model, test_loader, device, output_dir='tier1/results/plots2'):
-    print(f"\n{'='*70}")
-    print(f" EVALUATION 4: Diagnostic Plot Generation")
-    print(f"{'='*70}")
+    print(f"\n{'='*70}", flush=True)
+    print(f" EVALUATION 4: Diagnostic Plot Generation", flush=True)
+    print(f"{'='*70}", flush=True)
 
     os.makedirs(output_dir, exist_ok=True)
     print(f"  Saving plots to: {output_dir}")
@@ -521,7 +521,7 @@ def main():
     args = parser.parse_known_args()[0]
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Evaluating RHAN-v11 on {device}...")
+    print(f"Evaluating RHAN-v11 on {device}...", flush=True)
 
     _, test_loader = get_stl10_loaders(batch_size=32, data_root=args.data_root)
 
@@ -540,7 +540,7 @@ def main():
                 ckpt_path = fallback_tier2
 
     if os.path.exists(ckpt_path):
-        print(f"Loading checkpoint: {ckpt_path}")
+        print(f"Loading checkpoint: {ckpt_path}", flush=True)
         state = torch.load(ckpt_path, map_location=device)
         if isinstance(state, dict) and 'model' in state:
             state = state['model']
@@ -550,18 +550,18 @@ def main():
             state = state['state_dict']
 
         missing, unexpected = model.load_state_dict(state, strict=False)
-        print(f"  Missing: {len(missing)}, Unexpected: {len(unexpected)}")
+        print(f"  Missing: {len(missing)}, Unexpected: {len(unexpected)}", flush=True)
     else:
-        print(f"Warning: Checkpoint {ckpt_path} not found. Running evaluations on random/mock weights.")
+        print(f"Warning: Checkpoint {ckpt_path} not found. Running evaluations on random/mock weights.", flush=True)
 
     run_statistical_significance(model, test_loader, device, num_samples=args.num_samples)
     run_sota_comparison(model, test_loader, device)
     run_biological_claims(model, test_loader, device)
     generate_diagnostic_plots(model, test_loader, device)
 
-    print(f"\n{'='*70}")
-    print(f" All evaluations complete!")
-    print(f"{'='*70}\n")
+    print(f"\n{'='*70}", flush=True)
+    print(f" All evaluations complete!", flush=True)
+    print(f"{'='*70}\n", flush=True)
 
 
 if __name__ == '__main__':
