@@ -12,6 +12,7 @@ Includes CutMix augmentation for closing the train-test gap
 on small labeled datasets (5K samples).
 """
 
+import os
 import numpy as np
 import torch
 import torchvision.transforms as T
@@ -120,12 +121,14 @@ def get_stl10_loaders(batch_size=64, data_root='./data/stl10'):
     test_ds  = STL10(data_root, split='test',
                      transform=test_transform, download=True)
 
+    cpu_count = os.cpu_count() or 2
+    nw = min(4, cpu_count)
     train_loader = DataLoader(train_ds, batch_size=batch_size,
-                              shuffle=True, num_workers=4,
-                              pin_memory=True, persistent_workers=True)
+                              shuffle=True, num_workers=nw,
+                              pin_memory=True, persistent_workers=nw > 0)
     test_loader  = DataLoader(test_ds,  batch_size=batch_size,
-                              shuffle=False, num_workers=4,
-                              pin_memory=True, persistent_workers=True)
+                              shuffle=False, num_workers=nw,
+                              pin_memory=True, persistent_workers=nw > 0)
     return train_loader, test_loader
 
 
