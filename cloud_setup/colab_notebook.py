@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Colab Notebook: RHAN-v11 Null Ablation Training (HF-persistent)
-===============================================================
-Runs RHAN-v11 training with foraging=0.0 as a null-ablation baseline.
-Checkpoints auto-sync to HuggingFace so resume works across Colab
-disconnects. Inspired by the Kaggle pipeline's HF persistence pattern.
+Colab Notebook: RHAN-v11 Null Ablation Training + Evaluation (HF-persistent)
+=============================================================================
+Runs RHAN-v11 training with foraging=0.0 as a null-ablation baseline, then
+evaluates the best checkpoint. Checkpoints auto-sync to HuggingFace so resume
+works across Colab disconnects.
 
 Resume logic (built into train_rhan_v11.py):
   1. Check local rolling checkpoint
@@ -41,7 +41,7 @@ def run(cmd, check=True):
 # Install system + Python deps
 run("pip install --quiet --upgrade pip setuptools wheel")
 run("pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cu121")
-run("pip install --quiet huggingface_hub datasets Pillow")
+run("pip install --quiet huggingface_hub datasets Pillow matplotlib seaborn")
 
 # %% [markdown]
 # ## Step 2: Clone / sync repository
@@ -98,34 +98,6 @@ print(f"GPU: {torch.cuda.get_device_name(0)}")
 print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
 print(f"CUDA: {torch.version.cuda}")
 
-# %%
-# Fix DataLoader workers for Colab's 2-core CPU
-import sys
-sys.path.insert(0, '/content/Adversarial-Cognitive-Model/phase1_training')
-import dataset_stl10
-from torch.utils.data import DataLoader
-
-_orig_get_stl10_loaders = dataset_stl10.get_stl10_loaders
-def _patched_get_stl10_loaders(batch_size=64, data_root='./data/stl10', num_workers=0):
-    train_ds = dataset_stl10.STL10(data_root, split='train',
-        transform=dataset_stl10.T.Compose([
-            dataset_stl10.T.RandomCrop(96, padding=12),
-            dataset_stl10.T.RandomHorizontalFlip(),
-            dataset_stl10.T.ColorJitter(0.2, 0.2, 0.2, 0.1),
-            dataset_stl10.T.ToTensor(),
-            dataset_stl10.T.Normalize(dataset_stl10.STL10_MEAN, dataset_stl10.STL10_STD),
-        ]), download=True)
-    test_ds = dataset_stl10.STL10(data_root, split='test',
-        transform=dataset_stl10.T.Compose([
-            dataset_stl10.T.ToTensor(),
-            dataset_stl10.T.Normalize(dataset_stl10.STL10_MEAN, dataset_stl10.STL10_STD),
-        ]), download=True)
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-    test_loader  = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-    return train_loader, test_loader
-
-dataset_stl10.get_stl10_loaders = _patched_get_stl10_loaders
-
 # %% [markdown]
 # ## Step 6: Run Null Ablation Training
 #
@@ -149,7 +121,21 @@ run(
 )
 
 # %% [markdown]
-# ## Step 6: Verify checkpoints on HuggingFace
+# ## Step 7: Evaluate the Best Checkpoint
+#
+# Runs the 4-suite evaluation (statistical significance, SOTA comparison,
+# biological claims, diagnostic plots) on the best checkpoint from training.
+# Downloads from HF automatically if the local file was cleaned up.
+
+# %%
+run(
+    f"python3 phase1_training/eval_rhan_v11.py "
+    f"--checkpoint checkpoints/rhan_stl10_v11_best.pth "
+    f"--num-samples 500 "
+)
+
+# %% [markdown]
+# ## Step 8: Verify checkpoints on HuggingFace
 
 # %%
 print("\n--- Checkpoints on HuggingFace ---")
