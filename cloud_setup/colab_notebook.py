@@ -1,249 +1,144 @@
 #!/usr/bin/env python3
 """
-Google Colab Setup & Execution Script for Experiments 2 & 3
-============================================================
-This script contains the Python cell commands for mounting Google Drive,
-syncing checkpoints, downloading datasets, and running video TDV training.
+Colab Notebook: RHAN-v11 Null Ablation Training (HF-persistent)
+===============================================================
+Runs RHAN-v11 training with foraging=0.0 as a null-ablation baseline.
+Checkpoints auto-sync to HuggingFace so resume works across Colab
+disconnects. Inspired by the Kaggle pipeline's HF persistence pattern.
+
+Resume logic (built into train_rhan_v11.py):
+  1. Check local rolling checkpoint
+  2. Check HF for newer rolling checkpoint
+  3. Resume from the latest
+  4. After each epoch, sync rolling + best to HF
+
+Usage: Copy cells into Colab. Set HF_TOKEN in Colab Secrets.
 """
 
 # %% [markdown]
-# # Google Colab Persistent Training Template
-# This notebook is optimized to run training for the **Adversarial Cognitive Model (RHAN)**.
-# It ensures **no progress is lost** when Colab disconnects by:
-# 1. Storing the code repository, custom files, and checkpoints directly in your **Google Drive** (`/content/drive/MyDrive`).
-# 2. Storing the large dataset (UCF-101, ~13GB) on the fast local VM scratch space (`/content/data`) to prevent FUSE latency and avoid using up Google Drive space limits.
-# 3. Utilizing our custom automatic resume checkpoints (`_resume.pth`) which restore model parameters, epoch progress, learning rates, and optimizer/scheduler states automatically on reconnect.
+# # RHAN-v11 Null Ablation (foraging=0.0) on Colab
+#
+# Every epoch saves checkpoints to HuggingFace so you never lose progress.
+# If Colab disconnects, just re-run all cells — it auto-resumes.
 
 # %% [markdown]
-# ## Step 1: Mount Google Drive
-# Run this cell to mount your Google Drive. This enables persistent storage of your repository and checkpoints.
+# ## Step 1: Install dependencies
 
 # %%
-try:
-    from google.colab import drive
-    drive.mount('/content/drive')
-    print("Google Drive mounted successfully.")
-except ImportError:
-    print("Not running in Google Colab environment. Skipping Drive mount.")
+import os, sys, subprocess, time
 
-# %% [markdown]
-# ## Step 2: Setup & Sync Repository in Google Drive
-# 
-# > [!IMPORTANT]
-# > **To access your checkpoints from another Google Account:**
-# > 1. Log in to your **new** Google account in your browser.
-# > 2. Open the shared Google Drive folder link: [Shared Folder](https://drive.google.com/drive/folders/1ufdzhOMslipYUoe3yPrRfi2xozIcK4XI).
-# > 3. Click the drop-down menu next to the folder name at the top of the page, select **"Organize"** -> **"Add shortcut"**, choose **"My Drive"**, and confirm.
-# > 4. Once the shortcut is added, this cell will automatically find it, sync updates, and write all checkpoints directly back to it!
-
-# %%
-import os
-import subprocess
-import shutil
-
-# Define the local workspace directory (fast local VM scratch space)
-local_workspace = "/content/Adversarial-Cognitive-Model"
-drive_checkpoint_dir = "/content/drive/MyDrive/Adversarial-Cognitive-Model/checkpoints"
-
-# 1. Clone or pull repository on the fast local VM disk
-if not os.path.exists(local_workspace):
-    print("Cloning repository to fast local VM scratch space...")
-    os.chdir("/content")
-    subprocess.run("git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git", shell=True, check=True)
-else:
-    print("Repository exists locally. Pulling latest commits...")
-    os.chdir(local_workspace)
-    subprocess.run("git fetch origin main && git reset --hard origin/main", shell=True, check=True)
-
-# Change current working directory to the local repository folder
-os.chdir(local_workspace)
-
-# 2. Setup Google Drive checkpoints persistence via symbolic link
-if os.path.exists("/content/drive"):
-    print("Google Drive detected. Setting up persistent checkpoints symlink...")
-    # Resolve the correct drive path (check for shortcuts/shared folders if standard path doesn't exist)
-    drive_base = "/content/drive/MyDrive/Adversarial-Cognitive-Model"
-    if not os.path.exists(drive_base):
-        for item in os.listdir("/content/drive/MyDrive"):
-            full_path = os.path.join("/content/drive/MyDrive", item)
-            if os.path.isdir(full_path):
-                if os.path.exists(os.path.join(full_path, "phase1_training")) or "Adversarial-Cognitive-Model" in item:
-                    drive_base = full_path
-                    break
-    
-    drive_checkpoint_dir = os.path.join(drive_base, "checkpoints")
-    os.makedirs(drive_checkpoint_dir, exist_ok=True)
-    
-    # Symlink the local checkpoints folder to Google Drive
-    if os.path.exists("checkpoints"):
-        if os.path.islink("checkpoints"):
-            os.unlink("checkpoints")
-        elif os.path.isdir("checkpoints"):
-            # Move any existing local checkpoints to the persistent Drive directory
-            for ckpt in os.listdir("checkpoints"):
-                shutil.move(os.path.join("checkpoints", ckpt), os.path.join(drive_checkpoint_dir, ckpt))
-            shutil.rmtree("checkpoints")
-            
-    os.symlink(drive_checkpoint_dir, "checkpoints")
-    print(f"Checkpoints directory successfully symlinked to Google Drive: {drive_checkpoint_dir}")
-else:
-    print("Google Drive not mounted. Checkpoints will be saved locally (temporary).")
-    os.makedirs("checkpoints", exist_ok=True)
-
-print(f"Working directory successfully set to: {os.getcwd()}")
-
-# %% [markdown]
-# ## Step 3: Environment Installation
-# Installs dependencies. Since we are running directly from our persistent workspace, these python packages will be installed on the Colab container.
-
-# %%
-def run_command(cmd, shell=True):
-    import sys
-    import re
-    print(f"Executing: {cmd}")
-    
-    env = os.environ.copy()
-    env["PYTHONUNBUFFERED"] = "1"
-    
-    # Matches any line that contains a percentage figure (wget, pip, etc.)
-    progress_re = re.compile(r'\d+%')
-    last_was_progress = False
-    file_count = 0
-    
-    process = subprocess.Popen(
-        cmd,
-        shell=shell,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        env=env
-    )
-    
-    while True:
-        output = process.stdout.readline()
-        if output == '' and process.poll() is not None:
-            break
-        if output:
-            line = output.rstrip('\n')
-            
-            # Collapse wget progress lines
-            if progress_re.search(line):
-                # Parse wget lines into a compact summary, fall back to raw line
-                m = re.search(r'(\d+)%\s+(\S+)\s+(\S+)\s*$', line)
-                summary = (
-                    f"  Downloading... {m.group(1)}%  |  {m.group(2)}/s  |  ETA {m.group(3)}   "
-                    if m else f"  {line.strip():<80}"
-                )
-                sys.stdout.write(f'\r{summary}')
-                sys.stdout.flush()
-                last_was_progress = True
-                
-            # Collapse unrar file extraction logs into a single dynamic counter to prevent tab freeze
-            elif line.strip().startswith("Extracting "):
-                file_count += 1
-                if file_count % 10 == 0:  # Update UI every 10 files to prevent printing overhead
-                    sys.stdout.write(f'\r  Extracting dataset... {file_count} files extracted')
-                    sys.stdout.flush()
-                last_was_progress = True
-                
-            else:
-                if last_was_progress:
-                    sys.stdout.write('\n')   # seal the progress line before moving on
-                    last_was_progress = False
-                sys.stdout.write(output)
-                sys.stdout.flush()
-                
-    if last_was_progress:
-        sys.stdout.write('\n')
-        sys.stdout.flush()
-        
-    rc = process.poll()
-    if rc != 0:
+def run(cmd, check=True):
+    print(f"\n[RUN]: {cmd}")
+    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               universal_newlines=True, bufsize=1)
+    for line in process.stdout:
+        print(line, end='', flush=True)
+    rc = process.wait()
+    if check and rc != 0:
         raise subprocess.CalledProcessError(rc, cmd)
     return rc
 
-## 1. Upgrade packaging utilities first to restore legacy distutils support on Python 3.12+
-run_command("pip install --upgrade pip setuptools wheel")
-
-# 2. Install autoattack and other necessary libraries for evaluation
-run_command("pip install git+https://github.com/fra31/auto-attack.git")
-run_command("pip install opencv-python scipy datasets")
+# Install system + Python deps
+run("pip install --quiet --upgrade pip setuptools wheel")
+run("pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cu121")
+run("pip install --quiet huggingface_hub datasets Pillow")
 
 # %% [markdown]
-# ## Step 4: Run STL-10 Empirical Epsilon Sweep Evaluation
-# Run the evaluation script across all 5 checkpoints. This will evaluate clean accuracy and robustness (using PGD-50) on 500 random test samples to calculate the $d'(\varepsilon)$ sensitivity metrics and d'=1.0 crossing thresholds.
-# 
-# STL-10 dataset will be automatically downloaded by torchvision during runtime.
+# ## Step 2: Clone / sync repository
 
 # %%
-def run_interactive_command(cmd):
-    try:
-        from IPython import get_ipython
-        ipy = get_ipython()
-        if ipy is not None:
-            # IPython system runner prints stdout/stderr directly in real-time
-            ipy.system(cmd)
-            return
-    except Exception:
-        pass
-    # Fallback to standard subprocess
-    subprocess.run(cmd, shell=True, check=True)
+REPO_NAME = 'Adversarial-Cognitive-Model'
+WORK_DIR = f'/content/{REPO_NAME}'
 
-# RUNTIME CONFIGURATION
-# ---------------------
-N_SAMPLES = 500
-PGD_STEPS = 50
-SWEEP_JSON = "report/empirical_sweep_results_stl10.json"
-SQUARE_JSON = "report/square_sanity_stl10.json"
+if not os.path.exists(WORK_DIR):
+    run(f'git clone https://github.com/FerrariKazu/{REPO_NAME}.git')
+os.chdir(WORK_DIR)
+run('git fetch origin main && git reset --hard origin/main')
 
-# ── Stage 1: Finish v11_best PGD-50 sweep only (ep45 + v10 already done) ──
-print("=" * 70)
-print("  STAGE 1: FINISH v11_best PGD-50 SWEEP (n=500, fine grid)")
-print("  ep45 + v10_final already evaluated in prior run — skipping")
-print("=" * 70)
-run_interactive_command(
-    f"python3 phase2_attacks/eval_sweep_domain_clamped.py "
-    f"--n-samples {N_SAMPLES} "
-    f"--pgd-steps {PGD_STEPS} "
-    f"--output-json {SWEEP_JSON} "
-    f"--skip-models static_trades_large,rhan_stl10_large_ep45,rhan_v10_final "
-)
-
-# ── Stage 2: Square Attack (gradient-free) sanity check at ε=0.008 on ep45 + v10 ──
-print("\n" + "=" * 70)
-print("  STAGE 2: SQUARE ATTACK SANITY CHECK (ε=0.008, n=500)")
-print("  Models: ep45, v10_final  —  gradient-free verification")
-print("=" * 70)
-run_interactive_command(
-    f"python3 phase2_attacks/eval_sweep_domain_clamped.py "
-    f"--n-samples {N_SAMPLES} "
-    f"--output-json {SQUARE_JSON} "
-    f"--skip-models static_trades_large,rhan_v11_best "
-    f"--square-eps 0.008 "
-)
-
-# ── Stage 3: Merge all results into final JSON ──
-print("\n" + "=" * 70)
-print("  STAGE 3: MERGE RESULTS INTO FINAL JSON")
-print("=" * 70)
-run_interactive_command(
-    f"python3 phase2_attacks/merge_sweep_results.py "
-    f"--prior-json report/prior_results.json "
-    f"--sweep-json {SWEEP_JSON} "
-    f"--square-json {SQUARE_JSON} "
-    f"--output-json report/final_sweep_results_stl10.json "
-)
-
-
+# Add project to Python path
+sys.path.insert(0, WORK_DIR)
 
 # %% [markdown]
-# ## Pro Tip: Prevent Colab Inactivity Disconnect
-# Colab frequently disconnects if you do not interact with the window. 
-# Open the browser console (`Ctrl+Shift+I` or `Cmd+Option+I` on Mac), go to the **Console** tab, paste the following JavaScript code, and press Enter:
-# 
+# ## Step 3: Set HF_TOKEN
+
+# %%
+# Try Colab Secrets first, then env var
+hf_token = os.environ.get("HF_TOKEN")
+if not hf_token:
+    try:
+        from google.colab import userdata
+        hf_token = userdata.get('HF_TOKEN')
+        os.environ["HF_TOKEN"] = hf_token
+    except Exception:
+        pass
+if not hf_token:
+    raise RuntimeError(
+        "HF_TOKEN not found. Set it in Colab Secrets (🔑 key icon in sidebar) "
+        "as 'HF_TOKEN', or as an environment variable."
+    )
+print(f"HF_TOKEN set for user: {hf_token[:4]}...{hf_token[-4:]}")
+
+# %% [markdown]
+# ## Step 4: Clear cached weights (prevent corrupt partial downloads)
+
+# %%
+import shutil
+for cache_dir in [os.path.expanduser("~/.cache/clip"),
+                  os.path.expanduser("~/.cache/huggingface/hub")]:
+    if os.path.exists(cache_dir):
+        print(f"Clearing {cache_dir}...")
+        shutil.rmtree(cache_dir, ignore_errors=True)
+
+# %% [markdown]
+# ## Step 5: Verify GPU
+
+# %%
+import torch
+print(f"GPU: {torch.cuda.get_device_name(0)}")
+print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+print(f"CUDA: {torch.version.cuda}")
+
+# %% [markdown]
+# ## Step 6: Run Null Ablation Training
+#
+# Key settings for null ablation:
+#   - `--w-foraging 0.0` — disables foraging loss
+#
+# The training script auto-resumes from the latest rolling checkpoint
+# on HuggingFace. If Colab dies mid-epoch, re-run this cell.
+
+# %%
+run(
+    f"python3 phase1_training/train_rhan_v11.py "
+    f"--batch-size 8 "
+    f"--accum-steps 32 "
+    f"--w-foraging 0.0 "
+    f"--w-precision 0.0 "
+    f"--w-halt 0.0 "
+    f"--max-foraging-steps 4 "
+    f"--fovea-size 48 "
+    f"--metabolic-cost 0.05 "
+)
+
+# %% [markdown]
+# ## Step 6: Verify checkpoints on HuggingFace
+
+# %%
+print("\n--- Checkpoints on HuggingFace ---")
+try:
+    from huggingface_hub import list_repo_files
+    for repo in ['FerrariKazu/rhan-checkpoints', 'FerrariKazu/rhan-checkpoints-rolling']:
+        files = list_repo_files(repo, repo_type='dataset', token=hf_token)
+        v11_files = [f for f in files if 'v11' in f]
+        print(f"  {repo}: {v11_files}")
+except Exception as e:
+    print(f"  Error listing: {e}")
+
+# %% [markdown]
+# ## Pro Tip: Prevent Colab Disconnect
+# Open browser console (Ctrl+Shift+I) → Console tab → paste:
 # ```javascript
 # function KeepAlive() {
-#     console.log("Clicking Connect button...");
 #     document.querySelector("colab-connect-button").click();
 # }
 # setInterval(KeepAlive, 60000);

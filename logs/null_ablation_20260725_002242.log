@@ -1,0 +1,64 @@
+════════════════════════════════════════════════════════════
+  RHAN-v11: Multi-Resolution Active Inference Training
+  Device: cuda | DDP: False (world_size=1)
+  Max foraging steps: 4
+  Fovea size: 48
+  Metabolic cost: 0.05
+  Loss weights: trades=0.55, foraging=0.0, precision=0.0, halt=0.0, recon=0.1
+════════════════════════════════════════════════════════════
+/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/transformer.py:392: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+Loaded labeling model checkpoint: /home/ferrarikazu/Adversarial Cognitive Model/checkpoints/rhan_stl10_pseudolabel_best.pth
+Generating pseudo-labels from 100K unlabeled images...
+  Batch 0/195 | Kept: 103 images
+  Batch 50/195 | Kept: 5428 images
+  Batch 100/195 | Kept: 10827 images
+  Batch 150/195 | Kept: 16143 images
+  Batch 200/195 | Kept: 21516 images
+  Batch 250/195 | Kept: 26855 images
+  Batch 300/195 | Kept: 32133 images
+  Batch 350/195 | Kept: 37375 images
+
+Pseudo-label class distribution and mean confidence:
+  airplane    : 6189   images (mean confidence: 0.8283)
+  bird        : 4543   images (mean confidence: 0.7658)
+  car         : 5236   images (mean confidence: 0.8343)
+  cat         : 674    images (mean confidence: 0.6975)
+  deer        : 3009   images (mean confidence: 0.7454)
+  dog         : 3519   images (mean confidence: 0.7314)
+  horse       : 4335   images (mean confidence: 0.7648)
+  monkey      : 2446   images (mean confidence: 0.7055)
+  ship        : 5066   images (mean confidence: 0.8168)
+  truck       : 6640   images (mean confidence: 0.8171)
+
+Total pseudo-labeled: 41657 / 100000 (41.7%)
+Pre-extracting 41657 pseudo-labeled images as uint8 to save RAM...
+Combined dataset: 5000 real + 41657 pseudo + 0 synthetic = 46657 total.
+
+Auto-tuning DataLoader configuration...
+  num_workers=0, persistent=False, prefetch=None -> time: 0.0145s
+  num_workers=2, persistent=True, prefetch=3 -> time: 0.0515s
+  num_workers=4, persistent=True, prefetch=4 -> time: 0.0152s
+Optimal DataLoader Config: num_workers=0, persistent_workers=False, prefetch_factor=None
+
+Loaded base checkpoint: /home/ferrarikazu/Adversarial Cognitive Model/checkpoints/rhan_stl10_large_pseudolabel_best.pth
+  Missing keys (new v11 components): 85
+  Unexpected keys: 0
+Model instantiated with 75,440,630 parameters
+
+>>> --force-restart active. Bypassing all rolling checkpoint resume checks. Starting from Epoch 1.
+
+--- Epoch 1: New optimizer phase 1-20 (lr=0.003) ---
+Warmup Phase: Freezing active inference components, training Generative Prior.
+  Batch 0/600 | Loss: 2.8052 | β_dyn: 2.301 | Steps: 4
+  Batch 50/600 | Loss: 2.9551 | β_dyn: 2.025 | Steps: 4
+  Batch 100/600 | Loss: 2.6418 | β_dyn: 2.001 | Steps: 4
+  Batch 150/600 | Loss: 2.9961 | β_dyn: 1.576 | Steps: 4
+  Batch 200/600 | Loss: 2.6597 | β_dyn: 1.531 | Steps: 4
+  Batch 250/600 | Loss: 2.1995 | β_dyn: 1.976 | Steps: 4
+  Batch 300/600 | Loss: 2.7295 | β_dyn: 1.533 | Steps: 4
+  Batch 350/600 | Loss: 2.4507 | β_dyn: 1.744 | Steps: 4
+  Batch 400/600 | Loss: 2.3809 | β_dyn: 1.983 | Steps: 4
+  Batch 450/600 | Loss: 2.2781 | β_dyn: 2.454 | Steps: 4
+  Batch 500/600 | Loss: 2.3860 | β_dyn: 1.930 | Steps: 4
+  Batch 550/600 | Loss: 2.0999 | β_dyn: 1.600 | Steps: 4
