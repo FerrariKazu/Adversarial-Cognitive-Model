@@ -174,7 +174,7 @@ def run_statistical_significance(model, test_loader, device, num_samples=200):
 
     dataset = test_loader.dataset
     n_total = len(dataset)
-    epsilons = [0.0, 0.031, 0.062, 0.094}
+    epsilons = [0.0, 0.031, 0.062, 0.094]
 
     for seed in seeds:
         set_seed(seed)
