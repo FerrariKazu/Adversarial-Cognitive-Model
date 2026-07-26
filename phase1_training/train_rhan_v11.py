@@ -499,22 +499,12 @@ def sync_to_hf(file_path):
 
                 if "rolling" in original_filename:
                     repo_id = f"{username}/rhan-checkpoints-rolling"
-                    try:
-                        api.delete_repo(repo_id=repo_id, repo_type="dataset", token=hf_token)
-                        import time
-                        time.sleep(2)
-                    except Exception:
-                        pass
-                    try:
-                        create_repo(repo_id=repo_id, repo_type="dataset", private=False, token=hf_token)
-                    except Exception:
-                        pass
                 else:
                     repo_id = f"{username}/rhan-checkpoints"
-                    try:
-                        create_repo(repo_id=repo_id, repo_type="dataset", private=False, exist_ok=True, token=hf_token)
-                    except Exception:
-                        pass
+                try:
+                    create_repo(repo_id=repo_id, repo_type="dataset", private=False, exist_ok=True, token=hf_token)
+                except Exception:
+                    pass
 
                 print(f"Syncing {original_filename} to Hugging Face ({repo_id}) asynchronously...", flush=True)
                 api.upload_file(
