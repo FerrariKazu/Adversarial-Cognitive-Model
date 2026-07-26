@@ -26,7 +26,7 @@ REPO_NAME = 'Adversarial-Cognitive-Model'
 WORK_DIR = f'/kaggle/working/{REPO_NAME}'
 RAW_DIR = './data/synthetic_stl10_raw'
 FILTERED_DIR = './data/synthetic_stl10_filtered'
-CAR_TARGET = 20000
+CAR_TARGET = 30000
 
 STL10_CLASSES = ['airplane', 'bird', 'car', 'cat', 'deer',
                  'dog', 'horse', 'monkey', 'ship', 'truck']
@@ -164,7 +164,7 @@ print(f"Pipeline state: car_raw={'✓' if car_raw_done else '—'}, "
       f"merge={'✓' if merge_done else '—'}")
 
 # If car has too few filtered shards, redo raw generation + filter
-MIN_CAR_SHARDS = 8
+MIN_CAR_SHARDS = 2
 if car_filtered_count < MIN_CAR_SHARDS:
     if car_raw_done or car_filter_done:
         print(f"\n  ⚠ Car only has {car_filtered_count} filtered shards (need {MIN_CAR_SHARDS}). "
@@ -332,7 +332,7 @@ if not merge_done and car_filter_done:
     old_car_shards = [f for f in hf_files if f.endswith('.tar') and 'car_filtered' in f]
     if old_car_shards:
         print(f"  Removing {len(old_car_shards)} old car shards from HF...")
-        delete_repo_files(repo_id=HF_DATASET, paths=old_car_shards, repo_type='dataset')
+        delete_files(repo_id=HF_DATASET, paths=old_car_shards, repo_type='dataset')
     
     # --- Upload NEW car filtered shards ---
     new_car_tars = [f for f in os.listdir(FILTERED_DIR) if 'car_filtered' in f and f.endswith('.tar')]
@@ -383,7 +383,7 @@ if not merge_done and car_filter_done:
     
     # --- Delete old report.json from HF and upload fresh ---
     if 'clip_diversity_report.json' in hf_files:
-        delete_repo_files(repo_id=HF_DATASET, paths=['clip_diversity_report.json'], repo_type='dataset')
+        delete_files(repo_id=HF_DATASET, paths=['clip_diversity_report.json'], repo_type='dataset')
     
     # Upload everything
     all_final_files = [f for f in os.listdir(FILTERED_DIR) if f.endswith('.tar') or f.endswith('.json')]
