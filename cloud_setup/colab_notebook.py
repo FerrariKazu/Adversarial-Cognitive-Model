@@ -98,6 +98,34 @@ print(f"GPU: {torch.cuda.get_device_name(0)}")
 print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
 print(f"CUDA: {torch.version.cuda}")
 
+# %%
+# Fix DataLoader workers for Colab's 2-core CPU
+import sys
+sys.path.insert(0, '/content/Adversarial-Cognitive-Model/phase1_training')
+import dataset_stl10
+from torch.utils.data import DataLoader
+
+_orig_get_stl10_loaders = dataset_stl10.get_stl10_loaders
+def _patched_get_stl10_loaders(batch_size=64, data_root='./data/stl10', num_workers=0):
+    train_ds = dataset_stl10.STL10(data_root, split='train',
+        transform=dataset_stl10.T.Compose([
+            dataset_stl10.T.RandomCrop(96, padding=12),
+            dataset_stl10.T.RandomHorizontalFlip(),
+            dataset_stl10.T.ColorJitter(0.2, 0.2, 0.2, 0.1),
+            dataset_stl10.T.ToTensor(),
+            dataset_stl10.T.Normalize(dataset_stl10.STL10_MEAN, dataset_stl10.STL10_STD),
+        ]), download=True)
+    test_ds = dataset_stl10.STL10(data_root, split='test',
+        transform=dataset_stl10.T.Compose([
+            dataset_stl10.T.ToTensor(),
+            dataset_stl10.T.Normalize(dataset_stl10.STL10_MEAN, dataset_stl10.STL10_STD),
+        ]), download=True)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    test_loader  = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    return train_loader, test_loader
+
+dataset_stl10.get_stl10_loaders = _patched_get_stl10_loaders
+
 # %% [markdown]
 # ## Step 6: Run Null Ablation Training
 #
