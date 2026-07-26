@@ -12,7 +12,7 @@ phase5_sdt/figures/
 runs/
 *.pyc
 .env
-
+.tex
 # Monograph, report, figure, and documentation folders
 report/
 rhan_math/

@@ -2,7 +2,6 @@
 """
 Adversarial Cognition Divergence — Live Interactive Explorer
 ============================================================
-Developed by Antigravity, 2026.
 Serves a self-contained local web server demonstrating our RHAN-adv model,
 dynamic PGD-20 attacks, prediction shifts, and recurrent spatial gating maps.
 """
