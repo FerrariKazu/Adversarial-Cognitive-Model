@@ -108,7 +108,7 @@ def create_repo(repo_id, repo_type, exist_ok=True):
     return api.create_repo(repo_id=repo_id, repo_type=repo_type, exist_ok=exist_ok)
 
 def delete_files(repo_id, paths, repo_type):
-    return api.delete_files(repo_id=repo_id, paths=paths, repo_type=repo_type)
+    return api.delete_files(repo_id=repo_id, path_list=paths, repo_type=repo_type)
 
 create_repo(repo_id=HF_DATASET, repo_type='dataset', exist_ok=True)
 
