@@ -618,6 +618,8 @@ def main():
     parser.add_argument('--w-halt', type=float, default=0.10)
     parser.add_argument('--w-recon', type=float, default=0.10,
                         help='Reconstruction loss weight for generative prior')
+    parser.add_argument('--synthetic-data', type=str, default='',
+                        help='Path to .pt file with synthetic data (dict with imgs, labels)')
     args, _ = parser.parse_known_args()
 
     # DDP Initialization
@@ -715,12 +717,26 @@ def main():
         real_imgs[i] = norm_transform(trainset_raw[i][0])
     real_labels = torch.tensor([trainset_raw[i][1] for i in range(len(trainset_raw))])
 
+    # ── 2b. Load synthetic data (optional) ───────────────────────
+    synth_imgs = None
+    synth_labels = None
+    if args.synthetic_data and os.path.exists(args.synthetic_data):
+        print(f"Loading synthetic data from {args.synthetic_data}...", flush=True)
+        synth_dict = torch.load(args.synthetic_data, map_location='cpu')
+        synth_imgs = synth_dict['imgs']     # (N, 3, 96, 96) uint8
+        synth_labels = synth_dict['labels'] # (N,) long
+        print(f"  Loaded {synth_imgs.size(0)} synthetic images, shape {synth_imgs.shape}", flush=True)
+        if synth_imgs.dtype != torch.uint8:
+            synth_imgs = synth_imgs.to(torch.uint8).contiguous()
+
     # ── 3. Combined dataset & balanced loader ────────────────────
     train_transform = T.Compose([
         T.RandomCrop(96, padding=12),
         T.RandomHorizontalFlip(),
     ])
-    combined_dataset = CombinedSTL10Dataset(real_imgs, real_labels, unlabeled_dataset, pseudo_indices, pseudo_lbls, transform=train_transform)
+    combined_dataset = CombinedSTL10Dataset(real_imgs, real_labels, unlabeled_dataset, pseudo_indices, pseudo_lbls,
+                                            synthetic_imgs=synth_imgs, synthetic_labels=synth_labels,
+                                            transform=train_transform)
 
     # Free the 2.76 GB in-memory raw unlabeled dataset immediately to prevent RAM OOM / swapping
     del unlabeled_dataset
@@ -728,7 +744,7 @@ def main():
     gc.collect()
 
     real_indices = list(range(len(real_imgs)))
-    pseudo_indices_list = list(range(len(real_imgs), len(real_imgs) + len(pseudo_indices)))
+    pseudo_indices_list = list(range(len(real_imgs), len(combined_dataset)))
 
     if is_ddp:
         random.Random(args.seed + rank).shuffle(real_indices)
