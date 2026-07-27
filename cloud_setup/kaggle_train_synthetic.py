@@ -131,11 +131,16 @@ state = ckpt.get('model', ckpt)
 model.load_state_dict(state, strict=False)
 model.eval()
 
+# Use both T4 GPUs for pseudo-labeling
+if torch.cuda.device_count() > 1:
+    model = nn.DataParallel(model)
+    print(f"Using DataParallel with {torch.cuda.device_count()} GPUs for pseudo-labeling", flush=True)
+
 mean = torch.tensor([0.4467, 0.4398, 0.4066], device=device).view(1, 3, 1, 1)
 std = torch.tensor([0.2603, 0.2566, 0.2713], device=device).view(1, 3, 1, 1)
 N = imgs_tensor.size(0)
 pseudo_labels = torch.full((N,), -1, dtype=torch.long, device='cpu')
-batch_size = 128
+batch_size = 256
 t0 = time.time()
 with torch.no_grad():
     for i in range(0, N, batch_size):
@@ -157,7 +162,10 @@ print(f"  Label agreement with class: {agreement:.1f}%")
 torch.save({'imgs': imgs_tensor, 'labels': pseudo_labels}, SYNTH_PT)
 print(f"\nSaved synthetic data to {SYNTH_PT} ({os.path.getsize(SYNTH_PT)/1e9:.2f} GB)")
 
-print("\n=== Step 4: Train loss-ablated RHAN-v11 ===")
+print("\n=== Step 4: Train loss-ablated RHAN-v11 (2× T4 via DataParallel) ===")
+num_gpus = torch.cuda.device_count()
+if num_gpus > 1:
+    print(f"Training with {num_gpus} GPUs via DataParallel", flush=True)
 run(
     f"python3 phase1_training/train_rhan_v11.py "
     f"--synthetic-data {SYNTH_PT} "
