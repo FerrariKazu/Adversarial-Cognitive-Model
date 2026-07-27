@@ -168,6 +168,9 @@ print(f"  Label agreement with class: {agreement:.1f}%")
 torch.save({'imgs': imgs_tensor, 'labels': pseudo_labels}, SYNTH_PT)
 print(f"\nSaved synthetic data to {SYNTH_PT} ({os.path.getsize(SYNTH_PT)/1e9:.2f} GB)")
 
+print("\n=== Re-sync repo (pseudo-labeling took ~20 min, may have fixes) ===")
+run('git fetch origin main && git reset --hard origin/main')
+
 print("\n=== Step 4: Train loss-ablated RHAN-v11 ===")
 num_gpus = torch.cuda.device_count()
 if num_gpus > 1:
