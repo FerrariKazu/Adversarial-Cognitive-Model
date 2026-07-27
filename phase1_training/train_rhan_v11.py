@@ -28,6 +28,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.amp import GradScaler, autocast
+# Compatibility shim for PyTorch 2.5+ (torch.utils.serialization removed)
+try:
+    from torch.utils import serialization as _us
+except ImportError:
+    import torch.serialization as _ts
+    class _SerialShim:
+        StorageType = getattr(_ts, 'StorageType', type)
+    sys.modules['torch.utils.serialization'] = _SerialShim()
 from torch.utils.data import DataLoader, Dataset, Sampler
 import torchvision
 import torchvision.transforms as T
@@ -671,7 +679,7 @@ def main():
         best_labeling_ckpt = args.labeling_ckpt if args.labeling_ckpt else os.path.join(ckpt_dir, 'rhan_stl10_pseudolabel_best.pth')
         best_labeling_ckpt = ensure_checkpoint_exists(best_labeling_ckpt)
         if os.path.exists(best_labeling_ckpt):
-            labeling_model.load_state_dict(torch.load(best_labeling_ckpt, map_location=device))
+            labeling_model.load_state_dict(torch.load(best_labeling_ckpt, map_location=device, weights_only=False))
             print(f"Loaded labeling model checkpoint: {best_labeling_ckpt}", flush=True)
         else:
             print(f"Error: Labeling checkpoint {best_labeling_ckpt} not found!", flush=True)
@@ -788,7 +796,7 @@ def main():
     best_target_ckpt = args.target_ckpt if args.target_ckpt else os.path.join(ckpt_dir, 'rhan_stl10_large_pseudolabel_best.pth')
     best_target_ckpt = ensure_checkpoint_exists(best_target_ckpt)
     if os.path.exists(best_target_ckpt):
-        ckpt = torch.load(best_target_ckpt, map_location=device)
+        ckpt = torch.load(best_target_ckpt, map_location=device, weights_only=False)
         if isinstance(ckpt, dict) and 'model_state_dict' in ckpt:
             state = ckpt['model_state_dict']
         elif isinstance(ckpt, dict) and 'model' in ckpt:
@@ -871,7 +879,7 @@ def main():
     if not args.force_restart:
         if os.path.exists(rolling_path):
             try:
-                local_data = torch.load(rolling_path, map_location='cpu')
+                local_data = torch.load(rolling_path, map_location='cpu', weights_only=False)
                 local_epoch = local_data.get('epoch', -1)
             except Exception:
                 pass
@@ -886,7 +894,7 @@ def main():
                     repo_type='dataset',
                     token=hf_token
                 )
-                remote_data = torch.load(temp_rolling_path, map_location='cpu')
+                remote_data = torch.load(temp_rolling_path, map_location='cpu', weights_only=False)
                 remote_epoch = remote_data.get('epoch', -1)
                 if remote_epoch > local_epoch:
                     print(f"Hugging Face has a newer checkpoint (Epoch {remote_epoch}) than local (Epoch {local_epoch}). Synchronizing...", flush=True)
@@ -902,7 +910,7 @@ def main():
         if os.path.exists(rolling_path):
             if rank == 0:
                 print(f"\nFound rolling checkpoint at {rolling_path}. Attempting to resume...", flush=True)
-            checkpoint_data = torch.load(rolling_path, map_location=device)
+            checkpoint_data = torch.load(rolling_path, map_location=device, weights_only=False)
             raw_model.load_state_dict(checkpoint_data['model'])
             best_acc = checkpoint_data.get('best_acc', 0.0)
             start_epoch = checkpoint_data['epoch'] + 1
