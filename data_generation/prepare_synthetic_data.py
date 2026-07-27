@@ -93,15 +93,8 @@ def generate_pseudo_labels(imgs_tensor, labels, model, device, batch_size=64):
     if model is None:
         print("Loading TRADES Large baseline for pseudo-labeling...", flush=True)
         model = RHANLargeSTL10().to(device)
-        # Shim for PyTorch 2.5+ where torch.utils.serialization was removed
-        try:
-            from torch.utils import serialization as _us
-        except ImportError:
-            import torch.serialization as _ts
-            class _SerialShim:
-                StorageType = getattr(_ts, 'StorageType', type)
-            sys.modules['torch.utils.serialization'] = _SerialShim()
-        state = torch.load(ckpt_path, map_location=device, weights_only=False)
+        from checkpoint_utils import compat_load
+        state = compat_load(ckpt_path, map_location=device)
         if 'model' in state:
             state = state['model']
         elif 'model_state_dict' in state:

@@ -109,16 +109,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Device: {device}")
 
 model = RHANLargeSTL10().to(device)
-# Shim for PyTorch 2.5+ where torch.utils.serialization was removed
-import torch, sys
-try:
-    from torch.utils import serialization as _us
-except ImportError:
-    import torch.serialization as _ts
-    class _SerialShim:
-        StorageType = getattr(_ts, 'StorageType', type)
-    sys.modules['torch.utils.serialization'] = _SerialShim()
-ckpt = torch.load('checkpoints/rhan_stl10_large_pseudolabel_best.pth', map_location=device, weights_only=False)
+from checkpoint_utils import compat_load
+ckpt = compat_load('checkpoints/rhan_stl10_large_pseudolabel_best.pth', map_location=device)
 state = ckpt.get('model', ckpt)
 model.load_state_dict(state, strict=False)
 model.eval()

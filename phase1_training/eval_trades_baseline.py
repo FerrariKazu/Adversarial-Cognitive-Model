@@ -11,23 +11,13 @@ Usage:
 
 import os, sys, argparse, numpy as np, torch
 
-# Compatibility shim for PyTorch 2.5+ (torch.utils.serialization removed)
-try:
-    from torch.utils import serialization as _us
-except ImportError:
-    import torch.serialization as _ts
-    class _SerialShim:
-        StorageType = getattr(_ts, 'StorageType', type)
-    sys.modules['torch.utils.serialization'] = _SerialShim()
-
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from model_rhan_stl10_large import RHANLargeSTL10
 from dataset_stl10 import get_stl10_loaders
-from eval_rhan_v11 import (
-    run_statistical_significance,
-)
+from eval_rhan_v11 import run_statistical_significance
+from checkpoint_utils import compat_load
 
 
 def main():
@@ -50,7 +40,7 @@ def main():
     ckpt_path = args.checkpoint
     if os.path.exists(ckpt_path):
         print(f"Loading checkpoint: {ckpt_path}", flush=True)
-        state = torch.load(ckpt_path, map_location=device, weights_only=False)
+        state = compat_load(ckpt_path, map_location=device)
         if isinstance(state, dict) and 'model' in state:
             state = state['model']
         elif isinstance(state, dict) and 'model_state_dict' in state:
