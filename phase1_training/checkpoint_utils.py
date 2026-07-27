@@ -1,34 +1,38 @@
-import pickle
+import sys
+import types
 import torch
-import io
-
-
-class _CompatUnpickler(pickle.Unpickler):
-    """Redirect old torch.utils.serialization -> torch.serialization."""
-    def find_class(self, module, name):
-        if module.startswith('torch.utils.serialization'):
-            module = 'torch.serialization' + module[len('torch.utils.serialization'):]
-        return super().find_class(module, name)
-
-
-def _compat_load(f, **kwargs):
-    return _CompatUnpickler(f, **kwargs).load()
-
-
-class _CompatPickle:
-    Unpickler = _CompatUnpickler
-    load = staticmethod(_compat_load)
-    loads = staticmethod(pickle.loads)
-    PicklingError = pickle.PicklingError
-    UnpicklingError = pickle.UnpicklingError
-    HIGHEST_PROTOCOL = pickle.HIGHEST_PROTOCOL
 
 
 def compat_load(path, map_location=None, **kwargs):
-    return torch.load(
-        path,
-        map_location=map_location,
-        pickle_module=_CompatPickle,
-        weights_only=False,
-        **kwargs
-    )
+    """Load a PyTorch checkpoint with compatibility for removed modules.
+
+    PyTorch >= 2.5 removed ``torch.utils.serialization``, but the
+    internals of ``torch.serialization`` still reference it at
+    runtime (e.g. ``from torch.utils.serialization import config``).
+    We inject a proxy module into ``sys.modules`` to prevent the
+    resulting ``ModuleNotFoundError``.
+    """
+    if 'torch.utils.serialization' not in sys.modules:
+        _ensure_serialization_proxy()
+
+    return torch.load(path, map_location=map_location, weights_only=False, **kwargs)
+
+
+def _ensure_serialization_proxy():
+    class _LoadConfig:
+        calculate_storage_offsets = True
+        mmap = False
+        mmap_flags = 0
+        endianness = 'little'
+
+    config_mod = types.ModuleType('torch.utils.serialization.config')
+    config_mod.__path__ = []
+    config_mod.__package__ = 'torch.utils.serialization'
+    config_mod.load = _LoadConfig()
+    sys.modules['torch.utils.serialization.config'] = config_mod
+
+    parent_mod = types.ModuleType('torch.utils.serialization')
+    parent_mod.__path__ = []
+    parent_mod.__package__ = 'torch.utils'
+    parent_mod.config = config_mod
+    sys.modules['torch.utils.serialization'] = parent_mod
