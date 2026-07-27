@@ -168,12 +168,17 @@ print(f"  Label agreement with class: {agreement:.1f}%")
 torch.save({'imgs': imgs_tensor, 'labels': pseudo_labels}, SYNTH_PT)
 print(f"\nSaved synthetic data to {SYNTH_PT} ({os.path.getsize(SYNTH_PT)/1e9:.2f} GB)")
 
-print("\n=== Step 4: Train loss-ablated RHAN-v11 (2× T4 via DataParallel) ===")
+print("\n=== Step 4: Train loss-ablated RHAN-v11 ===")
 num_gpus = torch.cuda.device_count()
 if num_gpus > 1:
-    print(f"Training with {num_gpus} GPUs via DataParallel", flush=True)
+    # DataParallel causes misaligned-address CUDA errors on Kaggle T4s.
+    # torchrun sets WORLD_SIZE/RANK/LOCAL_RANK automatically in each child.
+    print(f"Training with DDP on {num_gpus} GPUs", flush=True)
+    launcher = f"torchrun --nproc_per_node={num_gpus} --master_port=29500"
+else:
+    launcher = "python3"
 run(
-    f"python3 phase1_training/train_rhan_v11.py "
+    f"{launcher} phase1_training/train_rhan_v11.py "
     f"--synthetic-data {SYNTH_PT} "
     f"--batch-size 8 "
     f"--accum-steps 32 "
