@@ -35,3 +35,5 @@ RHANarch.md
 *.html:Zone.Identifier
 *.png:Zone.Identifier
 .agent/
+.verify_samples/
+RHANfuture.md
