@@ -1,25 +1,20 @@
 #!/usr/bin/env python3
 """
-Colab Notebook: RHAN-v11 Null Ablation Training + Evaluation (HF-persistent)
-=============================================================================
-Runs RHAN-v11 training with foraging=0.0 as a null-ablation baseline, then
-evaluates the best checkpoint. Checkpoints auto-sync to HuggingFace so resume
-works across Colab disconnects.
-
-Resume logic (built into train_rhan_v11.py):
-  1. Check local rolling checkpoint
-  2. Check HF for newer rolling checkpoint
-  3. Resume from the latest
-  4. After each epoch, sync rolling + best to HF
+Colab Notebook: RHAN-v11 Evaluation
+=====================================
+Downloads the best checkpoint from HuggingFace and runs the 4-suite
+evaluation (statistical significance, SOTA comparison, biological claims,
+diagnostic plots). Uses quick defaults (200 samples, 10 PGD steps) for
+~30 min runtime on T4; pass --steps 20 --num-samples 500 for full eval.
 
 Usage: Copy cells into Colab. Set HF_TOKEN in Colab Secrets.
 """
 
 # %% [markdown]
-# # RHAN-v11 Null Ablation (foraging=0.0) on Colab
+# # RHAN-v11 Evaluation on Colab
 #
-# Every epoch saves checkpoints to HuggingFace so you never lose progress.
-# If Colab disconnects, just re-run all cells — it auto-resumes.
+# Quick evaluation (~30 min on T4). For full eval, edit Step 5 to add
+# `--steps 20 --num-samples 500`.
 
 # %% [markdown]
 # ## Step 1: Install dependencies
@@ -38,7 +33,6 @@ def run(cmd, check=True):
         raise subprocess.CalledProcessError(rc, cmd)
     return rc
 
-# Install system + Python deps
 run("pip install --quiet --upgrade pip setuptools wheel")
 run("pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cu121")
 run("pip install --quiet huggingface_hub datasets Pillow matplotlib seaborn")
@@ -54,15 +48,12 @@ if not os.path.exists(WORK_DIR):
     run(f'git clone https://github.com/FerrariKazu/{REPO_NAME}.git')
 os.chdir(WORK_DIR)
 run('git fetch origin main && git reset --hard origin/main')
-
-# Add project to Python path
 sys.path.insert(0, WORK_DIR)
 
 # %% [markdown]
 # ## Step 3: Set HF_TOKEN
 
 # %%
-# Try Colab Secrets first, then env var
 hf_token = os.environ.get("HF_TOKEN")
 if not hf_token:
     try:
@@ -73,24 +64,13 @@ if not hf_token:
         pass
 if not hf_token:
     raise RuntimeError(
-        "HF_TOKEN not found. Set it in Colab Secrets (🔑 key icon in sidebar) "
+        "HF_TOKEN not found. Set it in Colab Secrets (key icon in sidebar) "
         "as 'HF_TOKEN', or as an environment variable."
     )
 print(f"HF_TOKEN set for user: {hf_token[:4]}...{hf_token[-4:]}")
 
 # %% [markdown]
-# ## Step 4: Clear cached weights (prevent corrupt partial downloads)
-
-# %%
-import shutil
-for cache_dir in [os.path.expanduser("~/.cache/clip"),
-                  os.path.expanduser("~/.cache/huggingface/hub")]:
-    if os.path.exists(cache_dir):
-        print(f"Clearing {cache_dir}...")
-        shutil.rmtree(cache_dir, ignore_errors=True)
-
-# %% [markdown]
-# ## Step 5: Verify GPU
+# ## Step 4: Verify GPU
 
 # %%
 import torch
@@ -99,43 +79,22 @@ print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
 print(f"CUDA: {torch.version.cuda}")
 
 # %% [markdown]
-# ## Step 6: Run Null Ablation Training
+# ## Step 5: Run Evaluation
 #
-# Key settings for null ablation:
-#   - `--w-foraging 0.0` — disables foraging loss
-#
-# The training script auto-resumes from the latest rolling checkpoint
-# on HuggingFace. If Colab dies mid-epoch, re-run this cell.
-
-# %%
-run(
-    f"python3 phase1_training/train_rhan_v11.py "
-    f"--batch-size 8 "
-    f"--accum-steps 32 "
-    f"--w-foraging 0.0 "
-    f"--w-precision 0.0 "
-    f"--w-halt 0.0 "
-    f"--max-foraging-steps 4 "
-    f"--fovea-size 48 "
-    f"--metabolic-cost 0.05 "
-)
-
-# %% [markdown]
-# ## Step 7: Evaluate the Best Checkpoint
-#
-# Runs the 4-suite evaluation (statistical significance, SOTA comparison,
-# biological claims, diagnostic plots) on the best checkpoint from training.
-# Downloads from HF automatically if the local file was cleaned up.
+# Downloads the best checkpoint from HuggingFace automatically.
+# Uses quick defaults (200 samples, 10 PGD steps). For the full
+# 4-suite evaluation (~2h), add `--steps 20 --num-samples 500`.
 
 # %%
 run(
     f"python3 phase1_training/eval_rhan_v11.py "
     f"--checkpoint checkpoints/rhan_stl10_v11_best.pth "
-    f"--num-samples 500 "
+    f"--num-samples 200 "
+    f"--steps 10 "
 )
 
 # %% [markdown]
-# ## Step 8: Verify checkpoints on HuggingFace
+# ## Step 6: Verify checkpoints on HuggingFace
 
 # %%
 print("\n--- Checkpoints on HuggingFace ---")

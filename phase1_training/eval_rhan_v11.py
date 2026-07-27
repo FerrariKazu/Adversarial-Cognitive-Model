@@ -123,7 +123,7 @@ def run_pgd_eval(model, x, y, eps, steps=20, stl_min=None, stl_max=None):
     x_adv = x.clone().detach() + 0.001 * torch.randn_like(x)
     x_adv = torch.clamp(x_adv, stl_min, stl_max)
 
-    for _ in range(steps):
+    for s in range(steps):
         x_adv.requires_grad_(True)
         with torch.enable_grad():
             logits_a = model(x_adv)
@@ -141,11 +141,15 @@ def run_pgd_eval(model, x, y, eps, steps=20, stl_min=None, stl_max=None):
     return x_adv
 
 
-def get_predictions_batched(model, x_test, y_test, eps, steps=20, batch_size=32):
+def get_predictions_batched(model, x_test, y_test, eps, steps=20, batch_size=32, desc=""):
     model.eval()
     corrects = []
     n = x_test.size(0)
+    n_batches = (n + batch_size - 1) // batch_size
     for i in range(0, n, batch_size):
+        batch_idx = i // batch_size + 1
+        if desc:
+            print(f"    {desc} batch {batch_idx}/{n_batches}", flush=True)
         x_b = x_test[i:i+batch_size]
         y_b = y_test[i:i+batch_size]
         if eps > 0:
@@ -164,7 +168,7 @@ def get_predictions_batched(model, x_test, y_test, eps, steps=20, batch_size=32)
 # SUITE 1 — STATISTICAL SIGNIFICANCE (3 SEEDS) & BOOTSTRAP CI
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def run_statistical_significance(model, test_loader, device, num_samples=200):
+def run_statistical_significance(model, test_loader, device, num_samples=200, steps=10):
     print(f"\n{'='*70}", flush=True)
     print(f" EVALUATION 1: Statistical Significance Sweep (3 Seeds)", flush=True)
     print(f"{'='*70}", flush=True)
@@ -176,11 +180,15 @@ def run_statistical_significance(model, test_loader, device, num_samples=200):
     n_total = len(dataset)
     epsilons = [0.0, 0.031, 0.062, 0.094]
 
+    # Cached correctness vectors per seed (avoids recomputing PGD for bootstrap)
+    seed_corrects = {}
+
     for seed in seeds:
         set_seed(seed)
         print(f"  Running evaluations for Seed {seed}...", flush=True)
         results[seed]['clean_acc'] = 0.0
         results[seed]['robust_acc'] = {}
+        seed_corrects[seed] = {'clean': None, 'robust': {}}
 
         indices = torch.randperm(n_total)[:num_samples].tolist()
         subset = torch.utils.data.Subset(dataset, indices)
@@ -194,12 +202,14 @@ def run_statistical_significance(model, test_loader, device, num_samples=200):
         x_test = torch.cat(all_imgs).to(device)
         y_test = torch.cat(all_lbls).to(device)
 
-        clean_correct = get_predictions_batched(model, x_test, y_test, eps=0.0, batch_size=32)
+        clean_correct = get_predictions_batched(model, x_test, y_test, eps=0.0, batch_size=32, desc=f"Seed {seed} clean")
         results[seed]['clean_acc'] = 100.0 * clean_correct.mean().item()
+        seed_corrects[seed]['clean'] = clean_correct.cpu().numpy()
 
         for eps in epsilons[1:]:
-            rob_correct = get_predictions_batched(model, x_test, y_test, eps=eps, steps=20, batch_size=32)
+            rob_correct = get_predictions_batched(model, x_test, y_test, eps=eps, steps=steps, batch_size=32, desc=f"Seed {seed} ε={eps}")
             results[seed]['robust_acc'][eps] = 100.0 * rob_correct.mean().item()
+            seed_corrects[seed]['robust'][eps] = rob_correct.cpu().numpy()
 
     print("\n  Summary statistics (Mean ± Std):")
     clean_accs = [results[s]['clean_acc'] for s in seeds]
@@ -209,20 +219,20 @@ def run_statistical_significance(model, test_loader, device, num_samples=200):
         print(f"    PGD Robustness (ε={eps:.3f}): {np.mean(rob_accs):.2f}% ± {np.std(rob_accs):.2f}%")
 
     print("\n  Computing 95% Bootstrap Confidence Intervals (n=10000 iterations)...")
-    boot_clean_accs = []
-    boot_robust_accs = {eps: [] for eps in epsilons[1:]}
-
-    clean_corrects = get_predictions_batched(model, x_test, y_test, eps=0.0, batch_size=32).numpy()
-    robust_corrects = {}
-    for eps in epsilons[1:]:
-        robust_corrects[eps] = get_predictions_batched(model, x_test, y_test, eps=eps, steps=20, batch_size=32).numpy()
+    # Use cached per-sample predictions from the last seed — avoids recomputing PGD
+    last = seeds[-1]
+    clean_corrects = seed_corrects[last]['clean']
+    robust_corrects = seed_corrects[last]['robust']
+    n_cached = len(clean_corrects)
 
     np.random.seed(42)
+    boot_clean_accs = []
+    boot_robust_accs = {eps: [] for eps in epsilons[1:]}
     for _ in range(10000):
-        indices = np.random.randint(0, len(x_test), size=len(x_test))
-        boot_clean_accs.append(100.0 * clean_corrects[indices].mean())
+        idx = np.random.randint(0, n_cached, size=n_cached)
+        boot_clean_accs.append(100.0 * clean_corrects[idx].mean())
         for eps in epsilons[1:]:
-            boot_robust_accs[eps].append(100.0 * robust_corrects[eps][indices].mean())
+            boot_robust_accs[eps].append(100.0 * robust_corrects[eps][idx].mean())
 
     print(f"    Bootstrap 95% CI (Clean): [{np.percentile(boot_clean_accs, 2.5):.2f}%, {np.percentile(boot_clean_accs, 97.5):.2f}%]")
     for eps in epsilons[1:]:
@@ -233,7 +243,7 @@ def run_statistical_significance(model, test_loader, device, num_samples=200):
 # SUITE 2 — SOTA COMPARISON ON STL-10
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def run_sota_comparison(model, test_loader, device):
+def run_sota_comparison(model, test_loader, device, steps=10):
     print(f"\n{'='*70}", flush=True)
     print(f" EVALUATION 2: SOTA Comparison on STL-10", flush=True)
     print(f"{'='*70}", flush=True)
@@ -259,10 +269,10 @@ def run_sota_comparison(model, test_loader, device):
     x_test = torch.cat(subset_imgs).to(device)
     y_test = torch.cat(subset_lbls).to(device)
 
-    clean_corrects = get_predictions_batched(model, x_test, y_test, eps=0.0, batch_size=32)
+    clean_corrects = get_predictions_batched(model, x_test, y_test, eps=0.0, batch_size=32, desc="SOTA clean")
     clean_acc = 100.0 * clean_corrects.mean().item()
 
-    robust_corrects = get_predictions_batched(model, x_test, y_test, eps=0.031, steps=20, batch_size=32)
+    robust_corrects = get_predictions_batched(model, x_test, y_test, eps=0.031, steps=steps, batch_size=32, desc=f"SOTA ε=0.031 ({steps} steps)")
     robust_acc = 100.0 * robust_corrects.mean().item()
 
     print(f"\n  Main SOTA Comparison Table (STL-10):")
@@ -277,7 +287,7 @@ def run_sota_comparison(model, test_loader, device):
 # SUITE 3 — BIOLOGICAL CLAIM VALIDATION
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def run_biological_claims(model, test_loader, device):
+def run_biological_claims(model, test_loader, device, steps=10):
     print(f"\n{'='*70}", flush=True)
     print(f" EVALUATION 3: Biological Claim Validation", flush=True)
     print(f"{'='*70}", flush=True)
@@ -305,7 +315,7 @@ def run_biological_claims(model, test_loader, device):
     imgs, lbls = imgs[:32].to(device), lbls[:32].to(device)
 
     for eps in epsilons:
-        x_adv = run_pgd_eval(model, imgs, lbls, eps, steps=20)
+        x_adv = run_pgd_eval(model, imgs, lbls, eps, steps=steps)
         with torch.no_grad():
             _, traj = model(x_adv, return_trajectory=True)
             final_err = traj['errors'][-1].mean().item()
@@ -337,7 +347,7 @@ def run_biological_claims(model, test_loader, device):
 # SUITE 4 — DIAGNOSTIC PLOT GENERATION
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def generate_diagnostic_plots(model, test_loader, device, output_dir='tier1/results/plots2'):
+def generate_diagnostic_plots(model, test_loader, device, output_dir='tier1/results/plots2', steps=10):
     print(f"\n{'='*70}", flush=True)
     print(f" EVALUATION 4: Diagnostic Plot Generation", flush=True)
     print(f"{'='*70}", flush=True)
@@ -466,7 +476,7 @@ def generate_diagnostic_plots(model, test_loader, device, output_dir='tier1/resu
         for i in range(0, n_sub, 32):
             x_b = x_test[i:i+32]
             y_b = y_test[i:i+32]
-            x_adv_b = run_pgd_eval(model, x_b, y_b, eps, steps=20)
+            x_adv_b = run_pgd_eval(model, x_b, y_b, eps, steps=steps)
             with torch.no_grad():
                 _, traj_eps_b = model(x_adv_b, return_trajectory=True)
                 total_steps += float(traj_eps_b['steps']) * x_b.size(0)
@@ -516,8 +526,10 @@ def main():
     parser.add_argument('--checkpoint', type=str, default='checkpoints/rhan_stl10_v11_best.pth',
                         help='Path to RHAN-v11 checkpoint')
     parser.add_argument('--data-root', type=str, default='./data/stl10')
-    parser.add_argument('--num-samples', type=int, default=500,
+    parser.add_argument('--num-samples', type=int, default=200,
                         help='Number of samples for statistical significance')
+    parser.add_argument('--steps', type=int, default=10,
+                        help='PGD attack steps (default 10, use 20 for full eval)')
     args = parser.parse_known_args()[0]
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -554,10 +566,10 @@ def main():
     else:
         print(f"Warning: Checkpoint {ckpt_path} not found. Running evaluations on random/mock weights.", flush=True)
 
-    run_statistical_significance(model, test_loader, device, num_samples=args.num_samples)
-    run_sota_comparison(model, test_loader, device)
-    run_biological_claims(model, test_loader, device)
-    generate_diagnostic_plots(model, test_loader, device)
+    run_statistical_significance(model, test_loader, device, num_samples=args.num_samples, steps=args.steps)
+    run_sota_comparison(model, test_loader, device, steps=args.steps)
+    run_biological_claims(model, test_loader, device, steps=args.steps)
+    generate_diagnostic_plots(model, test_loader, device, steps=args.steps)
 
     print(f"\n{'='*70}", flush=True)
     print(f" All evaluations complete!", flush=True)
