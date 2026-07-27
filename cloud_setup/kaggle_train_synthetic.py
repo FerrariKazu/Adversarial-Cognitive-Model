@@ -3,9 +3,11 @@
 Kaggle: Loss-Ablated RHAN-v11 Training on Synthetic STL-10
 ============================================================
 Step 1: Download 118 filtered shards (115K images) from HF
-Step 2: Extract + pseudo-label with TRADES baseline
-Step 3: Train loss-ablated v11 (TRADES + recon only, no active inference)
-Step 4: Upload checkpoint to HF
+Step 2: Extract images into uint8 tensor
+Step 2.5: Download TRADES baseline checkpoint
+Step 3: Pseudo-label with TRADES baseline
+Step 4: Train loss-ablated v11 (TRADES + recon only, no active inference)
+Step 5: Verify checkpoint on HF
 
 Usage: Run on Kaggle with GPU T4 x2. Set HF_TOKEN in Kaggle Secrets.
 Expected runtime: ~6-8 hours on T4x2.
@@ -64,7 +66,6 @@ os.environ["PYTHONPATH"] = f"{WORK_DIR}:{os.environ.get('PYTHONPATH', '')}"
 run("pip install --quiet --upgrade pip setuptools wheel")
 run("pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cu121")
 run("pip install --quiet huggingface_hub datasets Pillow")
-
 from huggingface_hub import HfApi
 api = HfApi(token=hf_token)
 
@@ -100,6 +101,19 @@ imgs_tensor = torch.from_numpy(imgs_np).permute(0, 3, 1, 2).contiguous()
 print(f"Extracted {len(imgs_tensor)} images in {time.time()-t0:.1f}s")
 print(f"  Tensor shape: {imgs_tensor.shape}, dtype: {imgs_tensor.dtype}")
 
+print("\n=== Step 2.5: Download TRADES baseline checkpoint ===")
+os.makedirs(CKPT_DIR, exist_ok=True)
+api.hf_hub_download(
+    repo_id='FerrariKazu/rhan-checkpoints',
+    filename='rhan_stl10_large_pseudolabel_best.pth',
+    repo_type='dataset', local_dir=CKPT_DIR
+)
+# Also make 'checkpoints' symlink so relative paths work
+if os.path.islink('checkpoints'):
+    os.unlink('checkpoints')
+if not os.path.exists('checkpoints'):
+    os.symlink(CKPT_DIR, 'checkpoints')
+
 print("\n=== Step 3: Generate pseudo-labels with TRADES baseline ===")
 sys.path.insert(0, os.path.join(WORK_DIR, 'phase1_training'))
 from model_rhan_stl10_large import RHANLargeSTL10
@@ -110,7 +124,7 @@ print(f"Device: {device}")
 
 model = RHANLargeSTL10().to(device)
 from checkpoint_utils import compat_load
-ckpt = compat_load('checkpoints/rhan_stl10_large_pseudolabel_best.pth', map_location=device)
+ckpt = compat_load(os.path.join(CKPT_DIR, 'rhan_stl10_large_pseudolabel_best.pth'), map_location=device)
 state = ckpt.get('model', ckpt)
 model.load_state_dict(state, strict=False)
 model.eval()
@@ -142,18 +156,6 @@ torch.save({'imgs': imgs_tensor, 'labels': pseudo_labels}, SYNTH_PT)
 print(f"\nSaved synthetic data to {SYNTH_PT} ({os.path.getsize(SYNTH_PT)/1e9:.2f} GB)")
 
 print("\n=== Step 4: Train loss-ablated RHAN-v11 ===")
-os.makedirs(CKPT_DIR, exist_ok=True)
-# Symlink checkpoint dir to expected location
-if os.path.islink('checkpoints'):
-    os.unlink('checkpoints')
-if not os.path.exists('checkpoints'):
-    os.symlink(CKPT_DIR, 'checkpoints')
-
-# Pre-download TRADES baseline checkpoint (needed as base model)
-api.hf_hub_download(repo_id='FerrariKazu/rhan-checkpoints',
-                    filename='rhan_stl10_large_pseudolabel_best.pth',
-                    repo_type='dataset', local_dir=CKPT_DIR)
-
 run(
     f"python3 phase1_training/train_rhan_v11.py "
     f"--synthetic-data {SYNTH_PT} "
