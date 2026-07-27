@@ -63,9 +63,11 @@ run('git fetch origin main && git reset --hard origin/main')
 os.environ["PYTHONPATH"] = f"{WORK_DIR}:{os.environ.get('PYTHONPATH', '')}"
 
 # ── Install deps ──
+# Don't install torch/torchvision — Kaggle base env has it pre-installed.
+# Explicitly installing a different CUDA variant (cu121 vs Kaggle's 12.4+)
+# causes CUDA ABI mismatches and kernel segfaults on TransformerEncoder init.
 run("pip install --quiet --upgrade pip setuptools wheel")
-run("pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cu121")
-run("pip install --quiet huggingface_hub datasets Pillow")
+run("pip install --quiet datasets Pillow")
 from huggingface_hub import HfApi
 api = HfApi(token=hf_token)
 
