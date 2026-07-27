@@ -62,6 +62,12 @@ os.chdir(WORK_DIR)
 run('git fetch origin main && git reset --hard origin/main')
 os.environ["PYTHONPATH"] = f"{WORK_DIR}:{os.environ.get('PYTHONPATH', '')}"
 
+# Ensure torch.utils.serialization proxy exists (PyTorch >= 2.5 removed it)
+# Must happen before any torch.save/torch.load call.
+sys.path.insert(0, os.path.join(WORK_DIR, 'phase1_training'))
+from checkpoint_utils import _ensure_serialization_proxy
+_ensure_serialization_proxy()
+
 # ── Install deps ──
 # Don't install torch/torchvision — Kaggle base env has it pre-installed.
 # Explicitly installing a different CUDA variant (cu121 vs Kaggle's 12.4+)
