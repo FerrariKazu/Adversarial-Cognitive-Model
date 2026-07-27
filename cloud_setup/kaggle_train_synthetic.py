@@ -119,7 +119,7 @@ if not os.path.exists('checkpoints'):
 print("\n=== Step 3: Generate pseudo-labels with TRADES baseline ===")
 sys.path.insert(0, os.path.join(WORK_DIR, 'phase1_training'))
 from model_rhan_stl10_large import RHANLargeSTL10
-import torch.nn.functional as F
+import torch.nn as nn
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Device: {device}")
