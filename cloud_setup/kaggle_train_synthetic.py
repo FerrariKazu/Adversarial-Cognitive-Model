@@ -182,6 +182,10 @@ torch.save({'imgs': imgs_tensor, 'labels': pseudo_labels}, SYNTH_PT,
            _use_new_zipfile_serialization=False)
 print(f"\nSaved synthetic data to {SYNTH_PT} ({os.path.getsize(SYNTH_PT)/1e9:.2f} GB)")
 
+# Free the 3.2 GB tensor before launching training subprocess
+del imgs_tensor, labels_tensor
+import gc; gc.collect()
+
 print("\n=== Re-sync repo (pseudo-labeling took ~20 min, may have fixes) ===")
 run('git fetch origin main && git reset --hard origin/main')
 
