@@ -91,21 +91,34 @@ print(f"Downloaded {len(filtered_tars)} shards to {FILTERED_DIR}")
 
 print("\n=== Step 2: Extract images into uint8 tensor ===")
 t0 = time.time()
-all_imgs, all_labels = [], []
+import numpy as np
+
+# Count images first
+total_imgs = 0
+for shard_name in filtered_tars:
+    shard_path = os.path.join(FILTERED_DIR, shard_name)
+    with tarfile.open(shard_path, 'r') as tar:
+        total_imgs += sum(1 for m in tar.getmembers() if m.name.endswith('.png'))
+
+# Pre-allocate to avoid holding multiple copies in RAM
+imgs_tensor = torch.empty((total_imgs, 3, 96, 96), dtype=torch.uint8)
+labels_tensor = torch.empty(total_imgs, dtype=torch.long)
+idx = 0
 for shard_name in filtered_tars:
     cls_name = shard_name.split('_')[2]
     cls_idx = CLASS_TO_IDX[cls_name]
     shard_path = os.path.join(FILTERED_DIR, shard_name)
     with tarfile.open(shard_path, 'r') as tar:
-        png_members = [m for m in tar.getmembers() if m.name.endswith('.png')]
-        for png_m in png_members:
-            img_bytes = tar.extractfile(png_m).read()
-            pil_img = Image.open(io.BytesIO(img_bytes)).convert('RGB').resize((96, 96))
-            all_imgs.append(np.array(pil_img, dtype=np.uint8))
-            all_labels.append(cls_idx)
-imgs_np = np.stack(all_imgs)
-labels_np = np.array(all_labels, dtype=np.int64)
-imgs_tensor = torch.from_numpy(imgs_np).permute(0, 3, 1, 2).contiguous()
+        for m in tar.getmembers():
+            if not m.name.endswith('.png'):
+                continue
+            img = Image.open(io.BytesIO(tar.extractfile(m).read()))
+            img = img.convert('RGB').resize((96, 96))
+            imgs_tensor[idx] = torch.from_numpy(
+                np.array(img, dtype=np.uint8)).permute(2, 0, 1)
+            labels_tensor[idx] = cls_idx
+            idx += 1
+
 print(f"Extracted {len(imgs_tensor)} images in {time.time()-t0:.1f}s")
 print(f"  Tensor shape: {imgs_tensor.shape}, dtype: {imgs_tensor.dtype}")
 
@@ -161,7 +174,7 @@ with torch.no_grad():
             eta = (elapsed / max(i, 1)) * (N - i)
             print(f"  Pseudo-label: {i}/{N} ({pct}%)  ETA: {eta:.0f}s", flush=True)
 print(f"Pseudo-labeling done in {time.time()-t0:.1f}s")
-agreement = (pseudo_labels.numpy() == labels_np).mean() * 100
+agreement = (pseudo_labels == labels_tensor).float().mean().item() * 100
 print(f"  Label agreement with class: {agreement:.1f}%")
 
 # Save prepared data (legacy format — zipfile is slow for 3.2 GB)
