@@ -171,20 +171,16 @@ print(f"\nSaved synthetic data to {SYNTH_PT} ({os.path.getsize(SYNTH_PT)/1e9:.2f
 print("\n=== Re-sync repo (pseudo-labeling took ~20 min, may have fixes) ===")
 run('git fetch origin main && git reset --hard origin/main')
 
-print("\n=== Step 4: Train loss-ablated RHAN-v11 ===")
-num_gpus = torch.cuda.device_count()
-if num_gpus > 1:
-    # DataParallel causes misaligned-address CUDA errors on Kaggle T4s.
-    # torchrun sets WORLD_SIZE/RANK/LOCAL_RANK automatically in each child.
-    print(f"Training with DDP on {num_gpus} GPUs", flush=True)
-    launcher = f"torchrun --nproc_per_node={num_gpus} --master_port=29500"
-else:
-    launcher = "python3"
+print("\n=== Step 4: Train loss-ablated RHAN-v11 (single GPU) ===")
+# DataParallel triggers cudaErrorMisalignedAddress on Kaggle T4s
+# and torchrun DDP has NCCL init issues in Kaggle containers.
+# Single GPU avoids these problems entirely.
+# Effective batch: 16 * 16 = 256 (same as before).
 run(
-    f"{launcher} phase1_training/train_rhan_v11.py "
+    f"CUDA_VISIBLE_DEVICES=0 python3 phase1_training/train_rhan_v11.py "
     f"--synthetic-data {SYNTH_PT} "
-    f"--batch-size 8 "
-    f"--accum-steps 32 "
+    f"--batch-size 16 "
+    f"--accum-steps 16 "
     f"--w-foraging 0.0 "
     f"--w-precision 0.0 "
     f"--w-halt 0.0 "
