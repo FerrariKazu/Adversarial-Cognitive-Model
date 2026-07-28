@@ -164,8 +164,9 @@ print(f"Pseudo-labeling done in {time.time()-t0:.1f}s")
 agreement = (pseudo_labels.numpy() == labels_np).mean() * 100
 print(f"  Label agreement with class: {agreement:.1f}%")
 
-# Save prepared data
-torch.save({'imgs': imgs_tensor, 'labels': pseudo_labels}, SYNTH_PT)
+# Save prepared data (legacy format — zipfile is slow for 3.2 GB)
+torch.save({'imgs': imgs_tensor, 'labels': pseudo_labels}, SYNTH_PT,
+           _use_new_zipfile_serialization=False)
 print(f"\nSaved synthetic data to {SYNTH_PT} ({os.path.getsize(SYNTH_PT)/1e9:.2f} GB)")
 
 print("\n=== Re-sync repo (pseudo-labeling took ~20 min, may have fixes) ===")
