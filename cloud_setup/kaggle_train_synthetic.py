@@ -186,7 +186,6 @@ run(
     f"--w-halt 0.0 "
     f"--w-trades 0.55 "
     f"--w-recon 0.10 "
-    f"--force-restart "
 )
 
 print("\n=== Step 5: Verify checkpoint on HF ===")
