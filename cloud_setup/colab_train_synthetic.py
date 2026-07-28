@@ -210,6 +210,9 @@ print(f"Saved {SYNTH_PT} ({os.path.getsize(SYNTH_PT)/1e9:.2f} GB)")
 # (no --force-restart).
 
 # %%
+# Free the 3.2 GB tensor before launching training subprocess
+del imgs_tensor, labels_tensor
+import gc; gc.collect()
 print("\n=== Step 8: Train ===")
 run(
     f"python3 phase1_training/train_rhan_v11.py "
