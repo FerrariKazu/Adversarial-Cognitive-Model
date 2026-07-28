@@ -186,8 +186,9 @@ print(f"Done in {time.time()-t0:.1f}s")
 agreement = (pseudo_labels.numpy() == labels_np).mean() * 100
 print(f"  Label agreement: {agreement:.1f}%")
 
-# Save
-torch.save({'imgs': imgs_tensor, 'labels': pseudo_labels}, SYNTH_PT)
+# Save (legacy format — zipfile is slow for 3.2 GB)
+torch.save({'imgs': imgs_tensor, 'labels': pseudo_labels}, SYNTH_PT,
+           _use_new_zipfile_serialization=False)
 print(f"Saved {SYNTH_PT} ({os.path.getsize(SYNTH_PT)/1e9:.2f} GB)")
 
 # %% [markdown]
