@@ -89,8 +89,7 @@ run(
     f"--w-halt 0 "
     f"--w-recon 0.10 "
     f"--freeze-gaze "
-    f"--ckpt-name rhan_v11_isolation_fixedgaze "
-    f"--force-restart"
+    f"--ckpt-name rhan_v11_isolation_fixedgaze"
 )
 
 # %% [markdown]
