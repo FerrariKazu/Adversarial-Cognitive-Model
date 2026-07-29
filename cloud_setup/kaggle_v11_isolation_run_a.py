@@ -87,8 +87,7 @@ run(
     f"--w-precision 0 "
     f"--w-halt 0 "
     f"--w-recon 0 "
-    f"--ckpt-name rhan_v11_isolation_norecon "
-    f"--force-restart"
+    f"--ckpt-name rhan_v11_isolation_norecon"
 )
 
 # %% [markdown]

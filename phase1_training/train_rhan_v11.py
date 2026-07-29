@@ -629,6 +629,10 @@ def main():
                         help='Reconstruction loss weight for generative prior')
     parser.add_argument('--synthetic-data', type=str, default='',
                         help='Path to .pt file with synthetic data (dict with imgs, labels)')
+    parser.add_argument('--ckpt-name', type=str, default='rhan_stl10_v11',
+                        help='Checkpoint filename prefix (e.g. rhan_v11_isolation_norecon)')
+    parser.add_argument('--freeze-gaze', action='store_true',
+                        help='ISOLATION TEST: freeze foveal gaze to image center (0,0)')
     args, _ = parser.parse_known_args()
 
     # DDP Initialization
@@ -843,6 +847,12 @@ def main():
 
     raw_model = model.module if hasattr(model, 'module') else model
 
+    # ISOLATION TEST: freeze foveal gaze to center
+    if args.freeze_gaze:
+        raw_model.freeze_gaze = True
+        if rank == 0:
+            print("  ISOLATION TEST: foveal gaze frozen to image center (0,0)", flush=True)
+
     # ── 6. Curriculum Setup (60 epochs total) ────────────────────
     curriculum = [
         (1,  20, 0.031, 2.0, 4,  0.003),
@@ -857,8 +867,8 @@ def main():
     optimizer = None
     scheduler = None
 
-    best_path = os.path.join(ckpt_dir, 'rhan_stl10_v11_best.pth')
-    rolling_path = os.path.join(ckpt_dir, 'rhan_stl10_v11_rolling.pth')
+    best_path = os.path.join(ckpt_dir, f'{args.ckpt_name}_best.pth')
+    rolling_path = os.path.join(ckpt_dir, f'{args.ckpt_name}_rolling.pth')
 
     # ── 7. Automatic Resume Check ────────────────────────────────
     hf_token = os.environ.get("HF_TOKEN")
@@ -889,9 +899,10 @@ def main():
             try:
                 from huggingface_hub import hf_hub_download
                 print("Checking for a newer checkpoint on Hugging Face...", flush=True)
+                rolling_filename = f"{args.ckpt_name}_rolling.pth"
                 temp_rolling_path = hf_hub_download(
                     repo_id='FerrariKazu/rhan-checkpoints-rolling',
-                    filename='rhan_stl10_v11_rolling.pth',
+                    filename=rolling_filename,
                     repo_type='dataset',
                     token=hf_token
                 )
