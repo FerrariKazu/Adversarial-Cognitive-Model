@@ -268,11 +268,37 @@ def ensure_checkpoint_exists(ckpt_path):
             print("Please check your HF_TOKEN, Google Drive storage space, or internet connection, then try again.", flush=True)
             sys.exit(1)
 
+hf_upload_thread = None
+
+
+def wait_for_hf_sync():
+    """Block until the current Hugging Face upload finishes.
+
+    Call before process exit so the final checkpoint upload completes.
+    """
+    global hf_upload_thread
+    if hf_upload_thread is not None and hf_upload_thread.is_alive():
+        print("Waiting for Hugging Face upload to complete...", flush=True)
+        try:
+            hf_upload_thread.join()
+            print("Hugging Face upload completed.", flush=True)
+        except Exception as e:
+            print(f"Failed to join Hugging Face upload thread: {e}", flush=True)
+
+
 def sync_to_hf(file_path):
+    global hf_upload_thread
     if not os.path.exists(file_path):
         return
     import shutil
     import threading
+
+    if hf_upload_thread is not None and hf_upload_thread.is_alive():
+        print(f"Waiting for previous Hugging Face upload to complete before syncing {os.path.basename(file_path)}...", flush=True)
+        try:
+            hf_upload_thread.join()
+        except Exception as e:
+            print(f"Failed to join previous upload thread: {e}", flush=True)
     
     # Create copy synchronously to prevent write-during-upload race conditions
     sync_path = file_path + ".sync"
@@ -328,8 +354,8 @@ def sync_to_hf(file_path):
                 except Exception:
                     pass
 
-    # Launch in a daemon thread so it doesn't block the training loop
-    threading.Thread(target=_async_sync, args=(sync_path, os.path.basename(file_path)), daemon=True).start()
+    hf_upload_thread = threading.Thread(target=_async_sync, args=(sync_path, os.path.basename(file_path)), daemon=False)
+    hf_upload_thread.start()
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # MAIN ENTRYPOINT
@@ -840,6 +866,10 @@ def main():
             dist.barrier() # Sync before starting next epoch
 
     if rank == 0:
+        # Final sync: ensure the last checkpoint upload completes before exiting
+        print("\nFinalizing Hugging Face sync...", flush=True)
+        sync_to_hf(best_path)
+        wait_for_hf_sync()
         print(f"Training Complete. Best Model saved to {best_path}")
 
         if not args.dry_run:

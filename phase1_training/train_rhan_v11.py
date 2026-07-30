@@ -416,6 +416,21 @@ class EpochDiagnostics:
 # HUGGING FACE HELPERS
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+def wait_for_hf_sync():
+    """Block until the current Hugging Face upload finishes.
+
+    Call before process exit so the final checkpoint upload completes.
+    """
+    global hf_upload_thread
+    if hf_upload_thread is not None and hf_upload_thread.is_alive():
+        print("Waiting for Hugging Face upload to complete...", flush=True)
+        try:
+            hf_upload_thread.join()
+            print("Hugging Face upload completed.", flush=True)
+        except Exception as e:
+            print(f"Failed to join Hugging Face upload thread: {e}", flush=True)
+
+
 def ensure_checkpoint_exists(ckpt_path):
     if os.path.exists(ckpt_path):
         return ckpt_path
@@ -535,7 +550,7 @@ def sync_to_hf(file_path):
                 except Exception:
                     pass
 
-    hf_upload_thread = threading.Thread(target=_async_sync, args=(sync_path, os.path.basename(file_path)), daemon=True)
+    hf_upload_thread = threading.Thread(target=_async_sync, args=(sync_path, os.path.basename(file_path)), daemon=False)
     hf_upload_thread.start()
 
 
@@ -1189,6 +1204,10 @@ def main():
             dist.barrier()
 
     if rank == 0:
+        # Final sync: ensure the last checkpoint upload completes before exiting
+        print("\nFinalizing Hugging Face sync...", flush=True)
+        sync_to_hf(best_path)
+        wait_for_hf_sync()
         print(f"\n{'═'*60}")
         print(f"  Training Complete. Best Model saved to {best_path}")
         print(f"  Best validation accuracy: {best_acc:.2f}%")

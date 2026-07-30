@@ -107,9 +107,9 @@ run("git fetch origin main && git reset --hard origin/main")
 import os as _os
 from huggingface_hub import hf_hub_download as _hf_dl
 
-_base    = "rhan_stl10_v11"
+_base    = "rhan_v11_isolation_norecon"
 _ckpt    = f"checkpoints/{_base}_best.pth"
-_ckpt_lbl = f"{_base}_norecon_best"   # descriptive label for CSV
+_ckpt_lbl = f"{_base}_best"            # descriptive label for CSV
 
 if _os.path.exists(_ckpt):
     print(f"  Checkpoint present locally: {_ckpt}", flush=True)
