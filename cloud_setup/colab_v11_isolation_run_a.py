@@ -110,7 +110,7 @@ if not _os.path.exists(_ckpt):
     print(f"Checkpoint not found locally, downloading from HF...", flush=True)
     from huggingface_hub import hf_hub_download
     _local = hf_hub_download(
-        repo_id="FerrariKazu/rhan-checkpoints",
+        repo_id="FerrariKazu/rhan-checkpoints-rolling",
         repo_type="dataset",
         filename="rhan_v11_isolation_norecon_best.pth",
         local_dir="checkpoints",
