@@ -100,8 +100,8 @@ run(
 # ## Step 5: Sync latest eval script and checkpoint, then sweep
 
 # %%
-# Pull latest code (eval script may have been updated after training started)
-run("git pull origin main --rebase")
+# Force-sync latest code (pull can silently skip if refs are stale)
+run("git fetch origin main && git reset --hard origin/main")
 
 # Resolve checkpoint: try best first, fall back to rolling
 import os as _os
