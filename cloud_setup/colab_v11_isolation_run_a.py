@@ -97,9 +97,27 @@ run(
 )
 
 # %% [markdown]
-# ## Step 5: Full Epsilon Sweep Evaluation (PGD-50, n=500)
+# ## Step 5: Sync latest eval script and checkpoint, then sweep
 
 # %%
+# Pull latest code (eval script may have been updated after training started)
+run("git pull origin main --rebase")
+
+# Download checkpoint from HF if not present locally
+import os as _os
+_ckpt = "checkpoints/rhan_v11_isolation_norecon_best.pth"
+if not _os.path.exists(_ckpt):
+    print(f"Checkpoint not found locally, downloading from HF...", flush=True)
+    from huggingface_hub import hf_hub_download
+    _local = hf_hub_download(
+        repo_id="FerrariKazu/rhan-checkpoints",
+        filename="rhan_v11_isolation_norecon_best.pth",
+        local_dir="checkpoints",
+    )
+    print(f"  Downloaded to: {_local}", flush=True)
+else:
+    print(f"  Checkpoint already present: {_ckpt}", flush=True)
+
 print("\n" + "="*70)
 print("  RUNNING FULL EPSILON SWEEP: Run A (rhan_v11_isolation_norecon)")
 print("="*70)
@@ -108,6 +126,7 @@ run(
     "python3 phase2_attacks/eval_full_epsilon_sweep.py "
     "--n-samples 500 "
     "--pgd-steps 50 "
+    "--batch-size 32 "
     "--output-dir report/sweep_isolation_run_a "
     "--ckpt-specs rhan_v11_isolation_norecon:checkpoints/rhan_v11_isolation_norecon_best.pth:v11"
 )
