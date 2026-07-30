@@ -1,0 +1,296 @@
+#!/usr/bin/env python3
+"""
+Full Epsilon Sweep Evaluation
+==============================
+Extends eval_domain_clipping_validation.py (verified-correct per-channel clamping)
+into a full sweep over epsilon values for four checkpoints.
+
+Per-channel epsilon conversion (NO std.mean() shortcut):
+    eps_norm_per_channel = eps_pixel / std   (element-wise, shape 1x3x1x1)
+
+STL-10 std = [0.2603, 0.2566, 0.2713]
+
+Usage (Colab/Kaggle):
+    python3 phase2_attacks/eval_full_epsilon_sweep.py \
+        --n-samples 500 --pgd-steps 50 --output-dir ./sweep_results
+
+Checkpoints expected under ./checkpoints/ (or pass --ckpt-specs):
+    static_trades_large        -> rhan_stl10_large_pseudolabel_best.pth  (arch=large)
+    rhan_stl10_large_ep45      -> rhan_stl10_large_ep45.pth              (arch=large)
+    rhan_v10_final             -> rhan_v10_final.pth                     (arch=v10)
+    rhan_stl10_v11_best        -> rhan_stl10_v11_best.pth                (arch=v11)
+"""
+
+import os
+import sys
+import csv
+import time
+import argparse
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, REPO_ROOT)
+sys.path.insert(0, os.path.join(REPO_ROOT, 'phase1_training'))
+
+# ── STL-10 normalization constants ─────────────────────────────────────────────
+MEAN = torch.tensor([0.4467, 0.4398, 0.4066]).view(1, 3, 1, 1)
+STD  = torch.tensor([0.2603, 0.2566, 0.2713]).view(1, 3, 1, 1)
+
+DEFAULT_EPS_LIST = [0.0, 0.0313, 0.0625, 0.094, 0.15, 0.2, 0.3]
+
+DEFAULT_CHECKPOINTS = [
+    ("static_trades_large",   "checkpoints/rhan_stl10_large_pseudolabel_best.pth", "large"),
+    ("rhan_stl10_large_ep45", "checkpoints/rhan_stl10_large_ep45.pth",             "large"),
+    ("rhan_v10_final",        "checkpoints/rhan_v10_final.pth",                    "v10"),
+    ("rhan_stl10_v11_best",   "checkpoints/rhan_stl10_v11_best.pth",               "v11"),
+]
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def get_domain_bounds(device):
+    stl_min = (torch.zeros(1, 3, 1, 1, device=device) - MEAN.to(device)) / STD.to(device)
+    stl_max = (torch.ones(1, 3, 1, 1, device=device) - MEAN.to(device)) / STD.to(device)
+    return stl_min, stl_max
+
+
+def pixel_eps_to_norm(eps_pixel, device):
+    """Scalar eps_pixel -> (1,3,1,1) per-channel eps in normalized space."""
+    return eps_pixel / STD.to(device)
+
+
+def log_eps(eps_pixel, eps_norm, prefix=""):
+    r = eps_norm[0, 0, 0, 0].item()
+    g = eps_norm[0, 1, 0, 0].item()
+    b = eps_norm[0, 2, 0, 0].item()
+    print(f"  [EPS] {prefix}eps_pixel={eps_pixel:.4f} -> "
+          f"eps_norm=[R:{r:.4f}, G:{g:.4f}, B:{b:.4f}]", flush=True)
+
+
+# ── Data loader ────────────────────────────────────────────────────────────────
+
+def load_test_samples(n_samples, seed=42):
+    print(f"--> Loading {n_samples} test samples (seed={seed})...", flush=True)
+    from datasets import load_dataset
+    ds = load_dataset("mteb/stl10", split="test").shuffle(seed=seed).select(range(n_samples))
+    images_norm, labels = [], []
+    for item in ds:
+        img = item['image'].convert('RGB').resize((96, 96))
+        arr = np.array(img, dtype=np.float32) / 255.0
+        t_pix = torch.from_numpy(arr).permute(2, 0, 1)
+        t_norm = (t_pix - MEAN.squeeze(0)) / STD.squeeze(0)
+        images_norm.append(t_norm)
+        labels.append(item['label'])
+    return torch.stack(images_norm), torch.tensor(labels, dtype=torch.long)
+
+
+# ── PGD (verified-correct — same clamping as eval_domain_clipping_validation.py) ──
+
+def run_pgd(model, x_norm, y, eps_pixel, steps, device):
+    """
+    PGD with per-channel normalized-space clamping.
+    eps_pixel is a scalar; converted per-channel before attack.
+    """
+    stl_min, stl_max = get_domain_bounds(device)
+    eps_norm = pixel_eps_to_norm(eps_pixel, device)   # (1,3,1,1)
+    alpha = eps_norm / 4.0
+
+    model.eval()
+    with torch.no_grad():
+        logits_c = model(x_norm)
+        if isinstance(logits_c, tuple):
+            logits_c = logits_c[0]
+    probs_c = F.softmax(logits_c.float(), dim=1)
+
+    x_adv = x_norm.clone().detach() + 0.001 * torch.randn_like(x_norm)
+    x_adv = torch.clamp(x_adv, stl_min, stl_max)
+
+    for _ in range(steps):
+        x_adv = x_adv.detach().requires_grad_(True)
+        with torch.enable_grad():
+            logits_a = model(x_adv)
+            if isinstance(logits_a, tuple):
+                logits_a = logits_a[0]
+            loss = F.kl_div(F.log_softmax(logits_a.float(), dim=1),
+                            probs_c, reduction='batchmean')
+        grad = torch.autograd.grad(loss, x_adv)[0]
+        x_adv = x_adv.detach() + alpha * grad.sign()
+        delta = torch.clamp(x_adv - x_norm, -eps_norm, eps_norm)
+        x_adv = torch.clamp(x_norm + delta, stl_min, stl_max).detach()
+
+    return x_adv
+
+
+# ── d-prime ────────────────────────────────────────────────────────────────────
+
+def compute_dprime(model, x_adv, y_true):
+    from scipy import stats as sps
+    model.eval()
+    with torch.no_grad():
+        logits = model(x_adv)
+        if isinstance(logits, tuple):
+            logits = logits[0]
+        probs = F.softmax(logits.float(), dim=1).cpu().numpy()
+    y_np = y_true.cpu().numpy()
+    dprimes = []
+    for c in range(probs.shape[1]):
+        hit = probs[y_np == c, c]
+        fa  = probs[y_np != c, c]
+        if len(hit) < 2 or len(fa) < 2:
+            continue
+        hr = np.clip(np.mean(hit > 0.5), 1e-6, 1 - 1e-6)
+        fr = np.clip(np.mean(fa  > 0.5), 1e-6, 1 - 1e-6)
+        dprimes.append(float(sps.norm.ppf(hr) - sps.norm.ppf(fr)))
+    return float(np.mean(dprimes)) if dprimes else float('nan')
+
+
+# ── Model loader ───────────────────────────────────────────────────────────────
+
+def load_model(arch, ckpt_path, device):
+    if arch == "v11":
+        from phase1_training.model_rhan_v11 import RHANv11
+        model = RHANv11().to(device)
+    elif arch == "large":
+        from phase1_training.model_rhan_stl10_large import RHANLargeSTL10
+        model = RHANLargeSTL10().to(device)
+    elif arch == "v10":
+        from phase1_training.model_rhan_v10 import RHANv10
+        model = RHANv10().to(device)
+    else:
+        raise ValueError(f"Unknown arch: {arch}")
+
+    if os.path.exists(ckpt_path):
+        state = torch.load(ckpt_path, map_location=device, weights_only=False)
+        for k in ('model', 'model_state_dict', 'state_dict'):
+            if isinstance(state, dict) and k in state:
+                state = state[k]
+                break
+        missing, unexpected = model.load_state_dict(state, strict=False)
+        n_loaded = len(state) - len(missing)
+        print(f"  Loaded {n_loaded}/{len(state)} keys "
+              f"({len(missing)} missing, {len(unexpected)} unexpected)", flush=True)
+    else:
+        print(f"  WARNING: Checkpoint not found: {ckpt_path}", flush=True)
+
+    model.eval()
+    return model
+
+
+# ── Main ───────────────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--n-samples',  type=int,   default=500)
+    parser.add_argument('--pgd-steps',  type=int,   default=50)
+    parser.add_argument('--output-dir', type=str,   default='./sweep_results')
+    parser.add_argument('--eps-list',   type=float, nargs='+', default=DEFAULT_EPS_LIST)
+    # Override checkpoints as "label:path:arch" triples
+    parser.add_argument('--ckpt-specs', type=str, nargs='*', default=None,
+                        help='label:ckpt_path:arch  (overrides built-in checkpoint list)')
+    args = parser.parse_args()
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    checkpoints = DEFAULT_CHECKPOINTS
+    if args.ckpt_specs:
+        checkpoints = [tuple(s.split(':')) for s in args.ckpt_specs]
+
+    print("=" * 60, flush=True)
+    print("  Full Epsilon Sweep Evaluation", flush=True)
+    print(f"  Device:    {device}", flush=True)
+    print(f"  n_samples: {args.n_samples}", flush=True)
+    print(f"  PGD steps: {args.pgd_steps}", flush=True)
+    print(f"  Epsilons:  {args.eps_list}", flush=True)
+    print("=" * 60, flush=True)
+
+    # ── Print all per-channel conversions BEFORE any GPU work ─────────────────
+    print("\n[CHANNEL-WISE EPSILON VERIFICATION — no x3.81 inflation check]", flush=True)
+    for eps in args.eps_list:
+        eps_norm = pixel_eps_to_norm(eps, device)
+        log_eps(eps, eps_norm)
+    print("", flush=True)
+
+    x_norm, y_test = load_test_samples(args.n_samples)
+    x_norm, y_test = x_norm.to(device), y_test.to(device)
+
+    csv_path = os.path.join(args.output_dir, 'epsilon_sweep_results.csv')
+    fieldnames = ['ckpt_label', 'eps_pixel',
+                  'eps_norm_R', 'eps_norm_G', 'eps_norm_B',
+                  'acc_pct', 'macro_dprime']
+    rows = []
+
+    for label, ckpt_path, arch in checkpoints:
+        print(f"\n{'='*60}", flush=True)
+        print(f"  Checkpoint : {label}", flush=True)
+        print(f"  Path       : {ckpt_path}", flush=True)
+        print(f"{'='*60}", flush=True)
+
+        model = load_model(arch, ckpt_path, device)
+
+        for eps_pixel in args.eps_list:
+            eps_norm = pixel_eps_to_norm(eps_pixel, device)
+            log_eps(eps_pixel, eps_norm, prefix=f"[{label}] ")
+
+            t0 = time.time()
+            if eps_pixel == 0.0:
+                x_adv = x_norm
+            else:
+                x_adv = run_pgd(model, x_norm, y_test,
+                                eps_pixel=eps_pixel,
+                                steps=args.pgd_steps,
+                                device=device)
+
+            with torch.no_grad():
+                logits = model(x_adv)
+                if isinstance(logits, tuple):
+                    logits = logits[0]
+                acc = 100.0 * logits.argmax(dim=1).eq(y_test).sum().item() / y_test.size(0)
+
+            dp = compute_dprime(model, x_adv, y_test)
+            elapsed = time.time() - t0
+
+            r = eps_norm[0, 0, 0, 0].item()
+            g = eps_norm[0, 1, 0, 0].item()
+            b = eps_norm[0, 2, 0, 0].item()
+
+            print(f"  -> Acc: {acc:6.2f}%  |  d': {dp:.4f}  ({elapsed:.1f}s)", flush=True)
+
+            rows.append({
+                'ckpt_label':   label,
+                'eps_pixel':    round(eps_pixel, 4),
+                'eps_norm_R':   round(r, 4),
+                'eps_norm_G':   round(g, 4),
+                'eps_norm_B':   round(b, 4),
+                'acc_pct':      round(acc, 2),
+                'macro_dprime': round(dp, 4),
+            })
+
+        del model
+        torch.cuda.empty_cache()
+
+    # ── Write CSV ──────────────────────────────────────────────────────────────
+    with open(csv_path, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    # ── Final table ────────────────────────────────────────────────────────────
+    print("\n" + "=" * 60, flush=True)
+    print("  RESULTS TABLE", flush=True)
+    print("=" * 60, flush=True)
+    print(f"{'Checkpoint':<30} {'eps_px':>7} {'Acc%':>7} {'d_prime':>8}", flush=True)
+    print("-" * 60, flush=True)
+    for row in rows:
+        print(f"{row['ckpt_label']:<30} {row['eps_pixel']:>7.4f} "
+              f"{row['acc_pct']:>7.2f} {row['macro_dprime']:>8.4f}", flush=True)
+
+    print(f"\n  CSV: {csv_path}", flush=True)
+    print("=" * 60, flush=True)
+
+
+if __name__ == '__main__':
+    main()

@@ -403,6 +403,9 @@ class RHANv11(RHANv10):
         # Override foraging steps to v11 value
         self.max_steps = max_foraging_steps
 
+        # ISOLATION TEST: set to True to freeze gaze at image center
+        self.freeze_gaze = False
+
         # ── v11 New Components ──────────────────────────────────────
         self.parafoveal_stream = ParafovealStream(
             proj_dim=proj_dim, fovea_size=fovea_size)
@@ -434,7 +437,11 @@ class RHANv11(RHANv10):
         # ── Step 0: Peripheral pass (full image, inherited) ──────
         cls_768 = self._peripheral_pass(x)              # (B, 768)
         s = self.peripheral_proj(cls_768)                # (B, 512)
-        a = self.action_init(s)                          # (B, 2)
+        # ISOLATION TEST: gaze frozen to center, do not remove without reverting
+        if self.freeze_gaze:
+            a = torch.zeros(B, 2, device=x.device)       # (B, 2) — center fixation
+        else:
+            a = self.action_init(s)                      # (B, 2)
 
         # ── Parafoveal: compute ONCE (full-field, low-res) ───────
         para_feat = self.parafoveal_stream(x)            # (B, 512)
@@ -498,27 +505,29 @@ class RHANv11(RHANv10):
             if halt_prob.mean() > 0.9:
                 break
 
-            # Eq. II: update gaze toward high-error regions
-            if t < self.max_steps - 1:
-                a_grad = a.detach().requires_grad_(True)
-                with torch.enable_grad():
-                    x_fov_g = foveal_sample(
-                        x, a_grad, fovea_size=self.fovea_size)
-                    # Compute gradient of image-space prediction error
-                    # w.r.t. gaze action — this IS the motor-Jacobian
-                    pred_g = self.generative_prior(s.detach())
-                    pixel_error = (x_fov_g - pred_g).pow(2).mean()
+            # ISOLATION TEST: gaze frozen to center, do not remove without reverting
+            if not self.freeze_gaze:
+                # Eq. II: update gaze toward high-error regions
+                if t < self.max_steps - 1:
+                    a_grad = a.detach().requires_grad_(True)
+                    with torch.enable_grad():
+                        x_fov_g = foveal_sample(
+                            x, a_grad, fovea_size=self.fovea_size)
+                        # Compute gradient of image-space prediction error
+                        # w.r.t. gaze action — this IS the motor-Jacobian
+                        pred_g = self.generative_prior(s.detach())
+                        pixel_error = (x_fov_g - pred_g).pow(2).mean()
 
-                    action_grad = torch.autograd.grad(
-                        pixel_error, a_grad, create_graph=False)[0]
+                        action_grad = torch.autograd.grad(
+                            pixel_error, a_grad, create_graph=False)[0]
 
-                # Normalize gradient for stable step size
-                grad_norm = action_grad.norm(dim=-1, keepdim=True) + 1e-8
-                normed_grad = action_grad / grad_norm
+                    # Normalize gradient for stable step size
+                    grad_norm = action_grad.norm(dim=-1, keepdim=True) + 1e-8
+                    normed_grad = action_grad / grad_norm
 
-                # Fixed base step + precision-scaled component
-                step_size = 0.20 + 0.30 * pi_d.unsqueeze(-1)
-                a = torch.clamp(a + step_size * normed_grad, -0.9, 0.9)
+                    # Fixed base step + precision-scaled component
+                    step_size = 0.20 + 0.30 * pi_d.unsqueeze(-1)
+                    a = torch.clamp(a + step_size * normed_grad, -0.9, 0.9)
 
         trajectory['steps'] = t + 1
 
@@ -539,7 +548,11 @@ class RHANv11(RHANv10):
         B = x.shape[0]
         cls_768 = self._peripheral_pass(x)
         s = self.peripheral_proj(cls_768)
-        a = self.action_init(s)
+        # ISOLATION TEST: gaze frozen to center, do not remove without reverting
+        if self.freeze_gaze:
+            a = torch.zeros(B, 2, device=x.device)
+        else:
+            a = self.action_init(s)
 
         # Parafoveal: computed once
         para_feat = self.parafoveal_stream(x)
@@ -569,27 +582,29 @@ class RHANv11(RHANv10):
             if halt_prob.mean() > 0.9:
                 break
 
-            if t < self.max_steps - 1:
-                with torch.no_grad():
-                    pred_crop = self.generative_prior(s)
-                    # Approximate gaze update direction without autograd
-                    # Use spatial gradient of error map as proxy
-                    error_map = (x_foveal - pred_crop).pow(2).mean(dim=1)
-                    # Compute spatial centroid of error as direction
-                    H, W = error_map.shape[-2:]
-                    gy = torch.linspace(-1, 1, H, device=x.device)
-                    gx = torch.linspace(-1, 1, W, device=x.device)
-                    grid_y, grid_x = torch.meshgrid(gy, gx, indexing='ij')
-                    error_weights = error_map / (error_map.sum(
-                        dim=[-1, -2], keepdim=True) + 1e-8)
-                    dx = (error_weights * grid_x.unsqueeze(0)).sum(dim=[-1, -2])
-                    dy = (error_weights * grid_y.unsqueeze(0)).sum(dim=[-1, -2])
-                    direction = torch.stack([dx, dy], dim=-1)
-                    dir_norm = direction.norm(dim=-1, keepdim=True) + 1e-8
-                    direction = direction / dir_norm
+            # ISOLATION TEST: gaze frozen to center, do not remove without reverting
+            if not self.freeze_gaze:
+                if t < self.max_steps - 1:
+                    with torch.no_grad():
+                        pred_crop = self.generative_prior(s)
+                        # Approximate gaze update direction without autograd
+                        # Use spatial gradient of error map as proxy
+                        error_map = (x_foveal - pred_crop).pow(2).mean(dim=1)
+                        # Compute spatial centroid of error as direction
+                        H, W = error_map.shape[-2:]
+                        gy = torch.linspace(-1, 1, H, device=x.device)
+                        gx = torch.linspace(-1, 1, W, device=x.device)
+                        grid_y, grid_x = torch.meshgrid(gy, gx, indexing='ij')
+                        error_weights = error_map / (error_map.sum(
+                            dim=[-1, -2], keepdim=True) + 1e-8)
+                        dx = (error_weights * grid_x.unsqueeze(0)).sum(dim=[-1, -2])
+                        dy = (error_weights * grid_y.unsqueeze(0)).sum(dim=[-1, -2])
+                        direction = torch.stack([dx, dy], dim=-1)
+                        dir_norm = direction.norm(dim=-1, keepdim=True) + 1e-8
+                        direction = direction / dir_norm
 
-                    step_size = 0.20 + 0.30 * pi_d.unsqueeze(-1)
-                    a = torch.clamp(a + step_size * direction, -0.9, 0.9)
+                        step_size = 0.20 + 0.30 * pi_d.unsqueeze(-1)
+                        a = torch.clamp(a + step_size * direction, -0.9, 0.9)
 
         final_belief = weighted_belief / (weight_sum.unsqueeze(-1) + 1e-8)
         return self.belief_unproj(final_belief)

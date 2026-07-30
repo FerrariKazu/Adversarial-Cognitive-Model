@@ -97,16 +97,17 @@ run(
 )
 
 # %% [markdown]
-# ## Step 5: Matched Evaluation (PGD-50, n=500)
+# ## Step 5: Full Epsilon Sweep Evaluation (PGD-50, n=500)
 
 # %%
 print("\n" + "="*70)
-print("  RUNNING MATCHED EVALUATION: Run A (rhan_v11_isolation_norecon)")
+print("  RUNNING FULL EPSILON SWEEP: Run A (rhan_v11_isolation_norecon)")
 print("="*70)
 
 run(
-    f"python3 phase2_attacks/eval_empirical_sweep_verified.py "
-    f"--n-samples 500 "
-    f"--pgd-steps 50 "
-    f"--output-json report/empirical_sweep_isolation_run_a.json"
+    "python3 phase2_attacks/eval_full_epsilon_sweep.py "
+    "--n-samples 500 "
+    "--pgd-steps 50 "
+    "--output-dir report/sweep_isolation_run_a "
+    "--ckpt-specs rhan_v11_isolation_norecon:checkpoints/rhan_v11_isolation_norecon_best.pth:v11"
 )

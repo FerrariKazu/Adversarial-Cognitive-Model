@@ -251,6 +251,9 @@ def run_sota_comparison(model, test_loader, device, steps=10):
     baselines = {
         'Static TRADES Large Baseline': {'clean': 53.60, 'robust_0.031': 50.80},
     }
+    high_eps_baselines = {
+        'TRADES Large (multi-ε sweep)': {'ε=0.031': 48.0, 'ε=0.062': 40.3, 'ε=0.094': 33.7},
+    }
 
     print("  Evaluating RHAN-v11 at benchmark ε=0.031...")
     subset_imgs = []
