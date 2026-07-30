@@ -31,6 +31,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# Reduce fragmentation on large-batch CUDA allocs
+os.environ.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True')
+
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, REPO_ROOT)
 sys.path.insert(0, os.path.join(REPO_ROOT, 'phase1_training'))
@@ -73,6 +76,7 @@ def log_eps(eps_pixel, eps_norm, prefix=""):
 # ── Data loader ────────────────────────────────────────────────────────────────
 
 def load_test_samples(n_samples, seed=42):
+    """Returns tensors kept on CPU; caller moves batches to GPU as needed."""
     print(f"--> Loading {n_samples} test samples (seed={seed})...", flush=True)
     from datasets import load_dataset
     ds = load_dataset("mteb/stl10", split="test").shuffle(seed=seed).select(range(n_samples))
@@ -84,30 +88,16 @@ def load_test_samples(n_samples, seed=42):
         t_norm = (t_pix - MEAN.squeeze(0)) / STD.squeeze(0)
         images_norm.append(t_norm)
         labels.append(item['label'])
+    # Keep on CPU — batches are sent to GPU inside the attack loop
     return torch.stack(images_norm), torch.tensor(labels, dtype=torch.long)
 
 
 # ── PGD (verified-correct — same clamping as eval_domain_clipping_validation.py) ──
 
-def run_pgd(model, x_norm, y, eps_pixel, steps, device):
-    """
-    PGD with per-channel normalized-space clamping.
-    eps_pixel is a scalar; converted per-channel before attack.
-    """
-    stl_min, stl_max = get_domain_bounds(device)
-    eps_norm = pixel_eps_to_norm(eps_pixel, device)   # (1,3,1,1)
-    alpha = eps_norm / 4.0
-
-    model.eval()
-    with torch.no_grad():
-        logits_c = model(x_norm)
-        if isinstance(logits_c, tuple):
-            logits_c = logits_c[0]
-    probs_c = F.softmax(logits_c.float(), dim=1)
-
-    x_adv = x_norm.clone().detach() + 0.001 * torch.randn_like(x_norm)
+def _pgd_batch(model, xb, probs_c, eps_norm, alpha, stl_min, stl_max, steps):
+    """PGD on a single GPU batch."""
+    x_adv = xb.clone().detach() + 0.001 * torch.randn_like(xb)
     x_adv = torch.clamp(x_adv, stl_min, stl_max)
-
     for _ in range(steps):
         x_adv = x_adv.detach().requires_grad_(True)
         with torch.enable_grad():
@@ -118,23 +108,56 @@ def run_pgd(model, x_norm, y, eps_pixel, steps, device):
                             probs_c, reduction='batchmean')
         grad = torch.autograd.grad(loss, x_adv)[0]
         x_adv = x_adv.detach() + alpha * grad.sign()
-        delta = torch.clamp(x_adv - x_norm, -eps_norm, eps_norm)
-        x_adv = torch.clamp(x_norm + delta, stl_min, stl_max).detach()
-
+        delta = torch.clamp(x_adv - xb, -eps_norm, eps_norm)
+        x_adv = torch.clamp(xb + delta, stl_min, stl_max).detach()
     return x_adv
 
 
-# ── d-prime ────────────────────────────────────────────────────────────────────
+def run_pgd_batched(model, x_norm_cpu, y_cpu, eps_pixel, steps, device, batch_size=50):
+    """
+    Batched PGD — data lives on CPU, each mini-batch is moved to GPU individually
+    so we never materialise 500 full-resolution images + gradients at once.
+    """
+    stl_min, stl_max = get_domain_bounds(device)
+    eps_norm = pixel_eps_to_norm(eps_pixel, device)   # (1,3,1,1)
+    alpha = eps_norm / 4.0
 
-def compute_dprime(model, x_adv, y_true):
+    model.eval()
+    n = x_norm_cpu.size(0)
+    adv_chunks = []
+
+    for start in range(0, n, batch_size):
+        xb = x_norm_cpu[start:start + batch_size].to(device)
+        with torch.no_grad():
+            logits_c = model(xb)
+            if isinstance(logits_c, tuple):
+                logits_c = logits_c[0]
+        probs_c = F.softmax(logits_c.float(), dim=1)
+        xb_adv = _pgd_batch(model, xb, probs_c, eps_norm, alpha, stl_min, stl_max, steps)
+        adv_chunks.append(xb_adv.cpu())
+        del xb, xb_adv, logits_c, probs_c
+        torch.cuda.empty_cache()
+
+    return torch.cat(adv_chunks, dim=0)  # on CPU
+
+
+# ── d-prime (batched inference) ────────────────────────────────────────────────
+
+def compute_dprime_batched(model, x_adv_cpu, y_true_cpu, device, batch_size=50):
     from scipy import stats as sps
     model.eval()
+    all_probs = []
+    n = x_adv_cpu.size(0)
     with torch.no_grad():
-        logits = model(x_adv)
-        if isinstance(logits, tuple):
-            logits = logits[0]
-        probs = F.softmax(logits.float(), dim=1).cpu().numpy()
-    y_np = y_true.cpu().numpy()
+        for start in range(0, n, batch_size):
+            xb = x_adv_cpu[start:start + batch_size].to(device)
+            logits = model(xb)
+            if isinstance(logits, tuple):
+                logits = logits[0]
+            all_probs.append(F.softmax(logits.float(), dim=1).cpu())
+            del xb
+    probs = torch.cat(all_probs, dim=0).numpy()
+    y_np = y_true_cpu.numpy()
     dprimes = []
     for c in range(probs.shape[1]):
         hit = probs[y_np == c, c]
@@ -173,7 +196,10 @@ def load_model(arch, ckpt_path, device):
         print(f"  Loaded {n_loaded}/{len(state)} keys "
               f"({len(missing)} missing, {len(unexpected)} unexpected)", flush=True)
     else:
-        print(f"  WARNING: Checkpoint not found: {ckpt_path}", flush=True)
+        raise FileNotFoundError(
+            f"Checkpoint not found: {ckpt_path}\n"
+            "Training must complete before running eval."
+        )
 
     model.eval()
     return model
@@ -185,9 +211,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--n-samples',  type=int,   default=500)
     parser.add_argument('--pgd-steps',  type=int,   default=50)
+    parser.add_argument('--batch-size', type=int,   default=50,
+                        help='Mini-batch size for PGD and inference (reduces VRAM use)')
     parser.add_argument('--output-dir', type=str,   default='./sweep_results')
     parser.add_argument('--eps-list',   type=float, nargs='+', default=DEFAULT_EPS_LIST)
-    # Override checkpoints as "label:path:arch" triples
     parser.add_argument('--ckpt-specs', type=str, nargs='*', default=None,
                         help='label:ckpt_path:arch  (overrides built-in checkpoint list)')
     args = parser.parse_args()
@@ -201,10 +228,11 @@ def main():
 
     print("=" * 60, flush=True)
     print("  Full Epsilon Sweep Evaluation", flush=True)
-    print(f"  Device:    {device}", flush=True)
-    print(f"  n_samples: {args.n_samples}", flush=True)
-    print(f"  PGD steps: {args.pgd_steps}", flush=True)
-    print(f"  Epsilons:  {args.eps_list}", flush=True)
+    print(f"  Device:     {device}", flush=True)
+    print(f"  n_samples:  {args.n_samples}", flush=True)
+    print(f"  batch_size: {args.batch_size}", flush=True)
+    print(f"  PGD steps:  {args.pgd_steps}", flush=True)
+    print(f"  Epsilons:   {args.eps_list}", flush=True)
     print("=" * 60, flush=True)
 
     # ── Print all per-channel conversions BEFORE any GPU work ─────────────────
@@ -214,8 +242,8 @@ def main():
         log_eps(eps, eps_norm)
     print("", flush=True)
 
-    x_norm, y_test = load_test_samples(args.n_samples)
-    x_norm, y_test = x_norm.to(device), y_test.to(device)
+    # Data stays on CPU; batches are moved to GPU inside attack/inference loops
+    x_norm_cpu, y_test_cpu = load_test_samples(args.n_samples)
 
     csv_path = os.path.join(args.output_dir, 'epsilon_sweep_results.csv')
     fieldnames = ['ckpt_label', 'eps_pixel',
@@ -237,20 +265,31 @@ def main():
 
             t0 = time.time()
             if eps_pixel == 0.0:
-                x_adv = x_norm
+                x_adv_cpu = x_norm_cpu
             else:
-                x_adv = run_pgd(model, x_norm, y_test,
-                                eps_pixel=eps_pixel,
-                                steps=args.pgd_steps,
-                                device=device)
+                x_adv_cpu = run_pgd_batched(
+                    model, x_norm_cpu, y_test_cpu,
+                    eps_pixel=eps_pixel,
+                    steps=args.pgd_steps,
+                    device=device,
+                    batch_size=args.batch_size,
+                )
 
-            with torch.no_grad():
-                logits = model(x_adv)
-                if isinstance(logits, tuple):
-                    logits = logits[0]
-                acc = 100.0 * logits.argmax(dim=1).eq(y_test).sum().item() / y_test.size(0)
+            # Batched accuracy
+            correct = 0
+            for start in range(0, x_adv_cpu.size(0), args.batch_size):
+                xb = x_adv_cpu[start:start + args.batch_size].to(device)
+                yb = y_test_cpu[start:start + args.batch_size].to(device)
+                with torch.no_grad():
+                    logits = model(xb)
+                    if isinstance(logits, tuple):
+                        logits = logits[0]
+                    correct += logits.argmax(dim=1).eq(yb).sum().item()
+                del xb, yb
+            acc = 100.0 * correct / x_adv_cpu.size(0)
 
-            dp = compute_dprime(model, x_adv, y_test)
+            dp = compute_dprime_batched(model, x_adv_cpu, y_test_cpu,
+                                        device, args.batch_size)
             elapsed = time.time() - t0
 
             r = eps_norm[0, 0, 0, 0].item()
