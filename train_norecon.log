@@ -1,0 +1,35 @@
+════════════════════════════════════════════════════════════
+  RHAN-v11: Multi-Resolution Active Inference Training
+  Device: cuda | DDP: False (world_size=1)
+  Max foraging steps: 4
+  Fovea size: 48
+  Metabolic cost: 0.05
+  Loss weights: trades=0.55, foraging=0.0, precision=0.0, halt=0.0, recon=0.0
+════════════════════════════════════════════════════════════
+/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/transformer.py:392: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+Loaded labeling model checkpoint: /home/ferrarikazu/Adversarial Cognitive Model/checkpoints/rhan_stl10_pseudolabel_best.pth
+Generating pseudo-labels from 100K unlabeled images...
+  Batch 0/195 | Kept: 103 images
+  Batch 50/195 | Kept: 5427 images
+  Batch 100/195 | Kept: 10826 images
+  Batch 150/195 | Kept: 16143 images
+  Batch 200/195 | Kept: 21516 images
+  Batch 250/195 | Kept: 26854 images
+  Batch 300/195 | Kept: 32131 images
+  Batch 350/195 | Kept: 37371 images
+
+Pseudo-label class distribution and mean confidence:
+  airplane    : 6191   images (mean confidence: 0.8282)
+  bird        : 4543   images (mean confidence: 0.7658)
+  car         : 5235   images (mean confidence: 0.8344)
+  cat         : 674    images (mean confidence: 0.6975)
+  deer        : 3008   images (mean confidence: 0.7454)
+  dog         : 3518   images (mean confidence: 0.7314)
+  horse       : 4334   images (mean confidence: 0.7648)
+  monkey      : 2445   images (mean confidence: 0.7055)
+  ship        : 5065   images (mean confidence: 0.8168)
+  truck       : 6641   images (mean confidence: 0.8171)
+
+Total pseudo-labeled: 41654 / 100000 (41.7%)
+Pre-extracting 41654 pseudo-labeled images as uint8 to save RAM...
