@@ -103,31 +103,56 @@ run(
 # Pull latest code (eval script may have been updated after training started)
 run("git pull origin main --rebase")
 
-# Download checkpoint from HF if not present locally
+# Resolve checkpoint: try best first, fall back to rolling
 import os as _os
-_ckpt = "checkpoints/rhan_v11_isolation_norecon_best.pth"
-if not _os.path.exists(_ckpt):
-    print(f"Checkpoint not found locally, downloading from HF...", flush=True)
-    from huggingface_hub import hf_hub_download
-    _local = hf_hub_download(
-        repo_id="FerrariKazu/rhan-checkpoints-rolling",
-        repo_type="dataset",
-        filename="rhan_v11_isolation_norecon_best.pth",
-        local_dir="checkpoints",
-    )
-    print(f"  Downloaded to: {_local}", flush=True)
+from huggingface_hub import hf_hub_download as _hf_dl
+
+_base    = "rhan_stl10_v11"
+_ckpt    = f"checkpoints/{_base}_best.pth"
+_ckpt_lbl = f"{_base}_norecon_best"   # descriptive label for CSV
+
+if _os.path.exists(_ckpt):
+    print(f"  Checkpoint present locally: {_ckpt}", flush=True)
 else:
-    print(f"  Checkpoint already present: {_ckpt}", flush=True)
+    print(f"  Trying HF rhan-checkpoints ({_base}_best.pth)...", flush=True)
+    try:
+        _ckpt = _hf_dl(
+            repo_id="FerrariKazu/rhan-checkpoints",
+            repo_type="dataset",
+            filename=f"{_base}_best.pth",
+            local_dir="checkpoints",
+        )
+        print(f"  Downloaded best: {_ckpt}", flush=True)
+    except Exception as _e1:
+        print(f"  Not in rhan-checkpoints ({_e1.__class__.__name__}). Trying rolling...", flush=True)
+        try:
+            _ckpt = _hf_dl(
+                repo_id="FerrariKazu/rhan-checkpoints-rolling",
+                repo_type="dataset",
+                filename=f"{_base}_rolling.pth",
+                local_dir="checkpoints",
+            )
+            _ckpt_lbl = f"{_base}_rolling"
+            print(f"  Downloaded rolling: {_ckpt}", flush=True)
+        except Exception as _e2:
+            raise RuntimeError(
+                f"No checkpoint found for {_base} on HF or locally.\n"
+                f"  rhan-checkpoints error:         {_e1}\n"
+                f"  rhan-checkpoints-rolling error: {_e2}\n"
+                "Run training (Step 4) before evaluating."
+            )
+
+print(f"\n  Using checkpoint: {_ckpt} (label={_ckpt_lbl})", flush=True)
 
 print("\n" + "="*70)
 print("  RUNNING FULL EPSILON SWEEP: Run A (rhan_v11_isolation_norecon)")
 print("="*70)
 
 run(
-    "python3 phase2_attacks/eval_full_epsilon_sweep.py "
-    "--n-samples 500 "
-    "--pgd-steps 50 "
-    "--batch-size 32 "
-    "--output-dir report/sweep_isolation_run_a "
-    "--ckpt-specs rhan_v11_isolation_norecon:checkpoints/rhan_v11_isolation_norecon_best.pth:v11"
+    f"python3 phase2_attacks/eval_full_epsilon_sweep.py "
+    f"--n-samples 500 "
+    f"--pgd-steps 50 "
+    f"--batch-size 32 "
+    f"--output-dir report/sweep_isolation_run_a "
+    f"--ckpt-specs {_ckpt_lbl}:{_ckpt}:v11"
 )
