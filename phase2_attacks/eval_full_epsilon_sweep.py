@@ -11,8 +11,17 @@ Per-channel epsilon conversion (NO std.mean() shortcut):
 STL-10 std = [0.2603, 0.2566, 0.2713]
 
 Usage (Colab/Kaggle):
+    # Pixel-space (DEFAULT): listed eps is a [0,1] pixel bound, converted
+    #   per-channel via /std  -> listed 0.0313 attacks at norm ~0.12 (Run A v1).
     python3 phase2_attacks/eval_full_epsilon_sweep.py \
         --n-samples 500 --pgd-steps 50 --output-dir ./sweep_results
+
+    # NORM-space (--eps-norm-space): listed eps applied DIRECTLY to normalized
+    #   inputs — the Finding-17 baseline table convention (quick_eval_hf.py /
+    #   eval_rhan_v11.py: eps=0.031/0.062/0.094 in norm space). Use for matched sweep:
+    python3 phase2_attacks/eval_full_epsilon_sweep.py \
+        --n-samples 500 --pgd-steps 50 --eps-norm-space \
+        --eps-list 0.0 0.031 0.062 0.094 --output-dir ./sweep_results
 
 Checkpoints expected under ./checkpoints/ (or pass --ckpt-specs):
     static_trades_large        -> rhan_stl10_large_pseudolabel_best.pth  (arch=large)
@@ -60,16 +69,31 @@ def get_domain_bounds(device):
     return stl_min, stl_max
 
 
-def pixel_eps_to_norm(eps_pixel, device):
-    """Scalar eps_pixel -> (1,3,1,1) per-channel eps in normalized space."""
-    return eps_pixel / STD.to(device)
+def resolve_eps_norm(eps, device, norm_space=False):
+    """Map a listed epsilon to a (1,3,1,1) per-channel bound in normalized space.
+
+    norm_space=False (default): listed eps is a PIXEL-space [0,1] bound; convert
+        per-channel via eps / STD (Run A's first sweep: listed 0.0313 -> norm ~0.12).
+    norm_space=True: listed eps IS the NORM-space bound, applied directly to the
+        normalized inputs — the exact Finding-17 baseline convention
+        (quick_eval_hf.py / eval_rhan_v11.py use eps=0.031/0.062/0.094 in norm space).
+    """
+    if norm_space:
+        return torch.full((1, 3, 1, 1), eps, device=device)
+    return eps / STD.to(device)
 
 
-def log_eps(eps_pixel, eps_norm, prefix=""):
+def log_eps(eps_listed, eps_norm, prefix="", norm_space=False):
+    """Print the listed epsilon and its per-channel norm-space equivalent.
+
+    norm_space=True means the listed epsilon IS the norm-space bound, so the
+    label reflects that instead of misnaming it a pixel value.
+    """
+    key = "eps_norm" if norm_space else "eps_pixel"
     r = eps_norm[0, 0, 0, 0].item()
     g = eps_norm[0, 1, 0, 0].item()
     b = eps_norm[0, 2, 0, 0].item()
-    print(f"  [EPS] {prefix}eps_pixel={eps_pixel:.4f} -> "
+    print(f"  [EPS] {prefix}{key}={eps_listed:.4f} -> "
           f"eps_norm=[R:{r:.4f}, G:{g:.4f}, B:{b:.4f}]", flush=True)
 
 
@@ -113,13 +137,14 @@ def _pgd_batch(model, xb, probs_c, eps_norm, alpha, stl_min, stl_max, steps):
     return x_adv
 
 
-def run_pgd_batched(model, x_norm_cpu, y_cpu, eps_pixel, steps, device, batch_size=50):
+def run_pgd_batched(model, x_norm_cpu, y_cpu, eps, steps, device, batch_size=50,
+                    norm_space=False):
     """
     Batched PGD — data lives on CPU, each mini-batch is moved to GPU individually
     so we never materialise 500 full-resolution images + gradients at once.
     """
     stl_min, stl_max = get_domain_bounds(device)
-    eps_norm = pixel_eps_to_norm(eps_pixel, device)   # (1,3,1,1)
+    eps_norm = resolve_eps_norm(eps, device, norm_space=norm_space)   # (1,3,1,1)
     alpha = eps_norm / 4.0
 
     model.eval()
@@ -172,7 +197,7 @@ def compute_dprime_batched(model, x_adv_cpu, y_true_cpu, device, batch_size=50):
 
 # ── Model loader ───────────────────────────────────────────────────────────────
 
-def load_model(arch, ckpt_path, device):
+def load_model(arch, ckpt_path, device, freeze_gaze=False):
     if arch == "v11":
         from phase1_training.model_rhan_v11 import RHANv11
         model = RHANv11().to(device)
@@ -202,6 +227,13 @@ def load_model(arch, ckpt_path, device):
         )
 
     model.eval()
+    if freeze_gaze:
+        if hasattr(model, 'freeze_gaze'):
+            model.freeze_gaze = True
+            print("  ISOLATION TEST: foveal gaze frozen to image center (0,0)", flush=True)
+        else:
+            print(f"  WARNING: --freeze-gaze requested but arch={arch} has no freeze_gaze attr",
+                  flush=True)
     return model
 
 
@@ -215,6 +247,14 @@ def main():
                         help='Mini-batch size for PGD and inference (reduces VRAM use)')
     parser.add_argument('--output-dir', type=str,   default='./sweep_results')
     parser.add_argument('--eps-list',   type=float, nargs='+', default=DEFAULT_EPS_LIST)
+    parser.add_argument('--eps-norm-space', action='store_true',
+                        help='Treat listed epsilons as NORM-space bounds (applied directly to '
+                             'normalized inputs), matching the Finding-17 baseline table '
+                             '(quick_eval_hf/eval_rhan_v11 convention). Default: pixel-space [0,1] '
+                             'converted per-channel via /std.')
+    parser.add_argument('--freeze-gaze', action='store_true',
+                        help='ISOLATION TEST (Run B): freeze foveal gaze to image center (0,0) '
+                             'during evaluation (must match --freeze-gaze training).')
     parser.add_argument('--ckpt-specs', type=str, nargs='*', default=None,
                         help='label:ckpt_path:arch  (overrides built-in checkpoint list)')
     args = parser.parse_args()
@@ -236,10 +276,17 @@ def main():
     print("=" * 60, flush=True)
 
     # ── Print all per-channel conversions BEFORE any GPU work ─────────────────
-    print("\n[CHANNEL-WISE EPSILON VERIFICATION — no x3.81 inflation check]", flush=True)
+    _mode = ("NORM-space (matched to Finding-17 baseline)" if args.eps_norm_space
+             else "PIXEL-space [0,1] (per-channel /std conversion)")
+    print(f"\n[CHANNEL-WISE EPSILON VERIFICATION — {_mode}]", flush=True)
+    if args.eps_norm_space and args.eps_list == DEFAULT_EPS_LIST:
+        print("  NOTE: --eps-norm-space with the DEFAULT eps list reinterpreted those"
+              " pixel values (0.0313, 0.0625, ...) as norm-space bounds, which is ~4x WEAKER."
+              " Pass --eps-list explicitly (e.g. 0.0 0.031 0.062 0.094) for the matched grid.",
+              flush=True)
     for eps in args.eps_list:
-        eps_norm = pixel_eps_to_norm(eps, device)
-        log_eps(eps, eps_norm)
+        eps_norm = resolve_eps_norm(eps, device, norm_space=args.eps_norm_space)
+        log_eps(eps, eps_norm, norm_space=args.eps_norm_space)
     print("", flush=True)
 
     # Data stays on CPU; batches are moved to GPU inside attack/inference loops
@@ -257,22 +304,23 @@ def main():
         print(f"  Path       : {ckpt_path}", flush=True)
         print(f"{'='*60}", flush=True)
 
-        model = load_model(arch, ckpt_path, device)
+        model = load_model(arch, ckpt_path, device, freeze_gaze=args.freeze_gaze)
 
-        for eps_pixel in args.eps_list:
-            eps_norm = pixel_eps_to_norm(eps_pixel, device)
-            log_eps(eps_pixel, eps_norm, prefix=f"[{label}] ")
+        for eps in args.eps_list:
+            eps_norm = resolve_eps_norm(eps, device, norm_space=args.eps_norm_space)
+            log_eps(eps, eps_norm, prefix=f"[{label}] ", norm_space=args.eps_norm_space)
 
             t0 = time.time()
-            if eps_pixel == 0.0:
+            if eps == 0.0:
                 x_adv_cpu = x_norm_cpu
             else:
                 x_adv_cpu = run_pgd_batched(
                     model, x_norm_cpu, y_test_cpu,
-                    eps_pixel=eps_pixel,
+                    eps=eps,
                     steps=args.pgd_steps,
                     device=device,
                     batch_size=args.batch_size,
+                    norm_space=args.eps_norm_space,
                 )
 
             # Batched accuracy
@@ -300,7 +348,7 @@ def main():
 
             rows.append({
                 'ckpt_label':   label,
-                'eps_pixel':    round(eps_pixel, 4),
+                'eps_pixel':    round(eps, 4),
                 'eps_norm_R':   round(r, 4),
                 'eps_norm_G':   round(g, 4),
                 'eps_norm_B':   round(b, 4),
