@@ -648,6 +648,10 @@ def main():
                         help='Checkpoint filename prefix (e.g. rhan_v11_isolation_norecon)')
     parser.add_argument('--freeze-gaze', action='store_true',
                         help='ISOLATION TEST: freeze foveal gaze to image center (0,0)')
+    parser.add_argument('--force-single-gpu', action='store_true',
+                        help='Force single-GPU training even when multiple GPUs are visible. '
+                             'Avoids nn.DataParallel, which can crash with CUDA misaligned-address '
+                             'errors on T4/Turing (sm_75) when combined with channels_last + fp16.')
     args, _ = parser.parse_known_args()
 
     # DDP Initialization
@@ -855,10 +859,14 @@ def main():
             find_unused_parameters=True,
             broadcast_buffers=False
         )
-    elif torch.cuda.device_count() > 1:
+    elif torch.cuda.device_count() > 1 and not args.force_single_gpu:
         if rank == 0:
             print(f"Using {torch.cuda.device_count()} GPUs for training (DataParallel)", flush=True)
         model = nn.DataParallel(model)
+    elif torch.cuda.device_count() > 1 and args.force_single_gpu and rank == 0:
+        print(f"  --force-single-gpu active: training on 1 GPU despite "
+              f"{torch.cuda.device_count()} visible (avoids DataParallel CUDA "
+              f"misaligned-address crash on T4/Turing)", flush=True)
 
     raw_model = model.module if hasattr(model, 'module') else model
 

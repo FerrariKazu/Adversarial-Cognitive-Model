@@ -9,8 +9,18 @@ Run B Configuration:
   - Curriculum: 60 epochs fresh start
   - Loss weights: --w-trades 0.55 --w-foraging 0 --w-precision 0 --w-halt 0 --w-recon 0.10
   - Flag: --freeze-gaze (Hardcodes fixation to center (0,0) for all samples/steps)
+  - Flag: --force-single-gpu (see NOTE below)
   - Output checkpoint: checkpoints/rhan_v11_isolation_fixedgaze_best.pth
   - Synced to HuggingFace: FerrariKazu/rhan-checkpoints
+
+NOTE on --force-single-gpu (T4x2 crash fix):
+  Kaggle T4x2 notebooks expose 2 GPUs, so train_rhan_v11.py auto-wraps the model in
+  nn.DataParallel. On T4/Turing (sm_75), DataParallel + channels_last + fp16 autocast
+  triggers 'CUDA error: misaligned address' during the very first warmup step.
+  --force-single-gpu skips the DataParallel wrap (trains on GPU 0 only), which both
+  fixes the crash and matches Run A's single-GPU Colab environment for a clean comparison.
+  If you want to attempt 2-GPU training anyway, drop the flag and set
+  os.environ['CUDA_LAUNCH_BLOCKING']='1' to pinpoint the failing kernel.
 
 Followed by Matched Evaluation:
   - PGD-50, eps=[0, 0.0313, 0.0625, 0.094], n=500
@@ -89,6 +99,7 @@ run(
     f"--w-halt 0 "
     f"--w-recon 0.10 "
     f"--freeze-gaze "
+    f"--force-single-gpu "
     f"--ckpt-name rhan_v11_isolation_fixedgaze"
 )
 
