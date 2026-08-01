@@ -59,6 +59,10 @@ def run(cmd, check=True):
     return result.returncode
 
 run("pip install --quiet --upgrade pip setuptools wheel")
+# Pin the same torch build Run A used on Colab (cu121). Kaggle's preinstalled
+# torch (newer CUDA builds) has known Turing/sm_75 kernel regressions that can
+# produce 'CUDA error: misaligned address' even on a single GPU.
+run("pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cu121")
 run("pip install --quiet opencv-python datasets huggingface_hub Pillow scipy")
 
 # %% [markdown]

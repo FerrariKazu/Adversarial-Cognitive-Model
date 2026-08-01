@@ -651,7 +651,9 @@ def main():
     parser.add_argument('--force-single-gpu', action='store_true',
                         help='Force single-GPU training even when multiple GPUs are visible. '
                              'Avoids nn.DataParallel, which can crash with CUDA misaligned-address '
-                             'errors on T4/Turing (sm_75) when combined with channels_last + fp16.')
+                             'errors on T4/Turing (sm_75) when combined with channels_last + fp16. '
+                             'Note: on T4/Turing this is automatic; only needed on non-Turing '
+                             'multi-GPU hosts.')
     args, _ = parser.parse_known_args()
 
     # DDP Initialization
@@ -859,14 +861,26 @@ def main():
             find_unused_parameters=True,
             broadcast_buffers=False
         )
-    elif torch.cuda.device_count() > 1 and not args.force_single_gpu:
-        if rank == 0:
-            print(f"Using {torch.cuda.device_count()} GPUs for training (DataParallel)", flush=True)
-        model = nn.DataParallel(model)
-    elif torch.cuda.device_count() > 1 and args.force_single_gpu and rank == 0:
-        print(f"  --force-single-gpu active: training on 1 GPU despite "
-              f"{torch.cuda.device_count()} visible (avoids DataParallel CUDA "
-              f"misaligned-address crash on T4/Turing)", flush=True)
+    elif torch.cuda.device_count() > 1:
+        # nn.DataParallel + channels_last + fp16 autocast crashes with
+        # 'CUDA error: misaligned address' on T4/Turing (sm_75). Auto-skip there
+        # so the fix applies even from stale notebook cells (which only git-sync
+        # the repo, not their own command text).
+        _cc = torch.cuda.get_device_capability(0)
+        _turing_sm75 = _cc[0] == 7 and _cc[1] == 5
+        if _turing_sm75:
+            if rank == 0:
+                print(f"  T4/Turing (sm_75) GPU detected: skipping nn.DataParallel "
+                      f"(known CUDA misaligned-address crash with channels_last + fp16). "
+                      f"Training on GPU 0.", flush=True)
+        elif not args.force_single_gpu:
+            if rank == 0:
+                print(f"Using {torch.cuda.device_count()} GPUs for training (DataParallel)", flush=True)
+            model = nn.DataParallel(model)
+        elif rank == 0:
+            print(f"  --force-single-gpu active: training on 1 GPU despite "
+                  f"{torch.cuda.device_count()} visible (avoids DataParallel CUDA "
+                  f"misaligned-address crash on T4/Turing)", flush=True)
 
     raw_model = model.module if hasattr(model, 'module') else model
 
