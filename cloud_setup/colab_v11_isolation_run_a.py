@@ -157,5 +157,6 @@ run(
     f"--output-dir report/sweep_isolation_run_a "
     f"--eps-norm-space "
     f"--eps-list 0.0 0.031 0.062 0.094 "
+    f"--seed 42 "
     f"--ckpt-specs {_ckpt_lbl}:{_ckpt}:v11"
 )
