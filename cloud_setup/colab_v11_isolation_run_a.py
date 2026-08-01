@@ -12,7 +12,8 @@ Run A Configuration:
   - Synced to HuggingFace: FerrariKazu/rhan-checkpoints
 
 Followed by Matched Evaluation:
-  - PGD-50, eps=[0, 0.0313, 0.0625, 0.094], n=500
+  - PGD-50, NORM-space eps=[0, 0.031, 0.062, 0.094], n=500
+    (matched to Finding-17 baseline table — see --eps-norm-space in eval script)
 
 Usage: Copy cells directly into Colab. Set HF_TOKEN in Colab Secrets.
 """
@@ -154,5 +155,7 @@ run(
     f"--pgd-steps 50 "
     f"--batch-size 32 "
     f"--output-dir report/sweep_isolation_run_a "
+    f"--eps-norm-space "
+    f"--eps-list 0.0 0.031 0.062 0.094 "
     f"--ckpt-specs {_ckpt_lbl}:{_ckpt}:v11"
 )

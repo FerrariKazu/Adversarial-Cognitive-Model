@@ -13,7 +13,8 @@ Run B Configuration:
   - Synced to HuggingFace: FerrariKazu/rhan-checkpoints
 
 Followed by Matched Evaluation:
-  - PGD-50, eps=[0, 0.0313, 0.0625, 0.094], n=500
+  - PGD-50, NORM-space eps=[0, 0.031, 0.062, 0.094], n=500
+    (matched to Finding-17 baseline table; eval uses --freeze-gaze to match training)
 
 Usage: Copy cells directly into Colab. Set HF_TOKEN in Colab Secrets.
 """
@@ -99,16 +100,65 @@ run(
 )
 
 # %% [markdown]
-# ## Step 5: Matched Evaluation (PGD-50, n=500)
+# ## Step 5: Sync latest eval script and checkpoint, then matched sweep
 
 # %%
+# Force-sync latest code (pull can silently skip if refs are stale)
+run("git fetch origin main && git reset --hard origin/main")
+
+# Resolve checkpoint: try best first, fall back to rolling
+import os as _os
+from huggingface_hub import hf_hub_download as _hf_dl
+
+_base    = "rhan_v11_isolation_fixedgaze"
+_ckpt    = f"checkpoints/{_base}_best.pth"
+_ckpt_lbl = f"{_base}_best"            # descriptive label for CSV
+
+if _os.path.exists(_ckpt):
+    print(f"  Checkpoint present locally: {_ckpt}", flush=True)
+else:
+    print(f"  Trying HF rhan-checkpoints ({_base}_best.pth)...", flush=True)
+    try:
+        _ckpt = _hf_dl(
+            repo_id="FerrariKazu/rhan-checkpoints",
+            repo_type="dataset",
+            filename=f"{_base}_best.pth",
+            local_dir="checkpoints",
+        )
+        print(f"  Downloaded best: {_ckpt}", flush=True)
+    except Exception as _e1:
+        print(f"  Not in rhan-checkpoints ({_e1.__class__.__name__}). Trying rolling...", flush=True)
+        try:
+            _ckpt = _hf_dl(
+                repo_id="FerrariKazu/rhan-checkpoints-rolling",
+                repo_type="dataset",
+                filename=f"{_base}_rolling.pth",
+                local_dir="checkpoints",
+            )
+            _ckpt_lbl = f"{_base}_rolling"
+            print(f"  Downloaded rolling: {_ckpt}", flush=True)
+        except Exception as _e2:
+            raise RuntimeError(
+                f"No checkpoint found for {_base} on HF or locally.\n"
+                f"  rhan-checkpoints error:         {_e1}\n"
+                f"  rhan-checkpoints-rolling error: {_e2}\n"
+                "Run training (Step 4) before evaluating."
+            )
+
+print(f"\n  Using checkpoint: {_ckpt} (label={_ckpt_lbl})", flush=True)
+
 print("\n" + "="*70)
 print("  RUNNING MATCHED EVALUATION: Run B (rhan_v11_isolation_fixedgaze)")
 print("="*70)
 
 run(
-    f"python3 phase2_attacks/eval_empirical_sweep_verified.py "
+    f"python3 phase2_attacks/eval_full_epsilon_sweep.py "
     f"--n-samples 500 "
     f"--pgd-steps 50 "
-    f"--output-json report/empirical_sweep_isolation_run_b.json"
+    f"--batch-size 32 "
+    f"--output-dir report/sweep_isolation_run_b "
+    f"--eps-norm-space "
+    f"--eps-list 0.0 0.031 0.062 0.094 "
+    f"--freeze-gaze "
+    f"--ckpt-specs {_ckpt_lbl}:{_ckpt}:v11"
 )

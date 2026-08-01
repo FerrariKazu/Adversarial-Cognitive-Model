@@ -22,7 +22,8 @@ NOTE on --force-single-gpu (T4x2 crash fix):
   os.environ['CUDA_LAUNCH_BLOCKING']='1' to pinpoint the failing kernel.
 
 Followed by Matched Evaluation:
-  - PGD-50, eps=[0, 0.0313, 0.0625, 0.094], n=500
+  - PGD-50, NORM-space eps=[0, 0.031, 0.062, 0.094], n=500
+    (matched to Finding-17 baseline table — see --eps-norm-space in eval script)
 
 Usage: Copy cells directly into Kaggle Notebook. Set HF_TOKEN in Kaggle Secrets.
 """
@@ -106,16 +107,42 @@ run(
 )
 
 # %% [markdown]
-# ## Step 4: Matched Evaluation (PGD-50, n=500)
+# ## Step 4: Matched Evaluation (PGD-50, NORM-space eps, n=500)
 
 # %%
 print("\n" + "="*70)
 print("  RUNNING MATCHED EVALUATION ON KAGGLE: Run A (rhan_v11_isolation_norecon)")
 print("="*70)
 
+# Resolve checkpoint: local best first, then HF fallback
+import os as _os
+from huggingface_hub import hf_hub_download as _hf_dl
+
+_base    = "rhan_v11_isolation_norecon"
+_ckpt    = f"checkpoints/{_base}_best.pth"
+_ckpt_lbl = f"{_base}_best"            # descriptive label for CSV
+
+if not _os.path.exists(_ckpt):
+    print(f"  Checkpoint not found locally. Downloading {_base}_best.pth from HF...", flush=True)
+    try:
+        _ckpt = _hf_dl(
+            repo_id="FerrariKazu/rhan-checkpoints",
+            repo_type="dataset",
+            filename=f"{_base}_best.pth",
+            local_dir="checkpoints",
+        )
+    except Exception as _e:
+        raise RuntimeError(f"Could not fetch {_base}_best.pth from HF: {_e}")
+
+print(f"  Using checkpoint: {_ckpt} (label={_ckpt_lbl})", flush=True)
+
 run(
-    f"python3 phase2_attacks/eval_empirical_sweep_verified.py "
+    f"python3 phase2_attacks/eval_full_epsilon_sweep.py "
     f"--n-samples 500 "
     f"--pgd-steps 50 "
-    f"--output-json report/empirical_sweep_isolation_run_a.json"
+    f"--batch-size 32 "
+    f"--output-dir report/sweep_isolation_run_a "
+    f"--eps-norm-space "
+    f"--eps-list 0.0 0.031 0.062 0.094 "
+    f"--ckpt-specs {_ckpt_lbl}:{_ckpt}:v11"
 )
