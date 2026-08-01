@@ -242,6 +242,8 @@ def load_model(arch, ckpt_path, device, freeze_gaze=False):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--n-samples',  type=int,   default=500)
+    parser.add_argument('--seed',       type=int,   default=42,
+                        help='Random seed for reproducible PGD init noise (default 42)')
     parser.add_argument('--pgd-steps',  type=int,   default=50)
     parser.add_argument('--batch-size', type=int,   default=50,
                         help='Mini-batch size for PGD and inference (reduces VRAM use)')
@@ -259,6 +261,8 @@ def main():
                         help='label:ckpt_path:arch  (overrides built-in checkpoint list)')
     args = parser.parse_args()
 
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -270,6 +274,7 @@ def main():
     print("  Full Epsilon Sweep Evaluation", flush=True)
     print(f"  Device:     {device}", flush=True)
     print(f"  n_samples:  {args.n_samples}", flush=True)
+    print(f"  seed:       {args.seed}", flush=True)
     print(f"  batch_size: {args.batch_size}", flush=True)
     print(f"  PGD steps:  {args.pgd_steps}", flush=True)
     print(f"  Epsilons:   {args.eps_list}", flush=True)
@@ -279,6 +284,11 @@ def main():
     _mode = ("NORM-space (matched to Finding-17 baseline)" if args.eps_norm_space
              else "PIXEL-space [0,1] (per-channel /std conversion)")
     print(f"\n[CHANNEL-WISE EPSILON VERIFICATION — {_mode}]", flush=True)
+    if not args.eps_norm_space:
+        print("  WARNING: PIXEL-SPACE MODE — listed eps is a [0,1] pixel bound divided by"
+              " per-channel std, so these attacks are ~3.84x STRONGER than the Finding-17"
+              " norm-space table (eps=0.031/0.062/0.094). For the MATCHED comparison re-run"
+              " with:  --eps-norm-space --eps-list 0.0 0.031 0.062 0.094", flush=True)
     if args.eps_norm_space and args.eps_list == DEFAULT_EPS_LIST:
         print("  NOTE: --eps-norm-space with the DEFAULT eps list reinterpreted those"
               " pixel values (0.0313, 0.0625, ...) as norm-space bounds, which is ~4x WEAKER."
