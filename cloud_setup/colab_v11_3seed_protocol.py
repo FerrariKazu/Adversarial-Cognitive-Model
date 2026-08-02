@@ -26,8 +26,23 @@ Replaces every partial single-draw sweep number from the isolation runs.
   Per instruction we do NOT chase bit-for-bit determinism; we quantify it
   with the 3-seed mean ± std protocol instead.
 
-Usage: Copy cells into Colab (T4 or better, 12h+ session). Set HF_TOKEN in
-Colab Secrets (key icon in sidebar). Estimated runtime: ~7-9 h on a T4.
+FAST MODE (default): batch 64 (per-sample attack math is batch-size invariant —
+the batchmean KL factor cancels under grad.sign()), so the 16 GB T4 runs the
+full 4-ckpt protocol in ~2.8 h instead of ~5.5 h. Runs through
+phase2_attacks/shard_2gpu.py --gpus 1 (same code path as the Kaggle T4x2 shard).
+
+    all 4 checkpoints (default): ~2.8 h
+    2 checkpoints (CKPTS=...):    ~1.4 h
+
+Usage: Copy cells into Colab (T4 runtime). Set HF_TOKEN in Colab Secrets (key
+icon in sidebar). Toggles: INCLUDE_062=1 adds eps=0.062 (+~40% runtime);
+CKPTS=trades_large_baseline,null_ablation_v11 runs a subset; BATCH_SIZE overrides 64.
+
+COMPARABILITY CAVEAT: batch 64 lays out the PGD init randn differently than
+batch 32, so these numbers are NOT directly comparable to the earlier batch-32
+single-draw numbers (same effect as the 21.80% vs 19.00% swing). The 3-seed
+protocol is self-consistent — keep BATCH_SIZE the same on Kaggle and Colab if
+you later merge the two tables.
 """
 
 # %% [markdown]
@@ -126,25 +141,48 @@ for name, p in [("baseline", _bsl), ("null_ablation_v11", _null),
 # ## Step 5: ONE-BATCH 3-SEED PROTOCOL EVALUATION (all four checkpoints)
 
 # %%
+import torch
+
+n_gpus = torch.cuda.device_count()
+print(f"GPUs visible: {n_gpus} ({torch.cuda.get_device_name(0) if n_gpus else 'none'})")
+
+# Batch 64 on the 16 GB T4 halves wall clock; per-sample attack math is unchanged
+# (batchmean KL factor cancels under grad.sign()). Override with BATCH_SIZE=32.
+BATCH = int(os.environ.get("BATCH_SIZE", "64" if n_gpus >= 1 else "32"))
+print(f"Batch size: {BATCH}")
+
+# Optional subset: CKPTS=trades_large_baseline,null_ablation_v11 (comma list)
+# Recommended <4h split: baseline + null-ablation on this T4 (~1.4-2.8 h),
+# while the Kaggle T4x2 runs all four checkpoints sharded across its 2 GPUs.
+ALL_SPECS = [
+    f"trades_large_baseline:{_bsl}:large",
+    f"null_ablation_v11:{_null}:v11",
+    f"run_a_norecon:{_runA}:v11",
+    f"run_b_fixedgaze:{_runB}:v11:freeze",
+]
+ckpts_env = os.environ.get("CKPTS", "all").strip().lower()
+if ckpts_env != "all":
+    wanted = [w.strip() for w in ckpts_env.split(",") if w.strip()]
+    ALL_SPECS = [s for s in ALL_SPECS if s.split(":")[0] in wanted]
+    print(f"CKPTS filter -> {[s.split(':')[0] for s in ALL_SPECS]}")
+
 print("\n" + "=" * 72)
-print("  RUNNING 3-SEED PROTOCOL: n=300/seed, seeds 41/42/43, PGD-50, norm-space")
+print(f"  RUNNING 3-SEED PROTOCOL: n=300/seed, seeds 41/42/43, PGD-50, norm-space")
+print(f"  {max(n_gpus, 1)} GPU(s), batch {BATCH}, sharded via shard_2gpu.py")
 print("=" * 72)
 
 run(
-    f"python3 phase2_attacks/eval_full_epsilon_sweep.py "
+    f"python3 phase2_attacks/shard_2gpu.py "
+    f"--gpus {max(n_gpus, 1)} "
     f"--n-samples 300 "
     f"--seeds 41 42 43 "
     f"--pgd-steps 50 "
-    f"--batch-size 32 "
+    f"--batch-size {BATCH} "
     f"--output-dir report/sweep_3seed_protocol "
     f"--eps-norm-space "
     f"--eps-list {EPS_LIST} "
     f"--baseline-label trades_large_baseline "
-    f"--ckpt-specs "
-    f"trades_large_baseline:{_bsl}:large "
-    f"null_ablation_v11:{_null}:v11 "
-    f"run_a_norecon:{_runA}:v11 "
-    f"run_b_fixedgaze:{_runB}:v11:freeze"
+    f"--ckpt-specs " + " ".join(ALL_SPECS)
 )
 
 # %% [markdown]

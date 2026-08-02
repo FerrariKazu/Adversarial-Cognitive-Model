@@ -26,8 +26,25 @@ Four checkpoints are swept in ONE invocation with the seed-averaged protocol:
   Per instruction we do NOT chase bit-for-bit determinism; we quantify it
   with the 3-seed mean ± std protocol instead.
 
+FAST MODE (default): uses the T4x2 accelerator via phase2_attacks/shard_2gpu.py
+— checkpoints are split across BOTH GPUs as independent single-GPU processes
+(no DataParallel, so the Turing misaligned-address crash is avoided), then the
+per-seed CSVs are merged into one mean±std table + crossover report.
+Per-sample attack math is batch-size invariant (batchmean KL cancels under
+sign()), so batch 64 on the 16GB T4s halves wall clock vs batch 32.
+
+    T4x2 (2 GPUs, 2 ckpts each): ~1.4-1.8 h   <-- default
+    1x T4 (single GPU, all 4):  ~2.8 h        <-- auto-fallback
+
 Usage: Copy cells into a Kaggle Notebook. Set HF_TOKEN in Kaggle Secrets.
-Estimated runtime: ~7-9 h on a T4 (4 ckpts x 3 seeds x 3 eps x PGD-50 n=300).
+Select accelerator = GPU T4 x2 for the 2-GPU path (or T4 x1 for the fallback).
+Toggles: INCLUDE_062=1 adds eps=0.062 (+~40% runtime); BATCH_SIZE overrides 64.
+
+COMPARABILITY CAVEAT: batch 64 lays out the PGD init randn differently than
+batch 32, so these numbers are NOT directly comparable to the earlier batch-32
+single-draw numbers (same effect as the 21.80% vs 19.00% swing). The 3-seed
+protocol is self-consistent — keep BATCH_SIZE the same on Kaggle and Colab if
+you later merge the two tables.
 """
 
 # %% [markdown]
@@ -117,16 +134,28 @@ for name, p in [("baseline", _bsl), ("null_ablation_v11", _null),
 # ## Step 3: ONE-BATCH 3-SEED PROTOCOL EVALUATION (all four checkpoints)
 
 # %%
+import torch
+
+n_gpus = torch.cuda.device_count()
+print(f"GPUs visible: {n_gpus} ({torch.cuda.get_device_name(0) if n_gpus else 'none'})")
+
+# Batch 64 on 16 GB T4s halves wall clock; per-sample attack math is unchanged
+# (batchmean KL factor cancels under grad.sign()). Override with BATCH_SIZE=32.
+BATCH = int(os.environ.get("BATCH_SIZE", "64" if n_gpus >= 1 else "32"))
+print(f"Batch size: {BATCH}")
+
 print("\n" + "=" * 72)
-print("  RUNNING 3-SEED PROTOCOL: n=300/seed, seeds 41/42/43, PGD-50, norm-space")
+print(f"  RUNNING 3-SEED PROTOCOL: n=300/seed, seeds 41/42/43, PGD-50, norm-space")
+print(f"  {n_gpus} GPU(s), batch {BATCH}, sharded via shard_2gpu.py")
 print("=" * 72)
 
 run(
-    f"python3 phase2_attacks/eval_full_epsilon_sweep.py "
+    f"python3 phase2_attacks/shard_2gpu.py "
+    f"--gpus {max(n_gpus, 1)} "
     f"--n-samples 300 "
     f"--seeds 41 42 43 "
     f"--pgd-steps 50 "
-    f"--batch-size 32 "
+    f"--batch-size {BATCH} "
     f"--output-dir report/sweep_3seed_protocol "
     f"--eps-norm-space "
     f"--eps-list {EPS_LIST} "
