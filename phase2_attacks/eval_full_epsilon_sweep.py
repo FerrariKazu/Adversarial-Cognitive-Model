@@ -23,6 +23,22 @@ Usage (Colab/Kaggle):
         --n-samples 500 --pgd-steps 50 --eps-norm-space \
         --eps-list 0.0 0.031 0.062 0.094 --output-dir ./sweep_results
 
+    # SEED-AVERAGED PROTOCOL (recommended; replaces single-seed numbers):
+    #   n=300 per seed, 3 seeds, priority eps grid. Each seed draws a FRESH sample
+    #   subset AND fresh PGD init. Crossover is real only if (RHAN - baseline) at
+    #   eps=0.094 > 2 x sqrt(std_RHAN^2 + std_baseline^2). Per-checkpoint gaze:
+    #   the optional 4th ckpt-spec field ('freeze') applies --freeze-gaze to that
+    #   checkpoint only (Run B), so all four checkpoints run in ONE batch.
+    python3 phase2_attacks/eval_full_epsilon_sweep.py \
+        --n-samples 300 --seeds 41 42 43 --pgd-steps 50 --batch-size 32 \
+        --eps-norm-space --eps-list 0.0 0.031 0.094 \
+        --baseline-label trades_large_baseline \
+        --ckpt-specs \
+          trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
+          null_ablation_v11:checkpoints/rhan_stl10_v11_rolling.pth:v11 \
+          run_a_norecon:checkpoints/rhan_v11_isolation_norecon_best.pth:v11 \
+          run_b_fixedgaze:checkpoints/rhan_v11_isolation_fixedgaze_best.pth:v11:freeze
+
 Checkpoints expected under ./checkpoints/ (or pass --ckpt-specs):
     static_trades_large        -> rhan_stl10_large_pseudolabel_best.pth  (arch=large)
     rhan_stl10_large_ep45      -> rhan_stl10_large_ep45.pth              (arch=large)
@@ -251,11 +267,75 @@ def load_model(arch, ckpt_path, device, freeze_gaze=False):
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
+def set_seed(seed):
+    """Seed numpy + torch (CPU + CUDA) so each protocol seed pins BOTH the
+    per-seed sample subset (load_test_samples seed) and the PGD init noise."""
+    import random
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def _mean_std(vals):
+    """(mean, unbiased sample std, ddof=1) over the given values."""
+    arr = np.asarray(vals, dtype=np.float64)
+    if arr.size == 0:
+        return float('nan'), float('nan')
+    return float(arr.mean()), (float(arr.std(ddof=1)) if arr.size > 1 else 0.0)
+
+
+def crossover_report(agg, eps_target, baseline_label, labels):
+    """RHAN - baseline gap at eps_target, with the '> 2 x combined std' verdict.
+
+    The crossover is only real if (RHAN mean - baseline mean) > 2 x
+    sqrt(std_RHAN^2 + std_baseline^2) — a deliberately conservative criterion
+    given the ~2-4 pp single-draw variance observed between identical runs.
+    """
+    out = []
+    bkey = (baseline_label, eps_target)
+    if bkey not in agg:
+        return out
+    if len(agg[bkey]['accs']) < 2:
+        return [f"  eps={eps_target:>6}: baseline has <2 seeds ({len(agg[bkey]['accs'])}); "
+                "crossover check skipped (need >=2 seeds per model)"]
+    bm, bs = _mean_std(agg[bkey]['accs'])
+    for lab in labels:
+        if lab == baseline_label:
+            continue
+        key = (lab, eps_target)
+        if key not in agg:
+            continue
+        if len(agg[key]['accs']) < 2:
+            out.append(f"  eps={eps_target:>6}: {lab}: <2 seeds; crossover check skipped")
+            continue
+        rm, rs = _mean_std(agg[key]['accs'])
+        diff = rm - bm
+        combined = np.sqrt(rs ** 2 + bs ** 2)
+        verdict = ("CROSSOVER REAL" if diff > 2.0 * combined
+                   else ("positive but NOT significant" if diff > 0
+                         else "at or below baseline"))
+        out.append(
+            f"  eps={eps_target:>6}: {lab:<22} {rm:6.2f}+-{rs:4.2f} vs "
+            f"{baseline_label} {bm:6.2f}+-{bs:4.2f} | d={diff:+5.2f} pp | "
+            f"2*sig_comb={2.0*combined:5.2f} | {verdict}"
+        )
+    return out
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--n-samples',  type=int,   default=500)
     parser.add_argument('--seed',       type=int,   default=42,
                         help='Random seed for reproducible PGD init noise (default 42)')
+    parser.add_argument('--seeds',      type=int,   nargs='+', default=None,
+                        help='3-seed averaging protocol: each seed draws a FRESH sample '
+                             'subset (load_test_samples seed) AND fresh PGD init noise. '
+                             'Default: [--seed].')
+    parser.add_argument('--baseline-label', type=str, default='trades_large_baseline',
+                        help='Checkpoint label treated as baseline for the epsilon crossover '
+                             'significance check (default trades_large_baseline).')
     parser.add_argument('--pgd-steps',  type=int,   default=50)
     parser.add_argument('--batch-size', type=int,   default=50,
                         help='Mini-batch size for PGD and inference (reduces VRAM use)')
@@ -267,29 +347,39 @@ def main():
                              '(quick_eval_hf/eval_rhan_v11 convention). Default: pixel-space [0,1] '
                              'converted per-channel via /std.')
     parser.add_argument('--freeze-gaze', action='store_true',
-                        help='ISOLATION TEST (Run B): freeze foveal gaze to image center (0,0) '
-                             'during evaluation (must match --freeze-gaze training).')
+                        help='GLOBAL freeze-gaze (all checkpoints). For per-checkpoint control '
+                             'use the optional 4th field in --ckpt-specs: label:path:arch:freeze')
     parser.add_argument('--ckpt-specs', type=str, nargs='*', default=None,
-                        help='label:ckpt_path:arch  (overrides built-in checkpoint list)')
+                        help='label:ckpt_path:arch[:freeze]  (overrides built-in list; the '
+                             'optional 4th field freezes gaze for that checkpoint only)')
     args = parser.parse_args()
 
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
+    seeds = list(dict.fromkeys(args.seeds if args.seeds else [args.seed]))
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     os.makedirs(args.output_dir, exist_ok=True)
 
-    checkpoints = DEFAULT_CHECKPOINTS
+    checkpoints = [(l, p, a, False) for l, p, a in DEFAULT_CHECKPOINTS]
     if args.ckpt_specs:
-        checkpoints = [tuple(s.split(':')) for s in args.ckpt_specs]
+        parsed = []
+        for s in args.ckpt_specs:
+            parts = s.split(':')
+            if len(parts) < 3:
+                raise SystemExit(f"Bad --ckpt-specs entry: {s!r} (want label:path:arch[:freeze])")
+            label, ckpt_path, arch = parts[0], parts[1], parts[2]
+            freeze = len(parts) > 3 and parts[3].strip().lower() in ('freeze', 'freeze-gaze', '1', 'true')
+            parsed.append((label, ckpt_path, arch, freeze))
+        checkpoints = parsed
 
     print("=" * 60, flush=True)
-    print("  Full Epsilon Sweep Evaluation", flush=True)
+    print("  Full Epsilon Sweep Evaluation - SEED-AVERAGED PROTOCOL", flush=True)
     print(f"  Device:     {device}", flush=True)
-    print(f"  n_samples:  {args.n_samples}", flush=True)
-    print(f"  seed:       {args.seed}", flush=True)
+    print(f"  n_samples:  {args.n_samples} per seed", flush=True)
+    print(f"  seeds:      {seeds}  ({len(seeds)}-seed mean +- std)", flush=True)
     print(f"  batch_size: {args.batch_size}", flush=True)
     print(f"  PGD steps:  {args.pgd_steps}", flush=True)
     print(f"  Epsilons:   {args.eps_list}", flush=True)
+    print(f"  Baseline:   {args.baseline_label}", flush=True)
     print("=" * 60, flush=True)
 
     # ── Print all per-channel conversions BEFORE any GPU work ─────────────────
@@ -317,103 +407,155 @@ def main():
         log_eps(eps, eps_norm, norm_space=args.eps_norm_space)
     print("", flush=True)
 
-    # Data stays on CPU; batches are moved to GPU inside attack/inference loops
-    x_norm_cpu, y_test_cpu = load_test_samples(args.n_samples)
+    # Load per-seed datasets ONCE (fresh subset per seed), CPU-side.
+    datasets = {}
+    for seed in seeds:
+        set_seed(seed)
+        datasets[seed] = load_test_samples(args.n_samples, seed=seed)
 
-    csv_path = os.path.join(args.output_dir, 'epsilon_sweep_results.csv')
-    fieldnames = ['ckpt_label', 'eps_pixel',
+    csv_per_seed = os.path.join(args.output_dir, 'epsilon_sweep_per_seed.csv')
+    csv_agg = os.path.join(args.output_dir, 'epsilon_sweep_results.csv')
+    seed_fields = ['ckpt_label', 'seed', 'eps_pixel',
+                   'eps_norm_R', 'eps_norm_G', 'eps_norm_B',
+                   'acc_pct', 'macro_dprime']
+
+    agg = {}   # (label, eps) -> {'accs': [...], 'dps': [...]} across seeds
+
+    # Per-seed CSV is written incrementally (flushed after every seed) so a
+    # long run that hits a Kaggle session timeout still keeps partial data.
+    with open(csv_per_seed, 'w', newline='') as f_seed:
+        writer_seed = csv.DictWriter(f_seed, fieldnames=seed_fields)
+        writer_seed.writeheader()
+        f_seed.flush()
+
+        for label, ckpt_path, arch, freeze_this in checkpoints:
+            print(f"\n{'='*60}", flush=True)
+            print(f"  Checkpoint : {label}", flush=True)
+            print(f"  Path       : {ckpt_path}", flush=True)
+            print(f"  Freeze gaze: {freeze_this or args.freeze_gaze}", flush=True)
+            print(f"{'='*60}", flush=True)
+
+            model = load_model(arch, ckpt_path, device,
+                               freeze_gaze=freeze_this or args.freeze_gaze)
+
+            for seed in seeds:
+                x_norm_cpu, y_test_cpu = datasets[seed]
+                for eps in args.eps_list:
+                    eps_norm = resolve_eps_norm(eps, device, norm_space=args.eps_norm_space)
+                    log_eps(eps, eps_norm, prefix=f"[{label} seed={seed}] ",
+                            norm_space=args.eps_norm_space)
+
+                    t0 = time.time()
+                    delta_max = None
+                    if eps == 0.0:
+                        x_adv_cpu = x_norm_cpu
+                    else:
+                        x_adv_cpu, delta_max = run_pgd_batched(
+                            model, x_norm_cpu, y_test_cpu,
+                            eps=eps,
+                            steps=args.pgd_steps,
+                            device=device,
+                            batch_size=args.batch_size,
+                            norm_space=args.eps_norm_space,
+                        )
+                        d0, d1, d2 = (delta_max[i].item() for i in range(3))
+                        e0, e1, e2 = (eps_norm[0, i, 0, 0].item() for i in range(3))
+                        ok = d0 <= e0 + 1e-4 and d1 <= e1 + 1e-4 and d2 <= e2 + 1e-4
+                        mode = ("applied DIRECTLY in norm space" if args.eps_norm_space
+                                else f"converted via /std (eps_norm per channel)")
+                        print(f"  [BOUND CHECK] max |δ|_norm = [R:{d0:.4f}, G:{d1:.4f}, "
+                              f"B:{d2:.4f}] <= per-channel bound [{e0:.4f}, {e1:.4f}, {e2:.4f}] "
+                              f"({mode}) → {'OK' if ok else 'OVER-BUDGET!'}", flush=True)
+
+                    # Batched accuracy
+                    correct = 0
+                    for start in range(0, x_adv_cpu.size(0), args.batch_size):
+                        xb = x_adv_cpu[start:start + args.batch_size].to(device)
+                        yb = y_test_cpu[start:start + args.batch_size].to(device)
+                        with torch.no_grad():
+                            logits = model(xb)
+                            if isinstance(logits, tuple):
+                                logits = logits[0]
+                            correct += logits.argmax(dim=1).eq(yb).sum().item()
+                        del xb, yb
+                    acc = 100.0 * correct / x_adv_cpu.size(0)
+
+                    dp = compute_dprime_batched(model, x_adv_cpu, y_test_cpu,
+                                                device, args.batch_size)
+                    elapsed = time.time() - t0
+
+                    r = eps_norm[0, 0, 0, 0].item()
+                    g = eps_norm[0, 1, 0, 0].item()
+                    b = eps_norm[0, 2, 0, 0].item()
+
+                    print(f"  -> Acc: {acc:6.2f}%  |  d': {dp:.4f}  ({elapsed:.1f}s)", flush=True)
+
+                    writer_seed.writerow({
+                        'ckpt_label':   label,
+                        'seed':         seed,
+                        'eps_pixel':    round(eps, 4),
+                        'eps_norm_R':   round(r, 4),
+                        'eps_norm_G':   round(g, 4),
+                        'eps_norm_B':   round(b, 4),
+                        'acc_pct':      round(acc, 2),
+                        'macro_dprime': round(dp, 4),
+                    })
+                    agg.setdefault((label, eps), {'accs': [], 'dps': []})
+                    agg[(label, eps)]['accs'].append(acc)
+                    agg[(label, eps)]['dps'].append(dp)
+
+                f_seed.flush()   # partial-run survival after each seed
+
+            del model
+            torch.cuda.empty_cache()
+
+    # ── Write aggregated CSV (mean ± std over seeds) ───────────────────────────
+    agg_fields = ['ckpt_label', 'eps_pixel',
                   'eps_norm_R', 'eps_norm_G', 'eps_norm_B',
-                  'acc_pct', 'macro_dprime']
-    rows = []
-
-    for label, ckpt_path, arch in checkpoints:
-        print(f"\n{'='*60}", flush=True)
-        print(f"  Checkpoint : {label}", flush=True)
-        print(f"  Path       : {ckpt_path}", flush=True)
-        print(f"{'='*60}", flush=True)
-
-        model = load_model(arch, ckpt_path, device, freeze_gaze=args.freeze_gaze)
-
-        for eps in args.eps_list:
-            eps_norm = resolve_eps_norm(eps, device, norm_space=args.eps_norm_space)
-            log_eps(eps, eps_norm, prefix=f"[{label}] ", norm_space=args.eps_norm_space)
-
-            t0 = time.time()
-            delta_max = None
-            if eps == 0.0:
-                x_adv_cpu = x_norm_cpu
-            else:
-                x_adv_cpu, delta_max = run_pgd_batched(
-                    model, x_norm_cpu, y_test_cpu,
-                    eps=eps,
-                    steps=args.pgd_steps,
-                    device=device,
-                    batch_size=args.batch_size,
-                    norm_space=args.eps_norm_space,
-                )
-                d0, d1, d2 = (delta_max[i].item() for i in range(3))
-                e0, e1, e2 = (eps_norm[0, i, 0, 0].item() for i in range(3))
-                ok = d0 <= e0 + 1e-4 and d1 <= e1 + 1e-4 and d2 <= e2 + 1e-4
-                mode = ("applied DIRECTLY in norm space" if args.eps_norm_space
-                        else f"converted via /std (eps_norm per channel)")
-                print(f"  [BOUND CHECK] max |δ|_norm = [R:{d0:.4f}, G:{d1:.4f}, "
-                      f"B:{d2:.4f}] <= per-channel bound [{e0:.4f}, {e1:.4f}, {e2:.4f}] "
-                      f"({mode}) → {'OK' if ok else 'OVER-BUDGET!'}", flush=True)
-
-            # Batched accuracy
-            correct = 0
-            for start in range(0, x_adv_cpu.size(0), args.batch_size):
-                xb = x_adv_cpu[start:start + args.batch_size].to(device)
-                yb = y_test_cpu[start:start + args.batch_size].to(device)
-                with torch.no_grad():
-                    logits = model(xb)
-                    if isinstance(logits, tuple):
-                        logits = logits[0]
-                    correct += logits.argmax(dim=1).eq(yb).sum().item()
-                del xb, yb
-            acc = 100.0 * correct / x_adv_cpu.size(0)
-
-            dp = compute_dprime_batched(model, x_adv_cpu, y_test_cpu,
-                                        device, args.batch_size)
-            elapsed = time.time() - t0
-
-            r = eps_norm[0, 0, 0, 0].item()
-            g = eps_norm[0, 1, 0, 0].item()
-            b = eps_norm[0, 2, 0, 0].item()
-
-            print(f"  -> Acc: {acc:6.2f}%  |  d': {dp:.4f}  ({elapsed:.1f}s)", flush=True)
-
-            rows.append({
-                'ckpt_label':   label,
-                'eps_pixel':    round(eps, 4),
-                'eps_norm_R':   round(r, 4),
-                'eps_norm_G':   round(g, 4),
-                'eps_norm_B':   round(b, 4),
-                'acc_pct':      round(acc, 2),
-                'macro_dprime': round(dp, 4),
-            })
-
-        del model
-        torch.cuda.empty_cache()
-
-    # ── Write CSV ──────────────────────────────────────────────────────────────
-    with open(csv_path, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+                  'acc_mean', 'acc_std', 'macro_dprime_mean', 'macro_dprime_std', 'n_seeds']
+    agg_rows = []
+    for (label, eps), rec in sorted(agg.items(), key=lambda kv: (kv[0][0], kv[0][1])):
+        am, astd = _mean_std(rec['accs'])
+        dm, dstd = _mean_std(rec['dps'])
+        eps_norm = resolve_eps_norm(eps, device, norm_space=args.eps_norm_space)
+        r, g, b = (eps_norm[0, i, 0, 0].item() for i in range(3))
+        agg_rows.append({
+            'ckpt_label': label, 'eps_pixel': round(eps, 4),
+            'eps_norm_R': round(r, 4), 'eps_norm_G': round(g, 4), 'eps_norm_B': round(b, 4),
+            'acc_mean': round(am, 2), 'acc_std': round(astd, 2),
+            'macro_dprime_mean': round(dm, 4), 'macro_dprime_std': round(dstd, 4),
+            'n_seeds': len(rec['accs']),
+        })
+    with open(csv_agg, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=agg_fields)
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(agg_rows)
 
-    # ── Final table ────────────────────────────────────────────────────────────
-    print("\n" + "=" * 60, flush=True)
-    print("  RESULTS TABLE", flush=True)
-    print("=" * 60, flush=True)
-    print(f"{'Checkpoint':<30} {'eps_px':>7} {'Acc%':>7} {'d_prime':>8}", flush=True)
-    print("-" * 60, flush=True)
-    for row in rows:
-        print(f"{row['ckpt_label']:<30} {row['eps_pixel']:>7.4f} "
-              f"{row['acc_pct']:>7.2f} {row['macro_dprime']:>8.4f}", flush=True)
+    # ── Final table (mean ± std) ───────────────────────────────────────────────
+    print("\n" + "=" * 72, flush=True)
+    print("  RESULTS TABLE - mean +- std over seeds", flush=True)
+    print("=" * 72, flush=True)
+    print(f"{'Checkpoint':<30} {'eps':>6} {'Acc% (mean+-std)':>18} {'d-prime (mean+-std)':>22}", flush=True)
+    print("-" * 72, flush=True)
+    for row in agg_rows:
+        print(f"{row['ckpt_label']:<30} {row['eps_pixel']:>6.3f} "
+              f"{row['acc_mean']:>7.2f}+-{row['acc_std']:<5.2f} "
+              f"{row['macro_dprime_mean']:>8.4f}+-{row['macro_dprime_std']:<6.4f}", flush=True)
 
-    print(f"\n  CSV: {csv_path}", flush=True)
-    print("=" * 60, flush=True)
+    # ── Crossover significance ─────────────────────────────────────────────────
+    print("\n  CROSSOVER SIGNIFICANCE - RHAN vs baseline (criterion: d > 2*sig_combined)", flush=True)
+    labels = [l for l, _, _, _ in checkpoints]
+    for eps in args.eps_list:
+        if eps == 0.0:
+            continue
+        for line in crossover_report(agg, eps, args.baseline_label, labels):
+            print(line, flush=True)
+
+    print(f"\n  Per-seed CSV: {csv_per_seed}", flush=True)
+    print(f"  Aggregated  : {csv_agg}", flush=True)
+    print("=" * 72, flush=True)
+    print("  NOTE: std is the unbiased sample std (ddof=1) over seeds. With 3 seeds it is", flush=True)
+    print("  noisy; the '> 2*sig_combined' crossover criterion is deliberately conservative.", flush=True)
 
 
 if __name__ == '__main__':
