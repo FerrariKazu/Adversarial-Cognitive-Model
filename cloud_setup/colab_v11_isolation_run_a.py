@@ -14,6 +14,8 @@ Run A Configuration:
 Followed by Matched Evaluation:
   - PGD-50, NORM-space eps=[0, 0.031, 0.062, 0.094], n=500
     (matched to Finding-17 baseline table — see --eps-norm-space in eval script)
+  - ALSO sweeps the TRADES Large baseline (rhan_stl10_large_pseudolabel_best.pth)
+    as a Finding-17 sanity check (expect ~48.0/40.3/33.7).
 
 Usage: Copy cells directly into Colab. Set HF_TOKEN in Colab Secrets.
 """
@@ -145,8 +147,23 @@ else:
 
 print(f"\n  Using checkpoint: {_ckpt} (label={_ckpt_lbl})", flush=True)
 
+# TRADES Large baseline — Finding-17 sanity check (expect ~48.0/40.3/33.7)
+_bsl_path = "checkpoints/rhan_stl10_large_pseudolabel_best.pth"
+if _os.path.exists(_bsl_path):
+    print(f"  TRADES Large baseline present locally: {_bsl_path}", flush=True)
+else:
+    print("  Downloading TRADES Large baseline (rhan_stl10_large_pseudolabel_best.pth)...",
+          flush=True)
+    _bsl_path = _hf_dl(
+        repo_id="FerrariKazu/rhan-checkpoints",
+        repo_type="dataset",
+        filename="rhan_stl10_large_pseudolabel_best.pth",
+        local_dir="checkpoints",
+    )
+    print(f"  Downloaded baseline: {_bsl_path}", flush=True)
+
 print("\n" + "="*70)
-print("  RUNNING FULL EPSILON SWEEP: Run A (rhan_v11_isolation_norecon)")
+print("  RUNNING MATCHED SWEEP (Finding-17 convention): Run A + TRADES Large baseline")
 print("="*70)
 
 run(
@@ -158,5 +175,6 @@ run(
     f"--eps-norm-space "
     f"--eps-list 0.0 0.031 0.062 0.094 "
     f"--seed 42 "
-    f"--ckpt-specs {_ckpt_lbl}:{_ckpt}:v11"
+    f"--ckpt-specs {_ckpt_lbl}:{_ckpt}:v11 "
+    f"trades_large_baseline:{_bsl_path}:large"
 )

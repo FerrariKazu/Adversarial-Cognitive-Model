@@ -15,6 +15,8 @@ Run B Configuration:
 Followed by Matched Evaluation:
   - PGD-50, NORM-space eps=[0, 0.031, 0.062, 0.094], n=500
     (matched to Finding-17 baseline table; eval uses --freeze-gaze to match training)
+  - ALSO sweeps the TRADES Large baseline (rhan_stl10_large_pseudolabel_best.pth)
+    WITHOUT --freeze-gaze as a Finding-17 sanity check (expect ~48.0/40.3/33.7).
 
 Usage: Copy cells directly into Colab. Set HF_TOKEN in Colab Secrets.
 """
@@ -162,4 +164,35 @@ run(
     f"--seed 42 "
     f"--freeze-gaze "
     f"--ckpt-specs {_ckpt_lbl}:{_ckpt}:v11"
+)
+
+# ── TRADES Large baseline sanity check (Finding-17 target ~48.0/40.3/33.7) ──
+# Run WITHOUT --freeze-gaze: the baseline was not trained with frozen gaze.
+_bsl_path = "checkpoints/rhan_stl10_large_pseudolabel_best.pth"
+if _os.path.exists(_bsl_path):
+    print(f"\n  TRADES Large baseline present locally: {_bsl_path}", flush=True)
+else:
+    print("\n  Downloading TRADES Large baseline (rhan_stl10_large_pseudolabel_best.pth)...",
+          flush=True)
+    _bsl_path = _hf_dl(
+        repo_id="FerrariKazu/rhan-checkpoints",
+        repo_type="dataset",
+        filename="rhan_stl10_large_pseudolabel_best.pth",
+        local_dir="checkpoints",
+    )
+    print(f"  Downloaded baseline: {_bsl_path}", flush=True)
+
+print("\n" + "="*70)
+print("  RUNNING BASELINE SANITY SWEEP: TRADES Large (no --freeze-gaze)")
+print("="*70)
+run(
+    f"python3 phase2_attacks/eval_full_epsilon_sweep.py "
+    f"--n-samples 500 "
+    f"--pgd-steps 50 "
+    f"--batch-size 32 "
+    f"--output-dir report/sweep_trades_baseline "
+    f"--eps-norm-space "
+    f"--eps-list 0.0 0.031 0.062 0.094 "
+    f"--seed 42 "
+    f"--ckpt-specs trades_large_baseline:{_bsl_path}:large"
 )

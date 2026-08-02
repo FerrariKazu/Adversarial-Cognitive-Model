@@ -87,7 +87,8 @@ def log_eps(eps_listed, eps_norm, prefix="", norm_space=False):
     """Print the listed epsilon and its per-channel norm-space equivalent.
 
     norm_space=True means the listed epsilon IS the norm-space bound, so the
-    label reflects that instead of misnaming it a pixel value.
+    label reflects that instead of misnaming it a pixel value, and an explicit
+    confirmation line is printed stating the bound was applied directly.
     """
     key = "eps_norm" if norm_space else "eps_pixel"
     r = eps_norm[0, 0, 0, 0].item()
@@ -95,6 +96,9 @@ def log_eps(eps_listed, eps_norm, prefix="", norm_space=False):
     b = eps_norm[0, 2, 0, 0].item()
     print(f"  [EPS] {prefix}{key}={eps_listed:.4f} -> "
           f"eps_norm=[R:{r:.4f}, G:{g:.4f}, B:{b:.4f}]", flush=True)
+    if norm_space:
+        print(f"  ✓ CONFIRM: norm-space eps={eps_listed:.3f} applied directly, "
+              f"NOT converted from pixel (same bound on all channels)", flush=True)
 
 
 # ── Data loader ────────────────────────────────────────────────────────────────
@@ -142,6 +146,10 @@ def run_pgd_batched(model, x_norm_cpu, y_cpu, eps, steps, device, batch_size=50,
     """
     Batched PGD — data lives on CPU, each mini-batch is moved to GPU individually
     so we never materialise 500 full-resolution images + gradients at once.
+
+    Returns (adv_cpu, delta_max): adv_cpu is the adversarial batch on CPU, and
+    delta_max is the achieved max |delta| per channel in normalized units (used
+    to confirm the clamp bound was applied directly at eps).
     """
     stl_min, stl_max = get_domain_bounds(device)
     eps_norm = resolve_eps_norm(eps, device, norm_space=norm_space)   # (1,3,1,1)
@@ -163,7 +171,11 @@ def run_pgd_batched(model, x_norm_cpu, y_cpu, eps, steps, device, batch_size=50,
         del xb, xb_adv, logits_c, probs_c
         torch.cuda.empty_cache()
 
-    return torch.cat(adv_chunks, dim=0)  # on CPU
+    adv_cpu = torch.cat(adv_chunks, dim=0)  # on CPU
+    # Achieved perturbation bound check (normalized units, per channel).
+    # Must be <= the applied clamp bound on every channel.
+    delta_max = (adv_cpu - x_norm_cpu).abs().amax(dim=(0, 2, 3))
+    return adv_cpu, delta_max
 
 
 # ── d-prime (batched inference) ────────────────────────────────────────────────
@@ -284,6 +296,12 @@ def main():
     _mode = ("NORM-space (matched to Finding-17 baseline)" if args.eps_norm_space
              else "PIXEL-space [0,1] (per-channel /std conversion)")
     print(f"\n[CHANNEL-WISE EPSILON VERIFICATION — {_mode}]", flush=True)
+    if args.eps_norm_space:
+        print("  FINDING-17 MATCHED CONVENTION: eps is applied DIRECTLY to the normalized"
+              " inputs — the exact grid/convention used for the Finding-17 baseline table"
+              " (quick_eval_hf / eval_rhan_v11: eps=0.031/0.062/0.094 in norm space,", flush=True)
+        print("  e.g. TRADES Large baseline 48.0/40.3/33.7). NO /std pixel conversion.",
+              flush=True)
     if not args.eps_norm_space:
         print("  WARNING: PIXEL-SPACE MODE — listed eps is a [0,1] pixel bound divided by"
               " per-channel std, so these attacks are ~3.84x STRONGER than the Finding-17"
@@ -321,10 +339,11 @@ def main():
             log_eps(eps, eps_norm, prefix=f"[{label}] ", norm_space=args.eps_norm_space)
 
             t0 = time.time()
+            delta_max = None
             if eps == 0.0:
                 x_adv_cpu = x_norm_cpu
             else:
-                x_adv_cpu = run_pgd_batched(
+                x_adv_cpu, delta_max = run_pgd_batched(
                     model, x_norm_cpu, y_test_cpu,
                     eps=eps,
                     steps=args.pgd_steps,
@@ -332,6 +351,14 @@ def main():
                     batch_size=args.batch_size,
                     norm_space=args.eps_norm_space,
                 )
+                d0, d1, d2 = (delta_max[i].item() for i in range(3))
+                e0, e1, e2 = (eps_norm[0, i, 0, 0].item() for i in range(3))
+                ok = d0 <= e0 + 1e-4 and d1 <= e1 + 1e-4 and d2 <= e2 + 1e-4
+                mode = ("applied DIRECTLY in norm space" if args.eps_norm_space
+                        else f"converted via /std (eps_norm per channel)")
+                print(f"  [BOUND CHECK] max |δ|_norm = [R:{d0:.4f}, G:{d1:.4f}, "
+                      f"B:{d2:.4f}] <= per-channel bound [{e0:.4f}, {e1:.4f}, {e2:.4f}] "
+                      f"({mode}) → {'OK' if ok else 'OVER-BUDGET!'}", flush=True)
 
             # Batched accuracy
             correct = 0
