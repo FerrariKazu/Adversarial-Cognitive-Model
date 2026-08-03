@@ -34,11 +34,22 @@ Decision rules (from the task):
   - Choose the mix with HIGHER eps=0.094 3-seed mean (tie-break: clean).
   - Epoch count: 60 if Step 0a shows climbing, else revisit.
 
-Step 0a provenance caveat: the reference 31.56±2.88 must come from the SAME
-protocol (batch 64, seeds 41/42/43, n=300, PGD-50, norm-space eps) as this
-run — batch layout changes the PGD-init RNG stream. If it was produced with
-batch 32, the verdict is not directly comparable; re-measure the final
-epoch-60 checkpoint in the same batch before trusting the climb verdict.
+Step 0a provenance caveat (protocol): the reference 31.56±2.88 must come
+from the SAME protocol (batch 64, seeds 41/42/43, n=300, PGD-50, norm-space
+eps) as this run — batch layout changes the PGD-init RNG stream. If it was
+produced with batch 32, the verdict is not directly comparable; re-measure
+the final epoch-60 checkpoint in the same batch before trusting the climb
+verdict.
+
+CRITICAL provenance caveat (recon gradient): the ep41 checkpoint was trained
+with LEGACY v11 code, NOT v12. model_rhan_v11.py appends recon_mse.detach()
+to trajectory['recon_errors'] and get_reconstruction_loss() stacks those
+DETACHED tensors — so w_recon*L_recon was a gradient no-op in every v11 run
+(including the null-ablation run that produced ep41). The Step 0a climbing
+trend therefore describes the "TRADES + prior WITHOUT a functioning recon
+loss" config ONLY. It is NOT evidence for how v12 (real recon gradients)
+behaves over the same epoch range — v12's trajectory must be judged from
+Step 0b's own numbers, not from the Step 0a verdict.
 
 Runtime on a single T4: Step 0a (~40 min, optional — already run locally)
 + Mix A 10-epoch train (~1.5 h) + Mix B 10-epoch train (~1.5 h)
@@ -286,12 +297,28 @@ if DO_STEP0A:
         report["step0a"][f"{lab}_eps{eps:.3f}"] = {
             "acc_mean": float(r['acc_mean']), "acc_std": float(r['acc_std']),
             "dprime_mean": float(r['macro_dprime_mean'])}
-    report["step0a"]["known_epoch60_eps0.094"] = "31.56 ± 2.88"
+    report["step0a"]["known_epoch60_eps0.094"] = (
+        "31.56 ± 2.88 (from the SAME legacy v11 null-ablation run — trained "
+        "with no functioning recon gradient, like ep41)")
+    report["step0a"]["provenance"] = (
+        "ep41 checkpoint = rhan_stl10_v11_rolling.pth @ HF rev 82b4f6cc98d3 "
+        "(epoch 41, best_acc 48.89), from the ORIGINAL null-ablation v11 run "
+        "trained with LEGACY train_rhan_v11.py / model_rhan_v11.py. v11's "
+        "get_reconstruction_loss() stacks trajectory['recon_errors'], which "
+        "were appended as recon_mse.detach() (model_rhan_v11.py:502) — so "
+        "w_recon*L_recon was a GRADIENT NO-OP in every v11 run. This "
+        "checkpoint was therefore trained with NO functioning reconstruction "
+        "loss; it is NOT a v12 artifact.")
     if "null_ablation_ep41_eps0.094" in report["step0a"]:
         m = report["step0a"]["null_ablation_ep41_eps0.094"]["acc_mean"]
         report["step0a"]["verdict"] = (
             "climbing" if m < 31.56 else
             ("flat" if abs(m - 31.56) < 5 else "declining"))
+        report["step0a"]["verdict_scope"] = (
+            "VALID ONLY for the no-recon-gradient config (TRADES + prior "
+            "architecture without a functioning recon loss). NOT evidence for "
+            "how v12 (real recon gradients) behaves over the same epoch range; "
+            "judge v12 from Step 0b numbers instead.")
 
 if DO_STEP0B_MA or DO_STEP0B_MB:
     a = read_agg("report/sweep_step0b_mixes/epsilon_sweep_results.csv")
