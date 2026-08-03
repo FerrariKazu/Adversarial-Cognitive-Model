@@ -226,7 +226,10 @@ def compute_dprime_batched(model, x_adv_cpu, y_true_cpu, device, batch_size=50):
 # ── Model loader ───────────────────────────────────────────────────────────────
 
 def load_model(arch, ckpt_path, device, freeze_gaze=False):
-    if arch == "v11":
+    if arch == "v12":
+        from phase1_training.model_rhan_v12 import RHANv12
+        model = RHANv12().to(device)
+    elif arch == "v11":
         from phase1_training.model_rhan_v11 import RHANv11
         model = RHANv11().to(device)
     elif arch == "large":
