@@ -245,7 +245,7 @@ v12-equivalent default). No other eval script may be added per stage.
 | 0 | ✅ | ✅ | 11 local tests pass (RTX 4060) — no eval sweep required |
 | 1 | ✅ | ⏳ pending | 5-seed matched protocol, eps 0.000/0.094, on Colab/Kaggle |
 | 2 | ✅ | ⏳ pending | isolated on/off test, hpc_num_levels 0 vs 1 |
-| 3 | ⏳ | ⏳ pending | final 3-model comparison, full grid, numbers here |
+| 3 | ⏳ (trainer + eval entrypoint implemented) | ⏳ pending | final 3-model comparison, full grid, numbers here |
 
 **Validation runs (not yet executed — require GPU hours and STL-10 data):**
 
@@ -262,6 +262,10 @@ python3 phase2_attacks/eval_rhan.py --n-samples 300 --seeds 41 42 43 \
 # Stage 2 (HPC on/off at fixed AIS):
     ... rhan_next_ais:...:next  rhan_next_hpc1:checkpoints/rhan_next_hpc1_best.pth:next
 ```
+
+### 10.1 Explicit statement on Pillars 3 & 4 (Stage 3 requirement)
+
+Pillars 3 (SBR) and 4 (IWM) remain **unimplemented**; their interfaces were not touched or broken by any Stage 1-3 work — `tests/test_pillar_scaffold_import.py` is re-run in the final validation pass to prove this.
 
 ## 11. Interpretations & decisions recorded
 
