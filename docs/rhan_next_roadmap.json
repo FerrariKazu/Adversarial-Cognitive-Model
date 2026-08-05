@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "project": "RHAN-Next",
+  "branch": "feature/rhan-next",
+  "definition_of_done": "Stage 3 validated checkbox checked, with numbers (not projections) in docs/ARCHITECTURE.md. Do not report the refactor complete before that.",
+  "frozen_files": [
+    "phase1_training/model_rhan_v12.py",
+    "phase2_attacks/eval_rhan.py",
+    "phase2_attacks/eval_full_epsilon_sweep.py"
+  ],
+  "validation_protocol": {
+    "eval_entrypoint": "phase2_attacks/eval_rhan.py (frozen; conventions identical to eval_full_epsilon_sweep.py)",
+    "attack": "PGD-50, norm-space eps applied directly, per-channel bound check",
+    "seeds": "3-seed averaging protocol (fresh sample subset + fresh PGD init per seed), n=300/seed",
+    "significance_criterion": "delta > 2 * sigma_combined at eps=0.094 (pre-registered, deliberately conservative)",
+    "minimum_eps_grid": ["0.000", "0.094"],
+    "known_caveat": "cross-run GPU nondeterminism (grid_sample/attention backward) can shift identical configs by ~1.5pp; treat verdicts accordingly"
+  },
+  "stages": {
+    "0": {
+      "name": "Scaffolding — no behavior change",
+      "code_complete": true,
+      "code_complete_date": "2026-08-05",
+      "validated": true,
+      "validated_date": "2026-08-05",
+      "validated_note": "tests/test_pillar_scaffold_import.py + tests/test_config_backward_compat.py pass locally on RTX 4060 (11 tests). No eval sweep required for this stage: no new trainable behavior exists.",
+      "acceptance": [
+        "All ABCs exist, fully docstringed, tensor shapes inline",
+        "RHANNext(default) forward on (4,3,96,96) matches RHANv12 shape and state-dict keys",
+        "SBR/IWM classes import + instantiate; NotImplementedError only on actual use",
+        "Default state dict byte-identical to RHANv12 (v12 checkpoint loads 1:1)"
+      ]
+    },
+    "1": {
+      "name": "Pillar 2 — Active Information-Seeking",
+      "code_complete": true,
+      "code_complete_date": "2026-08-05",
+      "validated": false,
+      "validated_note": "PENDING: 5-seed matched protocol run of RHANNext(enable_ais=True) vs RHANv12 baseline at eps 0.000/0.094. Needs Colab/Kaggle GPU (~hours). A null result is still a reportable outcome.",
+      "code_complete_acceptance": [
+        "InformationGainGazePolicy with uncertainty-reduction proxy documented in class docstring",
+        "EntropyGatedHalting halts on uncertainty < threshold; NO step-count penalty anywhere (tested)",
+        "GlobalPrecisionModulator wired into gaze step size, halting/recurrence depth, reconstruction loss weight",
+        "Attention gating and skip-connection gating explicitly DEFERRED",
+        "test_gradient_flow.py asserts nonzero gradient reaches gaze policy + precision modulator params"
+      ],
+      "isolated_test_required": true
+    },
+    "2": {
+      "name": "Pillar 1 — Hierarchical Predictive Coding (one level at a time)",
+      "code_complete": true,
+      "code_complete_date": "2026-08-05",
+      "validated": false,
+      "validated_note": "PENDING: isolated on/off test (hpc_num_levels=0 vs 1, AIS held fixed) via the 5-seed matched protocol. Only after this single level validates may hpc_num_levels=2 begin its own code-complete + validated cycle.",
+      "code_complete_acceptance": [
+        "hpc_num_levels=1: EdgeFeatureLevelPredictor (feature_target=edge_map) alongside existing top-level predictor",
+        "feature target is edges, NOT raw pixels (feature-vs-pixel rule)",
+        "test_gradient_flow.py extended for the new predictor/error path",
+        "Mid-transformer-layer hooking evaluated + documented as deferred (gradient-checkpointed dual-stream encoder)"
+      ],
+      "isolated_test_required": true
+    },
+    "3": {
+      "name": "Integration & Reporting",
+      "code_complete": false,
+      "code_complete_note": "train_rhan_next.py implemented; full end-to-end run + --dry-run verification pending on GPU host (needs STL-10 data + labeling checkpoint).",
+      "validated": false,
+      "validated_note": "PENDING: final 3-model comparison (RHANNext vs RHANv12 vs TRADES-Large) full epsilon grid; honest significance verdicts written to docs/ARCHITECTURE.md; re-run test_pillar_scaffold_import.py one final time to prove SBR/IWM interfaces untouched.",
+      "acceptance": [
+        "Full RHANNext trains end-to-end via train_rhan_next.py on the existing data pipeline",
+        "Final 5-seed matched comparison with numbers in docs/ARCHITECTURE.md",
+        "Explicit statement that Pillars 3 & 4 remain unimplemented and their interfaces unbroken"
+      ]
+    }
+  },
+  "deferred_increments": [
+    "Precision-modulated attention gating and skip-connection gating (Stage 1 deferral — too many simultaneous knobs broke precision calibration before)",
+    "HPC level 1: orientation-map predictor wiring (extractor exists in rhan_core/predictive_coding/feature_targets.py)",
+    "Mid-transformer-layer HPC error (deferred: fragile under gradient checkpointing; belief-anchored level implemented instead)",
+    "Pillar 3 SBR: object-slot belief + relational graph (StructuredBeliefState interface frozen)",
+    "Pillar 4 IWM: Dreamer/MuZero-style rollout (NullWorldModel default; SimulatedGazePolicy interface reserved)",
+    "Hard per-sample early exit in the foraging loop (soft uncertainty gating implemented; hard exit deferred for batch-graph stability)"
+  ]
+}
