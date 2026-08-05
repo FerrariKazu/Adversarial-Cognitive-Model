@@ -59,6 +59,8 @@ def test_default_forward_matches_v12_numerically():
 def test_forward_shapes_across_configs():
     torch.manual_seed(0)
     x = torch.randn(_B, _C, _H, _W, device=_DEVICE)
+    # HPC stack module ships with Stage 1 as Pillar-1 infrastructure; its
+    # gradient-reachability is asserted by test_gradient_flow.py (Stage 2).
     configs = [
         RHANNextConfig(),                            # v12-equivalent
         RHANNextConfig(enable_ais=True),             # Stage 1

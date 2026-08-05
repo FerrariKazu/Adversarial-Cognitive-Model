@@ -9,5 +9,7 @@ gated behind RHANNextConfig.enable_ais and are OFF in the default
 """
 
 from rhan_core.gaze.base import GazePolicy
+from rhan_core.gaze.info_gain_policy import InformationGainGazePolicy
+from rhan_core.gaze.halting import EntropyGatedHalting
 
-__all__ = ["GazePolicy"]
+__all__ = ["GazePolicy", "InformationGainGazePolicy", "EntropyGatedHalting"]

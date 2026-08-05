@@ -8,5 +8,6 @@ loss weight) so each consumer can be isolated and tested independently.
 """
 
 from rhan_core.precision.base import PrecisionModulator
+from rhan_core.precision.global_precision import GlobalPrecisionModulator
 
-__all__ = ["PrecisionModulator"]
+__all__ = ["PrecisionModulator", "GlobalPrecisionModulator"]
