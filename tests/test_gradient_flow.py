@@ -19,7 +19,6 @@ import gc
 import inspect
 import re
 
-import pytest
 import torch
 import torch.nn.functional as F
 
@@ -98,6 +97,45 @@ def test_ais_gradient_reaches_gaze_policy_and_precision_modulator():
     _assert_param_grads(m, ["gaze_policy.step_net"])
     _assert_param_grads(m, ["precision_modulator.gain"])
     _assert_param_grads(m, ["generative_prior"])          # recon still flows
+    del m
+    gc.collect()
+
+
+def test_ais_gain_reaches_gaze_step_path_without_recon_consumer():
+    """The precision gain must reach the loss through the GAZE STEP alone
+    (modulate_step_size is wired into the policy machinery), not only through
+    the reconstruction-weight consumer."""
+    cfg = RHANNextConfig(enable_ais=True, ais_halt_threshold=0.0)
+    m = _model(cfg)
+    assert m.precision_modulator.gain is not None
+    x, y = _dummy()
+    logits, _ = m(x, return_trajectory=True)
+    loss = F.cross_entropy(logits, y)          # NO recon term
+    loss.backward()
+    g = m.precision_modulator.gain.grad
+    assert g is not None and g.abs().sum().item() > 0, \
+        "precision gain must receive gradient via the gaze-step consumer"
+    # And the policy must actually consult the modulator's step consumer.
+    assert m.gaze_policy._mach.get('modulate_step_size') is not None
+    del m
+    gc.collect()
+
+
+def test_precision_modulator_abc_contract():
+    """Pin the PrecisionModulator ABC method: shape, bounds, differentiability."""
+    from rhan_core.precision.base import PrecisionModulator
+    from rhan_core.precision.global_precision import GlobalPrecisionModulator
+
+    assert issubclass(GlobalPrecisionModulator, PrecisionModulator)
+    m = _model(RHANNextConfig(enable_ais=True))
+    err = torch.randn(4, device=_DEVICE).abs() + 0.1      # (B,)
+    prec = m.precision_modulator.compute_precision(err)
+    assert prec.shape == (4,)
+    assert float(prec.min()) >= 0.15 and float(prec.max()) <= 0.85
+    err2 = torch.randn(4, device=_DEVICE, requires_grad=True)
+    prec2 = m.precision_modulator.compute_precision(err2)
+    prec2.sum().backward()
+    assert err2.grad is not None and err2.grad.abs().sum().item() > 0
     del m
     gc.collect()
 

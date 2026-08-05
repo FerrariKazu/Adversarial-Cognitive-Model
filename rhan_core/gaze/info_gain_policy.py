@@ -45,10 +45,15 @@ class InformationGainGazePolicy(GazePolicy, nn.Module):
       v12 step formula. This is the parameter set the gradient-flow test
       asserts gradients reach.
 
-    The policy holds references to the model's frozen components via a plain
-    `machinery` dict (NOT as submodules) so the model's state dict is not
-    duplicated. `EntropyGatedHalting` is owned here as `halter` and exposed
-    as `halt_policy` by the model.
+    Machinery (plain dict, NOT submodules — no state-dict duplication):
+      foveal_sample / generative_prior / foveal_stream / prior_predictor:
+          the frozen v12 components used to evaluate the surprise gradient;
+      modulate_step_size (optional): the GlobalPrecisionModulator's gaze-step
+          consumer, so the precision gain re-scales the step exactly like the
+          other consumers. When absent, the plain v12 formula is used.
+
+    `EntropyGatedHalting` is owned here as `halter` and exposed as
+    `halt_policy` by the model.
     """
 
     def __init__(self, proj_dim: int = 512, gaze_lambda: float = 0.5,
@@ -129,8 +134,16 @@ class InformationGainGazePolicy(GazePolicy, nn.Module):
 
         gate_in = torch.cat([s.detach(), pi_d.detach().unsqueeze(-1)], dim=-1)
         scale = 0.5 + torch.sigmoid(self.step_net(gate_in))     # ~1.0 at init
-        step_size = (self.base_step + self.precision_step_range * pi_d) \
-            * scale.squeeze(-1)                                  # (B,)
+
+        # v12 step formula, gain-scaled by the precision modulator when it is
+        # wired in (gain=1 -> identical to v12); step_net re-scales on top.
+        mod_step = self._mach.get('modulate_step_size', None)
+        if mod_step is not None:
+            step_size = mod_step(pi_d) * scale.squeeze(-1)      # (B,)
+        else:
+            step_size = (self.base_step
+                         + self.precision_step_range * pi_d) \
+                * scale.squeeze(-1)                             # (B,)
 
         a_new = torch.clamp(a + step_size.unsqueeze(-1) * normed_grad,
                             -self.max_abs_gaze, self.max_abs_gaze)

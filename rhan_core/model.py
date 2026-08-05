@@ -26,7 +26,6 @@ Pillars:
 """
 from __future__ import annotations
 
-import math
 import os
 import sys
 from typing import Optional
@@ -78,6 +77,12 @@ class RHANNext(RHANv12):
 
         # ── Pillar 2 (AIS) — Stage 1 ─────────────────────────────────────────
         if self.config.enable_ais:
+            # Wraps the shared image_precision module by plain reference (its
+            # consumers are then passed to the gaze policy below).
+            self.precision_modulator = GlobalPrecisionModulator(
+                image_precision_module=self.image_precision,
+                tau=self.config.precision_tau,
+                gain=1.0)
             # Plain-reference machinery (NOT submodules) so the state dict is
             # not duplicated: the policy shares the frozen v12 components.
             machinery = {
@@ -85,6 +90,8 @@ class RHANNext(RHANv12):
                 'generative_prior': self.generative_prior,
                 'foveal_stream': self.foveal_stream,
                 'prior_predictor': self.precision_ctrl.prior_predictor,
+                # Gaze-step consumer of the precision modulator (gain-scaled).
+                'modulate_step_size': self.precision_modulator.modulate_step_size,
             }
             self.gaze_policy = InformationGainGazePolicy(
                 proj_dim=self.config.proj_dim,
@@ -99,11 +106,6 @@ class RHANNext(RHANv12):
             # The halt policy is owned by the gaze policy; expose it under a
             # stable name for the forward loop and tests.
             self.halt_policy = self.gaze_policy.halter
-            # Wraps the shared image_precision module by plain reference.
-            self.precision_modulator = GlobalPrecisionModulator(
-                image_precision_module=self.image_precision,
-                tau=self.config.precision_tau,
-                gain=1.0)
 
         # ── Pillar 1 (HPC) — Stage 2 ─────────────────────────────────────────
         if self.config.enable_hpc and self.config.hpc_num_levels >= 1:
@@ -192,8 +194,11 @@ class RHANNext(RHANv12):
             s = (1 - pi_d_unsq) * s + pi_d_unsq * combined_feat
 
             # HPC prediction errors (Pillar 1, Stage 2) — NOT detached so the
-            # error reaches the stack's parameters through the loss.
-            if hasattr(self, 'hpc_stack') and len(self.hpc_stack.levels) > 0:
+            # error reaches the stack's parameters through the loss. Computed
+            # only when the trajectory is collected (the trainer reads the HPC
+            # loss exclusively from trajectories; inference skips the cost).
+            if (collect_traj and hasattr(self, 'hpc_stack')
+                    and len(self.hpc_stack.levels) > 0):
                 for lvl in range(len(self.hpc_stack.levels)):
                     target = self.hpc_stack.extract_targets(x_foveal, lvl)
                     pred_hpc = self.hpc_stack.predict(s, lvl)
