@@ -56,7 +56,8 @@
         "hpc_num_levels=1: EdgeFeatureLevelPredictor (feature_target=edge_map) alongside existing top-level predictor",
         "feature target is edges, NOT raw pixels (feature-vs-pixel rule)",
         "test_gradient_flow.py extended for the new predictor/error path",
-        "Mid-transformer-layer hooking evaluated + documented as deferred (gradient-checkpointed dual-stream encoder)"
+        "Mid-transformer-layer hooking evaluated + documented as deferred (gradient-checkpointed dual-stream encoder)",
+        "tests/test_hpc_isolated.py: code-level on/off isolation (params only when enabled, feature_target, level-count guards, extractor shapes)"
       ],
       "isolated_test_required": true
     },
