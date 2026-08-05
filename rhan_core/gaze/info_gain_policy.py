@@ -20,25 +20,44 @@ from rhan_core.gaze.halting import EntropyGatedHalting
 
 class InformationGainGazePolicy(GazePolicy, nn.Module):
     """
-    Fixation selection by expected surprise-gradient ascent.
+    Fixation selection by prediction-error gradient ascent.
 
-    PROXY (documented, not silently approximated):
-      Under a Gaussian likelihood model of sensory prediction, expected
+    MECHANISTIC IDENTITY — READ FIRST:
+      The gaze update implemented here is, at initialization, MECHANICALLY
+      IDENTICAL to the v12 Eq. II v12 gaze update (RHANv12._gaze_gradients + step
+      rule in model_rhan_v12.py): autograd through grid_sample of the prediction
+      error w.r.t. the gaze action, normalized, precision-scaled step
+      0.20 + 0.30*Pi_D, clamped to +/-0.9. The lineage is: v10 used the
+      FEATURE-space error only, v11 switched to the PIXEL-space error only, and
+      v12 (which RHANNext inherits) is the lambda-blend of both — see
+      model_rhan_v10.py / model_rhan_v11.py for the single-term predecessors.
+      It is the SAME underlying mechanism, relocated into the new GazePolicy
+      class structure — a clean architecture outcome, NOT a new computation. The only additive knobs are:
+        (a) `step_net`, a small learned re-scale of the step size initialized to
+            the identity (scale ~= 1.0, so behavior starts exactly at v12's
+            formula), and
+        (b) the optional GlobalPrecisionModulator `modulate_step_size` consumer
+            (gain=1 -> identical to v12).
+      It therefore implements v12's prediction-error gradient ascent, not a
+      literal expected-information-gain computation.
+
+    INFORMATION-GAIN INTERPRETATION (framing only, not a different mechanism):
+      Under a Gaussian likelihood model of sensory prediction, the expected
       information gain at a fixation is proportional to the gradient of the
-      expected *surprise* at that fixation (Friston 2010 free-energy
-      principle; Itti & Koch 2001 saliency). We approximate expected
-      surprise with the lambda-blended prediction error the v12 forward pass
-      already computes:
+      expected *surprise* at that fixation (Friston 2010; Itti & Koch 2001).
+      We approximate expected surprise with the lambda-blended prediction error
+      the v12 forward pass already computes:
 
           J(a) = lambda * R(x, a) + (1 - lambda) * ||f_stem(a) - P(s)||
 
-      where R(x,a) is the pixel-space reconstruction error of the foveal
-      crop at gaze a (generative/top-down pathway) and ||f(a) - P(s)|| is
-      the feature-space prediction error (bottom-up epistemic foraging).
+      where R(x,a) is the pixel-space reconstruction error of the foveal crop
+      at gaze a (generative/top-down pathway) and ||f(a) - P(s)|| is the
+      feature-space prediction error (bottom-up epistemic foraging).
       `select_action` moves the gaze along grad_a J(a), normalized, with the
-      v12 precision-scaled step size re-scaled by a small learned network
-      (`step_net`, initialized to the identity so behavior starts exactly at
-      v12's step formula).
+      v12 precision-scaled step size re-scaled by `step_net` (identity at init).
+      This is a CURRENT-error gradient (no one-step-ahead uncertainty
+      prediction, no variance-reduction proxy, no world-model rollout) — see
+      the roadmap for a genuine forward-looking EIG increment.
 
     Learnable state:
       step_net: (B, proj_dim + 1) -> (B, 1) sigmoid-gated re-scale of the
