@@ -69,7 +69,6 @@ from train_rhan_v12 import (
     sync_to_hf,
     wait_for_hf_sync,
     EpochDiagnostics,
-    get_stl10_dataloaders as _unused,  # imported below via tdv
 )
 from train_rhan_stl10_tdv import get_stl10_dataloaders
 
