@@ -36,13 +36,24 @@
       "code_complete": true,
       "code_complete_date": "2026-08-05",
       "validated": false,
-      "validated_note": "PENDING: 5-seed matched protocol run of RHANNext(enable_ais=True) vs RHANv12 baseline at eps 0.000/0.094. Needs Colab/Kaggle GPU (~hours). A null result is still a reportable outcome.",
+      "validated_note": "IN EXECUTION: Step A smoke + automated health gate + Step B full run + Step C 5-seed eval are pre-registered in cloud_setup/colab_notebook_noesis.py (branch-gated on feature/rhan-next; never resets to origin/main). Local RTX 4060 dry-run proved the AIS forward + diagnostics (gaze shift total ~0.28, effective-steps std ~0.56, 12.5% halted). The 5-seed matched protocol verdict must be recorded under stage1_verdict (null result = valid reportable outcome). Do NOT begin Stage 2 (HPC) until this verdict is recorded and reviewed.",
+      "execution_plan": {
+        "notebook": "cloud_setup/colab_notebook_noesis.py",
+        "step_a_smoke": "train_rhan_next.py --enable-ais --ckpt-name rhan_next_ais_smoke --max-epochs 15 --target-ckpt checkpoints/rhan_stl10_large_pseudolabel_best.pth --batch-size 16 --accum-steps 16 --diag-json report/rhan_next_ais_smoke_diag.jsonl --force-single-gpu (epochs 1-15 all in phase 1 => epsilon 0.031 only)",
+        "health_gate": "reads last report/rhan_next_ais_smoke_diag.jsonl line; aborts Step B unless: gaze_shift_total_mean >= 0.01 AND steps_effective_std >= 0.02 AND frac_halted_any > 0 AND car/truck both in top-2 Pi_D per class. Verdict -> report/rhan_next_ais_smoke_health.json. FORCE_STEP_B_OVERRIDE is a debug escape, NOT for publishable numbers.",
+        "step_b_full": "same trainer --ckpt-name rhan_next_ais --max-epochs 60; curriculum (1-20 @0.031, 21-40 @0.062, 41-60 @0.094) is byte-identical to train_rhan_v11.py = exact null_ablation_v11 boundaries (31.56+-2.88 @ eps=0.094). Same base checkpoint; NEVER --force-restart.",
+        "step_c_eval": "eval_rhan.py --ckpt-specs rhan_next_ais:checkpoints/rhan_next_ais_best.pth:next trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300 --batch-size 64 --output-dir report/sweep_stage1_ais",
+        "verdict_recorded_to": "roadmap.stages['1'].stage1_verdict (parsed from report/sweep_stage1_ais/eval_provenance.json by the notebook; null result = valid reportable outcome)"
+      },
       "code_complete_acceptance": [
         "InformationGainGazePolicy with uncertainty-reduction proxy documented in class docstring",
+        "MECHANISTIC IDENTITY (Stage 3.1 docstring fix): policy is mechanically identical to v12 Eq. II v12 update (itself the v10/v11 Eq. II gradient, relocated) at init; step_net identity-init + precision gain are the only additions",
         "EntropyGatedHalting halts on uncertainty < threshold; NO step-count penalty anywhere (tested)",
         "GlobalPrecisionModulator wired into gaze step size, halting/recurrence depth, reconstruction loss weight",
         "Attention gating and skip-connection gating explicitly DEFERRED",
-        "test_gradient_flow.py asserts nonzero gradient reaches gaze policy + precision modulator params"
+        "test_gradient_flow.py asserts nonzero gradient reaches gaze policy + precision modulator params",
+        "train_rhan_next.py: RHANNextEpochDiagnostics (gaze shift distance, per-sample effective steps, frac halted, Pi_D per class) + --diag-json machine-readable telemetry",
+        "eval_rhan.py hardened: forced norm-space, >=5-seed floor, --self-test vs checked-in reference, provenance JSON (git SHA + ckpt hashes + seeds + timestamp)"
       ],
       "isolated_test_required": true
     },

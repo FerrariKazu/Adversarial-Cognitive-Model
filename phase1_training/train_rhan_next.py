@@ -40,6 +40,7 @@ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 
 import argparse
 import gc
+import json
 import shutil
 import time
 
@@ -73,6 +74,107 @@ from train_rhan_v12 import (
 from train_rhan_stl10_tdv import get_stl10_dataloaders
 
 load_dotenv_fallback()
+
+
+class RHANNextEpochDiagnostics(EpochDiagnostics):
+    """EpochDiagnostics + RHANNext AIS telemetry.
+
+    Adds the two signals Step A of the Stage 1 protocol requires, on top of
+    the inherited v12 block (beta_dyn, gate alpha, recon MSE, Pi_D per class):
+
+      1. GAZE SHIFT DISTANCE — mean ||a_t - a_{t-1}||_2 over the batch for
+         every step boundary, plus the total gaze path length. This is the
+         direct measure that the Eq. II v12 / info-gain gradient actually
+         moves the fovea (degenerate = ~0.0).
+
+      2. PER-SAMPLE HALTING VARIANCE — effective evidence steps per sample,
+         defined as the sum of the soft continuation weights over the loop
+         (max_steps steps). The HARD loop is still fixed at T = max_steps
+         (hard per-sample early exit is deferred — see roadmap), so the honest
+         signal that halting now varies per-sample is the DISTRIBUTION of
+         effective steps (std > 0) and the fraction of samples whose
+         continuation dropped below 0.5 at any step.
+
+    `summary_dict(epoch, eps)` produces the machine-readable per-epoch
+    telemetry line written by --diag-json (consumed by the notebook health
+    gate that decides whether Step A is healthy enough for Step B).
+    """
+
+    def __init__(self, max_steps=4):
+        super().__init__()
+        self.max_steps = int(max_steps)
+        self.gaze_shifts = []       # list of (B,) per step boundary, per batch
+        self.effective_steps = []   # list of (B,) per batch (sum of continuations)
+        self.halted_steps = []      # list of (B,) counts of steps with cont < 0.5
+
+    def update(self, beta_dyn, traj_c, labels):
+        super().update(beta_dyn, traj_c, labels)
+        acts = traj_c.get('actions') or []
+        conts = traj_c.get('continuations') or []
+        if len(acts) >= 2:
+            # Gaze displacement at each step boundary: ||a_t - a_{t-1}||.
+            for t in range(1, len(acts)):
+                shift = (acts[t] - acts[t - 1]).norm(dim=-1)    # (B,)
+                self.gaze_shifts.append(shift.detach().cpu())
+        if len(conts) >= 1:
+            conts_cpu = torch.stack([c.detach().cpu() for c in conts], dim=0)  # (T,B)
+            self.effective_steps.append(conts_cpu.sum(dim=0))   # (B,)
+            self.halted_steps.append((conts_cpu < 0.5).sum(dim=0).float())  # (B,)
+
+    def report(self, epoch, eps):
+        super().report(epoch, eps)   # beta_dyn, gate, recon, Pi_D per class
+
+        # ── AIS-specific: gaze shift + per-sample halting variance ──
+        if self.gaze_shifts:
+            shifts = torch.cat(self.gaze_shifts)               # all boundaries
+            per_step = []
+            nb = self.max_steps - 1
+            for t in range(nb):
+                sel = [s for i, s in enumerate(self.gaze_shifts)
+                       if i % nb == t]
+                per_step.append(torch.cat(sel).mean().item() if sel else float('nan'))
+            print(f"  Gaze shift |Δa| per step (mean over batch): "
+                  f"{[f'{v:.4f}' for v in per_step]}")
+            print(f"  Gaze shift total path (mean over batch): {shifts.mean():.4f}")
+        if self.effective_steps:
+            eff = torch.cat(self.effective_steps)
+            hal = torch.cat(self.halted_steps)
+            print(f"  Effective evidence steps (Σ continuation): "
+                  f"mean={eff.mean():.2f} std={eff.std():.2f} "
+                  f"min={eff.min():.2f} max={eff.max():.2f} "
+                  f"| frac with any halting: {(hal > 0).float().mean():.3f}")
+
+    def summary_dict(self, epoch, eps):
+        """Machine-readable per-epoch telemetry (written by --diag-json)."""
+        d = {
+            'epoch': int(epoch),
+            'eps': round(float(eps), 4),
+            'beta_dyn_mean': round(float(torch.cat(self.beta_dynamics).mean()), 4),
+            'beta_dyn_std': round(float(torch.cat(self.beta_dynamics).std()), 4),
+            'steps_hard_fixed': self.max_steps,
+        }
+        if self.gate_alphas:
+            d['gate_alpha'] = round(float(np.mean(self.gate_alphas)), 4)
+        if self.recon_losses:
+            d['recon_mse'] = round(float(np.mean(self.recon_losses)), 4)
+        if self.effective_steps:
+            eff = torch.cat(self.effective_steps)
+            hal = torch.cat(self.halted_steps)
+            d['steps_effective_mean'] = round(float(eff.mean()), 3)
+            d['steps_effective_std'] = round(float(eff.std()), 3)
+            d['steps_effective_min'] = round(float(eff.min()), 3)
+            d['steps_effective_max'] = round(float(eff.max()), 3)
+            d['frac_halted_any'] = round(float((hal > 0).float().mean()), 4)
+        if self.gaze_shifts:
+            d['gaze_shift_total_mean'] = round(
+                float(torch.cat(self.gaze_shifts).mean()), 5)
+        d['pi_d_per_class'] = {}
+        for c in range(10):
+            if self.precisions_per_class[c]:
+                d['pi_d_per_class'][self.CLASSES[c]] = round(
+                    float(torch.cat(self.precisions_per_class[c]).mean()), 4)
+        return d
+
 
 # Components frozen during the warmup phase (v12 list + new pillar modules).
 _WARMUP_FROZEN_FRAGMENTS = [
@@ -212,6 +314,10 @@ def main():
     parser.add_argument('--ais-halt-threshold', type=float, default=0.35,
                         help='EntropyGatedHalting: halt when uncertainty < this')
     parser.add_argument('--ais-continuation-softness', type=float, default=8.0)
+    parser.add_argument('--diag-json', type=str, default='',
+                        help='Append one JSON line per epoch with machine-readable '
+                             'AIS telemetry (gaze shift, effective steps, Pi_D per '
+                             'class) — consumed by the notebook health gate.')
     args, _ = parser.parse_known_args()
 
     # ── Environment / device ────────────────────────────────────────────────
@@ -330,6 +436,11 @@ def main():
 
     real_indices = list(range(len(real_imgs)))
     pseudo_indices_list = list(range(len(real_imgs), len(combined_dataset)))
+    # Real-only config (--no-pseudo without synthetic data): the shared v12
+    # BalancedBatchSampler requires a non-empty second index pool; mirror the
+    # real indices into it (dataset weights stay 1.0 since idx < n_real).
+    if not pseudo_indices_list:
+        pseudo_indices_list = list(real_indices)
     if is_ddp:
         import random
         random.Random(args.seed + rank).shuffle(real_indices)
@@ -495,7 +606,7 @@ def main():
 
     # ── 7. Training loop ────────────────────────────────────────────────────
     WARMUP_EPOCHS = 5
-    diagnostics = EpochDiagnostics()
+    diagnostics = RHANNextEpochDiagnostics(max_steps=cfg.max_foraging_steps)
 
     for epoch in range(start_epoch, args.max_epochs + 1):
         t0 = time.time()
@@ -682,6 +793,14 @@ def main():
                   f"Throughput:{ips:.2f} img/sec ({eph:.2f} epochs/hour) | "
                   f"{t_epoch:.0f}s{marker}", flush=True)
             diagnostics.report(epoch, eps)
+            if args.diag_json and rank == 0:
+                try:
+                    with open(args.diag_json, 'a') as f:
+                        f.write(json.dumps(diagnostics.summary_dict(epoch, eps))
+                                + '\n')
+                except OSError as e:
+                    print(f"  WARNING: could not write --diag-json: {e}",
+                          flush=True)
 
             torch.save({'epoch': epoch,
                         'model': raw_model.state_dict(),
