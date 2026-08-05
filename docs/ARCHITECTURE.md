@@ -1,9 +1,15 @@
 # RHAN-Next Architecture
 
-> **Status:** Stages 0–2 **code-complete**, Stage 0 **validated**. Stages 1–3
-> **validation pending** on the 5-seed matched GPU protocol (see
-> [roadmap](rhan_next_roadmap.json)). This document is updated at the end of
-> every stage.
+> **Status:** Stages 0–2 **code-complete**, Stage 0 **validated**, Stage 1
+> **in execution** (not yet validated). Stages 1–3 **validation pending** on
+> the 5-seed matched GPU protocol (see [roadmap](rhan_next_roadmap.json)).
+> This document is updated at the end of every stage.
+>
+> **Stage 1 execution artifact:** `cloud_setup/colab_notebook_noesis.py` — the
+> pre-registered Step A (smoke) → Step B (full) → Step C (5-seed eval)
+> pipeline. Training lives on Colab/Kaggle, not locally: the RTX 4060
+> measures ~2.7–9.2 epochs/hour on this pipeline, so 10–15 epochs is 2–5 h
+> and the full 60-epoch run is 7–20 h — far over the 1-hour local budget.
 
 ## 1. Purpose
 
@@ -95,6 +101,23 @@ numerical logits equality + shape checks across all configs).
 ## 4. Pillar 2 — Active Information-Seeking (Stage 1)
 
 Gated behind `enable_ais=True`.
+
+### 4.0 Mechanistic identity (honest Stage 1 claim — read before Stage 1 runs)
+
+`InformationGainGazePolicy.select_action()` is, at initialization,
+**mechanically identical to the v12 Eq. II v12 gaze update** — which is itself
+the v10/v11 "Eq. II" prediction-error gradient relocated into the new class
+structure. The lineage: v10 used the FEATURE-space error only, v11 switched
+to the PIXEL-space error only, and v12 (which RHANNext inherits) is the
+λ-blend of both. The policy's only additions are `step_net` (a learned step
+re-scale initialized to the identity) and the precision-gain consumer
+(gain=1 → identical to v12).
+
+**Consequence for the Stage 1 hypothesis:** AIS-on behavior *starts* at v12's
+Eq. II v12 update; `step_net` and the precision gain are what training can
+move it away from. This is a clean-architecture + same-mechanism outcome,
+NOT a claim of literal expected-information-gain computation (no one-step-
+ahead uncertainty prediction exists). The class docstring states this plainly.
 
 ### 4.1 `InformationGainGazePolicy` (`rhan_core/gaze/info_gain_policy.py`)
 
@@ -229,6 +252,38 @@ where `L_hpc = 0` when HPC is off. **No step-count penalty exists.** The
 checkpoint saves the model state dict under `model` and the `RHANNextConfig`
 under `config`, so `eval_rhan.py` can reconstruct the exact pillar config.
 
+### 8.1 AIS diagnostics (RHANNextEpochDiagnostics + `--diag-json`)
+
+`train_rhan_next.py` uses `RHANNextEpochDiagnostics` (subclass of v12's
+`EpochDiagnostics`; the frozen v12 file is untouched), which emits the v12
+block (β_dynamic, gate α, recon MSE, Π_D per class) plus the two AIS
+signals the Stage 1 smoke gate requires:
+
+| Signal | Definition | Degenerate if |
+|---|---|---|
+| **Gaze shift distance** | mean over batch of ‖a_t − a_{t−1}‖₂ at every step boundary + total path length | ≈ 0.0 (fovea never moves) |
+| **Per-sample halting variance** | effective evidence steps per sample = Σ_t continuation_t (soft gate weights); reported as mean/std/min/max + fraction of samples with any step < 0.5 | std ≈ 0 (flat steps — the v10/v11 failure mode) |
+| **Π_D per class** | inherited v12 block; car/truck must stay highest | car/truck not top — ordering broke |
+
+`--diag-json <path>` appends one JSON line per epoch (`summary_dict()`):
+`epoch, eps, beta_dyn mean/std, gate_alpha, recon_mse, steps_hard_fixed,
+steps_effective mean/std/min/max, frac_halted_any, gaze_shift_total_mean,
+pi_d_per_class`. The notebook health gate parses this file; it is also
+human-readable in the per-epoch printed block.
+
+### 8.2 Local pipeline validation (RTX 4060, < 1 h)
+
+A real-only dry-run was executed locally to prove the pipeline end-to-end:
+`--enable-ais --dry-run --no-pseudo --force-restart --ckpt-name
+rhan_next_local_dryrun`. Results: 75,473,431 params, base checkpoint loaded
+(86 missing = new pillar modules), one training step + full diagnostics
+block. Measured telemetry: gaze shift per step ≈ 0.26/0.29/0.29 (total path
+0.28 — fovea moving), effective evidence steps mean=3.60 std=0.56
+min=2.36 max=3.95 with 12.5% of samples halted — i.e. halting DOES vary per
+sample even in a single batch. This validates the diagnostics and the AIS
+forward path; it is NOT the Stage 1 validation (that is the 5-seed matched
+protocol on GPU).
+
 ## 9. Evaluation (`phase2_attacks/eval_rhan.py`)
 
 Frozen entrypoint with conventions **identical** to
@@ -238,26 +293,90 @@ criterion. It extends the arch registry with `next`, which constructs
 `RHANNext` from the config embedded in the checkpoint (falling back to the
 v12-equivalent default). No other eval script may be added per stage.
 
+### 9.1 Protocol hardening (every future number routes through this file)
+
+Since every published number now routes through `eval_rhan.py`, four
+guarantees are enforced at the entrypoint (the frozen sweep file underneath
+is untouched):
+
+| # | Guarantee | Implementation |
+|---|---|---|
+| 1 | **No pixel-space mode** | `--eps-norm-space` is injected unconditionally before delegation; the pixel-space default of the underlying parser is unreachable through this file |
+| 2 | **≥5 seeds by default** | fewer than 5 seeds aborts unless `--allow-quick` is passed (consumed here, never forwarded); single-seed numbers are flagged as dev-only |
+| 3 | **Significance verdict printed** | inherited from the frozen `crossover_report()` (Δ > 2·σ_combined), printed automatically |
+| 4 | **`--self-test`** | structural check (config, state-dict key hash, param count, forward shapes) against the checked-in `phase2_attacks/eval_rhan_selftest_ref.json`; regenerate deliberately via `--regenerate-reference` |
+| 5 | **Provenance JSON** | `eval_provenance.json` written after every run: git SHA + branch, per-checkpoint SHA-256, seed list, CLI settings, UTC timestamp, merged results, and recomputed crossover verdicts |
+
+The Stage 1 eval command (Step C) therefore needs no `--eps-norm-space` flag
+(it is injected) and satisfies the seed floor with `--seeds 41 42 43 44 45`.
+
+## 9a. Stage 1 execution protocol (Steps A → B → C)
+
+Pre-registered in `cloud_setup/colab_notebook_noesis.py`; the notebook
+checkout is branch-gated on `feature/rhan-next` (it never resets to
+`origin/main`, which does not contain RHANNext).
+
+**Step A — Smoke test** (bounded, catches bugs before commitment):
+`train_rhan_next.py --enable-ais --ckpt-name rhan_next_ais_smoke
+--max-epochs 15 --target-ckpt checkpoints/rhan_stl10_large_pseudolabel_best.pth
+--batch-size 16 --accum-steps 16 --diag-json
+report/rhan_next_ais_smoke_diag.jsonl`. Epochs 1–15 all fall in phase 1, so
+ε = 0.031 only. Base checkpoint: the same one used for every prior isolation
+experiment (`rhan_stl10_large_pseudolabel_best.pth`).
+
+**Health gate** (automated, after Step A): reads the last `--diag-json` line
+and aborts Step B — with reasons — unless:
+
+1. `gaze_shift_total_mean ≥ 0.01` (fovea actually moves);
+2. `steps_effective_std ≥ 0.02` and `frac_halted_any > 0` (halting varies per
+   sample — not the v10/v11 flat 4.00);
+3. `car` and `truck` are both in the top-2 Π_D per class (the ordering that
+   has reproduced across every RHAN version — if it breaks, stop and debug).
+
+The verdict JSON is written to `report/rhan_next_ais_smoke_health.json`.
+`FORCE_STEP_B_OVERRIDE` exists as a debug escape and is documented as NOT
+for publishable numbers.
+
+**Step B — Full validated run**: same trainer, `--ckpt-name rhan_next_ais`,
+`--max-epochs 60`. The curriculum `(1-20 @0.031, 21-40 @0.062, 41-60 @0.094)`
+is byte-identical to `train_rhan_v11.py`'s — the exact boundaries of the
+null_ablation_v11 run that produced 31.56±2.88 @ ε=0.094 — so the result is
+directly comparable. Same base checkpoint; the trainer's mandatory HF resume
+gate forbids silent restarts (no `--force-restart`).
+
+**Step C — Validation**: through the hardened entrypoint:
+
+```
+python3 phase2_attacks/eval_rhan.py \
+    --ckpt-specs rhan_next_ais:checkpoints/rhan_next_ais_best.pth:next \
+                 trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
+    --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300
+```
+
+The notebook then parses `report/sweep_stage1_ais/eval_provenance.json`
+(results + recomputed crossover verdicts) and records the outcome in
+`docs/rhan_next_roadmap.json` under `stages.1.stage1_verdict` — a null result
+is a valid, reportable Stage 1 outcome. **Stage 2 (HPC) must not begin until
+this verdict is recorded and reviewed.**
+
 ## 10. Validation status
 
 | Stage | Code complete | Validated | Evidence |
 |---|---|---|---|
 | 0 | ✅ | ✅ | 11 local tests pass (RTX 4060) — no eval sweep required |
-| 1 | ✅ | ⏳ pending | 5-seed matched protocol, eps 0.000/0.094, on Colab/Kaggle |
-| 2 | ✅ | ⏳ pending | isolated on/off test, hpc_num_levels 0 vs 1 |
+| 1 | ✅ | ⏳ **in execution** | Step A smoke + health gate ready (`cloud_setup/colab_notebook_noesis.py`); local dry-run proves the AIS forward + diagnostics (gaze shift ≈0.28, effective-steps std ≈0.56); 5-seed matched eval pending on GPU |
+| 2 | ✅ | ⏳ pending | isolated on/off test, hpc_num_levels 0 vs 1 (must NOT start until Stage 1 verdict recorded) |
 | 3 | ⏳ (trainer + eval entrypoint implemented) | ⏳ pending | final 3-model comparison, full grid, numbers here |
 
 **Validation runs (not yet executed — require GPU hours and STL-10 data):**
 
 ```
-# Stage 1 (AIS vs v12 baseline):
-python3 phase2_attacks/eval_rhan.py --n-samples 300 --seeds 41 42 43 \
-    --pgd-steps 50 --batch-size 64 --eps-norm-space --eps-list 0.0 0.094 \
-    --baseline-label trades_large_baseline \
-    --ckpt-specs \
-      trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
-      rhan_v12_baseline:checkpoints/rhan_v12_mixB_best.pth:v12 \
-      rhan_next_ais:checkpoints/rhan_next_ais_best.pth:next
+# Stage 1 (AIS vs baseline) — via the notebook (Step C):
+python3 phase2_attacks/eval_rhan.py \
+    --ckpt-specs rhan_next_ais:checkpoints/rhan_next_ais_best.pth:next \
+                 trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
+    --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300 \
+    --batch-size 64 --output-dir report/sweep_stage1_ais
 
 # Stage 2 (HPC on/off at fixed AIS):
     ... rhan_next_ais:...:next  rhan_next_hpc1:checkpoints/rhan_next_hpc1_best.pth:next
@@ -278,3 +397,20 @@ Pillars 3 (SBR) and 4 (IWM) remain **unimplemented**; their interfaces were not 
 - Halting is implemented as a soft differentiable gate (hard per-sample
   early exit deferred) to keep batch graphs stable and the gradient tests
   deterministic.
+- **Stage 1 is a clean-architecture outcome, not a new mechanism.** The
+  AIS gaze policy is mechanically identical to v12's Eq. II v12 update at
+  initialization (itself the v10/v11 Eq. II gradient); only `step_net`
+  (identity init) and the precision gain differentiate it after training
+  (see §4.0). The Stage 1 verdict must be read with this honest scope.
+- **Training lives in the cloud notebook.** `cloud_setup/colab_notebook_noesis.py`
+  hosts Steps A–C because the 4060 cannot finish even the smoke in < 1 h
+  (measured ~2.7–9.2 epochs/hour). The notebook is branch-gated on
+  `feature/rhan-next` and never resets to `origin/main` (the prior
+  notebooks' `git reset --hard origin/main` would delete RHANNext).
+- **Provenance is now machine-readable.** After every eval, `eval_provenance.json`
+  carries git SHA, checkpoint hashes, seeds, timestamp, results and the
+  recomputed crossover verdicts — so roadmap updates are transcription-free.
+- **Local dry-run validated the pipeline, not the result.** The RTX 4060
+  dry-run (real-only, one step) proved model build, base-ckpt load, AIS
+  forward/backward, loss, and the new diagnostics; it is not Stage 1
+  validation. The mandatory 5-seed protocol still runs on GPU.
