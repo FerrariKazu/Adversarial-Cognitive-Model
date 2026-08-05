@@ -49,8 +49,11 @@ class EdgeMapExtractor(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """(B, C, H, W) -> (B, 1, H, W) edge magnitude, [0, 1]."""
-        gx = F.conv2d(x, self.sobel_x, padding=1)
-        gy = F.conv2d(x, self.sobel_y, padding=1)
+        C = x.shape[1]
+        # Depthwise Sobel (kernel expanded to (C, 1, 3, 3)) so any channel
+        # count works; magnitude collapses channels by max.
+        gx = F.conv2d(x, self.sobel_x.expand(C, 1, 3, 3), padding=1, groups=C)
+        gy = F.conv2d(x, self.sobel_y.expand(C, 1, 3, 3), padding=1, groups=C)
         mag = (gx ** 2 + gy ** 2).sqrt()                    # (B, C, H, W)
         mag = mag.max(dim=1, keepdim=True).values           # (B, 1, H, W)
         peak = mag.amax(dim=(2, 3), keepdim=True) + 1e-8
@@ -75,8 +78,9 @@ class OrientationMapExtractor(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """(B, C, H, W) -> (B, 2, H, W) sin/cos orientation in [-1, 1]."""
-        gx = F.conv2d(x, self.sobel_x, padding=1)
-        gy = F.conv2d(x, self.sobel_y, padding=1)
+        C = x.shape[1]
+        gx = F.conv2d(x, self.sobel_x.expand(C, 1, 3, 3), padding=1, groups=C)
+        gy = F.conv2d(x, self.sobel_y.expand(C, 1, 3, 3), padding=1, groups=C)
         theta = torch.atan2(gy, gx)                         # (B, C, H, W)
         # Collapse channels by the orientation of the strongest gradient.
         mag = (gx ** 2 + gy ** 2).sqrt().max(dim=1, keepdim=True).values
