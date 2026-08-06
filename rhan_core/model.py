@@ -217,11 +217,21 @@ class RHANNext(RHANv12):
                     ctx['halt_threshold'] = \
                         self.precision_modulator.modulate_halting_threshold(
                             pi_d, self.config.ais_halt_threshold)
-                halt = self.halt_policy.should_halt(belief, [ctx])   # (B,) bool
-                ctx['halt'] = halt
-                history.append(ctx)
-                # Soft continuation: sigma(softness * (u - threshold)).
-                cont = self.halt_policy.continuation(belief, [ctx])   # (B,)
+                if self.config.ais_halt_enabled:
+                    halt = self.halt_policy.should_halt(belief, [ctx])   # (B,) bool
+                    ctx['halt'] = halt
+                    history.append(ctx)
+                    # Soft continuation: sigma(softness * (u - threshold)).
+                    cont = self.halt_policy.continuation(belief, [ctx])   # (B,)
+                else:
+                    # ISOLATION A (--no-ais-halting): entropy gate forced open.
+                    # cont = 1 for every sample -> belief accumulation is v12's
+                    # fixed-T semantics (mean over all steps). The gaze update
+                    # below still runs; only per-sample halting is disabled.
+                    halt = torch.zeros(B, dtype=torch.bool, device=x.device)
+                    ctx['halt'] = halt
+                    history.append(ctx)
+                    cont = torch.ones(B, device=x.device)
             else:
                 # Exact v12 semantics: constant continuation = 1, no halt.
                 halt = torch.zeros(B, dtype=torch.bool, device=x.device)

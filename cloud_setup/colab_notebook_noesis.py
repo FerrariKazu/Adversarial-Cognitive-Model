@@ -69,6 +69,27 @@ the full 60-epoch run is 7-20h — far over the 1-hour local budget.
       comparable. Same base checkpoint, NEVER --force-restart (the trainer's
       mandatory HF resume gate protects against silent restarts).
 
+  STEP 5c — MECHANISM ISOLATION (Run A / Run B pattern, pre-registered):
+      The smoke gate fired on ONE criterion — the Π_D ordering (top-2 =
+      car/airplane instead of the reference car/truck). Per the decision rule
+      in docs/rhan_next_roadmap.json -> stages['1'].isolation_plan, Step B
+      stays GATED until the driver is identified. Two BOUNDED arms ablate
+      exactly ONE AIS sub-mechanism each (everything else identical to the
+      smoke — same base ckpt, same real+pseudo data pipeline, same AIS-v1
+      gaze):
+        Isolation A — --no-ais-halting         (entropy gate forced open,
+                      cont=1 => v12 fixed-T belief accumulation)
+        Isolation B — --no-ais-precision-recon (w_recon flat, v12 recon
+                      weighting)
+      Each runs ISO_EPOCHS (default 12) phase-1 (ε=0.031) epochs and logs
+      the final-epoch per-class Π_D. The verdict (car/truck restored per arm)
+      is recorded to report/rhan_next_ais_v1_isolation_verdict.json and
+      roadmap.stages['1'].isolation_verdict. NOTE (2026-08-06): the smoke
+      ALREADY trained on 5K real + ~46K pseudo (the trainer's default), so
+      the driver is expected to be the halting / precision-recon wiring, not
+      data mix — the isolation arms confirm which. Isolation arms follow the
+      same NEVER-RESTART / auto-resume guarantees as Step A/B.
+
   STEP C — VALIDATION (5-seed matched eval through the hardened entrypoint):
       python3 phase2_attacks/eval_rhan.py \
           --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next \
@@ -112,7 +133,7 @@ validated checkbox is checked.
 Usage: paste cells into a Colab GPU runtime, set HF_TOKEN in Secrets.
 Toggles: DO_STEP_A / DO_STEP_B / DO_STEP_C, SKIP_TRAINING (eval-only),
 SMOKE_EPOCHS (10-15), FORCE_STEP_B_OVERRIDE (debug escape — do not use for
-publishable numbers).
+publishable numbers), DO_ISOLATION / ISO_EPOCHS (mechanism isolation phase).
 """
 
 # %% [markdown]
@@ -200,6 +221,17 @@ SMOKE_EPOCHS = 15     # 10-15 per protocol
 # Step C runtime: 20 combos × ~13-17 min ≈ 4.5-5.5 GPU-hours on a T4 —
 # budget the session accordingly (see docstring).
 FORCE_STEP_B_OVERRIDE = False  # debug escape — do NOT use for publishable numbers
+
+# ── Mechanism-isolation phase (Run A / Run B pattern, pre-registered) ───────
+# The smoke gate's Π_D criterion fired (car/airplane top-2 instead of the
+# reference car/truck). Per the pre-registered decision rule
+# (docs/rhan_next_roadmap.json -> stages['1'].isolation_plan) we do NOT
+# proceed to Step B until the driver of that shift is identified. The
+# isolation arms (each ablates exactly ONE AIS sub-mechanism, everything else
+# identical to the smoke) are defined in that plan; each is BOUNDED at
+# ISO_EPOCHS phase-1 epochs and reads the final-epoch per-class Π_D.
+DO_ISOLATION = True
+ISO_EPOCHS   = 12     # 8-15 sanctioned; the Π_D ordering is visible by ~epoch 12
 
 BASE = "checkpoints/rhan_stl10_large_pseudolabel_best.pth"
 os.makedirs("report", exist_ok=True)   # --diag-json / health verdicts live here
@@ -459,12 +491,26 @@ else:
         else:
             # Smoke completed; restore its verdict if synced.
             prior = download_hf_verdict()
-            if prior is not None:
+            if prior is not None and prior.get("summary"):
+                # Re-evaluate the prior session's final-epoch telemetry against
+                # the CURRENT criteria. A restored boolean verdict can go stale
+                # (e.g. after a criterion recalibration or threshold fix), so
+                # trusting it could block a legitimate resume forever. The
+                # summary dict is re-scored exactly like a fresh local run.
+                verdict = health_verdict([prior["summary"]])
+                verdict["healthy"] = bool(verdict.get("healthy"))
+                verdict["resume"] = True
+                verdict["reasons"] = (["Smoke completed in a prior session; "
+                                       "telemetry re-evaluated against current "
+                                       "criteria."]
+                                      + list(verdict.get("reasons", [])))
+            elif prior is not None:
                 verdict = dict(prior)
                 verdict["healthy"] = bool(prior.get("healthy"))
                 verdict["resume"] = True
                 verdict["reasons"] = (["Smoke completed in a prior session; health "
-                                       "verdict restored from HF."]
+                                       "verdict restored from HF (no telemetry "
+                                       "summary available to re-evaluate)."]
                                       + list(prior.get("reasons", [])))
             else:
                 print("\n  WARNING: smoke completed in a prior session but its health "
@@ -502,6 +548,102 @@ if not PROCEED_STEP_B:
     print("\n  [STOP] Step B will NOT run. Debug the degenerate signal first "
           "(or set FORCE_STEP_B_OVERRIDE=True to override — not for "
           "publishable numbers).", flush=True)
+
+# %% [markdown]
+# ## Step 5c — MECHANISM ISOLATION (Run A / Run B pattern; pre-registered)
+
+# %%
+def run_iso_arm(name, flag, diag_path):
+    """Bounded isolation arm: ONE ablated sub-mechanism, never force-restart."""
+    pre_epoch = hf_rolling_epoch(name)
+    print(f"  [resume-gate] pre-isolation HF rolling epoch: {pre_epoch}",
+          flush=True)
+    run(
+        f"python3 phase1_training/train_rhan_next.py "
+        f"--enable-ais {flag} "
+        f"--ckpt-name {name} "
+        f"--max-epochs {ISO_EPOCHS} "
+        f"--target-ckpt {BASE} "
+        f"--batch-size 16 --accum-steps 16 "
+        f"--diag-json {diag_path} "
+        f"--force-single-gpu"
+    )
+    verify_no_restart(name, pre_epoch)
+
+
+def iso_final_top2(diag_path):
+    """(top-2 (class, pi_d) list, final epoch) from the arm's diag file."""
+    rows = load_diag(diag_path)
+    if not rows:
+        return None, None
+    pd = rows[-1].get('pi_d_per_class', {})
+    return (sorted(pd.items(), key=lambda kv: -kv[1])[:2],
+            rows[-1].get('epoch'))
+
+
+# Single source of truth: the arm specs + decision rule are pre-registered in
+# the roadmap (like run_label for record_verdict). The notebook runs exactly
+# what the plan defines — no drift between plan and execution.
+_roadmap = json.load(open("docs/rhan_next_roadmap.json"))
+iso_plan = _roadmap["stages"]["1"]["isolation_plan"]
+
+print("\n" + "="*70)
+print("  MECHANISM ISOLATION — which AIS sub-mechanism drives the Π_D reordering?")
+print("  Reference pattern (v12 reference runs): car/truck in top-2 Π_D.")
+print(f"  Budget: {ISO_EPOCHS} epochs, ε=0.031 phase 1 only, per arm.")
+print("="*70)
+
+if DO_ISOLATION and not SKIP_TRAINING:
+    for arm in iso_plan["arms"]:
+        print(f"\n--- {arm['label']} ({arm['flag']}) ---", flush=True)
+        run_iso_arm(arm["ckpt_name"], arm["flag"], arm["diag_json"])
+elif not DO_ISOLATION:
+    print("  (Isolation phase skipped: DO_ISOLATION=False)", flush=True)
+
+# ── Verdict: read each arm's final-epoch top-2, apply the pre-registered rule ─
+print("\n" + "="*70)
+print("  ISOLATION VERDICT — final-epoch Π_D top-2 per arm")
+print("="*70)
+iso_results = {}
+for arm in iso_plan["arms"]:
+    top2, ep = iso_final_top2(arm["diag_json"])
+    restored = bool(top2) and {'car', 'truck'} <= {k for k, _ in top2}
+    print(f"  {arm['label']:<28} epoch={ep} top-2={top2} "
+          f"{'→ car/truck RESTORED' if restored else '→ car/truck NOT restored'}")
+    iso_results[arm["label"]] = {"epoch": ep, "top2": top2,
+                                 "car_truck_restored": restored}
+
+print("\n  DECISION RULE (pre-registered in docs/rhan_next_roadmap.json):")
+print(f"    {iso_plan['decision_rule']}")
+print("  NOTE: Isolation A (halting OFF) is EXPECTED to show flat halting "
+      "(steps_effective_std=0.0, frac_halted_any=0.0) — that IS the ablation "
+      "signature (cont forced to 1), not a broken run.")
+
+# Derive the smoke's actual top-2 from the health-verdict telemetry (never
+# hardcode it — a future smoke with a different ordering must not drift).
+_smoke_pd = (verdict.get("summary") or {}).get("pi_d_per_class", {})
+_smoke_top2 = [k for k, _ in sorted(_smoke_pd.items(),
+                                     key=lambda kv: -kv[1])[:2]]
+
+iso_verdict = {
+    "schema": "stage1_isolation_verdict_v1",
+    "date_utc": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+    "smoke_pi_d_top2": _smoke_top2 or ["car", "airplane"],  # from telemetry
+    "reference_pi_d_top2": ["car", "truck"],    # v12 reference composition
+    "arms": iso_results,
+    "decision_rule": iso_plan["decision_rule"],
+    "note": "Step B stays GATED until this verdict is understood. The driver "
+             "attribution (and any fix / health-gate recalibration) is decided "
+             "from this evidence — a null/ambiguous isolation is a valid, "
+             "recorded result.",
+}
+with open("report/rhan_next_ais_v1_isolation_verdict.json", "w") as f:
+    json.dump(iso_verdict, f, indent=2, sort_keys=True)
+_roadmap["stages"]["1"]["isolation_verdict"] = iso_verdict
+with open("docs/rhan_next_roadmap.json", "w") as f:
+    json.dump(_roadmap, f, indent=2, sort_keys=False)
+print("  ✓ Isolation verdict written to report/rhan_next_ais_v1_isolation_verdict.json")
+print("  ✓ docs/rhan_next_roadmap.json updated: stages['1'].isolation_verdict", flush=True)
 
 # %% [markdown]
 # ## Step 6 — STEP B: FULL 60-EPOCH, 3-PHASE RUN (null_ablation-comparable)
@@ -561,7 +703,7 @@ print("\n" + "="*70)
 print("  STEP C: 5-SEED MATCHED EVAL — rhan_next_ais_v1 vs TRADES Large baseline")
 print("="*70)
 
-if DO_STEP_C:
+if DO_STEP_C and (PROCEED_STEP_B or SKIP_TRAINING):
     # Self-test the eval entrypoint first (structural, against checked-in ref).
     run("python3 phase2_attacks/eval_rhan.py --self-test")
 
@@ -598,6 +740,12 @@ if DO_STEP_C:
         f"--batch-size 64 "
         f"--output-dir report/sweep_stage1_ais_v1_pgd100"
     )
+elif DO_STEP_C:
+    print("\n  [STOP] Step B did not complete (smoke health gate / isolation "
+          "verdict) — rhan_next_ais_v1_best.pth does not exist, so there is "
+          "nothing to evaluate. Step C is SKIPPED (no RuntimeError). Complete "
+          "Step B first, or set FORCE_STEP_B_OVERRIDE=True (not for publishable "
+          "numbers).", flush=True)
 else:
     print("  (Step C skipped: DO_STEP_C=False)", flush=True)
 
@@ -768,6 +916,9 @@ print("  STAGE 1 EXECUTION COMPLETE")
 print("="*70)
 print("  - Step A smoke telemetry : report/rhan_next_ais_v1_smoke_diag.jsonl")
 print("  - Step A health verdict  : report/rhan_next_ais_v1_smoke_health.json")
+print("  - Isolation A (halt off) : checkpoints/rhan_next_ais_v1_isoA_nohalt_{best,rolling}.pth")
+print("  - Isolation B (recon off): checkpoints/rhan_next_ais_v1_isoB_noreconmod_{best,rolling}.pth")
+print("  - Isolation verdict      : report/rhan_next_ais_v1_isolation_verdict.json")
 print("  - Step B full run        : checkpoints/rhan_next_ais_v1_{best,rolling}.pth")
 print("  - Step C eval (PGD-50)   : report/sweep_stage1_ais_v1/")
 print("  - Step C PGD-100 spot    : report/sweep_stage1_ais_v1_pgd100/ (eps=0.094, masking check)")

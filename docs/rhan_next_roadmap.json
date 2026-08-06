@@ -13,12 +13,15 @@
     "attack": "PGD-50, norm-space eps applied directly, per-channel bound check",
     "seeds": "3-seed averaging protocol (fresh sample subset + fresh PGD init per seed), n=300/seed",
     "significance_criterion": "delta > 2 * sigma_combined at eps=0.094 (pre-registered, deliberately conservative)",
-    "minimum_eps_grid": ["0.000", "0.094"],
+    "minimum_eps_grid": [
+      "0.000",
+      "0.094"
+    ],
     "known_caveat": "cross-run GPU nondeterminism (grid_sample/attention backward) can shift identical configs by ~1.5pp; treat verdicts accordingly"
   },
   "stages": {
     "0": {
-      "name": "Scaffolding — no behavior change",
+      "name": "Scaffolding \u2014 no behavior change",
       "code_complete": true,
       "code_complete_date": "2026-08-05",
       "validated": true,
@@ -32,27 +35,52 @@
       ]
     },
     "1": {
-      "name": "Pillar 2 — Active Information-Seeking (Stage 1 run = AIS-v1)",
+      "name": "Pillar 2 \u2014 Active Information-Seeking (Stage 1 run = AIS-v1)",
       "run_label": "AIS-v1",
       "run_identity": "AIS-v1: Relocated Equation II (mechanistically identical to v10/v11/v12's gaze update, refactored into the new interface). This is a REPLICATION-UNDER-REFACTOR control, not a test of genuine information-gain gaze.",
       "result_labeling_rule": "Result tables, provenance JSON, and paper draft sections for this run must use the label 'AIS-v1' (or the full run_identity). Unqualified 'AIS' or 'information-gain' must NOT appear for this checkpoint; those labels are reserved for a future genuinely forward-looking implementation. All artifacts are named rhan_next_ais_v1_* so the label propagates automatically.",
       "code_complete": true,
       "code_complete_date": "2026-08-05",
       "validated": false,
-      "validated_note": "IN EXECUTION: Step A smoke + automated health gate + Step B full run + Step C 5-seed eval are pre-registered in cloud_setup/colab_notebook_noesis.py (branch-gated on feature/rhan-next; never resets to origin/main). Local RTX 4060 dry-run proved the AIS-v1 forward + diagnostics (gaze shift total ~0.28, effective-steps std ~0.56, 12.5% halted). The 5-seed matched protocol verdict must be recorded under stage1_verdict (null result = valid reportable outcome). The run is labeled AIS-v1 (Relocated Equation II — replication-under-refactor control, see run_identity). Do NOT begin Stage 2 (HPC) until this verdict is recorded and reviewed.",
+      "validated_note": "IN EXECUTION (2026-08-06): Step A smoke COMPLETED on Colab (15 epochs, eps=0.031). The automated health gate fired on exactly ONE criterion: Pi_D top-2 = car/airplane instead of the reference car/truck (gaze shift 0.2175, effective-steps std 0.886, frac_halted 0.213 all passed). The smoke trained on 5K real + ~46K pseudo (trainer default = the reference data composition), ruling out the data-mix hypothesis by construction - see isolation_plan. The pre-registered mechanism-isolation phase (Step 5c in the notebook: Isolation A halting OFF, Isolation B precision-recon OFF) now runs BOUNDED arms to attribute the shift; Step B stays GATED until the driver is identified, per the decision rule. Stage 1 verdict (5-seed matched protocol) will be recorded under stage1_verdict once Step B completes; null result = valid reportable outcome. Run labeled AIS-v1 (Relocated Equation II - replication-under-refactor control). Do NOT begin Stage 2 (HPC) until the Stage 1 verdict is recorded and reviewed.",
       "execution_plan": {
         "notebook": "cloud_setup/colab_notebook_noesis.py",
         "step_a_smoke": "train_rhan_next.py --enable-ais --ckpt-name rhan_next_ais_v1_smoke --max-epochs 15 --target-ckpt checkpoints/rhan_stl10_large_pseudolabel_best.pth --batch-size 16 --accum-steps 16 --diag-json report/rhan_next_ais_v1_smoke_diag.jsonl --force-single-gpu (epochs 1-15 all in phase 1 => epsilon 0.031 only)",
-        "health_gate": "reads last report/rhan_next_ais_v1_smoke_diag.jsonl line; aborts Step B unless: gaze_shift_total_mean >= 0.05 (CALIBRATED: local dry-run of this pipeline measured 0.2795, v11 post-fix 0.36-0.39, v11 pre-fix dead state ~0.007 — the old 0.01 bar sat inside the dead-state noise and was raised) AND steps_effective_std >= 0.02 AND frac_halted_any >= 0.02 (tightened from just > 0 per calibration directive; calibrated: known-good std=0.561/frac=0.125, flat failure exactly 0.0/0.0) AND car/truck both in top-2 Pi_D per class (v11: car 0.4198/truck 0.4670; v12: car 0.4726/truck 0.4587 highest). Full calibration table in docs/ARCHITECTURE.md §8.1a; constants pinned in the notebook (GAZE_THRESHOLD=0.05, HALT_FRAC_THRESHOLD=0.02). Verdict -> report/rhan_next_ais_v1_smoke_health.json. FORCE_STEP_B_OVERRIDE is a debug escape, NOT for publishable numbers.",
+        "health_gate": "reads last report/rhan_next_ais_v1_smoke_diag.jsonl line; aborts Step B unless: gaze_shift_total_mean >= 0.05 (CALIBRATED: local dry-run of this pipeline measured 0.2795, v11 post-fix 0.36-0.39, v11 pre-fix dead state ~0.007 \u2014 the old 0.01 bar sat inside the dead-state noise and was raised) AND steps_effective_std >= 0.02 AND frac_halted_any >= 0.02 (tightened from just > 0 per calibration directive; calibrated: known-good std=0.561/frac=0.125, flat failure exactly 0.0/0.0) AND car/truck both in top-2 Pi_D per class (v11: car 0.4198/truck 0.4670; v12: car 0.4726/truck 0.4587 highest). Full calibration table in docs/ARCHITECTURE.md \u00a78.1a; constants pinned in the notebook (GAZE_THRESHOLD=0.05, HALT_FRAC_THRESHOLD=0.02). Verdict -> report/rhan_next_ais_v1_smoke_health.json. FINDING 2026-08-06: the gate FIRED on the Pi_D criterion on the Colab smoke (top-2 = car/airplane; car/truck not met; gaze/halting passed). The smoke trained on 5K real + ~46K pseudo (trainer default pipeline), ruling out the data-mix hypothesis; the pre-registered mechanism-isolation phase (see isolation_plan) now runs before Step B. FORCE_STEP_B_OVERRIDE is a debug escape, NOT for publishable numbers.",
         "step_b_full": "same trainer --ckpt-name rhan_next_ais_v1 --max-epochs 60; curriculum (1-20 @0.031, 21-40 @0.062, 41-60 @0.094) is byte-identical to train_rhan_v11.py = exact null_ablation_v11 boundaries (31.56+-2.88 @ eps=0.094). Same base checkpoint; NEVER --force-restart.",
         "step_c_eval": "eval_rhan.py --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300 --pgd-steps 50 --batch-size 64 --output-dir report/sweep_stage1_ais_v1",
         "step_c_eval_pgd100_spot": "SECOND invocation: eval_rhan.py --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large --seeds 41 42 43 44 45 --eps-list 0.094 --n-samples 300 --pgd-steps 100 --batch-size 64 --output-dir report/sweep_stage1_ais_v1_pgd100. Reconfirms the PGD-50-vs-100 convergence gap at eps=0.094 (RHANv11 bar: drop <= 1.0 pp = genuine robustness, no masking; Finding 14: 27.3%->27.2% zero decay). AIS-v1 is a refactor of the same mechanism so masking-freedom must be re-confirmed, not assumed. Runtime add-on ~4.5-5.5 GPU-hours.",
-        "masking_verdict_recorded_to": "roadmap.stages['1'].stage1_verdict.masking_check (computed by the notebook from BOTH provenances: report/sweep_stage1_ais_v1/eval_provenance.json and report/sweep_stage1_ais_v1_pgd100/eval_provenance.json; per-checkpoint gap = acc(PGD-50) - acc(PGD-100) at eps=0.094; THREE-TIER verdict: GENUINE if gap <= 1.0 pp (RHANv11 bar); BORDERLINE/inconclusive if 1.0 < gap <= 2.5 pp (within the documented ~1.5 pp cross-run nondeterminism floor — recheck with AutoAttack); MASKING RISK if gap > 2.5 pp. Stamps both provenances' git SHA + timestamp for auditability.)",
-        "verdict_recorded_to": "roadmap.stages['1'].stage1_verdict (parsed from report/sweep_stage1_ais_v1/eval_provenance.json by the notebook; null result = valid reportable outcome; the entry is stamped with run_label='AIS-v1' and run_identity)"
+        "masking_verdict_recorded_to": "roadmap.stages['1'].stage1_verdict.masking_check (computed by the notebook from BOTH provenances: report/sweep_stage1_ais_v1/eval_provenance.json and report/sweep_stage1_ais_v1_pgd100/eval_provenance.json; per-checkpoint gap = acc(PGD-50) - acc(PGD-100) at eps=0.094; THREE-TIER verdict: GENUINE if gap <= 1.0 pp (RHANv11 bar); BORDERLINE/inconclusive if 1.0 < gap <= 2.5 pp (within the documented ~1.5 pp cross-run nondeterminism floor \u2014 recheck with AutoAttack); MASKING RISK if gap > 2.5 pp. Stamps both provenances' git SHA + timestamp for auditability.)",
+        "verdict_recorded_to": "roadmap.stages['1'].stage1_verdict (parsed from report/sweep_stage1_ais_v1/eval_provenance.json by the notebook; null result = valid reportable outcome; the entry is stamped with run_label='AIS-v1' and run_identity)",
+        "isolation_phase": "Step 5c in the notebook: two bounded Run A/B-style arms (--no-ais-halting, --no-ais-precision-recon), ISO_EPOCHS=12 phase-1 (eps=0.031) epochs each, NEVER --force-restart (rolling ckpts rhan_next_ais_v1_isoA_nohalt / rhan_next_ais_v1_isoB_noreconmod sync to HF; verify_no_restart asserted). Verdict -> report/rhan_next_ais_v1_isolation_verdict.json + roadmap.stages['1'].isolation_verdict. Step B stays gated until the driver is identified."
+      },
+      "isolation_plan": {
+        "pre_registered": "2026-08-06",
+        "status": "planned",
+        "motivation": "The Step A smoke health gate fired on exactly ONE criterion: Pi_D per-class top-2 = car/airplane instead of the reference car/truck (gaze shift 0.2175, effective-steps std 0.886, frac_halted 0.213 all passed). The smoke ALREADY trained on 5K real + ~46K pseudo (the trainer's default pipeline, conf >= 0.65 on the 100K unlabeled set - the same composition as the v12 mixB / Sprint-1 reference runs that showed car/truck top-2), so the data-composition hypothesis is ruled out by construction: the driver must be an AIS-v1 sub-mechanism. Per the pre-registered rule, Step B stays gated until the driver is identified.",
+        "arms": [
+          {
+            "label": "isoA (halting OFF)",
+            "ckpt_name": "rhan_next_ais_v1_isoA_nohalt",
+            "flag": "--no-ais-halting",
+            "diag_json": "report/rhan_next_ais_v1_isoA_diag.jsonl",
+            "ablation": "entropy gate forced open (cont=1, v12 fixed-T belief accumulation); gaze update unchanged"
+          },
+          {
+            "label": "isoB (precision-recon OFF)",
+            "ckpt_name": "rhan_next_ais_v1_isoB_noreconmod",
+            "flag": "--no-ais-precision-recon",
+            "diag_json": "report/rhan_next_ais_v1_isoB_diag.jsonl",
+            "ablation": "w_recon stays FLAT (v12 recon weighting); the precision modulator no longer scales the reconstruction loss (trainer-side only)"
+          }
+        ],
+        "budget": "ISO_EPOCHS=12 phase-1 (eps=0.031) epochs per arm, batch 16 / accum 16, same base checkpoint as the smoke; bounded ~4-5 GPU-h per arm on a T4",
+        "decision_signal": "final-epoch per-class Pi_D top-2 per arm vs the v12 reference pattern {car, truck}",
+        "decision_rule": "Attribute the smoke's Pi_D reordering (top-2 = car/airplane instead of reference car/truck) from the two bounded isolation arms (each ablates exactly ONE AIS sub-mechanism, everything else identical to the smoke): (1) if Isolation A (--no-ais-halting) restores car/truck in top-2, the entropy-gated halting / continuation-weighted belief accumulation is the primary driver; (2) if Isolation B (--no-ais-precision-recon) restores car/truck in top-2, the precision-modulated reconstruction weight is the primary driver; (3) if both restore, both contribute - the next isolation runs a combined-off arm; (4) if neither restores, the driver is the remaining shared AIS wiring (gaze-policy relocation / step_net / continuation x belief interplay) - the next isolation disables step_net, or a per-class error/gaze-coverage analysis runs on the smoke artifacts. In every branch Step B stays GATED until the ordering question is understood; the isolation verdict is recorded regardless of outcome (a null/ambiguous isolation is a valid, reportable result)."
       },
       "code_complete_acceptance": [
         "InformationGainGazePolicy with uncertainty-reduction proxy documented in class docstring",
-        "RUN LABEL (pre-registered): AIS-v1 = Relocated Equation II, replication-under-refactor control, not a test of genuine information-gain gaze (class docstring + docs/ARCHITECTURE.md §4.0 + this entry; all result tables use rhan_next_ais_v1 label)",
+        "RUN LABEL (pre-registered): AIS-v1 = Relocated Equation II, replication-under-refactor control, not a test of genuine information-gain gaze (class docstring + docs/ARCHITECTURE.md \u00a74.0 + this entry; all result tables use rhan_next_ais_v1 label)",
         "MECHANISTIC IDENTITY (Stage 3.1 docstring fix): policy is mechanically identical to v12 Eq. II v12 update (itself the v10/v11 Eq. II gradient, relocated) at init; step_net identity-init + precision gain are the only additions",
         "EntropyGatedHalting halts on uncertainty < threshold; NO step-count penalty anywhere (tested)",
         "GlobalPrecisionModulator wired into gaze step size, halting/recurrence depth, reconstruction loss weight",
@@ -64,7 +92,7 @@
       "isolated_test_required": true
     },
     "2": {
-      "name": "Pillar 1 — Hierarchical Predictive Coding (one level at a time)",
+      "name": "Pillar 1 \u2014 Hierarchical Predictive Coding (one level at a time)",
       "code_complete": true,
       "code_complete_date": "2026-08-05",
       "validated": false,
@@ -92,7 +120,7 @@
     }
   },
   "deferred_increments": [
-    "Precision-modulated attention gating and skip-connection gating (Stage 1 deferral — too many simultaneous knobs broke precision calibration before)",
+    "Precision-modulated attention gating and skip-connection gating (Stage 1 deferral \u2014 too many simultaneous knobs broke precision calibration before)",
     "HPC level 1: orientation-map predictor wiring (extractor exists in rhan_core/predictive_coding/feature_targets.py)",
     "Mid-transformer-layer HPC error (deferred: fragile under gradient checkpointing; belief-anchored level implemented instead)",
     "Pillar 3 SBR: object-slot belief + relational graph (StructuredBeliefState interface frozen)",

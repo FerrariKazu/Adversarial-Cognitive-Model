@@ -2,7 +2,9 @@
   "default_config": {
     "ais_base_step": 0.2,
     "ais_continuation_softness": 8.0,
+    "ais_halt_enabled": true,
     "ais_halt_threshold": 0.35,
+    "ais_precision_recon_enabled": true,
     "ais_precision_step_range": 0.3,
     "embed_dim": 768,
     "enable_ais": false,
@@ -35,7 +37,7 @@
       10
     ]
   },
-  "generated_at_utc": "2026-08-05T20:32:01+00:00",
+  "generated_at_utc": "2026-08-06T20:58:04+00:00",
   "generated_by_torch": "2.9.1+cu128",
   "n_params": 75440469,
   "n_state_dict_keys": 374,

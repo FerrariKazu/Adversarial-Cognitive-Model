@@ -303,6 +303,35 @@ The concrete numbers are also pinned as module-level constants in
 `HALT_STD_THRESHOLD = 0.02`, plus the known-good/dead anchors), so the gate
 reason strings print the calibration basis when they fire.
 
+**Π_D criterion — finding (2026-08-06).** The gate FIRED on this criterion in
+the Colab Step A smoke: final-epoch top-2 was **car 0.449 / airplane 0.421**
+(truck 6th at 0.407, ship 9th), while gaze (0.2175) and halting (std 0.886,
+frac 0.213) passed comfortably. Two facts bound the interpretation:
+
+- **The smoke already trained on the reference data composition.** The
+trainer generates pseudo-labels by default (conf ≥ 0.65 → ~46K of the 100K
+unlabeled set; `RHANv12/scripts/generate_flowcharts.py` documents the ~46K
+count) and the notebook's Step A command passes no `--no-pseudo`. The smoke's
+throughput (7.19 img/s ≈ mixB's 7.08–7.30, vs mixA's synthetic 24.51 img/s)
+confirms it. The v12 mixB / Sprint-1 reference runs used the same 5K real +
+~46K pseudo composition and showed car/truck top-2 — so the **data-mix
+hypothesis is ruled out by construction**: the reordering must come from an
+AIS-v1 sub-mechanism, not the data.
+- **The criterion's calibration was narrower than its claim.** "Car/truck
+both top-2, reproduced across every RHAN version" only held for the v12
+mixA/B epoch logs (car 0.4726 / truck 0.4587). v11's OWN documented Π_D
+table (`RHANv11.md`) shows **ship/truck** on top with car 5th/8th (best.pth:
+ship 0.4975 / truck 0.4670; rolling: truck 0.5488 / ship 0.5064) — the
+criterion as written would have flagged v11's only confirmed healthy run.
+The Π_D computation itself is verified identical to v12 (the modulator wraps
+the frozen `image_precision` module by plain reference), so the ordering
+shift is a real diagnostic observation, not a wiring bug.
+
+Per the pre-registered decision rule (roadmap `stages['1'].isolation_plan`),
+Step B stays gated and a bounded mechanism-isolation phase (Step 5c: Isolation
+A = halting OFF, Isolation B = precision-recon OFF) attributes the driver
+before any Step B / health-gate-criterion decision.
+
 ### 8.2 Local pipeline validation (RTX 4060, < 1 h)
 
 A real-only dry-run was executed locally to prove the pipeline end-to-end:
@@ -372,7 +401,32 @@ and aborts Step B — with reasons — unless:
 
 The verdict JSON is written to `report/rhan_next_ais_v1_smoke_health.json`.
 `FORCE_STEP_B_OVERRIDE` exists as a debug escape and is documented as NOT
-for publishable numbers.
+for publishable numbers. On a restarted session the gate re-evaluates the
+synced telemetry summary against the CURRENT criteria (a stale boolean
+verdict can never block a legitimate resume).
+
+**Step 5c — Mechanism isolation (Run A / Run B pattern).** The smoke gate
+fired on the Π_D ordering criterion only (see §8.1a finding), and the
+pre-registered decision rule keeps Step B gated until the driver is
+identified. Two BOUNDED arms ablate exactly one AIS sub-mechanism each,
+everything else identical to the smoke:
+
+| Arm | Ablation | Trainer flag |
+|---|---|---|
+| Isolation A | entropy gate forced open (`cont = 1` ⇒ v12 fixed-T belief accumulation); gaze update unchanged | `--no-ais-halting` |
+| Isolation B | `w_recon` stays flat (v12 recon weighting); the precision modulator no longer scales the recon loss | `--no-ais-precision-recon` |
+
+Each arm runs `ISO_EPOCHS = 12` phase-1 (ε = 0.031) epochs from the same
+base checkpoint, follows the same NEVER-RESTART / auto-resume guarantees
+(rolling checkpoints `rhan_next_ais_v1_iso{A,B}_*` sync to HF;
+`verify_no_restart` asserted), and logs the final-epoch per-class Π_D. The
+pre-registered decision rule (roadmap `stages['1'].isolation_plan`): an arm
+that restores car/truck in top-2 identifies its ablated mechanism as the
+primary driver; if neither restores, the driver is the remaining shared AIS
+wiring (gaze-policy relocation / `step_net` / continuation×belief interplay)
+and the next isolation disables `step_net`. The verdict is recorded to
+`report/rhan_next_ais_v1_isolation_verdict.json` and
+`roadmap.stages['1'].isolation_verdict` regardless of outcome.
 
 **Step B — Full validated run**: same trainer, `--ckpt-name rhan_next_ais_v1`,
 `--max-epochs 60`. The curriculum `(1-20 @0.031, 21-40 @0.062, 41-60 @0.094)`
@@ -396,7 +450,9 @@ The eval label is `rhan_next_ais_v1`, so every row of the result tables and
 `report/sweep_stage1_ais_v1/eval_provenance.json` (results + recomputed
 crossover verdicts) and records the outcome in
 `docs/rhan_next_roadmap.json` under `stages.1.stage1_verdict` — a null result
-is a valid, reportable Stage 1 outcome.
+is a valid, reportable Stage 1 outcome. If Step B did not complete (health
+gate / isolation verdict), Step C is **skipped with an explicit message** —
+it never raises a RuntimeError.
 
 **Step C PGD-100 spot-check (masking re-confirmation):** a second invocation
 runs PGD-100 at **ε=0.094 only**, same seeds/n, to recompute the 2-step
@@ -432,7 +488,7 @@ Runtime add-on: ~4.5–5.5 GPU-hours (10 combos × PGD-100).
 | Stage | Code complete | Validated | Evidence |
 |---|---|---|---|
 | 0 | ✅ | ✅ | 11 local tests pass (RTX 4060) — no eval sweep required |
-| 1 | ✅ | ⏳ **in execution** | Step A smoke + health gate ready (`cloud_setup/colab_notebook_noesis.py`); local dry-run proves the AIS forward + diagnostics (gaze shift ≈0.28, effective-steps std ≈0.56); 5-seed matched eval pending on GPU |
+| 1 | ✅ | ⏳ **in execution** | Step A smoke completed on Colab (2026-08-06); health gate fired on the Π_D ordering criterion only (car/airplane vs reference car/truck — see §8.1a finding); mechanism-isolation phase (Step 5c: halting OFF, precision-recon OFF) running pre-Step-B; Step B + 5-seed matched eval gated until the driver is identified |
 | 2 | ✅ | ⏳ pending | isolated on/off test, hpc_num_levels 0 vs 1 (must NOT start until Stage 1 verdict recorded) |
 | 3 | ⏳ (trainer + eval entrypoint implemented) | ⏳ pending | final 3-model comparison, full grid, numbers here |
 
@@ -492,3 +548,20 @@ Pillars 3 (SBR) and 4 (IWM) remain **unimplemented**; their interfaces were not 
   dry-run (real-only, one step) proved model build, base-ckpt load, AIS
   forward/backward, loss, and the new diagnostics; it is not Stage 1
   validation. The mandatory 5-seed protocol still runs on GPU.
+- **Π_D ordering shift is mechanism-caused, not data-caused (2026-08-06).**
+  The Colab smoke's top-2 Π_D was car/airplane (truck 6th, ship 9th) while
+  the v12 reference runs show car/truck. The smoke already trained on the
+  reference composition (5K real + ~46K pseudo — the trainer's default), so
+  data mix is ruled out. Because the criterion's "car/truck top-2" calibration
+  is contradicted by v11's own documented table (ship/truck), we did NOT
+  silently recalibrate or override: Step B stays gated and two bounded
+  isolation arms (halting OFF; precision-recon OFF) attribute the driver per
+  the pre-registered decision rule. Whatever the outcome, it is recorded — a
+  null/ambiguous isolation is a valid result and a fix or criterion change
+  will only be applied going forward, never retroactively.
+- **Isolation arms are real ablation switches, not rewrite tricks.**
+  `RHANNextConfig` gained `ais_halt_enabled` and `ais_precision_recon_enabled`
+  (both default True = smoke behavior), plumbed through
+  `train_rhan_next.py --no-ais-halting / --no-ais-precision-recon` and
+  pinned by `tests/test_ais_ablation_flags.py` (constant continuation when
+  halting off; flat `w_recon` when recon modulation off).

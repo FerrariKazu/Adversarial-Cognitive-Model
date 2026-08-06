@@ -47,6 +47,18 @@ class RHANNextConfig:
     ais_base_step: float = 0.20         # v12's fixed base gaze step
     ais_precision_step_range: float = 0.30  # v12's precision-scaled range
 
+    # ── AIS sub-mechanism ablation switches (Stage 1 mechanism isolation) ────
+    # Both default True = the AIS-v1 smoke behavior. Each False is ONE
+    # isolated ablation of a single new sub-mechanism, everything else
+    # identical (project lesson #3 — never change two knobs at once):
+    #   ais_halt_enabled=False          -> entropy gate forced open (cont=1,
+    #       v12 fixed-T belief accumulation); gaze update unchanged.
+    #   ais_precision_recon_enabled=False -> w_recon stays FLAT (v12 recon
+    #       weighting); the precision modulator no longer scales the recon
+    #       loss. Trainer-side only; no eval/forward impact.
+    ais_halt_enabled: bool = True
+    ais_precision_recon_enabled: bool = True
+
     # ── Pillar 1 (HPC) knobs ─────────────────────────────────────────────────
     hpc_error_weight: float = 0.05      # loss weight used by train_rhan_next.py
 
