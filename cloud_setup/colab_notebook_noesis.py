@@ -31,6 +31,36 @@ the full 60-epoch run is 7-20h — far over the 1-hour local budget.
       (--diag-json). The HEALTH GATE below reads the last epoch and aborts
       Step B (with reasons) if anything looks degenerate.
 
+  HEALTH GATE CALIBRATION (each threshold is calibrated against a
+  KNOWN-GOOD run's measured value, not an arbitrary nonzero floor):
+    * gaze_shift_total_mean >= 0.05
+        - known-good: 0.2795 (this pipeline's local dry-run, RTX 4060,
+          one epoch real-only) and 0.36-0.39 (v11 post-fix diagnostics
+          once the gaze-normalization bug was corrected);
+        - known-dead: ~0.007 (v11 PRE-fix state — the buggy normalization
+          that froze the fovea). The old 0.01 bar sat inside the noise of
+          the broken regime and would have passed it; 0.05 is ~7x the dead
+          value and ~1/6 of the known-good value — a real discriminator.
+    * steps_effective_std >= 0.02  AND  frac_halted_any >= 0.02
+        - known-good: std=0.561, frac=0.125 (same local dry-run; 12.5% of
+          samples halted at least one step);
+        - known-dead: std=0.000, frac=0.000 (v10/v11 permanently flat
+          steps=4.00 — every sample ran all T steps, never halted).
+          0.02 is deliberately far below the measured 0.561 healthy std
+          so it only discriminates "flat vs not flat", which is exactly
+          its job; the flat-failure value is exactly 0.0. frac floor is
+          NOT just "> 0" (per the calibration directive a threshold that
+          passes trivially isn't gating): 0.02 requires real halting
+          (>= 2% of samples) while staying 6x below the known-good 0.125.
+    * car/truck both in top-2 Π_D per class
+        - calibration: reproduced across every RHAN version's diagnostics
+          (v11: car 0.4198/truck 0.4670 among the top classes; v12 mixA/B
+          epoch logs: car 0.4726/truck 0.4587 marked highest). A break in
+          this ordering is a red flag to stop and debug, not push through.
+        - NOTE: the smoke run sees only 10 classes (STL-10); a degenerate
+          run where Π_D collapses to a single class must also fail this
+          check.
+
   STEP B — FULL VALIDATED RUN:
       Same trainer, --ckpt-name rhan_next_ais_v1, --max-epochs 60. The 3-phase
       curriculum (1-20 @0.031, 21-40 @0.062, 41-60 @0.094) is byte-identical
@@ -57,6 +87,21 @@ the full 60-epoch run is 7-20h — far over the 1-hour local budget.
       Colab Pro/Pro+ runtime or the Kaggle T4x2 (shard_2gpu.py pattern)
       if the session limit is a concern; do not interrupt the eval cell
       once started — eval_provenance.json is only written at the end.
+
+  STEP C PGD-100 SPOT-CHECK (genuine-robustness / no-masking re-confirmation):
+      In addition to the PGD-50 grid, a SECOND eval_rhan.py invocation runs
+      PGD-100 at eps=0.094 ONLY (same seeds/n), exactly the 2-step
+      PGD-50-vs-100 convergence gap check that first confirmed "genuine
+      robustness, not gradient masking" for this configuration family
+      (RHANv11.md: PGD-50 45.20% vs PGD-100 44.40% at eps=0.031, tight
+      convergence Δ <= 1.0 pp; Finding 14: 27.3% -> 27.2% = zero decay =
+      masking-free). The verdict recorder computes gap = acc(PGD-50) -
+      acc(PGD-100) at eps=0.094 per checkpoint and stamps a masking
+      verdict into the roadmap. AIS-v1 is a REFACTORED implementation of
+      the same mechanism, so this property must be re-confirmed, not
+      assumed to carry over. RUNTIME ADD-ON: 2 models × 5 seeds × 1 eps ×
+      PGD-100 × n=300 = 10 combos ≈ 4.5-5.5 GPU-hours (PGD-100 costs
+      ~2x PGD-50 per combo).
 
 IMPORTANT — BRANCH: this notebook checks out feature/rhan-next from origin.
 The branch must be pushed to GitHub before running (git push origin
@@ -204,8 +249,35 @@ def load_diag(path):
                     rows.append(json.loads(line))
     return rows
 
+GAZE_SHIFT_GOOD = 0.2795   # local dry-run of THIS pipeline (RTX 4060, 1 epoch)
+GAZE_SHIFT_GOOD_V11 = 0.36  # v11 post-fix diagnostics (normalization bug fixed)
+GAZE_SHIFT_DEAD = 0.007     # v11 PRE-fix state (buggy normalization froze fovea)
+GAZE_THRESHOLD = 0.05       # ~7x dead value, ~1/6 of known-good — see docstring
+
+HALT_STD_GOOD = 0.561       # local dry-run of THIS pipeline
+HALT_FRAC_GOOD = 0.125       # 12.5% of samples halted >= 1 step in the dry-run
+HALT_STD_THRESHOLD = 0.02   # flat-failure is EXACTLY 0.0; 0.02 discriminates
+HALT_FRAC_THRESHOLD = 0.02  # NOT just > 0: known-good 0.125, dead 0.0;
+                            # 0.02 requires real halting (2% of samples) while
+                            # staying 6x below known-good (per user directive:
+                            # tighten any threshold that is just > 0)
+
+
 def health_verdict(rows):
-    """Evaluate the last epoch against the pre-registered Step A criteria."""
+    """Evaluate the last epoch against the pre-registered Step A criteria.
+
+    Every threshold is calibrated against a known-good run's measured value
+    (see the module docstring "HEALTH GATE CALIBRATION" section):
+      - gaze_shift_total_mean >= GAZE_THRESHOLD (0.05): known-good 0.2795
+        (this pipeline) / 0.36-0.39 (v11 post-fix), known-dead ~0.007
+        (v11 pre-fix). The old 0.01 bar would have passed the dead state.
+      - steps_effective_std >= 0.02 AND frac_halted_any >= 0.02: known-good
+        std=0.561/frac=0.125, known-dead std=0.000/frac=0.000 (flat 4.00).
+        frac floor is NOT just "> 0" — 0.02 requires real halting.
+      - car/truck both in top-2 Pi_D: reproduced across every RHAN version
+        (v11: car 0.4198/truck 0.4670; v12 epoch logs: car 0.4726/truck
+        0.4587 highest).
+    """
     if not rows:
         return {"healthy": False,
                 "reasons": ["no --diag-json rows found (smoke crashed before "
@@ -214,24 +286,32 @@ def health_verdict(rows):
     reasons, healthy = [], True
 
     gs = last.get('gaze_shift_total_mean')
-    if gs is None or gs < 0.01:
+    if gs is None or gs < GAZE_THRESHOLD:
         healthy = False
-        reasons.append(f"gaze shift total mean = {gs} (degenerate: fovea is not "
-                       f"moving; expect > 0.01)")
+        reasons.append(f"gaze shift total mean = {gs} (degenerate: fovea is "
+                       f"not genuinely moving; threshold {GAZE_THRESHOLD} is "
+                       f"~7x the v11 pre-fix dead value {GAZE_SHIFT_DEAD} and "
+                       f"~1/6 of known-good {GAZE_SHIFT_GOOD})")
     else:
-        reasons.append(f"gaze shift total mean = {gs:.4f} (nonzero — Eq. II v12 "
-                       f"gradient is moving the fovea)")
+        reasons.append(f"gaze shift total mean = {gs:.4f} (>= {GAZE_THRESHOLD}; "
+                       f"known-good {GAZE_SHIFT_GOOD} on this pipeline, "
+                       f"{GAZE_SHIFT_GOOD_V11}-0.39 on v11 post-fix — Eq. II "
+                       f"v12 gradient is moving the fovea)")
 
     ess = last.get('steps_effective_std')
     fh = last.get('frac_halted_any')
-    if ess is None or ess < 0.02 or not fh:
+    if ess is None or ess < HALT_STD_THRESHOLD or (fh or 0.0) < HALT_FRAC_THRESHOLD:
         healthy = False
         reasons.append(f"halting does NOT vary per-sample: effective-steps "
-                       f"std={ess}, frac_halted_any={fh} (must be std>0.02 and "
-                       f"frac>0 — v10/v11 failure mode is a flat 4.00)")
+                       f"std={ess}, frac_halted_any={fh} (must be "
+                       f"std>={HALT_STD_THRESHOLD} and "
+                       f"frac>={HALT_FRAC_THRESHOLD} — flat failure is exactly "
+                       f"std=0.0/frac=0.0; known-good "
+                       f"std={HALT_STD_GOOD}/frac={HALT_FRAC_GOOD})")
     else:
         reasons.append(f"halting VARIES per sample: effective-steps "
-                       f"std={ess}, frac_halted_any={fh}")
+                       f"std={ess}, frac_halted_any={fh} "
+                       f"(known-good std={HALT_STD_GOOD}, frac={HALT_FRAC_GOOD})")
 
     pd = last.get('pi_d_per_class', {})
     top2 = sorted(pd.items(), key=lambda kv: -kv[1])[:2]
@@ -334,15 +414,35 @@ if DO_STEP_C:
     rhan_ckpt = ensure_ckpt("rhan_next_ais_v1_best.pth")
     bsl_ckpt  = ensure_ckpt("rhan_stl10_large_pseudolabel_best.pth")
 
+    # Main grid: PGD-50, eps 0.000/0.094 (the matched protocol).
     run(
         f"python3 phase2_attacks/eval_rhan.py "
         f"--ckpt-specs rhan_next_ais_v1:{rhan_ckpt}:next "
         f"trades_large_baseline:{bsl_ckpt}:large "
         f"--seeds 41 42 43 44 45 "
         f"--eps-list 0.000 0.094 "
+        f"--pgd-steps 50 "
         f"--n-samples 300 "
         f"--batch-size 64 "
         f"--output-dir report/sweep_stage1_ais_v1"
+    )
+
+    # PGD-100 spot-check at eps=0.094 ONLY — the 2-step PGD-50-vs-100
+    # convergence gap that first confirmed genuine robustness (not masking)
+    # for this configuration family (RHANv11.md: PGD-50 45.20% vs PGD-100
+    # 44.40% at eps=0.031, tight convergence d <= 1.0 pp). AIS-v1 is a
+    # REFACTOR of the same mechanism, so this must be re-confirmed, not
+    # assumed. Same seeds/n for a clean gap on the SAME samples.
+    run(
+        f"python3 phase2_attacks/eval_rhan.py "
+        f"--ckpt-specs rhan_next_ais_v1:{rhan_ckpt}:next "
+        f"trades_large_baseline:{bsl_ckpt}:large "
+        f"--seeds 41 42 43 44 45 "
+        f"--eps-list 0.094 "
+        f"--pgd-steps 100 "
+        f"--n-samples 300 "
+        f"--batch-size 64 "
+        f"--output-dir report/sweep_stage1_ais_v1_pgd100"
     )
 else:
     print("  (Step C skipped: DO_STEP_C=False)", flush=True)
@@ -354,6 +454,87 @@ else:
 print("\n" + "="*70)
 print("  RECORDING STAGE 1 VERDICT INTO docs/rhan_next_roadmap.json")
 print("="*70)
+
+# RHANv11 tight-convergence bar (45.20 -> 44.40 at eps=0.031, drop 0.8 pp).
+# NOTE: this bar sits AT/BELOW the project's documented cross-run GPU
+# nondeterminism floor (~1.5 pp between two runs of the identical config),
+# and the PGD-50 vs PGD-100 numbers come from TWO SEPARATE eval_rhan.py
+# invocations, so the gap inherits full cross-run nondeterminism. Hence a
+# three-tier verdict: <= 1.0 pp GENUINE, 1.0-2.5 pp BORDERLINE (within the
+# nondeterminism floor — inconclusive, note the caveat), > 2.5 pp MASKING
+# RISK. The 2.5 pp ceiling is the 1.5 pp floor plus a conservative margin.
+MASK_GAP_PP = 1.0        # RHANv11 documented bar (tight convergence)
+MASK_GAP_PP_BORDER = 2.5 # nondeterminism-aware borderline ceiling
+
+
+def _results_row(results, label, eps):
+    """Find the aggregated-results row (label, eps) -> dict or None."""
+    for r in results or []:
+        if (r.get('ckpt_label') == label
+                and abs(float(r.get('eps_pixel', -1)) - eps) < 1e-9):
+            return r
+    return None
+
+
+def masking_verdict(prov50, prov100, eps=0.094):
+    """PGD-50 vs PGD-100 convergence gap at eps, per checkpoint.
+
+    The RHANv11 precedent (45.20% PGD-50 vs 44.40% PGD-100 at eps=0.031,
+    drop 0.8 pp) and Finding 14 (27.3% -> 27.2% at eps=0.05 = zero decay)
+    treat a small PGD-50->100 drop as proof of GENUINE robustness (no
+    gradient masking): if the attack is already converged at 50 steps,
+    pushing to 100 steps buys ~nothing. A large drop would mean PGD-50
+    under-converged = the apparent robustness is an artifact.
+
+    Cross-run nondeterminism caveat (project-documented ~1.5 pp): these two
+    numbers come from separate invocations, so gaps between 1.0 and
+    MASK_GAP_PP_BORDER (2.5 pp) are BORDERLINE / inconclusive, not proof of
+    masking. A gap > 2.5 pp is a genuine masking risk.
+    """
+    out = {
+        "eps": eps,
+        "gap_bar_genuine_pp": MASK_GAP_PP,
+        "gap_bar_borderline_pp": MASK_GAP_PP_BORDER,
+        "nondeterminism_caveat": "cross-run GPU nondeterminism (grid_sample/"
+                                 "attention backward) can shift identical "
+                                 "configs by ~1.5 pp; PGD-50 vs PGD-100 here "
+                                 "are separate invocations, so gaps <= 2.5 pp "
+                                 "are NOT conclusive evidence of masking.",
+        "pgd50_provenance": {"git_sha": prov50.get("git_sha"),
+                             "timestamp_utc": prov50.get("timestamp_utc")},
+        "pgd100_provenance": {"git_sha": prov100.get("git_sha"),
+                              "timestamp_utc": prov100.get("timestamp_utc")},
+    }
+    for label in ('rhan_next_ais_v1', 'trades_large_baseline'):
+        r50 = _results_row(prov50.get('results'), label, eps)
+        r100 = _results_row(prov100.get('results'), label, eps)
+        if r50 is None or r100 is None:
+            out[label] = {"available": False}
+            continue
+        a50 = float(r50['acc_mean'])
+        a100 = float(r100['acc_mean'])
+        gap = a50 - a100
+        if gap <= MASK_GAP_PP:
+            verdict = (f"GENUINE robustness (no masking): PGD-50->100 drop "
+                       f"{gap:+.2f} pp <= {MASK_GAP_PP} pp bar (RHANv11 bar)")
+        elif gap <= MASK_GAP_PP_BORDER:
+            verdict = (f"BORDERLINE: PGD-50->100 drop {gap:+.2f} pp is within "
+                       f"the ~1.5 pp cross-run nondeterminism floor (<= "
+                       f"{MASK_GAP_PP_BORDER} pp) — inconclusive, not proof "
+                       f"of masking; recheck with AutoAttack before trust")
+        else:
+            verdict = (f"MASKING RISK: PGD-50->100 drop {gap:+.2f} pp > "
+                       f"{MASK_GAP_PP_BORDER} pp — PGD-50 under-converged; "
+                       "recheck with stronger attacks before trust")
+        out[label] = {
+            "available": True,
+            "acc_pgd50": round(a50, 2),
+            "acc_pgd100": round(a100, 2),
+            "gap_pp": round(gap, 2),
+            "masking_verdict": verdict,
+        }
+    return out
+
 
 def record_verdict():
     prov_path = "report/sweep_stage1_ais_v1/eval_provenance.json"
@@ -368,6 +549,16 @@ def record_verdict():
     # can never drift from the run_identity the run was launched under.
     roadmap = json.load(open("docs/rhan_next_roadmap.json"))
     stage1_cfg = roadmap["stages"]["1"]
+
+    # PGD-100 spot-check provenance (same seeds/n at eps=0.094 only).
+    prov100_path = "report/sweep_stage1_ais_v1_pgd100/eval_provenance.json"
+    prov100 = None
+    if os.path.exists(prov100_path):
+        with open(prov100_path) as f:
+            prov100 = json.load(f)
+    else:
+        print("  WARNING: PGD-100 spot-check provenance not found — "
+              "masking verdict unavailable.", flush=True)
 
     # Pull the Stage 1 numbers from the provenance (results + verdicts).
     stage1 = {
@@ -387,6 +578,9 @@ def record_verdict():
         "pgd_steps": prov.get("pgd_steps"),
         "results": prov.get("results"),
         "crossover_verdicts": prov.get("crossover_verdicts"),
+        "masking_check": (masking_verdict(prov, prov100)
+                           if prov100 is not None else {"available": False,
+                           "note": "PGD-100 spot-check did not run"}),
         "note": "Stage 1 (%s) validated via the "
                 "5-seed matched protocol. This is a REPLICATION-UNDER-REFACTOR "
                 "control, not a test of genuine information-gain gaze. A null "
@@ -406,6 +600,8 @@ def record_verdict():
     print("  ✓ docs/rhan_next_roadmap.json updated with the Stage 1 verdict.", flush=True)
     print("  Verdict summary:", json.dumps(stage1.get("crossover_verdicts"),
                                            indent=2), flush=True)
+    print("  Masking check:", json.dumps(stage1.get("masking_check"),
+                                          indent=2), flush=True)
 
 record_verdict()
 
@@ -419,7 +615,8 @@ print("="*70)
 print("  - Step A smoke telemetry : report/rhan_next_ais_v1_smoke_diag.jsonl")
 print("  - Step A health verdict  : report/rhan_next_ais_v1_smoke_health.json")
 print("  - Step B full run        : checkpoints/rhan_next_ais_v1_{best,rolling}.pth")
-print("  - Step C eval            : report/sweep_stage1_ais_v1/")
+print("  - Step C eval (PGD-50)   : report/sweep_stage1_ais_v1/")
+print("  - Step C PGD-100 spot    : report/sweep_stage1_ais_v1_pgd100/ (eps=0.094, masking check)")
 print("  - Verdict recorded       : docs/rhan_next_roadmap.json (stages.1)")
 print()
 print("  DO NOT begin Stage 2 (HPC) until the Stage 1 verdict is reviewed.")
