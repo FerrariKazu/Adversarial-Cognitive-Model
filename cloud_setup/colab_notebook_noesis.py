@@ -1,29 +1,38 @@
 #!/usr/bin/env python3
 """
-Colab Notebook — RHAN-Next Stage 1 Execution (Pillar 2: Active Information-Seeking)
-====================================================================================
+Colab Notebook — RHAN-Next Stage 1 Execution (AIS-v1: Relocated Equation II)
+============================================================================
 Runs the pre-registered Stage 1 protocol for RHANNext(enable_ais=True,
-enable_hpc=False). Training lives HERE (cloud), not locally: the RTX 4060
+enable_hpc=False).
+
+RUN LABEL — this run is **AIS-v1: Relocated Equation II** (mechanistically
+identical to v10/v11/v12's gaze update, refactored into the new interface).
+It is a **REPLICATION-UNDER-REFACTOR control, not a test of genuine
+information-gain gaze.** All artifacts are named rhan_next_ais_v1_* so the
+versioned label appears in every result table; unqualified "AIS" /
+"information-gain" is reserved for a future forward-looking implementation.
+
+Training lives HERE (cloud), not locally: the RTX 4060
 measures ~2.7-9.2 epochs/hour on this pipeline, so 10-15 epochs is 2-5h and
 the full 60-epoch run is 7-20h — far over the 1-hour local budget.
 
   STEP A — SMOKE (bounded, cheap, catches bugs before commitment):
-      train_rhan_next.py --enable-ais --ckpt-name rhan_next_ais_smoke
+      train_rhan_next.py --enable-ais --ckpt-name rhan_next_ais_v1_smoke
       --max-epochs 15 (all in phase 1 => epsilon 0.031 ONLY), resuming from
       the SAME base checkpoint used by every prior isolation experiment:
       checkpoints/rhan_stl10_large_pseudolabel_best.pth.
-      Every epoch logs the v12 diagnostic block PLUS the two AIS signals:
+      Every epoch logs the v12 diagnostic block PLUS the two AIS-v1 signals:
         - gaze shift distance |Δa| per step + total path;
         - per-sample halting variance (effective evidence steps = sum of the
           soft continuation weights; std > 0 means halting now varies per
           sample, unlike v10/v11's permanently flat steps=4.00);
         - Π_D per class (car/truck must still emerge as highest).
-      Machine-readable telemetry is appended to report/rhan_next_ais_smoke_diag.jsonl
+      Machine-readable telemetry is appended to report/rhan_next_ais_v1_smoke_diag.jsonl
       (--diag-json). The HEALTH GATE below reads the last epoch and aborts
       Step B (with reasons) if anything looks degenerate.
 
   STEP B — FULL VALIDATED RUN:
-      Same trainer, --ckpt-name rhan_next_ais, --max-epochs 60. The 3-phase
+      Same trainer, --ckpt-name rhan_next_ais_v1, --max-epochs 60. The 3-phase
       curriculum (1-20 @0.031, 21-40 @0.062, 41-60 @0.094) is byte-identical
       to train_rhan_v11.py's — the exact boundaries of the null_ablation_v11
       run that produced 31.56±2.88 @ ε=0.094 — so the result is directly
@@ -32,10 +41,12 @@ the full 60-epoch run is 7-20h — far over the 1-hour local budget.
 
   STEP C — VALIDATION (5-seed matched eval through the hardened entrypoint):
       python3 phase2_attacks/eval_rhan.py \
-          --ckpt-specs rhan_next_ais:checkpoints/rhan_next_ais_best.pth:next \
+          --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next \
                        trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
           --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300
       eval_rhan.py forces norm-space and requires >= 5 seeds (satisfied).
+      The ckpt label rhan_next_ais_v1 flows into every result-table row and
+      eval_provenance.json, so the AIS-v1 label is stamped automatically.
       The verdict is parsed from eval_provenance.json (written automatically
       with git SHA, checkpoint hashes, seed list, timestamp, results, and the
       recomputed Δ>2·σ_combined crossover verdicts) and recorded into
@@ -60,7 +71,7 @@ publishable numbers).
 """
 
 # %% [markdown]
-# # RHAN-Next Stage 1: AIS (enable_ais=True) — Smoke → Full → 5-seed Validation
+# # RHAN-Next Stage 1: AIS-v1 (Relocated Equation II) — Smoke → Full → 5-seed Validation
 
 # %% [markdown]
 # ## Step 1: Install Dependencies
@@ -139,7 +150,7 @@ print(f"✓ VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} G
 DO_STEP_A   = True    # smoke: 12-15 epochs, ε=0.031 only
 DO_STEP_B   = True    # full 60-epoch 3-phase run (auto-gated on Step A health)
 DO_STEP_C   = True    # 5-seed matched eval + roadmap verdict recorder
-SKIP_TRAINING = False # eval-only mode (requires rhan_next_ais_best.pth on HF/local)
+SKIP_TRAINING = False # eval-only mode (requires rhan_next_ais_v1_best.pth on HF/local)
 SMOKE_EPOCHS = 15     # 10-15 per protocol
 # Step C runtime: 20 combos × ~13-17 min ≈ 4.5-5.5 GPU-hours on a T4 —
 # budget the session accordingly (see docstring).
@@ -160,18 +171,18 @@ print(f"✓ base checkpoint present: {BASE} ({os.path.getsize(BASE)/1e6:.0f} MB)
 
 # %%
 print("\n" + "="*70)
-print("  STEP A: RHANNext(enable_ais=True) SMOKE — %d epochs, ε=0.031 only" % SMOKE_EPOCHS)
+print("  STEP A: RHANNext AIS-v1 (Relocated Eq. II) SMOKE — %d epochs, ε=0.031 only" % SMOKE_EPOCHS)
 print("="*70)
 
 if DO_STEP_A and not SKIP_TRAINING:
     run(
         f"python3 phase1_training/train_rhan_next.py "
         f"--enable-ais "
-        f"--ckpt-name rhan_next_ais_smoke "
+        f"--ckpt-name rhan_next_ais_v1_smoke "
         f"--max-epochs {SMOKE_EPOCHS} "
         f"--target-ckpt {BASE} "
         f"--batch-size 16 --accum-steps 16 "
-        f"--diag-json report/rhan_next_ais_smoke_diag.jsonl "
+        f"--diag-json report/rhan_next_ais_v1_smoke_diag.jsonl "
         f"--force-single-gpu"
     )
 else:
@@ -181,7 +192,7 @@ else:
 # ## Step 5b — HEALTH GATE (decides Step A → Step B)
 
 # %%
-SMOKE_DIAG = "report/rhan_next_ais_smoke_diag.jsonl"
+SMOKE_DIAG = "report/rhan_next_ais_v1_smoke_diag.jsonl"
 
 def load_diag(path):
     rows = []
@@ -238,7 +249,7 @@ def health_verdict(rows):
             "last_epoch": last.get('epoch'), "summary": last}
 
 rows = load_diag(SMOKE_DIAG)
-print(f"\n--- Per-epoch smoke telemetry (report/rhan_next_ais_smoke_diag.jsonl) ---")
+print(f"\n--- Per-epoch smoke telemetry (report/rhan_next_ais_v1_smoke_diag.jsonl) ---")
 for r in rows:
     print(f"  epoch {r['epoch']:>3} | ε={r['eps']:.3f} | gaze_path={r.get('gaze_shift_total_mean')} "
           f"| eff_steps mean={r.get('steps_effective_mean')} std={r.get('steps_effective_std')} "
@@ -253,9 +264,9 @@ for reason in verdict["reasons"]:
     print(f"    • {reason}", flush=True)
 print("="*70)
 
-with open("report/rhan_next_ais_smoke_health.json", "w") as f:
+with open("report/rhan_next_ais_v1_smoke_health.json", "w") as f:
     json.dump(verdict, f, indent=2, sort_keys=True)
-print("  Health verdict written to report/rhan_next_ais_smoke_health.json", flush=True)
+print("  Health verdict written to report/rhan_next_ais_v1_smoke_health.json", flush=True)
 
 PROCEED_STEP_B = verdict["healthy"] or FORCE_STEP_B_OVERRIDE
 if not PROCEED_STEP_B:
@@ -268,7 +279,7 @@ if not PROCEED_STEP_B:
 
 # %%
 print("\n" + "="*70)
-print("  STEP B: RHANNext(enable_ais=True) FULL — 60 epochs, 0.031→0.062→0.094")
+print("  STEP B: RHANNext AIS-v1 (Relocated Eq. II) FULL — 60 epochs, 0.031→0.062→0.094")
 print("="*70)
 
 if DO_STEP_B and not SKIP_TRAINING and PROCEED_STEP_B:
@@ -279,11 +290,11 @@ if DO_STEP_B and not SKIP_TRAINING and PROCEED_STEP_B:
     run(
         f"python3 phase1_training/train_rhan_next.py "
         f"--enable-ais "
-        f"--ckpt-name rhan_next_ais "
+        f"--ckpt-name rhan_next_ais_v1 "
         f"--max-epochs 60 "
         f"--target-ckpt {BASE} "
         f"--batch-size 16 --accum-steps 16 "
-        f"--diag-json report/rhan_next_ais_diag.jsonl "
+        f"--diag-json report/rhan_next_ais_v1_diag.jsonl "
         f"--force-single-gpu"
     )
 else:
@@ -313,25 +324,25 @@ def ensure_ckpt(name):
     raise RuntimeError(f"No checkpoint found for {name} (local or HF). Train Step B first.")
 
 print("\n" + "="*70)
-print("  STEP C: 5-SEED MATCHED EVAL — rhan_next_ais vs TRADES Large baseline")
+print("  STEP C: 5-SEED MATCHED EVAL — rhan_next_ais_v1 vs TRADES Large baseline")
 print("="*70)
 
 if DO_STEP_C:
     # Self-test the eval entrypoint first (structural, against checked-in ref).
     run("python3 phase2_attacks/eval_rhan.py --self-test")
 
-    rhan_ckpt = ensure_ckpt("rhan_next_ais_best.pth")
+    rhan_ckpt = ensure_ckpt("rhan_next_ais_v1_best.pth")
     bsl_ckpt  = ensure_ckpt("rhan_stl10_large_pseudolabel_best.pth")
 
     run(
         f"python3 phase2_attacks/eval_rhan.py "
-        f"--ckpt-specs rhan_next_ais:{rhan_ckpt}:next "
+        f"--ckpt-specs rhan_next_ais_v1:{rhan_ckpt}:next "
         f"trades_large_baseline:{bsl_ckpt}:large "
         f"--seeds 41 42 43 44 45 "
         f"--eps-list 0.000 0.094 "
         f"--n-samples 300 "
         f"--batch-size 64 "
-        f"--output-dir report/sweep_stage1_ais"
+        f"--output-dir report/sweep_stage1_ais_v1"
     )
 else:
     print("  (Step C skipped: DO_STEP_C=False)", flush=True)
@@ -345,18 +356,30 @@ print("  RECORDING STAGE 1 VERDICT INTO docs/rhan_next_roadmap.json")
 print("="*70)
 
 def record_verdict():
-    prov_path = "report/sweep_stage1_ais/eval_provenance.json"
+    prov_path = "report/sweep_stage1_ais_v1/eval_provenance.json"
     if not os.path.exists(prov_path):
         print("  No eval_provenance.json found — Step C did not complete.", flush=True)
         return
     with open(prov_path) as f:
         prov = json.load(f)
 
+    # Single source of truth: the pre-registered label lives in the roadmap.
+    # Reading it here (rather than hardcoding) guarantees the recorded verdict
+    # can never drift from the run_identity the run was launched under.
+    roadmap = json.load(open("docs/rhan_next_roadmap.json"))
+    stage1_cfg = roadmap["stages"]["1"]
+
     # Pull the Stage 1 numbers from the provenance (results + verdicts).
     stage1 = {
         "validated": True,
         "validated_date": prov.get("timestamp_utc", "unknown")[:10],
         "git_sha": prov.get("git_sha"),
+        # Sentinels (not stale-label defaults): if the roadmap's pre-registered
+        # label is missing/renamed, the verdict must say UNLABELED loudly
+        # rather than silently re-stamp the old label.
+        "run_label": stage1_cfg.get("run_label", "UNLABELED — see roadmap"),
+        "run_identity": stage1_cfg.get(
+            "run_identity", "UNLABELED — see roadmap.stages['1'].run_identity"),
         "checkpoints": prov.get("checkpoints"),
         "seeds": prov.get("seeds"),
         "eps_list": prov.get("eps_list"),
@@ -364,18 +387,19 @@ def record_verdict():
         "pgd_steps": prov.get("pgd_steps"),
         "results": prov.get("results"),
         "crossover_verdicts": prov.get("crossover_verdicts"),
-        "note": "Stage 1 (AIS) validated via the 5-seed matched protocol. "
-                "A null result is still a valid, reportable outcome.",
+        "note": "Stage 1 (%s) validated via the "
+                "5-seed matched protocol. This is a REPLICATION-UNDER-REFACTOR "
+                "control, not a test of genuine information-gain gaze. A null "
+                "result is still a valid, reportable outcome."
+                % stage1_cfg.get("run_label", "UNLABELED — see roadmap"),
     }
-
-    roadmap = json.load(open("docs/rhan_next_roadmap.json"))
     roadmap["stages"]["1"]["validated"] = True
     roadmap["stages"]["1"]["validated_date"] = stage1["validated_date"]
     roadmap["stages"]["1"]["validated_note"] = (
-        "Stage 1 (AIS) 5-seed matched eval recorded from "
-        "report/sweep_stage1_ais/eval_provenance.json — see "
+        "Stage 1 (%s) 5-seed matched eval recorded from "
+        "report/sweep_stage1_ais_v1/eval_provenance.json — see "
         "roadmap.stages['1'].stage1_verdict. Verdict is what it is, "
-        "including a null result.")
+        "including a null result." % stage1_cfg.get("run_label", "UNLABELED"))
     roadmap["stages"]["1"]["stage1_verdict"] = stage1
     with open("docs/rhan_next_roadmap.json", "w") as f:
         json.dump(roadmap, f, indent=2, sort_keys=False)
@@ -392,12 +416,12 @@ record_verdict()
 print("\n" + "="*70)
 print("  STAGE 1 EXECUTION COMPLETE")
 print("="*70)
-print("  - Step A smoke telemetry : report/rhan_next_ais_smoke_diag.jsonl")
-print("  - Step A health verdict  : report/rhan_next_ais_smoke_health.json")
-print("  - Step B full run        : checkpoints/rhan_next_ais_{best,rolling}.pth")
-print("  - Step C eval            : report/sweep_stage1_ais/")
+print("  - Step A smoke telemetry : report/rhan_next_ais_v1_smoke_diag.jsonl")
+print("  - Step A health verdict  : report/rhan_next_ais_v1_smoke_health.json")
+print("  - Step B full run        : checkpoints/rhan_next_ais_v1_{best,rolling}.pth")
+print("  - Step C eval            : report/sweep_stage1_ais_v1/")
 print("  - Verdict recorded       : docs/rhan_next_roadmap.json (stages.1)")
 print()
 print("  DO NOT begin Stage 2 (HPC) until the Stage 1 verdict is reviewed.")
-print("  Stage 2 must keep AIS fixed at whatever Stage 1 validated.")
+print("  Stage 2 must keep AIS-v1 fixed at whatever Stage 1 validated.")
 print("="*70)

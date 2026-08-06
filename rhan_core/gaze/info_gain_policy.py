@@ -20,6 +20,13 @@ from rhan_core.gaze.halting import EntropyGatedHalting
 
 class InformationGainGazePolicy(GazePolicy, nn.Module):
     """
+    RUN LABEL — AIS-v1: Relocated Equation II (mechanistically identical to
+    v10/v11/v12's gaze update, refactored into the new interface). This is a
+    REPLICATION-UNDER-REFACTOR control, not a test of genuine information-gain
+    gaze. Result tables and paper sections must use the label "AIS-v1" for
+    this checkpoint; unqualified "AIS" / "AIS-v2" is reserved for a future
+    genuinely forward-looking implementation. (docs/ARCHITECTURE.md §4.0)
+
     Fixation selection by prediction-error gradient ascent.
 
     MECHANISTIC IDENTITY — READ FIRST:
