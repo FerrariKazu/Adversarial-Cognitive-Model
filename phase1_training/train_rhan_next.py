@@ -19,10 +19,15 @@ all gated behind RHANNextConfig toggles (OFF by default = exactly v12):
           tests/test_gradient_flow.py::test_no_step_count_penalty_in_loss_path).
   * --enable-hpc / --hpc-num-levels (Pillar 1, Stage 2):
         - loss gains w_hpc * L_hpc (mean hierarchical prediction error).
+  * ISOLATION flags (Stage 1 mechanism isolation, Run A/B pattern — each
+    ablates exactly ONE AIS sub-mechanism, everything else identical):
+        --no-ais-halting          -> entropy gate forced open (cont=1,
+                                     v12 fixed-T belief accumulation);
+        --no-ais-precision-recon  -> w_recon stays FLAT (v12 recon weighting).
 
 Loss (pillars on):
     L = w_trades * L_trades + w_recon_eff * L_recon + w_hpc * L_hpc
-where w_recon_eff = w_recon when AIS is off.
+where w_recon_eff = w_recon when AIS is off OR --no-ais-precision-recon.
 
 Checkpoints:
     *_best.pth    -> {'model': state_dict, 'config': RHANNextConfig dict, 'arch': 'rhan_next'}
@@ -194,15 +199,17 @@ def set_new_component_training(model, trainable):
 
 
 def dynamic_trades_loss_next(model, imgs, labels, weights, x_adv,
-                             beta_base, w_recon, w_hpc):
+                             beta_base, w_recon, w_hpc,
+                             precision_recon_enabled: bool = True):
     """
     The RHAN-Next loss (superset of v12's two-term loss).
 
         L = w_trades * L_trades + w_recon_eff * L_recon + w_hpc * L_hpc
 
     with w_recon_eff = w_recon * mean(0.5 + Pi_D * gain) when the precision
-    modulator exists (AIS), else w_recon. L_hpc = 0 when HPC is off.
-    No step-count penalty term exists anywhere in this function.
+    modulator exists (AIS) AND precision_recon_enabled (ISOLATION B sets it
+    False => w_recon_eff = w_recon flat, v12 weighting). L_hpc = 0 when HPC
+    is off. No step-count penalty term exists anywhere in this function.
     """
     logits_c, traj_c = model(imgs, return_trajectory=True)
     logits_a, traj_a = model(x_adv, return_trajectory=True)
@@ -235,8 +242,9 @@ def dynamic_trades_loss_next(model, imgs, labels, weights, x_adv,
         + model.get_hpc_loss(x_adv, (logits_a, traj_a)))
 
     # Precision-modulated recon weight (AIS consumer, gain-scaled).
+    # ISOLATION B (--no-ais-precision-recon): keep w_recon flat (v12).
     modulator = getattr(model, 'precision_modulator', None)
-    if modulator is not None:
+    if modulator is not None and precision_recon_enabled:
         w_recon_eff = modulator.modulate_recon_weight(w_recon, final_precision_c)
     else:
         w_recon_eff = torch.tensor(w_recon, device=imgs.device)
@@ -267,6 +275,8 @@ def build_config(args) -> RHANNextConfig:
         gaze_lambda=args.gaze_lambda,
         ais_halt_threshold=args.ais_halt_threshold,
         ais_continuation_softness=args.ais_continuation_softness,
+        ais_halt_enabled=not args.no_ais_halting,
+        ais_precision_recon_enabled=not args.no_ais_precision_recon,
         hpc_error_weight=args.w_hpc,
     )
     cfg.validate()
@@ -315,6 +325,14 @@ def main():
     parser.add_argument('--ais-halt-threshold', type=float, default=0.35,
                         help='EntropyGatedHalting: halt when uncertainty < this')
     parser.add_argument('--ais-continuation-softness', type=float, default=8.0)
+    # ── Stage 1 mechanism-isolation flags (one ablation per run) ────────────
+    parser.add_argument('--no-ais-halting', action='store_true',
+                        help='ISOLATION A: force the entropy gate open (cont=1, '
+                             'v12 fixed-T belief accumulation); gaze unchanged')
+    parser.add_argument('--no-ais-precision-recon', action='store_true',
+                        help='ISOLATION B: keep w_recon FLAT (v12 recon '
+                             'weighting); precision modulator no longer scales '
+                             'the reconstruction loss (trainer-side only)')
     parser.add_argument('--diag-json', type=str, default='',
                         help='Append one JSON line per epoch with machine-readable '
                              'AIS telemetry (gaze shift, effective steps, Pi_D per '
@@ -350,6 +368,12 @@ def main():
             print(f"    AIS-v1 (Relocated Eq. II v12): "
                   f"halt_threshold={cfg.ais_halt_threshold}, "
                   f"softness={cfg.ais_continuation_softness}")
+            if not cfg.ais_halt_enabled:
+                print(f"    ISOLATION A: halting DISABLED (cont=1, "
+                      f"v12 fixed-T accumulation)")
+            if not cfg.ais_precision_recon_enabled:
+                print(f"    ISOLATION B: precision-modulated recon weight "
+                      f"DISABLED (w_recon flat)")
         if cfg.enable_hpc:
             print(f"    HPC: levels={cfg.hpc_num_levels}, "
                   f"w_hpc={cfg.hpc_error_weight}, "
@@ -715,7 +739,8 @@ def main():
                         (l_trades, traj_c, traj_a, beta_dyn, l_recon, l_hpc,
                          w_recon_eff) = dynamic_trades_loss_next(
                             raw_model, imgs, lbls, weights, x_adv, beta,
-                            args.w_recon, args.w_hpc)
+                            args.w_recon, args.w_hpc,
+                            precision_recon_enabled=cfg.ais_precision_recon_enabled)
                         loss = (args.w_trades * l_trades
                                 + w_recon_eff * l_recon
                                 + args.w_hpc * l_hpc) / args.accum_steps
