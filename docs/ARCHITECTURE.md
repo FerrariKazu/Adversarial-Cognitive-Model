@@ -285,6 +285,24 @@ steps_effective mean/std/min/max, frac_halted_any, gaze_shift_total_mean,
 pi_d_per_class`. The notebook health gate parses this file; it is also
 human-readable in the per-epoch printed block.
 
+### 8.1a Health-gate threshold calibration (every threshold is calibrated)
+
+Each health-gate threshold is fixed against a **known-good run's measured
+value**, not an arbitrary nonzero floor (a gate that passes trivially is not
+gating anything):
+
+| Criterion | Threshold | Known-good (measured) | Known-dead (measured) | Rationale |
+|---|---|---|---|---|
+| `gaze_shift_total_mean` | **≥ 0.05** (raised from 0.01) | **0.2795** — this pipeline's local dry-run (RTX 4060, 1 epoch); **0.36–0.39** — v11 post-fix diagnostics (after the gaze-normalization bug was corrected) | **~0.007** — v11 PRE-fix state (buggy normalization froze the fovea) | The old 0.01 bar sat inside the noise of the broken regime and would have passed it. 0.05 is ~7× the dead value and ~⅙ of the known-good value — a real discriminator. |
+| `steps_effective_std` | **≥ 0.02** (unchanged) | **0.561** — same local dry-run | **0.000** — v10/v11 permanently flat `steps=4.00` | Flat failure is exactly 0.0; 0.02 discriminates "flat vs not flat". Deliberately far below the measured 0.561 healthy std so it only gates the v10/v11 failure mode, which is its job. |
+| `frac_halted_any` | **≥ 0.02** (tightened from > 0) | **0.125** — 12.5% of samples halted ≥ 1 step (same dry-run) | **0.000** — v10/v11 (no sample ever halted) | Complements the std check. NOT just "> 0" (per the calibration directive: a gate that passes trivially isn't gating): 0.02 requires real halting (≥ 2% of samples) while staying 6× below the measured 0.125 known-good — no false-abort risk. |
+| car/truck in top-2 Π_D | both present (unchanged) | v11: car 0.4198 / truck 0.4670 among the top classes; v12 mixA/B epoch logs: car 0.4726 / truck 0.4587 highest | ordering broken (Π_D collapses / single class) | Reproduced across every RHAN version's diagnostics; a break is a red flag to stop and debug, not push through. |
+
+The concrete numbers are also pinned as module-level constants in
+`cloud_setup/colab_notebook_noesis.py` (`GAZE_THRESHOLD = 0.05`,
+`HALT_STD_THRESHOLD = 0.02`, plus the known-good/dead anchors), so the gate
+reason strings print the calibration basis when they fire.
+
 ### 8.2 Local pipeline validation (RTX 4060, < 1 h)
 
 A real-only dry-run was executed locally to prove the pipeline end-to-end:
@@ -341,9 +359,14 @@ experiment (`rhan_stl10_large_pseudolabel_best.pth`).
 **Health gate** (automated, after Step A): reads the last `--diag-json` line
 and aborts Step B — with reasons — unless:
 
-1. `gaze_shift_total_mean ≥ 0.01` (fovea actually moves);
-2. `steps_effective_std ≥ 0.02` and `frac_halted_any > 0` (halting varies per
-   sample — not the v10/v11 flat 4.00);
+1. `gaze_shift_total_mean ≥ 0.05` (fovea actually moves — calibrated: local
+   dry-run measured 0.2795, v11 post-fix 0.36–0.39, v11 pre-fix dead state
+   ~0.007; the old 0.01 bar would have passed the dead state, so it was
+   raised; see §8.1a);
+2. `steps_effective_std ≥ 0.02` and `frac_halted_any ≥ 0.02` (halting varies
+   per sample — not the v10/v11 flat 4.00; known-good std=0.561, frac=0.125,
+   so both floors are calibrated well below healthy and above the exact 0.0
+   dead state);
 3. `car` and `truck` are both in the top-2 Π_D per class (the ordering that
    has reproduced across every RHAN version — if it breaks, stop and debug).
 
@@ -364,7 +387,7 @@ gate forbids silent restarts (no `--force-restart`).
 python3 phase2_attacks/eval_rhan.py \
     --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next \
                  trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
-    --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300
+    --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300 --pgd-steps 50
 ```
 
 The eval label is `rhan_next_ais_v1`, so every row of the result tables and
@@ -373,8 +396,36 @@ The eval label is `rhan_next_ais_v1`, so every row of the result tables and
 `report/sweep_stage1_ais_v1/eval_provenance.json` (results + recomputed
 crossover verdicts) and records the outcome in
 `docs/rhan_next_roadmap.json` under `stages.1.stage1_verdict` — a null result
-is a valid, reportable Stage 1 outcome. **Stage 2 (HPC) must not begin until
-this verdict is recorded and reviewed.**
+is a valid, reportable Stage 1 outcome.
+
+**Step C PGD-100 spot-check (masking re-confirmation):** a second invocation
+runs PGD-100 at **ε=0.094 only**, same seeds/n, to recompute the 2-step
+PGD-50-vs-100 convergence gap that first confirmed "genuine robustness, not
+gradient masking" for this configuration family:
+
+```
+python3 phase2_attacks/eval_rhan.py \
+    --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next \
+                 trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
+    --seeds 41 42 43 44 45 --eps-list 0.094 --n-samples 300 --pgd-steps 100 \
+    --output-dir report/sweep_stage1_ais_v1_pgd100
+```
+
+Historical bar (RHANv11.md): PGD-50 45.20% vs PGD-100 44.40% at ε=0.031 =
+tight convergence, drop 0.8 pp → genuine robustness. Finding 14 repeated
+this at scale (27.3% → 27.2% at ε=0.05, zero decay = masking-free). AIS-v1
+is a **refactored implementation of the same mechanism**, so this property
+must be re-confirmed rather than assumed to carry over. `record_verdict()`
+computes `gap = acc(PGD-50) − acc(PGD-100)` at ε=0.094 per checkpoint and
+stamps a **three-tier** `masking_check` verdict into the roadmap: drop
+≤ 1.0 pp = GENUINE (RHANv11 bar); 1.0–2.5 pp = BORDERLINE / inconclusive
+(within the project's documented ~1.5 pp cross-run nondeterminism floor —
+these numbers come from two separate eval invocations, so the gap inherits
+it; recheck with AutoAttack before trust); > 2.5 pp = MASKING RISK. The
+check also records both provenances' git SHAs + timestamps for auditability.
+Runtime add-on: ~4.5–5.5 GPU-hours (10 combos × PGD-100).
+
+**Stage 2 (HPC) must not begin until this verdict is recorded and reviewed.**
 
 ## 10. Validation status
 
@@ -393,7 +444,14 @@ python3 phase2_attacks/eval_rhan.py \
     --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next \
                  trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
     --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300 \
-    --batch-size 64 --output-dir report/sweep_stage1_ais_v1
+    --pgd-steps 50 --batch-size 64 --output-dir report/sweep_stage1_ais_v1
+
+# Stage 1 PGD-100 spot-check (masking re-confirmation, eps=0.094 only):
+python3 phase2_attacks/eval_rhan.py \
+    --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next \
+                 trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
+    --seeds 41 42 43 44 45 --eps-list 0.094 --n-samples 300 --pgd-steps 100 \
+    --batch-size 64 --output-dir report/sweep_stage1_ais_v1_pgd100
 
 # Stage 2 (HPC on/off at fixed AIS-v1):
     ... rhan_next_ais_v1:...:next  rhan_next_hpc1:checkpoints/rhan_next_hpc1_best.pth:next
