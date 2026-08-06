@@ -151,16 +151,16 @@ def test_provenance_json_content(tmp_path):
         w.writerow(['ckpt_label', 'eps_pixel', 'eps_norm_R', 'eps_norm_G',
                     'eps_norm_B', 'acc_mean', 'acc_std',
                     'macro_dprime_mean', 'macro_dprime_std', 'n_seeds'])
-        w.writerow(['rhan_next_ais', '0.0', '0', '0', '0',
+        w.writerow(['rhan_next_ais_v1', '0.0', '0', '0', '0',
                     '50.0', '2.0', '1.5', '0.1', '5'])
-        w.writerow(['rhan_next_ais', '0.094', '0.094', '0.094', '0.094',
+        w.writerow(['rhan_next_ais_v1', '0.094', '0.094', '0.094', '0.094',
                     '25.0', '1.5', '0.6', '0.2', '5'])
         w.writerow(['trades_large_baseline', '0.094', '0.094', '0.094', '0.094',
                     '21.0', '0.5', '0.5', '0.1', '5'])
 
     with _argv('--seeds', '41', '42', '43', '44', '45',
                '--output-dir', str(out),
-               '--ckpt-specs', f'rhan_next_ais:{ckpt}:next',
+               '--ckpt-specs', f'rhan_next_ais_v1:{ckpt}:next',
                '--n-samples', '300', '--pgd-steps', '50',
                '--batch-size', '64', '--eps-list', '0.0', '0.094',
                '--baseline-label', 'trades_large_baseline'):

@@ -43,19 +43,21 @@ The ONLY extension over eval_full_epsilon_sweep.py is the arch registry:
 
 No other eval script may be added per stage (roadmap). Examples:
 
-    # Stage 1 validation (AIS vs v12 baseline) — 5-seed protocol:
+    # Stage 1 validation (AIS-v1: Relocated Equation II vs v12 baseline) —
+    # 5-seed protocol; the label rhan_next_ais_v1 flows into every result
+    # table row and eval_provenance.json:
     python3 phase2_attacks/eval_rhan.py --n-samples 300 --seeds 41 42 43 44 45 \
         --pgd-steps 50 --batch-size 64 --eps-norm-space --eps-list 0.0 0.094 \
         --baseline-label trades_large_baseline \
         --ckpt-specs \
           trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
           rhan_v12_baseline:checkpoints/rhan_v12_mixB_best.pth:v12 \
-          rhan_next_ais:checkpoints/rhan_next_ais_best.pth:next
+          rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next
 
     # Dev sanity (single seed — explicit escape hatch):
     python3 phase2_attacks/eval_rhan.py --allow-quick \
         --n-samples 50 --seeds 42 --pgd-steps 10 --eps-list 0.0 0.094 \
-        --ckpt-specs rhan_next_ais:checkpoints/rhan_next_ais_best.pth:next
+        --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next
 
     # Self-test (structural, against checked-in reference):
     python3 phase2_attacks/eval_rhan.py --self-test

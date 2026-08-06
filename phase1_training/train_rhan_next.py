@@ -303,8 +303,9 @@ def main():
     parser.add_argument('--force-single-gpu', action='store_true')
     # ── RHAN-Next pillar flags ───────────────────────────────────────────────
     parser.add_argument('--enable-ais', action='store_true',
-                        help='Pillar 2: info-gain gaze + entropy-gated halting '
-                             '+ precision-modulated recon weight (Stage 1)')
+                        help='Pillar 2: AIS-v1 = relocated Eq. II v12 gaze + '
+                             'entropy-gated halting + precision-modulated recon '
+                             'weight (Stage 1; replication-under-refactor control)')
     parser.add_argument('--enable-hpc', action='store_true',
                         help='Pillar 1: hierarchical predictive coding (Stage 2)')
     parser.add_argument('--hpc-num-levels', type=int, default=1,
@@ -346,7 +347,8 @@ def main():
         print(f"  Device: {device} | DDP: {is_ddp} (world_size={world_size})")
         print(f"  Config: {cfg}")
         if cfg.enable_ais:
-            print(f"    AIS: halt_threshold={cfg.ais_halt_threshold}, "
+            print(f"    AIS-v1 (Relocated Eq. II v12): "
+                  f"halt_threshold={cfg.ais_halt_threshold}, "
                   f"softness={cfg.ais_continuation_softness}")
         if cfg.enable_hpc:
             print(f"    HPC: levels={cfg.hpc_num_levels}, "

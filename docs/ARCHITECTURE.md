@@ -104,6 +104,20 @@ Gated behind `enable_ais=True`.
 
 ### 4.0 Mechanistic identity (honest Stage 1 claim — read before Stage 1 runs)
 
+> **RUN LABEL (must be used verbatim in every result table and paper draft
+> section referencing this run):**
+>
+> **"AIS-v1: Relocated Equation II (mechanistically identical to
+> v10/v11/v12's gaze update, refactored into the new interface). This is a
+> REPLICATION-UNDER-REFACTOR control, not a test of genuine information-gain
+> gaze."**
+>
+> Unqualified "AIS" or "information-gain" must NOT appear for this
+> checkpoint; "AIS" / "AIS-v2" is reserved for a future genuinely
+> forward-looking implementation. All run artifacts (checkpoint names,
+> diag paths, eval labels, output dirs) are named `rhan_next_ais_v1_*` so
+> the versioned label propagates automatically into eval result tables.
+
 `InformationGainGazePolicy.select_action()` is, at initialization,
 **mechanically identical to the v12 Eq. II v12 gaze update** — which is itself
 the v10/v11 "Eq. II" prediction-error gradient relocated into the new class
@@ -113,9 +127,9 @@ to the PIXEL-space error only, and v12 (which RHANNext inherits) is the
 re-scale initialized to the identity) and the precision-gain consumer
 (gain=1 → identical to v12).
 
-**Consequence for the Stage 1 hypothesis:** AIS-on behavior *starts* at v12's
-Eq. II v12 update; `step_net` and the precision gain are what training can
-move it away from. This is a clean-architecture + same-mechanism outcome,
+**Consequence for the Stage 1 hypothesis:** AIS-v1 behavior *starts* at
+v12's Eq. II v12 update; `step_net` and the precision gain are what training
+can move it away from. This is a clean-architecture + same-mechanism outcome,
 NOT a claim of literal expected-information-gain computation (no one-step-
 ahead uncertainty prediction exists). The class docstring states this plainly.
 
@@ -317,10 +331,10 @@ checkout is branch-gated on `feature/rhan-next` (it never resets to
 `origin/main`, which does not contain RHANNext).
 
 **Step A — Smoke test** (bounded, catches bugs before commitment):
-`train_rhan_next.py --enable-ais --ckpt-name rhan_next_ais_smoke
+`train_rhan_next.py --enable-ais --ckpt-name rhan_next_ais_v1_smoke
 --max-epochs 15 --target-ckpt checkpoints/rhan_stl10_large_pseudolabel_best.pth
 --batch-size 16 --accum-steps 16 --diag-json
-report/rhan_next_ais_smoke_diag.jsonl`. Epochs 1–15 all fall in phase 1, so
+report/rhan_next_ais_v1_smoke_diag.jsonl`. Epochs 1–15 all fall in phase 1, so
 ε = 0.031 only. Base checkpoint: the same one used for every prior isolation
 experiment (`rhan_stl10_large_pseudolabel_best.pth`).
 
@@ -333,11 +347,11 @@ and aborts Step B — with reasons — unless:
 3. `car` and `truck` are both in the top-2 Π_D per class (the ordering that
    has reproduced across every RHAN version — if it breaks, stop and debug).
 
-The verdict JSON is written to `report/rhan_next_ais_smoke_health.json`.
+The verdict JSON is written to `report/rhan_next_ais_v1_smoke_health.json`.
 `FORCE_STEP_B_OVERRIDE` exists as a debug escape and is documented as NOT
 for publishable numbers.
 
-**Step B — Full validated run**: same trainer, `--ckpt-name rhan_next_ais`,
+**Step B — Full validated run**: same trainer, `--ckpt-name rhan_next_ais_v1`,
 `--max-epochs 60`. The curriculum `(1-20 @0.031, 21-40 @0.062, 41-60 @0.094)`
 is byte-identical to `train_rhan_v11.py`'s — the exact boundaries of the
 null_ablation_v11 run that produced 31.56±2.88 @ ε=0.094 — so the result is
@@ -348,13 +362,16 @@ gate forbids silent restarts (no `--force-restart`).
 
 ```
 python3 phase2_attacks/eval_rhan.py \
-    --ckpt-specs rhan_next_ais:checkpoints/rhan_next_ais_best.pth:next \
+    --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next \
                  trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
     --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300
 ```
 
-The notebook then parses `report/sweep_stage1_ais/eval_provenance.json`
-(results + recomputed crossover verdicts) and records the outcome in
+The eval label is `rhan_next_ais_v1`, so every row of the result tables and
+`eval_provenance.json` carries the versioned AIS-v1 label (never unqualified
+"AIS"). The notebook then parses
+`report/sweep_stage1_ais_v1/eval_provenance.json` (results + recomputed
+crossover verdicts) and records the outcome in
 `docs/rhan_next_roadmap.json` under `stages.1.stage1_verdict` — a null result
 is a valid, reportable Stage 1 outcome. **Stage 2 (HPC) must not begin until
 this verdict is recorded and reviewed.**
@@ -371,15 +388,15 @@ this verdict is recorded and reviewed.**
 **Validation runs (not yet executed — require GPU hours and STL-10 data):**
 
 ```
-# Stage 1 (AIS vs baseline) — via the notebook (Step C):
+# Stage 1 (AIS-v1 vs baseline) — via the notebook (Step C):
 python3 phase2_attacks/eval_rhan.py \
-    --ckpt-specs rhan_next_ais:checkpoints/rhan_next_ais_best.pth:next \
+    --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next \
                  trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
     --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300 \
-    --batch-size 64 --output-dir report/sweep_stage1_ais
+    --batch-size 64 --output-dir report/sweep_stage1_ais_v1
 
-# Stage 2 (HPC on/off at fixed AIS):
-    ... rhan_next_ais:...:next  rhan_next_hpc1:checkpoints/rhan_next_hpc1_best.pth:next
+# Stage 2 (HPC on/off at fixed AIS-v1):
+    ... rhan_next_ais_v1:...:next  rhan_next_hpc1:checkpoints/rhan_next_hpc1_best.pth:next
 ```
 
 ### 10.1 Explicit statement on Pillars 3 & 4 (Stage 3 requirement)
@@ -398,10 +415,13 @@ Pillars 3 (SBR) and 4 (IWM) remain **unimplemented**; their interfaces were not 
   early exit deferred) to keep batch graphs stable and the gradient tests
   deterministic.
 - **Stage 1 is a clean-architecture outcome, not a new mechanism.** The
-  AIS gaze policy is mechanically identical to v12's Eq. II v12 update at
+  AIS-v1 gaze policy is mechanically identical to v12's Eq. II v12 update at
   initialization (itself the v10/v11 Eq. II gradient); only `step_net`
   (identity init) and the precision gain differentiate it after training
-  (see §4.0). The Stage 1 verdict must be read with this honest scope.
+  (see §4.0). The Stage 1 verdict must be read with this honest scope and
+  labeled **AIS-v1: Relocated Equation II — a replication-under-refactor
+  control, not a test of genuine information-gain gaze** in every result
+  table and paper draft section.
 - **Training lives in the cloud notebook.** `cloud_setup/colab_notebook_noesis.py`
   hosts Steps A–C because the 4060 cannot finish even the smoke in < 1 h
   (measured ~2.7–9.2 epochs/hour). The notebook is branch-gated on
