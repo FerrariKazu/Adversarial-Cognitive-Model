@@ -211,6 +211,94 @@ if not os.path.exists(BASE):
                     local_dir="checkpoints", token=hf_token)
 print(f"✓ base checkpoint present: {BASE} ({os.path.getsize(BASE)/1e6:.0f} MB)", flush=True)
 
+# ── Resume-gate helpers (NEVER-RESTART GUARANTEE, v12-parity) ─────────────
+# Colab wipes /content between sessions, so local checkpoints + telemetry
+# survive only within a session. The HF rolling repo is the SINGLE source of
+# truth for training progress. These helpers make the NOTEBOOK itself
+# resume-aware so a restarted session can never force-restart and never
+# silently restart from the base checkpoint.
+
+def hf_rolling_epoch(ckpt_name):
+    """Epoch of <ckpt_name>_rolling.pth on HF, or None if not present."""
+    try:
+        from huggingface_hub import hf_hub_download
+        p = hf_hub_download(repo_id="FerrariKazu/rhan-checkpoints-rolling",
+                            filename=f"{ckpt_name}_rolling.pth",
+                            repo_type="dataset", token=hf_token)
+        return torch.load(p, map_location="cpu", weights_only=False).get("epoch")
+    except Exception as e:
+        print(f"  [resume-gate] could not read HF epoch for {ckpt_name}: {e}",
+              flush=True)
+        return None
+
+
+def hf_list_rolling():
+    """Set of filenames currently on the HF rolling repo (best-effort)."""
+    try:
+        from huggingface_hub import HfApi
+        return set(HfApi(token=hf_token).list_repo_files(
+            repo_id="FerrariKazu/rhan-checkpoints-rolling", repo_type="dataset"))
+    except Exception as e:
+        print(f"  [resume-gate] HF rolling repo listing failed: {e}", flush=True)
+        return set()
+
+
+def download_hf_verdict():
+    """Smoke health verdict synced to HF by a prior session, or None."""
+    try:
+        from huggingface_hub import hf_hub_download
+        p = hf_hub_download(repo_id="FerrariKazu/rhan-checkpoints-rolling",
+                            filename="rhan_next_ais_v1_smoke_health.json",
+                            repo_type="dataset", token=hf_token)
+        with open(p) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def upload_hf_verdict(verdict):
+    """Sync the smoke health verdict to HF so a restarted session can restore it."""
+    try:
+        from huggingface_hub import HfApi
+        HfApi(token=hf_token).upload_file(
+            path_or_fileobj="report/rhan_next_ais_v1_smoke_health.json",
+            path_in_repo="rhan_next_ais_v1_smoke_health.json",
+            repo_id="FerrariKazu/rhan-checkpoints-rolling",
+            repo_type="dataset", token=hf_token)
+        print("  ✓ smoke health verdict synced to HF (survives session restarts)",
+              flush=True)
+    except Exception as e:
+        print(f"  WARNING: could not sync health verdict to HF: {e}", flush=True)
+
+
+def verify_no_restart(ckpt_name, pre_epoch):
+    """After a training run, assert the rolling epoch did NOT go backward.
+
+    A backward epoch means a silent force-restart happened — a FATAL protocol
+    violation (matches colab_v12_step0.py's verify_no_restart).
+    """
+    local = f"checkpoints/{ckpt_name}_rolling.pth"
+    ep = None
+    if os.path.exists(local):
+        try:
+            ep = torch.load(local, map_location="cpu",
+                            weights_only=False).get("epoch")
+        except Exception as e:
+            print(f"  [resume-gate] could not read {local}: {e}", flush=True)
+    print(f"  [resume-gate] post-train {ckpt_name} rolling epoch: {ep}", flush=True)
+    if pre_epoch is None:
+        # The pre-run HF epoch could not be read (HF unreachable at that
+        # moment, or no rolling checkpoint existed yet). Warn loudly instead
+        # of silently skipping the regression check.
+        print(f"  [resume-gate] WARNING: pre-run HF epoch unknown for {ckpt_name} "
+              f"— backward-epoch regression check SKIPPED this run. (The "
+              f"trainer's own mandatory HF resume gate still protects against "
+              f"silent restarts.)", flush=True)
+    elif ep is None or ep < pre_epoch:
+        raise RuntimeError(
+            f"[resume-gate] FATAL: {ckpt_name} went BACKWARD (epoch {ep} < HF "
+            f"epoch {pre_epoch}). A force-restart happened — aborting.")
+
 # %% [markdown]
 # ## Step 5 — STEP A: SMOKE TEST (10-15 epochs, ε=0.031 single phase)
 
@@ -220,6 +308,11 @@ print("  STEP A: RHANNext AIS-v1 (Relocated Eq. II) SMOKE — %d epochs, ε=0.03
 print("="*70)
 
 if DO_STEP_A and not SKIP_TRAINING:
+    # Resume gate: NEVER --force-restart. If a smoke rolling checkpoint exists
+    # on HF (previous session), train_rhan_next.py restores it or aborts.
+    pre_a_epoch = hf_rolling_epoch("rhan_next_ais_v1_smoke")
+    print(f"  [resume-gate] pre-Step-A HF rolling epoch: {pre_a_epoch}",
+          flush=True)
     run(
         f"python3 phase1_training/train_rhan_next.py "
         f"--enable-ais "
@@ -230,6 +323,7 @@ if DO_STEP_A and not SKIP_TRAINING:
         f"--diag-json report/rhan_next_ais_v1_smoke_diag.jsonl "
         f"--force-single-gpu"
     )
+    verify_no_restart("rhan_next_ais_v1_smoke", pre_a_epoch)
 else:
     print("  (Step A skipped: DO_STEP_A=False or SKIP_TRAINING=True)", flush=True)
 
@@ -335,7 +429,58 @@ for r in rows:
           f"| eff_steps mean={r.get('steps_effective_mean')} std={r.get('steps_effective_std')} "
           f"| frac_halted={r.get('frac_halted_any')}", flush=True)
 
-verdict = health_verdict(rows)
+# ── Resume-aware gate ─────────────────────────────────────────────────────
+# If this session ran Step A, rows holds fresh telemetry -> normal path. If
+# rows is empty, /content was wiped (session restart): decide from HF state
+# so a restart can NEVER force-restart and NEVER blocks the auto-resume.
+verdict = None
+if rows:
+    verdict = health_verdict(rows)
+else:
+    hf_files = hf_list_rolling()
+    if "rhan_next_ais_v1_rolling.pth" in hf_files:
+        # Step B already started in a prior session and passed this gate.
+        verdict = {"healthy": True, "resume": True,
+                   "reasons": ["Step B rolling checkpoint exists on HF — a prior "
+                               "session already passed this gate. Step B will "
+                               "resume from HF (never a restart)."]}
+    elif "rhan_next_ais_v1_smoke_rolling.pth" in hf_files:
+        # Smoke rolling exists on HF. Only treat it as "smoke completed in a
+        # prior session" if it actually reached SMOKE_EPOCHS — an interrupted
+        # smoke (epoch < SMOKE_EPOCHS) must NOT be misclassified as done.
+        smoke_epoch = hf_rolling_epoch("rhan_next_ais_v1_smoke")
+        if smoke_epoch is None or smoke_epoch < SMOKE_EPOCHS:
+            verdict = {"healthy": False, "resume": True,
+                       "reasons": [f"smoke rolling checkpoint on HF is at epoch "
+                                   f"{smoke_epoch} < SMOKE_EPOCHS={SMOKE_EPOCHS} — "
+                                   f"smoke did not complete in the prior session. "
+                                   f"Re-run Step A (it will resume from HF, not "
+                                   f"force-restart)."]}
+        else:
+            # Smoke completed; restore its verdict if synced.
+            prior = download_hf_verdict()
+            if prior is not None:
+                verdict = dict(prior)
+                verdict["healthy"] = bool(prior.get("healthy"))
+                verdict["resume"] = True
+                verdict["reasons"] = (["Smoke completed in a prior session; health "
+                                       "verdict restored from HF."]
+                                      + list(prior.get("reasons", [])))
+            else:
+                print("\n  WARNING: smoke completed in a prior session but its health "
+                      "verdict was NOT synced to HF. Smoke demonstrably ran to "
+                      "completion; proceeding with gate evidence lost.\n", flush=True)
+                verdict = {"healthy": True, "resume": True,
+                           "reasons": ["Smoke rolling checkpoint completed on HF, but "
+                                       "the prior session's health-verdict file is "
+                                       "missing. Proceeding — evidence lost, not "
+                                       "evidence of a problem."]}
+    else:
+        verdict = {"healthy": False, "resume": False,
+                   "reasons": ["no local --diag-json rows AND no smoke or Step-B "
+                               "rolling checkpoint on HF — Step A never completed "
+                               "successfully. Re-run Step A."]}
+
 print("\n" + "="*70)
 print("  STEP A HEALTH VERDICT:", "HEALTHY — proceed to Step B" if verdict["healthy"]
       else "DEGENERATE — STOP and debug before spending the full run")
@@ -347,6 +492,10 @@ print("="*70)
 with open("report/rhan_next_ais_v1_smoke_health.json", "w") as f:
     json.dump(verdict, f, indent=2, sort_keys=True)
 print("  Health verdict written to report/rhan_next_ais_v1_smoke_health.json", flush=True)
+# Sync the verdict to HF so a restarted session can restore it instead of
+# re-running Step A (or worse, being blocked by a missing local diag file).
+if not verdict.get("resume"):
+    upload_hf_verdict(verdict)
 
 PROCEED_STEP_B = verdict["healthy"] or FORCE_STEP_B_OVERRIDE
 if not PROCEED_STEP_B:
@@ -366,7 +515,11 @@ if DO_STEP_B and not SKIP_TRAINING and PROCEED_STEP_B:
     # Curriculum (1-20 @0.031, 21-40 @0.062, 41-60 @0.094) is identical to
     # train_rhan_v11.py's — the exact boundaries of null_ablation_v11
     # (31.56±2.88 @ ε=0.094). NEVER --force-restart: the trainer's mandatory
-    # HF resume gate restores/aborts instead of silently restarting.
+    # HF resume gate restores/aborts instead of silently restarting, and the
+    # notebook's own verify_no_restart below asserts the epoch only went forward.
+    pre_b_epoch = hf_rolling_epoch("rhan_next_ais_v1")
+    print(f"  [resume-gate] pre-Step-B HF rolling epoch: {pre_b_epoch}",
+          flush=True)
     run(
         f"python3 phase1_training/train_rhan_next.py "
         f"--enable-ais "
@@ -377,6 +530,7 @@ if DO_STEP_B and not SKIP_TRAINING and PROCEED_STEP_B:
         f"--diag-json report/rhan_next_ais_v1_diag.jsonl "
         f"--force-single-gpu"
     )
+    verify_no_restart("rhan_next_ais_v1", pre_b_epoch)
 else:
     print("  (Step B skipped: DO_STEP_B=False, SKIP_TRAINING=True, or health gate blocked)",
           flush=True)
