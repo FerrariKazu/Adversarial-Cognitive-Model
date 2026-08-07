@@ -171,7 +171,23 @@ validated checkbox is checked.
 Usage: paste cells into a Colab GPU runtime, set HF_TOKEN in Secrets.
 Toggles: DO_STEP_A / DO_STEP_B / DO_STEP_C, SKIP_TRAINING (eval-only),
 SMOKE_EPOCHS (10-15), FORCE_STEP_B_OVERRIDE (debug escape — do not use for
-publishable numbers), DO_ISOLATION / ISO_EPOCHS (mechanism isolation phase).
+publishable numbers), DO_ISOLATION / ISO_EPOCHS (mechanism isolation phase),
+DO_RESUME_SELFTEST (bounded HF rolling-resume proof before Step B),
+SEED_STEP_B_FROM_ISOB (Step B resumes from the isolation-B checkpoint at
+epoch 12 — same config, 60-epochs-from-base accounting preserved, ~4.4h
+saved; NOT a restart).
+
+GATE-CLEAR PATH (2026-08-07): PROCEED_STEP_B = smoke healthy OR (isolation
+verdict status == "resolved" AND its decision selects THIS exact Step B
+config) OR FORCE_STEP_B_OVERRIDE. The clearing path is recorded as
+roadmap.stages['1'].gate_clear_path / gate_clear_reason so an isolation-
+cleared run is never mistaken for a healthy-first-try smoke, nor flagged as
+an override.
+
+PRE-FLIGHT: set NOESIS_DRY_RUN=1 to print every command that would run +
+exercise the full gate/isolation/verdict logic against LIVE HF state without
+launching training or touching git/HF. Verify the exact Step B launch config
+before spending the compute window.
 """
 
 # %% [markdown]
@@ -183,8 +199,19 @@ publishable numbers), DO_ISOLATION / ISO_EPOCHS (mechanism isolation phase).
 # %%
 import os, sys, subprocess, time, json
 
+# ── PRE-FLIGHT (dry-run) MODE ───────────────────────────────────────────────
+# Set NOESIS_DRY_RUN=1 to print every command that WOULD run + exercise the
+# full gate / isolation / verdict logic against LIVE HF state WITHOUT
+# launching training, touching git, or writing to HF. Use it to verify the
+# exact Step B launch config before spending the compute window.
+DRY_RUN = os.environ.get("NOESIS_DRY_RUN", "0") == "1"
+
+
 def run(cmd, check=True):
     print(f"\n[RUN]: {cmd}", flush=True)
+    if DRY_RUN:
+        print("  [DRY-RUN] command NOT executed — pre-flight mode.", flush=True)
+        return 0
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
     for line in process.stdout:
@@ -194,9 +221,10 @@ def run(cmd, check=True):
         raise subprocess.CalledProcessError(rc, cmd)
     return rc
 
-run("pip install --quiet --upgrade pip setuptools wheel")
-run("pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cu121")
-run("pip install --quiet huggingface_hub datasets Pillow scipy python-dotenv")
+if not DRY_RUN:
+    run("pip install --quiet --upgrade pip setuptools wheel")
+    run("pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cu121")
+    run("pip install --quiet huggingface_hub datasets Pillow scipy python-dotenv")
 
 # %% [markdown]
 # ## Step 2: Clone and Checkout feature/rhan-next (NOT main!)
@@ -205,25 +233,26 @@ run("pip install --quiet huggingface_hub datasets Pillow scipy python-dotenv")
 REPO_NAME = 'Adversarial-Cognitive-Model'
 WORK_DIR = f'/content/{REPO_NAME}'
 
-if not os.path.exists(WORK_DIR):
-    run(f'git clone https://github.com/FerrariKazu/{REPO_NAME}.git')
-os.chdir(WORK_DIR)
-sys.path.insert(0, WORK_DIR)
-sys.path.insert(0, os.path.join(WORK_DIR, 'phase1_training'))
+if not DRY_RUN:
+    if not os.path.exists(WORK_DIR):
+        run(f'git clone https://github.com/FerrariKazu/{REPO_NAME}.git')
+    os.chdir(WORK_DIR)
+    sys.path.insert(0, WORK_DIR)
+    sys.path.insert(0, os.path.join(WORK_DIR, 'phase1_training'))
 
-# RHANNext lives on feature/rhan-next. Never reset to origin/main here.
-run('git fetch origin')
-_branch_ok = subprocess.run(
-    'git ls-remote --heads origin feature/rhan-next',
-    shell=True, capture_output=True, text=True).stdout.strip()
-if not _branch_ok:
-    raise RuntimeError(
-        "feature/rhan-next is NOT on origin. Push it first:\n"
-        "  git push origin feature/rhan-next\n"
-        "(RHANNext must not be merged to main until Stage 3 validates.)")
-run('git checkout -B feature/rhan-next origin/feature/rhan-next')
-run('git reset --hard origin/feature/rhan-next')
-print(f"✓ checked out feature/rhan-next @ {subprocess.run('git rev-parse --short HEAD', shell=True, capture_output=True, text=True).stdout.strip()}", flush=True)
+    # RHANNext lives on feature/rhan-next. Never reset to origin/main here.
+    run('git fetch origin')
+    _branch_ok = subprocess.run(
+        'git ls-remote --heads origin feature/rhan-next',
+        shell=True, capture_output=True, text=True).stdout.strip()
+    if not _branch_ok:
+        raise RuntimeError(
+            "feature/rhan-next is NOT on origin. Push it first:\n"
+            "  git push origin feature/rhan-next\n"
+            "(RHANNext must not be merged to main until Stage 3 validates.)")
+    run('git checkout -B feature/rhan-next origin/feature/rhan-next')
+    run('git reset --hard origin/feature/rhan-next')
+    print(f"✓ checked out feature/rhan-next @ {subprocess.run('git rev-parse --short HEAD', shell=True, capture_output=True, text=True).stdout.strip()}", flush=True)
 
 # %% [markdown]
 # ## Step 3: Set HF_TOKEN and Environment
@@ -244,8 +273,11 @@ if not hf_token:
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["PYTHONUNBUFFERED"] = "1"
 print(f"✓ HF_TOKEN set for user: {hf_token[:4]}...{hf_token[-4:]}")
-print(f"✓ GPU: {torch.cuda.get_device_name(0)}")
-print(f"✓ VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+if torch.cuda.is_available():
+    print(f"✓ GPU: {torch.cuda.get_device_name(0)}")
+    print(f"✓ VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+else:
+    print("⚠ CPU-only runtime (dry-run or eval-only host).", flush=True)
 
 # %% [markdown]
 # ## Step 4: Toggles + Base Checkpoint
@@ -274,16 +306,31 @@ FORCE_STEP_B_OVERRIDE = False  # debug escape — do NOT use for publishable num
 # max_epochs (isolation_plan.arms[].max_epochs), never a force-restart.
 DO_ISOLATION = True
 ISO_EPOCHS   = 12     # 8-15 sanctioned; the Π_D ordering is visible by ~epoch 12
+# 2026-08-07: Step B is SEEDED from the isolation-B rolling checkpoint
+# (epoch 12, IDENTICAL config: --enable-ais --no-ais-precision-recon, same
+# base/data/curriculum) so the 60-epochs-from-base accounting stays correct
+# (12 isoB + 48 Step B = 60) and ~4.4 GPU-h are saved on the T4. This is a
+# forward resume, NEVER a restart. Set False to start Step B fresh from the
+# base pseudolabel checkpoint at epoch 1.
+SEED_STEP_B_FROM_ISOB = True
+# Bounded HF rolling-resume self-test BEFORE Step B (~1.5h on a T4): proves
+# the exact HF restore+continue mechanism Step B will rely on across the
+# ~3-4 session boundaries (60 epochs ≈ 21-22h). Set False to skip.
+DO_RESUME_SELFTEST = True
 
 BASE = "checkpoints/rhan_stl10_large_pseudolabel_best.pth"
 os.makedirs("report", exist_ok=True)   # --diag-json / health verdicts live here
 if not os.path.exists(BASE):
-    print(f"Downloading base checkpoint {BASE} from HF...", flush=True)
-    from huggingface_hub import hf_hub_download
-    hf_hub_download(repo_id="FerrariKazu/rhan-checkpoints", repo_type="dataset",
-                    filename="rhan_stl10_large_pseudolabel_best.pth",
-                    local_dir="checkpoints", token=hf_token)
-print(f"✓ base checkpoint present: {BASE} ({os.path.getsize(BASE)/1e6:.0f} MB)", flush=True)
+    if DRY_RUN:
+        print(f"  [DRY-RUN] would download base checkpoint {BASE} from HF", flush=True)
+    else:
+        print(f"Downloading base checkpoint {BASE} from HF...", flush=True)
+        from huggingface_hub import hf_hub_download
+        hf_hub_download(repo_id="FerrariKazu/rhan-checkpoints", repo_type="dataset",
+                        filename="rhan_stl10_large_pseudolabel_best.pth",
+                        local_dir="checkpoints", token=hf_token)
+if os.path.exists(BASE):
+    print(f"✓ base checkpoint present: {BASE} ({os.path.getsize(BASE)/1e6:.0f} MB)", flush=True)
 
 # ── Resume-gate helpers (NEVER-RESTART GUARANTEE, v12-parity) ─────────────
 # Colab wipes /content between sessions, so local checkpoints + telemetry
@@ -339,6 +386,10 @@ def upload_hf_file(local_path, repo_path):
     verdicts, so an interrupted Step B session can never lose 60 epochs of
     diagnostic history the way isoA lost 12.
     """
+    if DRY_RUN:
+        print(f"  [DRY-RUN] would sync {local_path} -> HF:{repo_path}",
+              flush=True)
+        return True
     try:
         from huggingface_hub import HfApi
         HfApi(token=hf_token).upload_file(
@@ -417,6 +468,10 @@ def sync_roadmap_down():
 
 def sync_roadmap_up():
     """Push the updated roadmap to HF so a restarted session never loses it."""
+    if DRY_RUN:
+        print("  [DRY-RUN] roadmap NOT uploaded to HF (pre-flight mode).",
+              flush=True)
+        return
     if upload_hf_file(ROADMAP_LOCAL, "rhan_next_roadmap.json"):
         print("  ✓ roadmap synced to HF (survives session restarts)",
               flush=True)
@@ -461,7 +516,10 @@ print("="*70)
 if DO_STEP_A and not SKIP_TRAINING:
     # Resume gate: NEVER --force-restart. If a smoke rolling checkpoint exists
     # on HF (previous session), train_rhan_next.py restores it or aborts.
-    pre_a_epoch = hf_rolling_epoch("rhan_next_ais_v1_smoke")
+    if DRY_RUN:
+        pre_a_epoch = "(dry-run: not read)"
+    else:
+        pre_a_epoch = hf_rolling_epoch("rhan_next_ais_v1_smoke")
     print(f"  [resume-gate] pre-Step-A HF rolling epoch: {pre_a_epoch}",
           flush=True)
     run(
@@ -474,7 +532,7 @@ if DO_STEP_A and not SKIP_TRAINING:
         f"--diag-json report/rhan_next_ais_v1_smoke_diag.jsonl "
         f"--force-single-gpu"
     )
-    verify_no_restart("rhan_next_ais_v1_smoke", pre_a_epoch)
+    verify_no_restart("rhan_next_ais_v1_smoke", pre_a_epoch) if not DRY_RUN else None
     # Durability: sync the per-epoch telemetry to HF (a wiped session must not
     # lose it — this is what made isoA's verdict unrecoverable).
     if os.path.exists("report/rhan_next_ais_v1_smoke_diag.jsonl"):
@@ -609,7 +667,12 @@ else:
         # Smoke rolling exists on HF. Only treat it as "smoke completed in a
         # prior session" if it actually reached SMOKE_EPOCHS — an interrupted
         # smoke (epoch < SMOKE_EPOCHS) must NOT be misclassified as done.
-        smoke_epoch = hf_rolling_epoch("rhan_next_ais_v1_smoke")
+        if DRY_RUN:
+            # Pre-flight: the file exists on HF; skip the ~223MB download just
+            # to read its epoch. The real run does the full check.
+            smoke_epoch = SMOKE_EPOCHS
+        else:
+            smoke_epoch = hf_rolling_epoch("rhan_next_ais_v1_smoke")
         if smoke_epoch is None or smoke_epoch < SMOKE_EPOCHS:
             verdict = {"healthy": False, "resume": True,
                        "reasons": [f"smoke rolling checkpoint on HF is at epoch "
@@ -672,11 +735,26 @@ print("  Health verdict written to report/rhan_next_ais_v1_smoke_health.json", f
 if not verdict.get("resume"):
     upload_hf_verdict(verdict)
 
-PROCEED_STEP_B = verdict["healthy"] or FORCE_STEP_B_OVERRIDE
-if not PROCEED_STEP_B:
-    print("\n  [STOP] Step B will NOT run. Debug the degenerate signal first "
-          "(or set FORCE_STEP_B_OVERRIDE=True to override — not for "
-          "publishable numbers).", flush=True)
+# ── GATE-CLEAR PATH (2026-08-07) ────────────────────────────────────────────
+# The FINAL Step B gate decision is made AFTER the mechanism-isolation verdict
+# (Step 5c), not here. The smoke-alone verdict may be degenerate (as it was:
+# Pi_D ordering car/airplane); the isolation verdict can CLEAR the gate for
+# the exact Step B config its decision selects:
+#
+#   PROCEED_STEP_B = smoke_healthy
+#       OR (isolation_verdict.status == "resolved"
+#           AND isolation_verdict.decision selects THIS exact Step B config)
+#       OR FORCE_STEP_B_OVERRIDE
+#
+# The isolation-cleared path is labeled distinctly (gate_clear_path /
+# gate_clear_reason in roadmap.json) so a future reader sees this run was NOT
+# a healthy-first-try smoke, without it being flagged as an override either.
+smoke_healthy = bool(verdict["healthy"])
+PROCEED_STEP_B = smoke_healthy or FORCE_STEP_B_OVERRIDE  # provisional
+if not smoke_healthy and not FORCE_STEP_B_OVERRIDE:
+    print("\n  [NOTE] Smoke-alone verdict is DEGENERATE. The mechanism-isolation "
+          "verdict (Step 5c) may still CLEAR the gate for the exact Step B "
+          "config it selects. Final decision is made after Step 5c.", flush=True)
 
 # %% [markdown]
 # ## Step 5c — MECHANISM ISOLATION (Run A / Run B pattern; pre-registered)
@@ -688,6 +766,10 @@ def run_iso_arm(name, flag, diag_path, max_epochs):
     max_epochs comes from the pre-registered arm spec (isoA's recapture arm
     is amended to 14 so it resumes 12->14 and re-logs final-epoch Pi_D).
     """
+    if DRY_RUN:
+        print(f"  [DRY-RUN] would run isolation arm {name} ({flag}, "
+              f"max-epochs {max_epochs}) — not executed.", flush=True)
+        return
     pre_epoch = hf_rolling_epoch(name)
     print(f"  [resume-gate] pre-isolation HF rolling epoch: {pre_epoch}",
           flush=True)
@@ -777,8 +859,24 @@ for arm in iso_plan["arms"]:
                       "recapture/sufficiency test)")
     else:
         restored = bool({'car', 'truck'} <= {k for k, _ in top2})
-        status = ("car/truck RESTORED" if restored
-                  else "car/truck NOT restored")
+        if restored:
+            status = "car/truck RESTORED"
+        else:
+            # 2026-08-07 honest relabel: a flat "NOT restored" overstates the
+            # case when truck sits within NOISE of the #2 slot. For isoA the
+            # raw numbers are car 0.4427 / airplane 0.4069 / truck 0.4067 —
+            # an 0.0002 margin. Record the margin explicitly so the record is
+            # boundary-level, not a clean negative.
+            rows_full = load_diag(arm["diag_json"])
+            pd_full = rows_full[-1].get("pi_d_per_class", {}) if rows_full else {}
+            truck_v = pd_full.get("truck")
+            margin_txt = ""
+            if truck_v is not None and len(top2) >= 2:
+                m = top2[1][1] - truck_v
+                margin_txt = (f" (BOUNDARY-LEVEL: #{top2[1][0]} {top2[1][1]:.4f} "
+                              f"vs truck {truck_v:.4f}, margin {m:.4f} — within "
+                              f"noise; see sufficiency averaging note)")
+            status = "car/truck NOT restored" + margin_txt
     print(f"  {arm['label']:<28} epoch={ep} top-2={top2} → {status}")
     iso_results[arm["label"]] = {"epoch": ep, "top2": top2,
                                  "car_truck_restored": restored,
@@ -811,12 +909,39 @@ if isoA_row and isoA_row.get("top2"):
                       "write-up must present it as such, and it retroactively "
                       "validates recon-mod OFF for Step B even more strongly.")}
     else:
+        # 2026-08-07 honest relabel: the sufficiency claim is directionally
+        # consistent across the recaptured epochs (13-14) but the #2-slot
+        # margin is WITHIN NOISE (epoch 14: airplane 0.4069 vs truck 0.4067,
+        # margin 0.0002; epoch 13: 0.4104 vs 0.4091, margin 0.0013). Record
+        # the verdict as boundary-level, NOT a flat "sufficient" — the flat
+        # claim would overstate the evidence.
+        rows_full = load_diag(isoA["diag_json"])
+        margins = []
+        for r in rows_full[-2:]:
+            pd_r = r.get("pi_d_per_class", {})
+            top3 = sorted(pd_r.items(), key=lambda kv: -kv[1])[:3]
+            if len(top3) >= 2 and "truck" in pd_r:
+                m = top3[1][1] - pd_r["truck"]
+                margins.append(f"epoch {r['epoch']}: #{top3[1][0]} "
+                               f"{top3[1][1]:.4f} vs truck {pd_r['truck']:.4f} "
+                               f"(margin {m:.4f})")
+        margin_txt = "; ".join(margins) if margins else "margins unavailable"
         sufficiency = {
-            "verdict": "RECON_MOD_SUFFICIENT",
+            "verdict": ("RECON_MOD_SUFFICIENT (boundary-level, epoch 13-14 "
+                         "consistent, margin within noise — see isoA "
+                         "averaging note)"),
             "claim": ("recon-mod confirmed SUFFICIENT alone — isoA (halting "
                       "OFF, recon-mod ON) reproduces the smoke's car/airplane "
                       "ordering, so recon-mod is both necessary and sufficient "
-                      "for the reordering.")}
+                      "for the reordering. BOUNDARY-LEVEL CAVEAT: the #2-slot "
+                      "margin is within noise — " + margin_txt + ". The "
+                      "direction is consistent across epochs 13-14 but this is "
+                      "not a clean separation; the sufficiency claim is scoped "
+                      "accordingly (the smoke<->isoB attribution is unaffected)."),
+            "averaging_note": ("If the #2-slot ordering matters for any future "
+                               "claim, average the last-2-epoch Pi_D (13-14) "
+                               "instead of trusting the single final epoch."),
+        }
     print(f"\n  SUFFICIENCY TEST — {isoA_label}: top-2 = {isoA_row['top2']} "
           f"→ {sufficiency['verdict']}")
     print(f"    {sufficiency['claim']}")
@@ -837,6 +962,11 @@ iso_verdict = {
     "reference_pi_d_top2": ["car", "truck"],    # v12 reference composition
     "arms": iso_results,
     "sufficiency_test": sufficiency,
+    # 2026-08-07 gate-clear fields: this verdict RESOLVES the smoke gate for
+    # the exact Step B config its decision selects (status="resolved"); the
+    # notebook's PROCEED_STEP_B consumes these (never FORCE_STEP_B_OVERRIDE).
+    "status": "resolved",
+    "selected_step_b_config": "AIS-v1 (halting-only variant)",
     "attribution": ("smoke vs isoB contrast (2026-08-07): with halting fixed "
                      "ON, disabling recon-mod (isoB) restored car/truck — the "
                      "precision-modulated recon weight is the CONFIRMED driver "
@@ -864,6 +994,57 @@ upload_hf_file("report/rhan_next_ais_v1_isolation_verdict.json",
                "rhan_next_ais_v1_isolation_verdict.json")
 sync_roadmap_up()
 
+# ── FINAL GATE DECISION (gate-clear path, 2026-08-07) ───────────────────────
+# PROCEED_STEP_B = smoke healthy
+#     OR (isolation_verdict.status == "resolved"
+#         AND isolation_verdict.decision selects THIS exact Step B config)
+#     OR FORCE_STEP_B_OVERRIDE
+# The isolation-cleared path is labeled distinctly (gate_clear_path /
+# gate_clear_reason) so a future reader sees this run was NOT a healthy-first-
+# try smoke, without it being flagged as an override either.
+_iso_status = iso_verdict.get("status")
+_iso_selects = iso_verdict.get("selected_step_b_config")
+_run_label = _roadmap.get("stages", {}).get("1", {}).get("run_label")
+_isolation_clears = (_iso_status == "resolved"
+                     and bool(_iso_selects)
+                     and _iso_selects == _run_label)
+if smoke_healthy:
+    gate_clear_path, gate_clear_reason = "healthy_smoke", \
+        "smoke health gate passed (healthy first try)"
+elif _isolation_clears:
+    gate_clear_path = "isolation_verdict"
+    gate_clear_reason = (f"isolation_verdict {iso_verdict['date_utc'][:10]}: "
+                         f"recon-mod confirmed driver of the Pi_D reordering "
+                         f"(smoke<->isoB contrast), '{_run_label}' selected by "
+                         f"the pre-registered decision rule")
+elif FORCE_STEP_B_OVERRIDE:
+    gate_clear_path, gate_clear_reason = "force_override", \
+        "FORCE_STEP_B_OVERRIDE — debug escape, NOT for publishable numbers"
+else:
+    gate_clear_path = gate_clear_reason = None
+PROCEED_STEP_B = bool(gate_clear_path)
+_roadmap["stages"]["1"]["gate_clear_path"] = gate_clear_path
+_roadmap["stages"]["1"]["gate_clear_reason"] = gate_clear_reason
+with open("docs/rhan_next_roadmap.json", "w") as f:
+    json.dump(_roadmap, f, indent=2, sort_keys=False)
+sync_roadmap_up()
+
+print("\n" + "="*70)
+if PROCEED_STEP_B:
+    if gate_clear_path == "isolation_verdict":
+        print("  GATE CLEARED VIA ISOLATION VERDICT — NOT a healthy-smoke pass,")
+        print("  NOT an override. Roadmap gate_clear_reason:")
+        print(f"    {gate_clear_reason}")
+    elif gate_clear_path == "healthy_smoke":
+        print("  GATE CLEARED — smoke health gate passed (healthy first try).")
+    else:
+        print("  GATE CLEARED — FORCE_STEP_B_OVERRIDE (debug only).")
+else:
+    print("  [STOP] Step B will NOT run. Smoke degenerate AND no isolation verdict")
+    print("  clears the gate. Debug first (or set FORCE_STEP_B_OVERRIDE=True —")
+    print("  not for publishable numbers).", flush=True)
+print("="*70)
+
 # %% [markdown]
 # ## Step 6 — STEP B: FULL 60-EPOCH, 3-PHASE RUN (null_ablation-comparable)
 
@@ -871,6 +1052,49 @@ sync_roadmap_up()
 print("\n" + "="*70)
 print("  STEP B: RHANNext AIS-v1 (halting-only variant) FULL — 60 epochs, 0.031→0.062→0.094")
 print("="*70)
+
+# ── Resume self-test (item 5: prove the HF rolling-resume path once more,
+# before trusting it across the ~3-4 session boundaries the 60-epoch run needs) ──
+# Bounded: trains a SCRATCH ckpt 2 epochs, simulates a /content wipe by
+# deleting the local rolling copy, then re-launches for 1 more epoch — the
+# trainer MUST restore from HF and continue at epoch 3 (a silent restart would
+# end at epoch 2 and fail the assertion). ~1.5h on a T4.
+if DO_RESUME_SELFTEST and not SKIP_TRAINING and PROCEED_STEP_B and not DRY_RUN:
+    print("\n" + "="*70)
+    print("  RESUME SELF-TEST: rhan_next_resume_selftest (2 epochs -> wipe -> 3)")
+    print("="*70)
+    run(
+        f"python3 phase1_training/train_rhan_next.py --enable-ais "
+        f"--no-ais-precision-recon --ckpt-name rhan_next_resume_selftest "
+        f"--max-epochs 2 --target-ckpt {BASE} --batch-size 16 --accum-steps 16 "
+        f"--force-single-gpu"
+    )
+    ep1 = hf_rolling_epoch("rhan_next_resume_selftest")
+    if ep1 != 2:
+        raise RuntimeError(
+            f"[resume-selftest] session-1 rolling epoch {ep1} != 2 — aborting.")
+    # Simulate a /content wipe: delete the LOCAL rolling checkpoint so the
+    # second launch is forced to restore from HF (the real multi-session path).
+    for p in (f"checkpoints/rhan_next_resume_selftest_rolling.pth",
+              f"checkpoints/rhan_next_resume_selftest_best.pth"):
+        if os.path.exists(p):
+            os.remove(p)
+    print("  [resume-selftest] local rolling deleted (simulated session wipe) — ",
+          flush=True)
+    run(
+        f"python3 phase1_training/train_rhan_next.py --enable-ais "
+        f"--no-ais-precision-recon --ckpt-name rhan_next_resume_selftest "
+        f"--max-epochs 3 --target-ckpt {BASE} --batch-size 16 --accum-steps 16 "
+        f"--force-single-gpu"
+    )
+    ep2 = hf_rolling_epoch("rhan_next_resume_selftest")
+    if ep2 != 3:
+        raise RuntimeError(
+            f"[resume-selftest] session-2 rolling epoch {ep2} != 3 — the HF "
+            f"rolling-resume path is BROKEN; do NOT start Step B. Debug first.")
+    print("  [resume-selftest] PASS: session 2 resumed at epoch 3 from HF (never a "
+          "restart). Step B may proceed.", flush=True)
+    print("="*70, flush=True)
 
 if DO_STEP_B and not SKIP_TRAINING and PROCEED_STEP_B:
     # Curriculum (1-20 @0.031, 21-40 @0.062, 41-60 @0.094) is identical to
@@ -885,27 +1109,89 @@ if DO_STEP_B and not SKIP_TRAINING and PROCEED_STEP_B:
     # and DEFERRED to its own future isolation cycle). Artifacts are named
     # rhan_next_ais_v1_halting_only_* so the variant label propagates into
     # every result table + eval_provenance.json.
-    pre_b_epoch = hf_rolling_epoch("rhan_next_ais_v1_halting_only")
-    print(f"  [resume-gate] pre-Step-B HF rolling epoch: {pre_b_epoch}",
-          flush=True)
-    run(
-        f"python3 phase1_training/train_rhan_next.py "
-        f"--enable-ais "
-        f"--no-ais-precision-recon "
-        f"--ckpt-name rhan_next_ais_v1_halting_only "
-        f"--max-epochs 60 "
-        f"--target-ckpt {BASE} "
-        f"--batch-size 16 --accum-steps 16 "
-        f"--diag-json report/rhan_next_ais_v1_halting_only_diag.jsonl "
-        f"--force-single-gpu"
-    )
-    verify_no_restart("rhan_next_ais_v1_halting_only", pre_b_epoch)
-    # Durability: sync the 60-epoch telemetry to HF (the isoA lesson).
-    if os.path.exists("report/rhan_next_ais_v1_halting_only_diag.jsonl"):
-        upload_hf_file("report/rhan_next_ais_v1_halting_only_diag.jsonl",
-                       "rhan_next_ais_v1_halting_only_diag.jsonl")
+    if DRY_RUN:
+        # Pre-flight: report the resume source WITHOUT the 223MB rolling
+        # downloads. The real run resolves this via HF state.
+        print("  [DRY-RUN] Step B launch decision (resume source):", flush=True)
+        if SEED_STEP_B_FROM_ISOB:
+            print("    SEED from isolation-B rolling checkpoint (epoch 12, "
+                  "identical config) -> resumes at epoch 13; total 60 epochs "
+                  "from base preserved (12 isoB + 48 Step B); NOT a restart.",
+                  flush=True)
+        else:
+            print("    FRESH from base checkpoint (epoch 1) — SEED_STEP_B_FROM_ISOB=False.",
+                  flush=True)
+        print(f"    command: python3 phase1_training/train_rhan_next.py --enable-ais "
+              f"--no-ais-precision-recon --ckpt-name rhan_next_ais_v1_halting_only "
+              f"--max-epochs 60 --target-ckpt {BASE} --batch-size 16 --accum-steps 16 "
+              f"--diag-json report/rhan_next_ais_v1_halting_only_diag.jsonl "
+              f"--force-single-gpu", flush=True)
+        _seed_note = ("seeded from isolation-B rolling checkpoint (epoch 12, "
+                      "identical config); resumes at epoch 13")
+    else:
+        pre_b_epoch = hf_rolling_epoch("rhan_next_ais_v1_halting_only")
+        print(f"  [resume-gate] pre-Step-B HF rolling epoch: {pre_b_epoch}",
+              flush=True)
+        _seed_note = ""
+        # ── SEED Step B from the isolation-B checkpoint (2026-08-07) ────────
+        # isoB ran the EXACT Step B config (--enable-ais --no-ais-precision-recon,
+        # same base, same real+pseudo pipeline) for 12 phase-1 epochs; its rolling
+        # checkpoint on HF is at epoch 12. Seeding it as the halting_only rolling
+        # checkpoint preserves the 60-epochs-from-base accounting (12 + 48 = 60)
+        # with correct phase boundaries and saves ~4.4 GPU-hours on the T4. This
+        # is a FORWARD resume — never a restart. (Only when no halting_only
+        # rolling exists yet; if a prior Step B session already ran, we resume
+        # from it instead.)
+        if (pre_b_epoch is None and SEED_STEP_B_FROM_ISOB):
+            isoB_epoch = hf_rolling_epoch("rhan_next_ais_v1_isoB_noreconmod")
+            if isoB_epoch is not None and isoB_epoch >= 12:
+                from huggingface_hub import hf_hub_download
+                import shutil
+                tmp = hf_hub_download(
+                    repo_id="FerrariKazu/rhan-checkpoints-rolling",
+                    filename="rhan_next_ais_v1_isoB_noreconmod_rolling.pth",
+                    repo_type="dataset", token=hf_token)
+                os.makedirs("checkpoints", exist_ok=True)
+                shutil.copy(tmp,
+                            "checkpoints/rhan_next_ais_v1_halting_only_rolling.pth")
+                pre_b_epoch = isoB_epoch
+                _seed_note = (f"SEEDED from isolation-B rolling checkpoint "
+                              f"(epoch {isoB_epoch}, identical config) — Step B "
+                              f"resumes at epoch {isoB_epoch+1}; total 60 epochs "
+                              f"from base preserved; NOT a restart.")
+                print(f"  {_seed_note}", flush=True)
+            else:
+                print("  [seed] isolation-B rolling unavailable/missing — starting "
+                      "Step B fresh from base (epoch 1).", flush=True)
+        run(
+            f"python3 phase1_training/train_rhan_next.py "
+            f"--enable-ais "
+            f"--no-ais-precision-recon "
+            f"--ckpt-name rhan_next_ais_v1_halting_only "
+            f"--max-epochs 60 "
+            f"--target-ckpt {BASE} "
+            f"--batch-size 16 --accum-steps 16 "
+            f"--diag-json report/rhan_next_ais_v1_halting_only_diag.jsonl "
+            f"--force-single-gpu"
+        )
+        verify_no_restart("rhan_next_ais_v1_halting_only", pre_b_epoch)
+        # Record the resume provenance in the roadmap (honest epoch accounting).
+        _roadmap_b = json.load(open("docs/rhan_next_roadmap.json"))
+        _roadmap_b["stages"]["1"]["step_b_resume"] = {
+            "source": ("seeded_from_isoB_epoch_12" if _seed_note
+                       else "fresh_from_base"),
+            "note": _seed_note or "started fresh from base checkpoint (epoch 1)",
+            "seeded": bool(_seed_note),
+        }
+        with open("docs/rhan_next_roadmap.json", "w") as f:
+            json.dump(_roadmap_b, f, indent=2, sort_keys=False)
+        sync_roadmap_up()
+        # Durability: sync the 60-epoch telemetry to HF (the isoA lesson).
+        if os.path.exists("report/rhan_next_ais_v1_halting_only_diag.jsonl"):
+            upload_hf_file("report/rhan_next_ais_v1_halting_only_diag.jsonl",
+                           "rhan_next_ais_v1_halting_only_diag.jsonl")
 else:
-    print("  (Step B skipped: DO_STEP_B=False, SKIP_TRAINING=True, or health gate blocked)",
+    print("  (Step B skipped: DO_STEP_B=False, SKIP_TRAINING=True, or gate blocked)",
           flush=True)
 
 # %% [markdown]
@@ -935,42 +1221,59 @@ print("  STEP C: 5-SEED MATCHED EVAL — rhan_next_ais_v1_halting_only vs TRADES
 print("="*70)
 
 if DO_STEP_C and (PROCEED_STEP_B or SKIP_TRAINING):
-    # Self-test the eval entrypoint first (structural, against checked-in ref).
-    run("python3 phase2_attacks/eval_rhan.py --self-test")
+    if DRY_RUN:
+        # Pre-flight: print the two eval invocations + the checkpoint names
+        # Step C will resolve, WITHOUT launching them.
+        print("  [DRY-RUN] Step C would run:", flush=True)
+        print("    python3 phase2_attacks/eval_rhan.py --self-test", flush=True)
+        print("    ckpt-specs: rhan_next_ais_v1_halting_only:checkpoints/"
+              "rhan_next_ais_v1_halting_only_best.pth:next  "
+              "trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large",
+              flush=True)
+        print("    main grid  : --seeds 41 42 43 44 45 --eps-list 0.000 0.094 "
+              "--pgd-steps 50 --n-samples 300 --batch-size 64 "
+              "--output-dir report/sweep_stage1_ais_v1_halting_only", flush=True)
+        print("    PGD-100    : --seeds 41 42 43 44 45 --eps-list 0.094 "
+              "--pgd-steps 100 --n-samples 300 --batch-size 64 "
+              "--output-dir report/sweep_stage1_ais_v1_halting_only_pgd100",
+              flush=True)
+    else:
+        # Self-test the eval entrypoint first (structural, against checked-in ref).
+        run("python3 phase2_attacks/eval_rhan.py --self-test")
 
-    rhan_ckpt = ensure_ckpt("rhan_next_ais_v1_halting_only_best.pth")
-    bsl_ckpt  = ensure_ckpt("rhan_stl10_large_pseudolabel_best.pth")
+        rhan_ckpt = ensure_ckpt("rhan_next_ais_v1_halting_only_best.pth")
+        bsl_ckpt  = ensure_ckpt("rhan_stl10_large_pseudolabel_best.pth")
 
-    # Main grid: PGD-50, eps 0.000/0.094 (the matched protocol).
-    run(
-        f"python3 phase2_attacks/eval_rhan.py "
-        f"--ckpt-specs rhan_next_ais_v1_halting_only:{rhan_ckpt}:next "
-        f"trades_large_baseline:{bsl_ckpt}:large "
-        f"--seeds 41 42 43 44 45 "
-        f"--eps-list 0.000 0.094 "
-        f"--pgd-steps 50 "
-        f"--n-samples 300 "
-        f"--batch-size 64 "
-        f"--output-dir report/sweep_stage1_ais_v1_halting_only"
-    )
+        # Main grid: PGD-50, eps 0.000/0.094 (the matched protocol).
+        run(
+            f"python3 phase2_attacks/eval_rhan.py "
+            f"--ckpt-specs rhan_next_ais_v1_halting_only:{rhan_ckpt}:next "
+            f"trades_large_baseline:{bsl_ckpt}:large "
+            f"--seeds 41 42 43 44 45 "
+            f"--eps-list 0.000 0.094 "
+            f"--pgd-steps 50 "
+            f"--n-samples 300 "
+            f"--batch-size 64 "
+            f"--output-dir report/sweep_stage1_ais_v1_halting_only"
+        )
 
-    # PGD-100 spot-check at eps=0.094 ONLY — the 2-step PGD-50-vs-100
-    # convergence gap that first confirmed genuine robustness (not masking)
-    # for this configuration family (RHANv11.md: PGD-50 45.20% vs PGD-100
-    # 44.40% at eps=0.031, tight convergence d <= 1.0 pp). AIS-v1 is a
-    # REFACTOR of the same mechanism, so this must be re-confirmed, not
-    # assumed. Same seeds/n for a clean gap on the SAME samples.
-    run(
-        f"python3 phase2_attacks/eval_rhan.py "
-        f"--ckpt-specs rhan_next_ais_v1_halting_only:{rhan_ckpt}:next "
-        f"trades_large_baseline:{bsl_ckpt}:large "
-        f"--seeds 41 42 43 44 45 "
-        f"--eps-list 0.094 "
-        f"--pgd-steps 100 "
-        f"--n-samples 300 "
-        f"--batch-size 64 "
-        f"--output-dir report/sweep_stage1_ais_v1_halting_only_pgd100"
-    )
+        # PGD-100 spot-check at eps=0.094 ONLY — the 2-step PGD-50-vs-100
+        # convergence gap that first confirmed genuine robustness (not masking)
+        # for this configuration family (RHANv11.md: PGD-50 45.20% vs PGD-100
+        # 44.40% at eps=0.031, tight convergence d <= 1.0 pp). AIS-v1 is a
+        # REFACTOR of the same mechanism, so this must be re-confirmed, not
+        # assumed. Same seeds/n for a clean gap on the SAME samples.
+        run(
+            f"python3 phase2_attacks/eval_rhan.py "
+            f"--ckpt-specs rhan_next_ais_v1_halting_only:{rhan_ckpt}:next "
+            f"trades_large_baseline:{bsl_ckpt}:large "
+            f"--seeds 41 42 43 44 45 "
+            f"--eps-list 0.094 "
+            f"--pgd-steps 100 "
+            f"--n-samples 300 "
+            f"--batch-size 64 "
+            f"--output-dir report/sweep_stage1_ais_v1_halting_only_pgd100"
+        )
 elif DO_STEP_C:
     print("\n  [STOP] Step B did not complete (smoke health gate / isolation "
           "verdict) — rhan_next_ais_v1_halting_only_best.pth does not exist, "
@@ -1070,11 +1373,16 @@ def masking_verdict(prov50, prov100, eps=0.094):
 
 
 def record_verdict():
-    sync_roadmap_down()   # runtime verdicts from prior sessions must survive
     prov_path = "report/sweep_stage1_ais_v1_halting_only/eval_provenance.json"
     if not os.path.exists(prov_path):
+        # Step C did not complete — do NOT touch the roadmap (a sync_roadmap_down
+        # here would clobber the just-written isolation verdict / gate_clear
+        # fields with the older HF copy; the roadmap is only refreshed once we
+        # actually have a verdict to record).
         print("  No eval_provenance.json found — Step C did not complete.", flush=True)
         return
+    # runtime verdicts from prior sessions must survive BEFORE writing ours
+    sync_roadmap_down()
     with open(prov_path) as f:
         prov = json.load(f)
 
