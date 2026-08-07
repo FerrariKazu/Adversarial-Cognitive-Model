@@ -27,6 +27,17 @@ class InformationGainGazePolicy(GazePolicy, nn.Module):
     this checkpoint; unqualified "AIS" / "AIS-v2" is reserved for a future
     genuinely forward-looking implementation. (docs/ARCHITECTURE.md §4.0)
 
+    STAGE 1 VARIANT (2026-08-07) — the mechanism-isolation verdict attributed
+    the smoke's Pi_D reordering (car/airplane vs reference car/truck) to the
+    precision-modulated RECONSTRUCTION WEIGHT (smoke<->isoB contrast; halting
+    was ON in both arms). The Stage 1 validated run is therefore labeled
+    **"AIS-v1 (halting-only variant)"**: this policy's gaze update +
+    EntropyGatedHalting remain ON, while the recon-weight consumer of the
+    GlobalPrecisionModulator is DISABLED (--no-ais-precision-recon) and
+    DEFERRED to its own future isolation cycle. Every result table and
+    eval_provenance.json for the Stage 1 checkpoint must carry the variant
+    label, never plain "AIS-v1".
+
     Fixation selection by prediction-error gradient ascent.
 
     MECHANISTIC IDENTITY — READ FIRST:

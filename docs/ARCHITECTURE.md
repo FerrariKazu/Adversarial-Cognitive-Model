@@ -117,6 +117,16 @@ Gated behind `enable_ais=True`.
 > forward-looking implementation. All run artifacts (checkpoint names,
 > diag paths, eval labels, output dirs) are named `rhan_next_ais_v1_*` so
 > the versioned label propagates automatically into eval result tables.
+>
+> **STAGE 1 VARIANT LABEL (2026-08-07 — the validated run):** the mechanism
+> isolation attributed the smoke's Π_D reordering to the precision-modulated
+> reconstruction weight (see §8.1a outcome). Per the pre-registered decision
+> rule, the Step B validated run is labeled **"AIS-v1 (halting-only
+> variant)"** — AIS-v1 with `--no-ais-precision-recon` (halting + relocated
+> Eq. II gaze + precision-driven step/β ON; recon-mod OFF and **DEFERRED** to
+> its own future isolation cycle). Artifacts for the validated run are named
+> `rhan_next_ais_v1_halting_only_*`, so every result table and
+> `eval_provenance.json` carries the variant label — never plain "AIS-v1".
 
 `InformationGainGazePolicy.select_action()` is, at initialization,
 **mechanically identical to the v12 Eq. II v12 gaze update** — which is itself
@@ -182,9 +192,14 @@ exposes per-consumer modulation so each can be isolated and tested:
 | Recurrence depth | halting threshold `· (0.5 + Π_D·gain)` — higher precision halts earlier | n/a (AIS only) |
 | Reconstruction loss weight | `w_recon · (0.5 + Π_D·gain)` (trainer side) | `w_recon` flat (AIS off) |
 
-Deferred (logged in roadmap): precision-modulated **attention gating** and
-**skip-connection gating** — too many simultaneous knobs broke precision
-calibration before.
+**DEFERRED from the Stage 1 headline config (2026-08-07):** the
+reconstruction-weight consumer is disabled in the validated run
+(`--no-ais-precision-recon`, the "AIS-v1 (halting-only variant)") — the
+mechanism isolation attributed the smoke's Π_D reordering to exactly this
+consumer (see §8.1a outcome). It gets its own future isolation cycle before
+any AIS-v1 claim may include it. Also deferred (logged in roadmap):
+precision-modulated **attention gating** and **skip-connection gating** —
+too many simultaneous knobs broke precision calibration before.
 
 ### 4.4 AIS forward loop
 
@@ -327,10 +342,39 @@ The Π_D computation itself is verified identical to v12 (the modulator wraps
 the frozen `image_precision` module by plain reference), so the ordering
 shift is a real diagnostic observation, not a wiring bug.
 
-Per the pre-registered decision rule (roadmap `stages['1'].isolation_plan`),
-Step B stays gated and a bounded mechanism-isolation phase (Step 5c: Isolation
-A = halting OFF, Isolation B = precision-recon OFF) attributes the driver
-before any Step B / health-gate-criterion decision.
+**Isolation outcome — driver identified (2026-08-07).** The two bounded
+isolation arms completed and the pre-registered decision rule fired branch
+(2): **isoB (precision-recon OFF, halting ON) RESTORED car/truck** — final
+epoch Π_D top-2 = car 0.5149 / truck 0.4842, with the reference error
+ordering intact (car 0.7287 / truck 0.7007 highest) and halting firing MORE
+(frac_halted 0.213 → 0.364). Because halting was ON in both the smoke and
+isoB, the smoke↔isoB contrast alone proves the **precision-modulated
+reconstruction weight is the confirmed driver** of the car/airplane
+reordering; the entropy-gated halting is exonerated by elimination. The
+mechanism: `modulate_recon_weight(w_recon, π_D) = w_recon·mean(0.5 + π_D·gain)`
+is a batch-scalar multiplier coupling average batch confidence to recon
+gradient magnitude; cutting the loop (flat `w_recon`) raises Π_D across the
+board (car 0.449 → 0.515) and restores the reference top-2.
+
+isoA's final-epoch telemetry was **lost to a session wipe** (its diag
+`.jsonl` is local-only; only checkpoints synced to HF), so its verdict is
+recorded as **inconclusive, not "not restored"**. It is re-run as a
+**sufficiency test** at an amended budget (max-epochs 14, resumes 12→14):
+
+- isoA → car/airplane (like the smoke): recon-mod is SUFFICIENT alone →
+  "recon-mod both necessary and sufficient";
+- isoA → car/truck (like isoB): recon-mod alone is NOT sufficient — the
+  degenerate ordering needs recon-mod AND variable halting together → a true
+  interaction effect, retroactively validating recon-mod OFF for Step B even
+  more strongly.
+
+**Decision (pre-registered):** Step B validates the **"AIS-v1 (halting-only
+variant)"** (`--no-ais-precision-recon`). The recon-mod consumer is DEFERRED
+to its own future isolation cycle — not validated, not part of the headline
+config, and never folded into any future AIS-v1 claim without a separate
+validated isolation. Durability fix: per-epoch diag `.jsonl` files and the
+roadmap now sync to HF alongside verdicts and checkpoints, so no future
+session interruption can lose telemetry the way isoA lost 12 epochs.
 
 ### 8.2 Local pipeline validation (RTX 4060, < 1 h)
 
@@ -425,11 +469,17 @@ that restores car/truck in top-2 identifies its ablated mechanism as the
 primary driver; if neither restores, the driver is the remaining shared AIS
 wiring (gaze-policy relocation / `step_net` / continuation×belief interplay)
 and the next isolation disables `step_net`. The verdict is recorded to
-`report/rhan_next_ais_v1_isolation_verdict.json` and
-`roadmap.stages['1'].isolation_verdict` regardless of outcome.
+`report/rhan_next_ais_v1_isolation_verdict.json`and `roadmap.stages['1'].isolation_verdict` regardless of outcome.
+2026-08-07 outcome: branch (2) fired — isoB restored car/truck; isoA
+inconclusive (telemetry lost to a session wipe; recaptured as a sufficiency
+test at an amended 14-epoch budget); see §8.1a for the full attribution and
+the decision.
 
-**Step B — Full validated run**: same trainer, `--ckpt-name rhan_next_ais_v1`,
-`--max-epochs 60`. The curriculum `(1-20 @0.031, 21-40 @0.062, 41-60 @0.094)`
+**Step B — Full validated run (AIS-v1 (halting-only variant))**: same trainer,
+`--no-ais-precision-recon --ckpt-name rhan_next_ais_v1_halting_only`,
+`--max-epochs 60` (recon-mod OFF + DEFERRED per the isolation verdict — see
+§8.1a; halting and the relocated Eq. II gaze remain ON). The curriculum
+`(1-20 @0.031, 21-40 @0.062, 41-60 @0.094)`
 is byte-identical to `train_rhan_v11.py`'s — the exact boundaries of the
 null_ablation_v11 run that produced 31.56±2.88 @ ε=0.094 — so the result is
 directly comparable. Same base checkpoint; the trainer's mandatory HF resume
@@ -439,16 +489,16 @@ gate forbids silent restarts (no `--force-restart`).
 
 ```
 python3 phase2_attacks/eval_rhan.py \
-    --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next \
+    --ckpt-specs rhan_next_ais_v1_halting_only:checkpoints/rhan_next_ais_v1_halting_only_best.pth:next \
                  trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
     --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300 --pgd-steps 50
 ```
 
-The eval label is `rhan_next_ais_v1`, so every row of the result tables and
-`eval_provenance.json` carries the versioned AIS-v1 label (never unqualified
-"AIS"). The notebook then parses
-`report/sweep_stage1_ais_v1/eval_provenance.json` (results + recomputed
-crossover verdicts) and records the outcome in
+The eval label is `rhan_next_ais_v1_halting_only`, so every row of the result
+tables and `eval_provenance.json` carries the "AIS-v1 (halting-only variant)"
+label (never plain "AIS-v1", never unqualified "AIS"). The notebook then
+parses `report/sweep_stage1_ais_v1_halting_only/eval_provenance.json`
+(results + recomputed crossover verdicts) and records the outcome in
 `docs/rhan_next_roadmap.json` under `stages.1.stage1_verdict` — a null result
 is a valid, reportable Stage 1 outcome. If Step B did not complete (health
 gate / isolation verdict), Step C is **skipped with an explicit message** —
@@ -461,10 +511,10 @@ gradient masking" for this configuration family:
 
 ```
 python3 phase2_attacks/eval_rhan.py \
-    --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next \
+    --ckpt-specs rhan_next_ais_v1_halting_only:checkpoints/rhan_next_ais_v1_halting_only_best.pth:next \
                  trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
     --seeds 41 42 43 44 45 --eps-list 0.094 --n-samples 300 --pgd-steps 100 \
-    --output-dir report/sweep_stage1_ais_v1_pgd100
+    --output-dir report/sweep_stage1_ais_v1_halting_only_pgd100
 ```
 
 Historical bar (RHANv11.md): PGD-50 45.20% vs PGD-100 44.40% at ε=0.031 =
@@ -488,29 +538,29 @@ Runtime add-on: ~4.5–5.5 GPU-hours (10 combos × PGD-100).
 | Stage | Code complete | Validated | Evidence |
 |---|---|---|---|
 | 0 | ✅ | ✅ | 11 local tests pass (RTX 4060) — no eval sweep required |
-| 1 | ✅ | ⏳ **in execution** | Step A smoke completed on Colab (2026-08-06); health gate fired on the Π_D ordering criterion only (car/airplane vs reference car/truck — see §8.1a finding); mechanism-isolation phase (Step 5c: halting OFF, precision-recon OFF) running pre-Step-B; Step B + 5-seed matched eval gated until the driver is identified |
+| 1 | ✅ | ⏳ **in execution** | Isolation verdict recorded (2026-08-07): isoB restored car/truck → recon-mod confirmed as the Π_D-reordering driver (smoke↔isoB contrast; halting exonerated); isoA inconclusive (telemetry lost, recaptured as sufficiency test). Step B now trains the **AIS-v1 (halting-only variant)** (`--no-ais-precision-recon`); recon-mod deferred to its own isolation cycle. Step B (60-epoch) + 5-seed matched eval pending |
 | 2 | ✅ | ⏳ pending | isolated on/off test, hpc_num_levels 0 vs 1 (must NOT start until Stage 1 verdict recorded) |
 | 3 | ⏳ (trainer + eval entrypoint implemented) | ⏳ pending | final 3-model comparison, full grid, numbers here |
 
 **Validation runs (not yet executed — require GPU hours and STL-10 data):**
 
 ```
-# Stage 1 (AIS-v1 vs baseline) — via the notebook (Step C):
+# Stage 1 (AIS-v1 (halting-only variant) vs baseline) — via the notebook (Step C):
 python3 phase2_attacks/eval_rhan.py \
-    --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next \
+    --ckpt-specs rhan_next_ais_v1_halting_only:checkpoints/rhan_next_ais_v1_halting_only_best.pth:next \
                  trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
     --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300 \
-    --pgd-steps 50 --batch-size 64 --output-dir report/sweep_stage1_ais_v1
+    --pgd-steps 50 --batch-size 64 --output-dir report/sweep_stage1_ais_v1_halting_only
 
 # Stage 1 PGD-100 spot-check (masking re-confirmation, eps=0.094 only):
 python3 phase2_attacks/eval_rhan.py \
-    --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next \
+    --ckpt-specs rhan_next_ais_v1_halting_only:checkpoints/rhan_next_ais_v1_halting_only_best.pth:next \
                  trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
     --seeds 41 42 43 44 45 --eps-list 0.094 --n-samples 300 --pgd-steps 100 \
-    --batch-size 64 --output-dir report/sweep_stage1_ais_v1_pgd100
+    --batch-size 64 --output-dir report/sweep_stage1_ais_v1_halting_only_pgd100
 
-# Stage 2 (HPC on/off at fixed AIS-v1):
-    ... rhan_next_ais_v1:...:next  rhan_next_hpc1:checkpoints/rhan_next_hpc1_best.pth:next
+# Stage 2 (HPC on/off at fixed AIS-v1 (halting-only variant)):
+    ... rhan_next_ais_v1_halting_only:...:next  rhan_next_hpc1:checkpoints/rhan_next_hpc1_best.pth:next
 ```
 
 ### 10.1 Explicit statement on Pillars 3 & 4 (Stage 3 requirement)
@@ -559,9 +609,60 @@ Pillars 3 (SBR) and 4 (IWM) remain **unimplemented**; their interfaces were not 
   the pre-registered decision rule. Whatever the outcome, it is recorded — a
   null/ambiguous isolation is a valid result and a fix or criterion change
   will only be applied going forward, never retroactively.
+- **Driver attributed to the precision-modulated recon weight (2026-08-07).**
+  The isolation fired branch (2) of the pre-registered rule: isoB (recon-mod
+  OFF, halting ON) restored car/truck; since halting was constant across the
+  smoke and isoB, the recon-mod wiring is the confirmed driver and the
+  entropy-gated halting is exonerated by elimination. Step B validates the
+  **"AIS-v1 (halting-only variant)"** (`--no-ais-precision-recon`); recon-mod
+  is DEFERRED to its own future isolation cycle and must not be folded into
+  any AIS-v1 claim without a separate validated isolation. isoA's verdict is
+  INCONCLUSIVE (telemetry lost to a session wipe — its diag `.jsonl` was
+  local-only), recaptured as a sufficiency test (max-epochs 14, resumes
+  12→14) to decide whether recon-mod is sufficient alone or only in
+  interaction with variable halting.
+- **Telemetry durability fixed (2026-08-07).** The isoA loss exposed that
+  per-epoch diag `.jsonl` files and the roadmap were local-only. The notebook
+  now syncs every diag file + the roadmap to HF alongside checkpoints and
+  verdicts (`upload_hf_file` / `sync_roadmap_up`), so an interrupted Step B
+  session can never lose 60 epochs of diagnostic history the way isoA lost 12.
 - **Isolation arms are real ablation switches, not rewrite tricks.**
   `RHANNextConfig` gained `ais_halt_enabled` and `ais_precision_recon_enabled`
   (both default True = smoke behavior), plumbed through
   `train_rhan_next.py --no-ais-halting / --no-ais-precision-recon` and
   pinned by `tests/test_ais_ablation_flags.py` (constant continuation when
   halting off; flat `w_recon` when recon modulation off).
+
+## 12. Research clusters — long-term roadmap (all will be implemented)
+
+**Master document: `rhan_core/docs/RESEARCH_CLUSTERS.md`.** This section is a
+pointer + status snapshot only; the master document holds the full detail
+(core ideas, scientific precedents, unknowns, entry-point tests) for all seven
+research clusters that RHAN-Next exists to host. The machine-readable mirror
+is the top-level `research_clusters` key in `docs/rhan_next_roadmap.json`.
+
+Statuses below follow the master doc's legend: ✅ implemented (code +
+gradient-tested), 🚧 in validation (matched-eval verdict pending), 🟡 scaffold /
+partial, ⬜ not started, 🔒 deferred by design. **A cluster is only
+VALIDATED when its pre-registered 5-seed matched verdict is recorded — code
+complete is never validation.**
+
+| # | Cluster | Status | Where it lives | Entry-point test |
+|---|---------|--------|----------------|------------------|
+| 1 | Hierarchical Predictive Coding | 🟡 PARTIAL (level 0 only, untrained) | `rhan_core/predictive_coding/` | HPC level 0 on/off, one level per cycle (Stage 2, gated on Stage 1) |
+| 2 | Curiosity Gaze / Precision Everywhere / Uncertainty-Gated Recurrence | ✅ **AIS-v1** implemented 🚧 in validation (Step B = **halting-only variant**; recon-mod deferred 2026-08-07) | `rhan_core/gaze/`, `rhan_core/precision/` | Steps A→B→C 5-seed matched + PGD-100 masking spot-check |
+| 3 | Episodic Object Memory + Temporal Belief Persistence | ⬜ NOT STARTED | *(needs `rhan_core/memory/`)* | Carry belief across TDV/UCF-101 frame pair |
+| 4 | Generative Imagination (counterfactuals, simulation, object permanence) | 🟡 SCAFFOLD (Pillar 4) | `rhan_core/world_model/` | 40%-occlusion patch; does the generative prior recover class? |
+| 5 | Structured, Relational, Object-Centric Belief (slots) | 🟡 SCAFFOLD (Pillar 3) | `rhan_core/beliefs/structured_belief.py` | Clean-STL-10 slot training first, no adversarial training |
+| 6 | Distributional & Multi-Hypothesis Belief | ⬜ NOT STARTED | *(needs `rhan_core/beliefs/distributional_belief.py`)* | Formalize feature-vs-pixel error agreement check (#18) |
+| 7 | Adversarial-Aware Self-Monitoring (selective classification) | ⬜ NOT STARTED | *(needs `rhan_core/selective/` or `precision/` extension)* | Calibration head + abstain vs adversarial AND OOD (ImageNet-C style) |
+
+Key constraints carried over from the master doc: every new loss-bearing path
+must land with a gradient-reachability test (lesson #1); never add multiple new
+mechanisms simultaneously (lesson #3); every status change must be mirrored in
+`docs/rhan_next_roadmap.json` at the end of the stage that touches it.
+
+> **Pillars 3 & 4 remain unimplemented.** Clusters 4 and 5 map onto Pillars 4
+> (IWM) and 3 (SBR) respectively — both remain scaffold-only, `enable_iwm` /
+> `enable_sbr` MUST stay False, and `tests/test_pillar_scaffold_import.py`
+> keeps proving their interfaces are untouched and import-clean.
