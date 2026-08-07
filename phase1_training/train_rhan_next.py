@@ -13,7 +13,11 @@ all gated behind RHANNextConfig toggles (OFF by default = exactly v12):
   * --enable-ais (Pillar 2, Stage 1):
         - loss gains a precision-modulated reconstruction weight
           w_recon * (0.5 + Pi_D * gain) — the GlobalPrecisionModulator's
-          reconstruction-loss consumer;
+          reconstruction-loss consumer. DEFERRED from the Stage 1 headline
+          config per the 2026-08-07 isolation verdict (smoke<->isoB contrast:
+          recon-mod is the confirmed driver of the smoke's Pi_D reordering);
+          the validated run uses --no-ais-precision-recon (the "AIS-v1
+          (halting-only variant)");
         - the gaze update and halting go through InformationGainGazePolicy /
           EntropyGatedHalting (no step-count penalty — see
           tests/test_gradient_flow.py::test_no_step_count_penalty_in_loss_path).
@@ -314,8 +318,11 @@ def main():
     # ── RHAN-Next pillar flags ───────────────────────────────────────────────
     parser.add_argument('--enable-ais', action='store_true',
                         help='Pillar 2: AIS-v1 = relocated Eq. II v12 gaze + '
-                             'entropy-gated halting + precision-modulated recon '
-                             'weight (Stage 1; replication-under-refactor control)')
+                             'entropy-gated halting (+ precision-modulated recon '
+                             'weight; DEFERRED from the Stage 1 headline config '
+                             'per the 2026-08-07 isolation verdict — disable with '
+                             '--no-ais-precision-recon for the validated run; '
+                             'replication-under-refactor control)')
     parser.add_argument('--enable-hpc', action='store_true',
                         help='Pillar 1: hierarchical predictive coding (Stage 2)')
     parser.add_argument('--hpc-num-levels', type=int, default=1,
@@ -372,8 +379,8 @@ def main():
                 print(f"    ISOLATION A: halting DISABLED (cont=1, "
                       f"v12 fixed-T accumulation)")
             if not cfg.ais_precision_recon_enabled:
-                print(f"    ISOLATION B: precision-modulated recon weight "
-                      f"DISABLED (w_recon flat)")
+                print(f"    AIS-v1 (halting-only variant): precision-modulated "
+                      f"recon weight DISABLED (w_recon flat)")
         if cfg.enable_hpc:
             print(f"    HPC: levels={cfg.hpc_num_levels}, "
                   f"w_hpc={cfg.hpc_error_weight}, "
