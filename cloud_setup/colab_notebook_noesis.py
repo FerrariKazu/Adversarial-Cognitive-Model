@@ -8,9 +8,22 @@ enable_hpc=False).
 RUN LABEL — this run is **AIS-v1: Relocated Equation II** (mechanistically
 identical to v10/v11/v12's gaze update, refactored into the new interface).
 It is a **REPLICATION-UNDER-REFACTOR control, not a test of genuine
-information-gain gaze.** All artifacts are named rhan_next_ais_v1_* so the
-versioned label appears in every result table; unqualified "AIS" /
-"information-gain" is reserved for a future forward-looking implementation.
+information-gain gaze.** Unqualified "AIS" / "information-gain" is reserved
+for a future forward-looking implementation.
+
+VARIANT LABEL (Step B, the validated run) — the smoke's Π_D reordering
+(top-2 = car/airplane vs the reference car/truck) was attributed by the
+2026-08-07 mechanism isolation (smoke ↔ isoB contrast: with halting fixed
+ON, disabling the precision-modulated recon weight restored car/truck). Per
+the pre-registered decision rule, Step B therefore trains **"AIS-v1
+(halting-only variant)"**: AIS-v1 with --no-ais-precision-recon (halting +
+relocated Eq. II gaze + precision-driven step/β ON; recon-mod OFF). The
+precision-modulated reconstruction weight is DEFERRED to its own future
+isolation cycle — NOT validated, NOT part of this run's headline config, and
+never folded into any AIS-v1 claim without a separate validated isolation.
+Step B artifacts are named rhan_next_ais_v1_halting_only_* so every result
+table + eval_provenance.json carries the variant label; the smoke artifacts
+stay rhan_next_ais_v1_smoke_* (full AIS-v1 config, diagnostics only).
 
 Training lives HERE (cloud), not locally: the RTX 4060
 measures ~2.7-9.2 epochs/hour on this pipeline, so 10-15 epochs is 2-5h and
@@ -62,7 +75,9 @@ the full 60-epoch run is 7-20h — far over the 1-hour local budget.
           check.
 
   STEP B — FULL VALIDATED RUN:
-      Same trainer, --ckpt-name rhan_next_ais_v1, --max-epochs 60. The 3-phase
+      Same trainer, --ckpt-name rhan_next_ais_v1_halting_only,
+      --no-ais-precision-recon (the "AIS-v1 (halting-only variant)" — see
+      VARIANT LABEL), --max-epochs 60. The 3-phase
       curriculum (1-20 @0.031, 21-40 @0.062, 41-60 @0.094) is byte-identical
       to train_rhan_v11.py's — the exact boundaries of the null_ablation_v11
       run that produced 31.56±2.88 @ ε=0.094 — so the result is directly
@@ -90,14 +105,37 @@ the full 60-epoch run is 7-20h — far over the 1-hour local budget.
       data mix — the isolation arms confirm which. Isolation arms follow the
       same NEVER-RESTART / auto-resume guarantees as Step A/B.
 
+      ISOLATION OUTCOME (2026-08-07) — the pre-registered decision rule fired
+      branch (2): isoB (precision-recon OFF, halting ON) RESTORED car/truck
+      (final epoch: car 0.5149 / truck 0.4842). Because halting was ON in
+      BOTH the smoke and isoB, the smoke↔isoB contrast alone proves the
+      precision-modulated recon weight is the driver of the reordering (the
+      entropy-gated halting is exonerated by elimination). isoA's final-epoch
+      telemetry was LOST (its diag .jsonl is local-only and was wiped with
+      /content — only checkpoints synced to HF), so its verdict is
+      INCONCLUSIVE, not "not restored". This notebook now syncs every diag
+      .jsonl + the roadmap to HF (the durability fix) and re-runs isoA as a
+      SUFFICIENCY TEST at an amended budget (max-epochs 14, resumes 12→14
+      from its HF rolling checkpoint, never a force-restart):
+        - isoA → car/airplane (same as smoke): recon-mod is SUFFICIENT alone
+          → "recon-mod both necessary and sufficient";
+        - isoA → car/truck (like isoB): recon-mod alone is NOT sufficient —
+          the degenerate ordering needs recon-mod AND variable halting
+          together → a true interaction effect, which retroactively validates
+          recon-mod OFF for Step B even more strongly.
+      Per the pre-registered rule, Step B now trains the "AIS-v1 (halting-only
+      variant)" (--no-ais-precision-recon); recon-mod is DEFERRED to its own
+      future isolation cycle (see VARIANT LABEL above).
+
   STEP C — VALIDATION (5-seed matched eval through the hardened entrypoint):
       python3 phase2_attacks/eval_rhan.py \
-          --ckpt-specs rhan_next_ais_v1:checkpoints/rhan_next_ais_v1_best.pth:next \
+          --ckpt-specs rhan_next_ais_v1_halting_only:checkpoints/rhan_next_ais_v1_halting_only_best.pth:next \
                        trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large \
           --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300
       eval_rhan.py forces norm-space and requires >= 5 seeds (satisfied).
-      The ckpt label rhan_next_ais_v1 flows into every result-table row and
-      eval_provenance.json, so the AIS-v1 label is stamped automatically.
+      The ckpt label rhan_next_ais_v1_halting_only flows into every
+      result-table row and eval_provenance.json, so the "AIS-v1 (halting-only
+      variant)" label is stamped automatically.
       The verdict is parsed from eval_provenance.json (written automatically
       with git SHA, checkpoint hashes, seed list, timestamp, results, and the
       recomputed Δ>2·σ_combined crossover verdicts) and recorded into
@@ -216,7 +254,7 @@ print(f"✓ VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} G
 DO_STEP_A   = True    # smoke: 12-15 epochs, ε=0.031 only
 DO_STEP_B   = True    # full 60-epoch 3-phase run (auto-gated on Step A health)
 DO_STEP_C   = True    # 5-seed matched eval + roadmap verdict recorder
-SKIP_TRAINING = False # eval-only mode (requires rhan_next_ais_v1_best.pth on HF/local)
+SKIP_TRAINING = False # eval-only mode (requires rhan_next_ais_v1_halting_only_best.pth on HF/local)
 SMOKE_EPOCHS = 15     # 10-15 per protocol
 # Step C runtime: 20 combos × ~13-17 min ≈ 4.5-5.5 GPU-hours on a T4 —
 # budget the session accordingly (see docstring).
@@ -230,6 +268,10 @@ FORCE_STEP_B_OVERRIDE = False  # debug escape — do NOT use for publishable num
 # isolation arms (each ablates exactly ONE AIS sub-mechanism, everything else
 # identical to the smoke) are defined in that plan; each is BOUNDED at
 # ISO_EPOCHS phase-1 epochs and reads the final-epoch per-class Π_D.
+# 2026-08-07 outcome: isoB RESTORED car/truck -> recon-mod confirmed as the
+# reordering driver (smoke<->isoB contrast); isoA's telemetry was lost to a
+# session wipe -> recaptured as a SUFFICIENCY TEST at its arm-level
+# max_epochs (isolation_plan.arms[].max_epochs), never a force-restart.
 DO_ISOLATION = True
 ISO_EPOCHS   = 12     # 8-15 sanctioned; the Π_D ordering is visible by ~epoch 12
 
@@ -288,19 +330,96 @@ def download_hf_verdict():
         return None
 
 
-def upload_hf_verdict(verdict):
-    """Sync the smoke health verdict to HF so a restarted session can restore it."""
+def upload_hf_file(local_path, repo_path):
+    """Sync any local file (checkpoints, diag .jsonl, verdicts, roadmap) to
+    the rolling HF repo so it survives Colab /content wipes.
+
+    This is the durability fix for the isoA telemetry loss: per-epoch diag
+    .jsonl files and the roadmap are now synced alongside checkpoints and
+    verdicts, so an interrupted Step B session can never lose 60 epochs of
+    diagnostic history the way isoA lost 12.
+    """
     try:
         from huggingface_hub import HfApi
         HfApi(token=hf_token).upload_file(
-            path_or_fileobj="report/rhan_next_ais_v1_smoke_health.json",
-            path_in_repo="rhan_next_ais_v1_smoke_health.json",
+            path_or_fileobj=local_path, path_in_repo=repo_path,
             repo_id="FerrariKazu/rhan-checkpoints-rolling",
             repo_type="dataset", token=hf_token)
+        return True
+    except Exception as e:
+        print(f"  WARNING: could not sync {local_path} to HF: {e}", flush=True)
+        return False
+
+
+def download_hf_file(repo_path, local_path):
+    """Restore a file from the HF rolling repo if present (best-effort)."""
+    try:
+        from huggingface_hub import hf_hub_download
+        p = hf_hub_download(repo_id="FerrariKazu/rhan-checkpoints-rolling",
+                            filename=repo_path, repo_type="dataset",
+                            token=hf_token)
+        import shutil
+        shutil.copy(p, local_path)
+        return True
+    except Exception:
+        return False
+
+
+def upload_hf_verdict(verdict):
+    """Sync the smoke health verdict to HF so a restarted session can restore it."""
+    ok = upload_hf_file("report/rhan_next_ais_v1_smoke_health.json",
+                        "rhan_next_ais_v1_smoke_health.json")
+    if ok:
         print("  ✓ smoke health verdict synced to HF (survives session restarts)",
               flush=True)
-    except Exception as e:
-        print(f"  WARNING: could not sync health verdict to HF: {e}", flush=True)
+    else:
+        print("  WARNING: could not sync health verdict to HF", flush=True)
+
+
+ROADMAP_LOCAL = "docs/rhan_next_roadmap.json"
+
+
+def sync_roadmap_down():
+    """Restore the HF-synced roadmap (runtime verdicts) over the repo copy.
+
+    The committed roadmap is the pre-registered baseline; the HF copy carries
+    runtime verdicts written by prior sessions (isolation_verdict, stage1
+    verdicts). A fresh session MUST read the HF copy before writing, or it
+    would clobber those verdicts with the stale committed baseline.
+
+    Version guard: only restore when the HF copy is at least as new as the
+    committed one (roadmap_rev) — a stale HF roadmap pushed by an older
+    session/commit must never clobber the committed labels/plan.
+    """
+    try:
+        local_rev = json.load(open(ROADMAP_LOCAL)).get("roadmap_rev", 0)
+    except Exception:
+        local_rev = 0
+    try:
+        from huggingface_hub import hf_hub_download
+        p = hf_hub_download(repo_id="FerrariKazu/rhan-checkpoints-rolling",
+                            filename="rhan_next_roadmap.json",
+                            repo_type="dataset", token=hf_token)
+        hf_rev = json.load(open(p)).get("roadmap_rev", 0)
+    except Exception:
+        return False
+    if hf_rev < local_rev:
+        print(f"  WARNING: HF roadmap (rev {hf_rev}) is OLDER than the "
+              f"committed one (rev {local_rev}) — keeping the committed "
+              f"baseline, NOT restoring.", flush=True)
+        return False
+    import shutil
+    shutil.copy(p, ROADMAP_LOCAL)
+    print("  ✓ roadmap restored from HF (runtime verdicts preserved)",
+          flush=True)
+    return True
+
+
+def sync_roadmap_up():
+    """Push the updated roadmap to HF so a restarted session never loses it."""
+    if upload_hf_file(ROADMAP_LOCAL, "rhan_next_roadmap.json"):
+        print("  ✓ roadmap synced to HF (survives session restarts)",
+              flush=True)
 
 
 def verify_no_restart(ckpt_name, pre_epoch):
@@ -356,6 +475,11 @@ if DO_STEP_A and not SKIP_TRAINING:
         f"--force-single-gpu"
     )
     verify_no_restart("rhan_next_ais_v1_smoke", pre_a_epoch)
+    # Durability: sync the per-epoch telemetry to HF (a wiped session must not
+    # lose it — this is what made isoA's verdict unrecoverable).
+    if os.path.exists("report/rhan_next_ais_v1_smoke_diag.jsonl"):
+        upload_hf_file("report/rhan_next_ais_v1_smoke_diag.jsonl",
+                       "rhan_next_ais_v1_smoke_diag.jsonl")
 else:
     print("  (Step A skipped: DO_STEP_A=False or SKIP_TRAINING=True)", flush=True)
 
@@ -454,6 +578,10 @@ def health_verdict(rows):
     return {"healthy": healthy, "reasons": reasons,
             "last_epoch": last.get('epoch'), "summary": last}
 
+# Resume durability: a wiped /content must be able to restore the smoke
+# telemetry from HF before the gate evaluates it.
+if not os.path.exists(SMOKE_DIAG):
+    download_hf_file("rhan_next_ais_v1_smoke_diag.jsonl", SMOKE_DIAG)
 rows = load_diag(SMOKE_DIAG)
 print(f"\n--- Per-epoch smoke telemetry (report/rhan_next_ais_v1_smoke_diag.jsonl) ---")
 for r in rows:
@@ -470,12 +598,13 @@ if rows:
     verdict = health_verdict(rows)
 else:
     hf_files = hf_list_rolling()
-    if "rhan_next_ais_v1_rolling.pth" in hf_files:
+    if "rhan_next_ais_v1_halting_only_rolling.pth" in hf_files:
         # Step B already started in a prior session and passed this gate.
         verdict = {"healthy": True, "resume": True,
-                   "reasons": ["Step B rolling checkpoint exists on HF — a prior "
-                               "session already passed this gate. Step B will "
-                               "resume from HF (never a restart)."]}
+                   "reasons": ["Step B (halting-only variant) rolling checkpoint "
+                               "exists on HF — a prior session already passed "
+                               "this gate. Step B will resume from HF (never a "
+                               "restart)."]}
     elif "rhan_next_ais_v1_smoke_rolling.pth" in hf_files:
         # Smoke rolling exists on HF. Only treat it as "smoke completed in a
         # prior session" if it actually reached SMOKE_EPOCHS — an interrupted
@@ -553,8 +682,12 @@ if not PROCEED_STEP_B:
 # ## Step 5c — MECHANISM ISOLATION (Run A / Run B pattern; pre-registered)
 
 # %%
-def run_iso_arm(name, flag, diag_path):
-    """Bounded isolation arm: ONE ablated sub-mechanism, never force-restart."""
+def run_iso_arm(name, flag, diag_path, max_epochs):
+    """Bounded isolation arm: ONE ablated sub-mechanism, never force-restart.
+
+    max_epochs comes from the pre-registered arm spec (isoA's recapture arm
+    is amended to 14 so it resumes 12->14 and re-logs final-epoch Pi_D).
+    """
     pre_epoch = hf_rolling_epoch(name)
     print(f"  [resume-gate] pre-isolation HF rolling epoch: {pre_epoch}",
           flush=True)
@@ -562,13 +695,16 @@ def run_iso_arm(name, flag, diag_path):
         f"python3 phase1_training/train_rhan_next.py "
         f"--enable-ais {flag} "
         f"--ckpt-name {name} "
-        f"--max-epochs {ISO_EPOCHS} "
+        f"--max-epochs {max_epochs} "
         f"--target-ckpt {BASE} "
         f"--batch-size 16 --accum-steps 16 "
         f"--diag-json {diag_path} "
         f"--force-single-gpu"
     )
     verify_no_restart(name, pre_epoch)
+    # Durability: sync the arm's telemetry to HF (prevents another isoA).
+    if os.path.exists(diag_path):
+        upload_hf_file(diag_path, os.path.basename(diag_path))
 
 
 def iso_final_top2(diag_path):
@@ -583,20 +719,29 @@ def iso_final_top2(diag_path):
 
 # Single source of truth: the arm specs + decision rule are pre-registered in
 # the roadmap (like run_label for record_verdict). The notebook runs exactly
-# what the plan defines — no drift between plan and execution.
+# what the plan defines — no drift between plan and execution. Restore the
+# HF-synced roadmap first so runtime verdicts from prior sessions survive.
+sync_roadmap_down()
 _roadmap = json.load(open("docs/rhan_next_roadmap.json"))
 iso_plan = _roadmap["stages"]["1"]["isolation_plan"]
 
 print("\n" + "="*70)
 print("  MECHANISM ISOLATION — which AIS sub-mechanism drives the Π_D reordering?")
 print("  Reference pattern (v12 reference runs): car/truck in top-2 Π_D.")
-print(f"  Budget: {ISO_EPOCHS} epochs, ε=0.031 phase 1 only, per arm.")
+print("  Budget: ISO_EPOCHS (default 12) phase-1 (ε=0.031) epochs per arm;")
+print("          per-arm max_epochs override allowed (isoA recapture = 14).")
 print("="*70)
 
 if DO_ISOLATION and not SKIP_TRAINING:
     for arm in iso_plan["arms"]:
+        max_ep = int(arm.get("max_epochs", ISO_EPOCHS))
+        if arm.get("recapture"):
+            print(f"  RECAPTURE (sufficiency test): {arm['label']} budget amended "
+                  f"to {max_ep} epochs — resumes {max_ep - 2}->{max_ep} from its "
+                  f"HF rolling checkpoint; prior telemetry was lost to a session "
+                  f"wipe.", flush=True)
         print(f"\n--- {arm['label']} ({arm['flag']}) ---", flush=True)
-        run_iso_arm(arm["ckpt_name"], arm["flag"], arm["diag_json"])
+        run_iso_arm(arm["ckpt_name"], arm["flag"], arm["diag_json"], max_ep)
 elif not DO_ISOLATION:
     print("  (Isolation phase skipped: DO_ISOLATION=False)", flush=True)
 
@@ -605,19 +750,79 @@ print("\n" + "="*70)
 print("  ISOLATION VERDICT — final-epoch Π_D top-2 per arm")
 print("="*70)
 iso_results = {}
+# Previously recorded arm verdicts (pre-seeded in the roadmap, or synced by a
+# prior session). When an arm's telemetry is unavailable we MUST carry its
+# prior record forward rather than overwrite it with an inconclusive artifact
+# (the isoB-clobber bug: isoB is at budget so it never re-trains, and its diag
+# was never synced by the pre-durability notebook — its correct RESTORED
+# verdict must survive fresh sessions).
+prior_arms = (_roadmap.get("stages", {}).get("1", {})
+              .get("isolation_verdict", {}).get("arms", {}))
 for arm in iso_plan["arms"]:
+    # Durability: a wiped session must be able to re-read an arm's telemetry.
+    if not os.path.exists(arm["diag_json"]):
+        download_hf_file(os.path.basename(arm["diag_json"]), arm["diag_json"])
     top2, ep = iso_final_top2(arm["diag_json"])
-    restored = bool(top2) and {'car', 'truck'} <= {k for k, _ in top2}
-    print(f"  {arm['label']:<28} epoch={ep} top-2={top2} "
-          f"{'→ car/truck RESTORED' if restored else '→ car/truck NOT restored'}")
+    if top2 is None:
+        prior = prior_arms.get(arm["label"])
+        if prior and prior.get("top2"):
+            top2, ep = prior.get("top2"), prior.get("epoch")
+            restored = prior.get("car_truck_restored")
+            status = ("carried forward from prior record (telemetry "
+                      "unavailable this session)")
+        else:
+            restored = None
+            status = ("INCONCLUSIVE — no final-epoch telemetry (prior "
+                      "session's diag lost to wipe; see "
+                      "recapture/sufficiency test)")
+    else:
+        restored = bool({'car', 'truck'} <= {k for k, _ in top2})
+        status = ("car/truck RESTORED" if restored
+                  else "car/truck NOT restored")
+    print(f"  {arm['label']:<28} epoch={ep} top-2={top2} → {status}")
     iso_results[arm["label"]] = {"epoch": ep, "top2": top2,
-                                 "car_truck_restored": restored}
+                                 "car_truck_restored": restored,
+                                 "status": status}
 
 print("\n  DECISION RULE (pre-registered in docs/rhan_next_roadmap.json):")
 print(f"    {iso_plan['decision_rule']}")
 print("  NOTE: Isolation A (halting OFF) is EXPECTED to show flat halting "
       "(steps_effective_std=0.0, frac_halted_any=0.0) — that IS the ablation "
       "signature (cont forced to 1), not a broken run.")
+
+# ── Sufficiency test (pre-registered, 2026-08-07): isoA's recaptured
+# final-epoch Pi_D completes the causal matrix ──────────────────────────────
+sufficiency = {"verdict": "PENDING_ISOA",
+               "claim": "isoA telemetry not yet available — sufficiency test "
+                        "unresolved; primary attribution still stands from the "
+                        "smoke<->isoB contrast."}
+isoA = next((a for a in iso_plan["arms"] if a.get("recapture")), None)
+isoA_label = isoA["label"] if isoA else "isoA (halting OFF)"
+isoA_row = iso_results.get(isoA_label)
+if isoA_row and isoA_row.get("top2"):
+    isoA_classes = {k for k, _ in isoA_row["top2"]}
+    if {'car', 'truck'} <= isoA_classes:
+        sufficiency = {
+            "verdict": "INTERACTION",
+            "claim": ("recon-mod alone is NOT sufficient — the degenerate "
+                      "car/airplane ordering appears only when recon-mod AND "
+                      "variable halting interact (isoA with halting OFF "
+                      "restores car/truck). A TRUE interaction effect; the "
+                      "write-up must present it as such, and it retroactively "
+                      "validates recon-mod OFF for Step B even more strongly.")}
+    else:
+        sufficiency = {
+            "verdict": "RECON_MOD_SUFFICIENT",
+            "claim": ("recon-mod confirmed SUFFICIENT alone — isoA (halting "
+                      "OFF, recon-mod ON) reproduces the smoke's car/airplane "
+                      "ordering, so recon-mod is both necessary and sufficient "
+                      "for the reordering.")}
+    print(f"\n  SUFFICIENCY TEST — {isoA_label}: top-2 = {isoA_row['top2']} "
+          f"→ {sufficiency['verdict']}")
+    print(f"    {sufficiency['claim']}")
+else:
+    print(f"\n  SUFFICIENCY TEST — {isoA_label}: telemetry pending — recorded "
+          f"as {sufficiency['verdict']}.")
 
 # Derive the smoke's actual top-2 from the health-verdict telemetry (never
 # hardcode it — a future smoke with a different ordering must not drift).
@@ -626,11 +831,21 @@ _smoke_top2 = [k for k, _ in sorted(_smoke_pd.items(),
                                      key=lambda kv: -kv[1])[:2]]
 
 iso_verdict = {
-    "schema": "stage1_isolation_verdict_v1",
+    "schema": "stage1_isolation_verdict_v2",
     "date_utc": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
     "smoke_pi_d_top2": _smoke_top2 or ["car", "airplane"],  # from telemetry
     "reference_pi_d_top2": ["car", "truck"],    # v12 reference composition
     "arms": iso_results,
+    "sufficiency_test": sufficiency,
+    "attribution": ("smoke vs isoB contrast (2026-08-07): with halting fixed "
+                     "ON, disabling recon-mod (isoB) restored car/truck — the "
+                     "precision-modulated recon weight is the CONFIRMED driver "
+                     "of the smoke's car/airplane reordering; the "
+                     "entropy-gated halting is exonerated by elimination."),
+    "decision": ("Step B trains the 'AIS-v1 (halting-only variant)' "
+                  "(--no-ais-precision-recon). recon-mod DEFERRED to its own "
+                  "future isolation cycle — not validated, not part of the "
+                  "headline config."),
     "decision_rule": iso_plan["decision_rule"],
     "note": "Step B stays GATED until this verdict is understood. The driver "
              "attribution (and any fix / health-gate recalibration) is decided "
@@ -643,14 +858,18 @@ _roadmap["stages"]["1"]["isolation_verdict"] = iso_verdict
 with open("docs/rhan_next_roadmap.json", "w") as f:
     json.dump(_roadmap, f, indent=2, sort_keys=False)
 print("  ✓ Isolation verdict written to report/rhan_next_ais_v1_isolation_verdict.json")
-print("  ✓ docs/rhan_next_roadmap.json updated: stages['1'].isolation_verdict", flush=True)
+print("  ✓ docs/rhan_next_roadmap.json updated: stages['1'].isolation_verdict")
+# Durability: sync the verdict + roadmap to HF (this is what lost isoA).
+upload_hf_file("report/rhan_next_ais_v1_isolation_verdict.json",
+               "rhan_next_ais_v1_isolation_verdict.json")
+sync_roadmap_up()
 
 # %% [markdown]
 # ## Step 6 — STEP B: FULL 60-EPOCH, 3-PHASE RUN (null_ablation-comparable)
 
 # %%
 print("\n" + "="*70)
-print("  STEP B: RHANNext AIS-v1 (Relocated Eq. II) FULL — 60 epochs, 0.031→0.062→0.094")
+print("  STEP B: RHANNext AIS-v1 (halting-only variant) FULL — 60 epochs, 0.031→0.062→0.094")
 print("="*70)
 
 if DO_STEP_B and not SKIP_TRAINING and PROCEED_STEP_B:
@@ -659,20 +878,32 @@ if DO_STEP_B and not SKIP_TRAINING and PROCEED_STEP_B:
     # (31.56±2.88 @ ε=0.094). NEVER --force-restart: the trainer's mandatory
     # HF resume gate restores/aborts instead of silently restarting, and the
     # notebook's own verify_no_restart below asserts the epoch only went forward.
-    pre_b_epoch = hf_rolling_epoch("rhan_next_ais_v1")
+    # 2026-08-07: per the isolation verdict (recon-mod = confirmed driver of
+    # the Pi_D reordering; smoke<->isoB contrast), Step B validates the
+    # **"AIS-v1 (halting-only variant)"**: --no-ais-precision-recon (halting
+    # + relocated Eq. II gaze + precision-driven step/beta ON; recon-mod OFF
+    # and DEFERRED to its own future isolation cycle). Artifacts are named
+    # rhan_next_ais_v1_halting_only_* so the variant label propagates into
+    # every result table + eval_provenance.json.
+    pre_b_epoch = hf_rolling_epoch("rhan_next_ais_v1_halting_only")
     print(f"  [resume-gate] pre-Step-B HF rolling epoch: {pre_b_epoch}",
           flush=True)
     run(
         f"python3 phase1_training/train_rhan_next.py "
         f"--enable-ais "
-        f"--ckpt-name rhan_next_ais_v1 "
+        f"--no-ais-precision-recon "
+        f"--ckpt-name rhan_next_ais_v1_halting_only "
         f"--max-epochs 60 "
         f"--target-ckpt {BASE} "
         f"--batch-size 16 --accum-steps 16 "
-        f"--diag-json report/rhan_next_ais_v1_diag.jsonl "
+        f"--diag-json report/rhan_next_ais_v1_halting_only_diag.jsonl "
         f"--force-single-gpu"
     )
-    verify_no_restart("rhan_next_ais_v1", pre_b_epoch)
+    verify_no_restart("rhan_next_ais_v1_halting_only", pre_b_epoch)
+    # Durability: sync the 60-epoch telemetry to HF (the isoA lesson).
+    if os.path.exists("report/rhan_next_ais_v1_halting_only_diag.jsonl"):
+        upload_hf_file("report/rhan_next_ais_v1_halting_only_diag.jsonl",
+                       "rhan_next_ais_v1_halting_only_diag.jsonl")
 else:
     print("  (Step B skipped: DO_STEP_B=False, SKIP_TRAINING=True, or health gate blocked)",
           flush=True)
@@ -700,27 +931,27 @@ def ensure_ckpt(name):
     raise RuntimeError(f"No checkpoint found for {name} (local or HF). Train Step B first.")
 
 print("\n" + "="*70)
-print("  STEP C: 5-SEED MATCHED EVAL — rhan_next_ais_v1 vs TRADES Large baseline")
+print("  STEP C: 5-SEED MATCHED EVAL — rhan_next_ais_v1_halting_only vs TRADES Large baseline")
 print("="*70)
 
 if DO_STEP_C and (PROCEED_STEP_B or SKIP_TRAINING):
     # Self-test the eval entrypoint first (structural, against checked-in ref).
     run("python3 phase2_attacks/eval_rhan.py --self-test")
 
-    rhan_ckpt = ensure_ckpt("rhan_next_ais_v1_best.pth")
+    rhan_ckpt = ensure_ckpt("rhan_next_ais_v1_halting_only_best.pth")
     bsl_ckpt  = ensure_ckpt("rhan_stl10_large_pseudolabel_best.pth")
 
     # Main grid: PGD-50, eps 0.000/0.094 (the matched protocol).
     run(
         f"python3 phase2_attacks/eval_rhan.py "
-        f"--ckpt-specs rhan_next_ais_v1:{rhan_ckpt}:next "
+        f"--ckpt-specs rhan_next_ais_v1_halting_only:{rhan_ckpt}:next "
         f"trades_large_baseline:{bsl_ckpt}:large "
         f"--seeds 41 42 43 44 45 "
         f"--eps-list 0.000 0.094 "
         f"--pgd-steps 50 "
         f"--n-samples 300 "
         f"--batch-size 64 "
-        f"--output-dir report/sweep_stage1_ais_v1"
+        f"--output-dir report/sweep_stage1_ais_v1_halting_only"
     )
 
     # PGD-100 spot-check at eps=0.094 ONLY — the 2-step PGD-50-vs-100
@@ -731,21 +962,21 @@ if DO_STEP_C and (PROCEED_STEP_B or SKIP_TRAINING):
     # assumed. Same seeds/n for a clean gap on the SAME samples.
     run(
         f"python3 phase2_attacks/eval_rhan.py "
-        f"--ckpt-specs rhan_next_ais_v1:{rhan_ckpt}:next "
+        f"--ckpt-specs rhan_next_ais_v1_halting_only:{rhan_ckpt}:next "
         f"trades_large_baseline:{bsl_ckpt}:large "
         f"--seeds 41 42 43 44 45 "
         f"--eps-list 0.094 "
         f"--pgd-steps 100 "
         f"--n-samples 300 "
         f"--batch-size 64 "
-        f"--output-dir report/sweep_stage1_ais_v1_pgd100"
+        f"--output-dir report/sweep_stage1_ais_v1_halting_only_pgd100"
     )
 elif DO_STEP_C:
     print("\n  [STOP] Step B did not complete (smoke health gate / isolation "
-          "verdict) — rhan_next_ais_v1_best.pth does not exist, so there is "
-          "nothing to evaluate. Step C is SKIPPED (no RuntimeError). Complete "
-          "Step B first, or set FORCE_STEP_B_OVERRIDE=True (not for publishable "
-          "numbers).", flush=True)
+          "verdict) — rhan_next_ais_v1_halting_only_best.pth does not exist, "
+          "so there is nothing to evaluate. Step C is SKIPPED (no RuntimeError). "
+          "Complete Step B first, or set FORCE_STEP_B_OVERRIDE=True (not for "
+          "publishable numbers).", flush=True)
 else:
     print("  (Step C skipped: DO_STEP_C=False)", flush=True)
 
@@ -807,7 +1038,7 @@ def masking_verdict(prov50, prov100, eps=0.094):
         "pgd100_provenance": {"git_sha": prov100.get("git_sha"),
                               "timestamp_utc": prov100.get("timestamp_utc")},
     }
-    for label in ('rhan_next_ais_v1', 'trades_large_baseline'):
+    for label in ('rhan_next_ais_v1_halting_only', 'trades_large_baseline'):
         r50 = _results_row(prov50.get('results'), label, eps)
         r100 = _results_row(prov100.get('results'), label, eps)
         if r50 is None or r100 is None:
@@ -839,7 +1070,8 @@ def masking_verdict(prov50, prov100, eps=0.094):
 
 
 def record_verdict():
-    prov_path = "report/sweep_stage1_ais_v1/eval_provenance.json"
+    sync_roadmap_down()   # runtime verdicts from prior sessions must survive
+    prov_path = "report/sweep_stage1_ais_v1_halting_only/eval_provenance.json"
     if not os.path.exists(prov_path):
         print("  No eval_provenance.json found — Step C did not complete.", flush=True)
         return
@@ -853,7 +1085,7 @@ def record_verdict():
     stage1_cfg = roadmap["stages"]["1"]
 
     # PGD-100 spot-check provenance (same seeds/n at eps=0.094 only).
-    prov100_path = "report/sweep_stage1_ais_v1_pgd100/eval_provenance.json"
+    prov100_path = "report/sweep_stage1_ais_v1_halting_only_pgd100/eval_provenance.json"
     prov100 = None
     if os.path.exists(prov100_path):
         with open(prov100_path) as f:
@@ -893,13 +1125,14 @@ def record_verdict():
     roadmap["stages"]["1"]["validated_date"] = stage1["validated_date"]
     roadmap["stages"]["1"]["validated_note"] = (
         "Stage 1 (%s) 5-seed matched eval recorded from "
-        "report/sweep_stage1_ais_v1/eval_provenance.json — see "
+        "report/sweep_stage1_ais_v1_halting_only/eval_provenance.json — see "
         "roadmap.stages['1'].stage1_verdict. Verdict is what it is, "
         "including a null result." % stage1_cfg.get("run_label", "UNLABELED"))
     roadmap["stages"]["1"]["stage1_verdict"] = stage1
     with open("docs/rhan_next_roadmap.json", "w") as f:
         json.dump(roadmap, f, indent=2, sort_keys=False)
-    print("  ✓ docs/rhan_next_roadmap.json updated with the Stage 1 verdict.", flush=True)
+    print("  ✓ docs/rhan_next_roadmap.json updated with the Stage 1 verdict.")
+    sync_roadmap_up()
     print("  Verdict summary:", json.dumps(stage1.get("crossover_verdicts"),
                                            indent=2), flush=True)
     print("  Masking check:", json.dumps(stage1.get("masking_check"),
@@ -919,11 +1152,12 @@ print("  - Step A health verdict  : report/rhan_next_ais_v1_smoke_health.json")
 print("  - Isolation A (halt off) : checkpoints/rhan_next_ais_v1_isoA_nohalt_{best,rolling}.pth")
 print("  - Isolation B (recon off): checkpoints/rhan_next_ais_v1_isoB_noreconmod_{best,rolling}.pth")
 print("  - Isolation verdict      : report/rhan_next_ais_v1_isolation_verdict.json")
-print("  - Step B full run        : checkpoints/rhan_next_ais_v1_{best,rolling}.pth")
-print("  - Step C eval (PGD-50)   : report/sweep_stage1_ais_v1/")
-print("  - Step C PGD-100 spot    : report/sweep_stage1_ais_v1_pgd100/ (eps=0.094, masking check)")
+print("  - Step B full run        : checkpoints/rhan_next_ais_v1_halting_only_{best,rolling}.pth")
+print("  - Step C eval (PGD-50)   : report/sweep_stage1_ais_v1_halting_only/")
+print("  - Step C PGD-100 spot    : report/sweep_stage1_ais_v1_halting_only_pgd100/ (eps=0.094, masking check)")
 print("  - Verdict recorded       : docs/rhan_next_roadmap.json (stages.1)")
 print()
 print("  DO NOT begin Stage 2 (HPC) until the Stage 1 verdict is reviewed.")
-print("  Stage 2 must keep AIS-v1 fixed at whatever Stage 1 validated.")
+print("  Stage 2 must keep AIS-v1 (halting-only variant) fixed at whatever")
+print("  Stage 1 validated — recon-mod stays deferred until its own isolation.")
 print("="*70)
