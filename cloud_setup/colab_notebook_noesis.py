@@ -532,7 +532,8 @@ if DO_STEP_A and not SKIP_TRAINING:
         f"--diag-json report/rhan_next_ais_v1_smoke_diag.jsonl "
         f"--force-single-gpu"
     )
-    verify_no_restart("rhan_next_ais_v1_smoke", pre_a_epoch) if not DRY_RUN else None
+    if not DRY_RUN:
+        verify_no_restart("rhan_next_ais_v1_smoke", pre_a_epoch)
     # Durability: sync the per-epoch telemetry to HF (a wiped session must not
     # lose it — this is what made isoA's verdict unrecoverable).
     if os.path.exists("report/rhan_next_ais_v1_smoke_diag.jsonl"):
@@ -962,11 +963,6 @@ iso_verdict = {
     "reference_pi_d_top2": ["car", "truck"],    # v12 reference composition
     "arms": iso_results,
     "sufficiency_test": sufficiency,
-    # 2026-08-07 gate-clear fields: this verdict RESOLVES the smoke gate for
-    # the exact Step B config its decision selects (status="resolved"); the
-    # notebook's PROCEED_STEP_B consumes these (never FORCE_STEP_B_OVERRIDE).
-    "status": "resolved",
-    "selected_step_b_config": "AIS-v1 (halting-only variant)",
     "attribution": ("smoke vs isoB contrast (2026-08-07): with halting fixed "
                      "ON, disabling recon-mod (isoB) restored car/truck — the "
                      "precision-modulated recon weight is the CONFIRMED driver "
@@ -976,12 +972,25 @@ iso_verdict = {
                   "(--no-ais-precision-recon). recon-mod DEFERRED to its own "
                   "future isolation cycle — not validated, not part of the "
                   "headline config."),
-    "decision_rule": iso_plan["decision_rule"],
-    "note": "Step B stays GATED until this verdict is understood. The driver "
-             "attribution (and any fix / health-gate recalibration) is decided "
-             "from this evidence — a null/ambiguous isolation is a valid, "
-             "recorded result.",
 }
+# 2026-08-07 gate-clear fields: DERIVED from the decision text (never
+# hardcoded) so a future isolation that selects a different Step B config
+# cannot silently carry a stale gate-clear. status="resolved" exactly when the
+# decision names a Step B config; the notebook's PROCEED_STEP_B consumes these
+# (never FORCE_STEP_B_OVERRIDE).
+_decision_txt = iso_verdict.get("decision", "")
+_selected_cfg = None
+for _cfg in ("AIS-v1 (halting-only variant)",):
+    if _cfg in _decision_txt:
+        _selected_cfg = _cfg
+        break
+iso_verdict["status"] = "resolved" if _selected_cfg else "pending"
+iso_verdict["selected_step_b_config"] = _selected_cfg
+iso_verdict["decision_rule"] = iso_plan["decision_rule"]
+iso_verdict["note"] = ("Step B stays GATED until this verdict is understood. "
+                       "The driver attribution (and any fix / health-gate "
+                       "recalibration) is decided from this evidence — a "
+                       "null/ambiguous isolation is a valid, recorded result.")
 with open("report/rhan_next_ais_v1_isolation_verdict.json", "w") as f:
     json.dump(iso_verdict, f, indent=2, sort_keys=True)
 _roadmap["stages"]["1"]["isolation_verdict"] = iso_verdict
@@ -1059,6 +1068,11 @@ print("="*70)
 # deleting the local rolling copy, then re-launches for 1 more epoch — the
 # trainer MUST restore from HF and continue at epoch 3 (a silent restart would
 # end at epoch 2 and fail the assertion). ~1.5h on a T4.
+if DRY_RUN and DO_RESUME_SELFTEST and not SKIP_TRAINING and PROCEED_STEP_B:
+    print("\n  [DRY-RUN] RESUME SELF-TEST would run: rhan_next_resume_selftest "
+          "(2 epochs -> simulated /content wipe -> resume to 3, ~1.5h on a "
+          "T4) — not executed in pre-flight.", flush=True)
+
 if DO_RESUME_SELFTEST and not SKIP_TRAINING and PROCEED_STEP_B and not DRY_RUN:
     print("\n" + "="*70)
     print("  RESUME SELF-TEST: rhan_next_resume_selftest (2 epochs -> wipe -> 3)")
@@ -1094,6 +1108,24 @@ if DO_RESUME_SELFTEST and not SKIP_TRAINING and PROCEED_STEP_B and not DRY_RUN:
             f"rolling-resume path is BROKEN; do NOT start Step B. Debug first.")
     print("  [resume-selftest] PASS: session 2 resumed at epoch 3 from HF (never a "
           "restart). Step B may proceed.", flush=True)
+    # Cleanup: the scratch checkpoints must NOT linger on the shared HF repos
+    # (they would pollute resume-gate listings for real Step B names) or locally.
+    for repo, fname in (("FerrariKazu/rhan-checkpoints-rolling",
+                         "rhan_next_resume_selftest_rolling.pth"),
+                        ("FerrariKazu/rhan-checkpoints",
+                         "rhan_next_resume_selftest_best.pth")):
+        try:
+            from huggingface_hub import HfApi
+            HfApi(token=hf_token).delete_file(path_in_repo=fname, repo_id=repo,
+                                              repo_type="dataset", token=hf_token)
+            print(f"  [resume-selftest] deleted {fname} from {repo}", flush=True)
+        except Exception as e:
+            print(f"  [resume-selftest] WARNING: could not delete {fname} from "
+                  f"HF ({e}) — harmless, name is self-contained.", flush=True)
+    for p in ("checkpoints/rhan_next_resume_selftest_rolling.pth",
+              "checkpoints/rhan_next_resume_selftest_best.pth"):
+        if os.path.exists(p):
+            os.remove(p)
     print("="*70, flush=True)
 
 if DO_STEP_B and not SKIP_TRAINING and PROCEED_STEP_B:
@@ -1126,8 +1158,6 @@ if DO_STEP_B and not SKIP_TRAINING and PROCEED_STEP_B:
               f"--max-epochs 60 --target-ckpt {BASE} --batch-size 16 --accum-steps 16 "
               f"--diag-json report/rhan_next_ais_v1_halting_only_diag.jsonl "
               f"--force-single-gpu", flush=True)
-        _seed_note = ("seeded from isolation-B rolling checkpoint (epoch 12, "
-                      "identical config); resumes at epoch 13")
     else:
         pre_b_epoch = hf_rolling_epoch("rhan_next_ais_v1_halting_only")
         print(f"  [resume-gate] pre-Step-B HF rolling epoch: {pre_b_epoch}",
