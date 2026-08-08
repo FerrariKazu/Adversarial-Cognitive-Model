@@ -1,7 +1,39 @@
 #!/usr/bin/env python3
 """
-Colab Notebook — RHAN-Next Stage 1 Execution (AIS-v1: Relocated Equation II)
-============================================================================
+Kaggle Notebook — RHAN-Next Stage 1 Execution (AIS-v1: Relocated Equation II)
+=============================================================================
+This is the Kaggle-native twin of cloud_setup/colab_notebook_noesis.py
+(2026-08-07): identical protocol, gate logic, NEVER-RESTART guarantees, and
+artifact names — adapted for a Kaggle Notebook runtime.
+
+KAGGLE ADAPTATIONS (vs the Colab twin):
+  - Working dir : /kaggle/working/{REPO_NAME} (Kaggle wipes it between
+                  sessions, exactly like Colab wipes /content — the HF
+                  rolling checkpoint remains the SINGLE source of truth).
+  - HF_TOKEN    : read from Kaggle Secrets (Add-ons > Secrets > "HF_TOKEN"),
+                  injected as an env var; kaggle_secrets.UserSecretsClient
+                  fallback. No google.colab dependency.
+  - Deps        : Kaggle GPU runtimes preinstall torch+cu121 + huggingface_hub;
+                  this notebook only installs what is MISSING (it never
+                  upgrades pip/setuptools on the managed env — avoids the
+                  Colab setuptools-83-vs-torch<82 conflict).
+  - Accelerator : select "GPU T4 x2" (or T4 x1 fallback). TRAINING (Steps A/B)
+                  always uses --force-single-gpu (no DDP — Turing sm_75
+                  DataParallel crash avoidance, repo convention), so T4x2 does
+                  NOT speed up training (~2.7 ep/hr on one T4). STEP C detects
+                  2 GPUs and runs the PGD-50 grid + PGD-100 spot-check
+                  CONCURRENTLY on separate GPUs (CUDA_VISIBLE_DEVICES pinning,
+                  the shard_2gpu.py pattern). The two legs are only
+                  APPROXIMATELY balanced today (GPU0: 2 ckpts x 5 seeds x 2 eps
+                  at PGD-50; GPU1: 2 x 5 x 1 eps at PGD-100, ~2x cost) — wall-
+                  clock savings are rough, not exact; changing either leg's
+                  budget silently changes the parallel run's balance.
+  - Session     : Kaggle GPU sessions cap at ~9 h (up to 12 h on some tiers).
+                  Step B (60 epochs ≈ 21 h on a T4) therefore spans 3-4
+                  sessions; the mandatory HF rolling-resume gate +
+                  verify_no_restart make that safe — NEVER --force-restart.
+                  Run DO_RESUME_SELFTEST on the FIRST session only (proves the
+                  resume path once), then set it False on later sessions.
 Runs the pre-registered Stage 1 protocol for RHANNext(enable_ais=True,
 enable_hpc=False).
 
@@ -112,7 +144,7 @@ the full 60-epoch run is 7-20h — far over the 1-hour local budget.
       precision-modulated recon weight is the driver of the reordering (the
       entropy-gated halting is exonerated by elimination). isoA's final-epoch
       telemetry was LOST (its diag .jsonl is local-only and was wiped with
-      /content — only checkpoints synced to HF), so its verdict is
+      /kaggle/working — only checkpoints synced to HF), so its verdict is
       INCONCLUSIVE, not "not restored". This notebook now syncs every diag
       .jsonl + the roadmap to HF (the durability fix) and re-runs isoA as a
       SUFFICIENCY TEST at an amended budget (max-epochs 14, resumes 12→14
@@ -168,7 +200,9 @@ feature/rhan-next). It intentionally does NOT reset to origin/main — RHANNext
 only exists on the branch, and it must not be merged to main until Stage 3's
 validated checkbox is checked.
 
-Usage: paste cells into a Colab GPU runtime, set HF_TOKEN in Secrets.
+Usage: paste cells into a Kaggle Notebook (or run the whole file).
+Set HF_TOKEN in Kaggle Secrets (Add-ons > Secrets > "HF_TOKEN").
+Select accelerator GPU T4 x2 (recommended) or T4 x1. Internet: ON.
 Toggles: DO_STEP_A / DO_STEP_B / DO_STEP_C, SKIP_TRAINING (eval-only),
 SMOKE_EPOCHS (10-15), FORCE_STEP_B_OVERRIDE (debug escape — do not use for
 publishable numbers), DO_ISOLATION / ISO_EPOCHS (mechanism isolation phase),
@@ -222,23 +256,50 @@ def run(cmd, check=True):
     return rc
 
 if not DRY_RUN:
-    run("pip install --quiet --upgrade pip setuptools wheel")
-    run("pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cu121")
-    run("pip install --quiet huggingface_hub datasets Pillow scipy python-dotenv")
+    # Kaggle GPU runtimes PREINSTALL torch+cu121 and huggingface_hub, and
+    # pip/setuptools are managed by the platform — never upgrade them (the
+    # Colab setuptools-83-vs-torch<82 conflict does not apply here, and
+    # force-reinstalling torch over the platform build can break CUDA). Only
+    # install what is demonstrably missing.
+    try:
+        import torch  # noqa: F401
+        if not torch.cuda.is_available():
+            raise ImportError("torch present but CUDA unavailable")
+    except Exception:
+        run("pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cu121")
+    # NOTE: `datasets` is deliberately NOT checked/installed here — neither
+    # train_rhan_next.py nor eval_rhan.py imports it (verified 2026-08-07), and
+    # on Kaggle it would pull a heavy pyarrow/pandas dependency chain for
+    # nothing. Check each remaining package individually so one missing import
+    # never triggers a multi-package reinstall.
+    for _mod, _pkg in (("huggingface_hub", "huggingface_hub"),
+                       ("PIL", "Pillow"),
+                       ("scipy", "scipy"),
+                       ("dotenv", "python-dotenv")):
+        try:
+            __import__(_mod)
+        except Exception:
+            run(f"pip install --quiet {_pkg}")
 
 # %% [markdown]
 # ## Step 2: Clone and Checkout feature/rhan-next (NOT main!)
 
 # %%
 REPO_NAME = 'Adversarial-Cognitive-Model'
-WORK_DIR = f'/content/{REPO_NAME}'
+WORK_DIR = f'/kaggle/working/{REPO_NAME}'
 
 if not DRY_RUN:
+    # Kaggle: /kaggle/working is the writable scratch dir (like Colab's
+    # /content — wiped between sessions, so the HF rolling checkpoint stays
+    # the SINGLE source of truth). The repo must NOT be on /kaggle/input
+    # (read-only mounts can't write checkpoints/).
+    os.chdir('/kaggle/working')
     if not os.path.exists(WORK_DIR):
         run(f'git clone https://github.com/FerrariKazu/{REPO_NAME}.git')
     os.chdir(WORK_DIR)
     sys.path.insert(0, WORK_DIR)
     sys.path.insert(0, os.path.join(WORK_DIR, 'phase1_training'))
+    os.environ["PYTHONPATH"] = f"{WORK_DIR}:{os.environ.get('PYTHONPATH', '')}"
 
     # RHANNext lives on feature/rhan-next. Never reset to origin/main here.
     run('git fetch origin')
@@ -262,13 +323,16 @@ import torch
 hf_token = os.environ.get("HF_TOKEN")
 if not hf_token:
     try:
-        from google.colab import userdata
-        hf_token = userdata.get('HF_TOKEN')
+        # Kaggle Secrets are injected as env vars; this fallback reads them
+        # via the official client if the env injection didn't happen.
+        from kaggle_secrets import UserSecretsClient
+        hf_token = UserSecretsClient().get_secret('HF_TOKEN')
         os.environ["HF_TOKEN"] = hf_token
     except Exception:
         pass
 if not hf_token:
-    raise RuntimeError("HF_TOKEN not found. Set it in Colab Secrets (key icon in sidebar).")
+    raise RuntimeError("HF_TOKEN not found. Add it to Kaggle Secrets: "
+                       "Add-ons > Secrets > 'HF_TOKEN' (key must match exactly).")
 
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["PYTHONUNBUFFERED"] = "1"
@@ -333,7 +397,8 @@ if os.path.exists(BASE):
     print(f"✓ base checkpoint present: {BASE} ({os.path.getsize(BASE)/1e6:.0f} MB)", flush=True)
 
 # ── Resume-gate helpers (NEVER-RESTART GUARANTEE, v12-parity) ─────────────
-# Colab wipes /content between sessions, so local checkpoints + telemetry
+# Kaggle wipes /kaggle/working between sessions, so local checkpoints +
+# telemetry
 # survive only within a session. The HF rolling repo is the SINGLE source of
 # truth for training progress. These helpers make the NOTEBOOK itself
 # resume-aware so a restarted session can never force-restart and never
@@ -379,7 +444,7 @@ def download_hf_verdict():
 
 def upload_hf_file(local_path, repo_path):
     """Sync any local file (checkpoints, diag .jsonl, verdicts, roadmap) to
-    the rolling HF repo so it survives Colab /content wipes.
+    the rolling HF repo so it survives Kaggle /kaggle/working wipes.
 
     This is the durability fix for the isoA telemetry loss: per-epoch diag
     .jsonl files and the roadmap are now synced alongside checkpoints and
@@ -637,7 +702,7 @@ def health_verdict(rows):
     return {"healthy": healthy, "reasons": reasons,
             "last_epoch": last.get('epoch'), "summary": last}
 
-# Resume durability: a wiped /content must be able to restore the smoke
+# Resume durability: a wiped /kaggle/working must be able to restore the smoke
 # telemetry from HF before the gate evaluates it.
 if not os.path.exists(SMOKE_DIAG):
     download_hf_file("rhan_next_ais_v1_smoke_diag.jsonl", SMOKE_DIAG)
@@ -650,7 +715,8 @@ for r in rows:
 
 # ── Resume-aware gate ─────────────────────────────────────────────────────
 # If this session ran Step A, rows holds fresh telemetry -> normal path. If
-# rows is empty, /content was wiped (session restart): decide from HF state
+# rows is empty, /kaggle/working was wiped (session restart): decide from HF
+# state
 # so a restart can NEVER force-restart and NEVER blocks the auto-resume.
 verdict = None
 if rows:
@@ -1064,13 +1130,14 @@ print("="*70)
 
 # ── Resume self-test (item 5: prove the HF rolling-resume path once more,
 # before trusting it across the ~3-4 session boundaries the 60-epoch run needs) ──
-# Bounded: trains a SCRATCH ckpt 2 epochs, simulates a /content wipe by
+# Bounded: trains a SCRATCH ckpt 2 epochs, simulates a /kaggle/working wipe by
 # deleting the local rolling copy, then re-launches for 1 more epoch — the
 # trainer MUST restore from HF and continue at epoch 3 (a silent restart would
 # end at epoch 2 and fail the assertion). ~1.5h on a T4.
 if DRY_RUN and DO_RESUME_SELFTEST and not SKIP_TRAINING and PROCEED_STEP_B:
     print("\n  [DRY-RUN] RESUME SELF-TEST would run: rhan_next_resume_selftest "
-          "(2 epochs -> simulated /content wipe -> resume to 3, ~1.5h on a "
+          "(2 epochs -> simulated /kaggle/working wipe -> resume to 3, ~1.5h "
+          "on a "
           "T4) — not executed in pre-flight.", flush=True)
 
 if DO_RESUME_SELFTEST and not SKIP_TRAINING and PROCEED_STEP_B and not DRY_RUN:
@@ -1087,7 +1154,8 @@ if DO_RESUME_SELFTEST and not SKIP_TRAINING and PROCEED_STEP_B and not DRY_RUN:
     if ep1 != 2:
         raise RuntimeError(
             f"[resume-selftest] session-1 rolling epoch {ep1} != 2 — aborting.")
-    # Simulate a /content wipe: delete the LOCAL rolling checkpoint so the
+    # Simulate a /kaggle/working wipe: delete the LOCAL rolling checkpoint so
+    # the
     # second launch is forced to restore from HF (the real multi-session path).
     for p in (f"checkpoints/rhan_next_resume_selftest_rolling.pth",
               f"checkpoints/rhan_next_resume_selftest_best.pth"):
@@ -1268,27 +1336,115 @@ def ensure_ckpt(name):
             pass
     raise RuntimeError(f"No checkpoint found for {name} (local or HF). Train Step B first.")
 
+
+def run_eval_legs(cmd50, cmd100):
+    """Run the two independent eval legs (PGD-50 grid, PGD-100 spot-check).
+
+    Kaggle T4x2 adaptation: on a 2-GPU box the legs run CONCURRENTLY on
+    separate GPUs via CUDA_VISIBLE_DEVICES pinning (the repo's shard_2gpu.py
+    pattern — independent single-GPU processes, never DataParallel, which
+    crashes on Turing sm_75 in backward). Each leg writes its OWN
+    --output-dir + eval_provenance.json, so record_verdict() reads them
+    exactly as on a single GPU — the protocol is byte-identical (same
+    command, same seeds, same eps, same n-samples), only the GPU assignment
+    differs. On 1 GPU (T4 x1, or Colab) it falls back to sequential.
+    """
+    if DRY_RUN:
+        n = torch.cuda.device_count()
+        if n >= 2:
+            mode = f"IN PARALLEL (T4x2, {n} GPUs)"
+        elif n == 1:
+            mode = "SEQUENTIALLY (1 GPU)"
+        else:
+            mode = "SEQUENTIALLY (no GPU detected — CPU host)"
+        print(f"  [DRY-RUN] Step C eval legs would run {mode}:", flush=True)
+        print(f"    leg A (PGD-50 grid): {cmd50}", flush=True)
+        print(f"    leg B (PGD-100)   : {cmd100}", flush=True)
+        return
+    if torch.cuda.device_count() < 2:
+        run(cmd50)
+        run(cmd100)
+        return
+    import threading
+    procs = []
+    for i, cmd in enumerate((cmd50, cmd100)):
+        env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(i))
+        print(f"\n[RUN] (gpu{i}): {cmd}", flush=True)
+        procs.append(subprocess.Popen(
+            cmd, shell=True, env=env, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1))
+
+    def _pump(p, tag):
+        for line in p.stdout:
+            print(f"[gpu{tag}] {line}", end='', flush=True)
+
+    threads = [threading.Thread(target=_pump, args=(p, i), daemon=True)
+               for i, p in enumerate(procs)]
+    for t in threads:
+        t.start()
+    rcs = [p.wait() for p in procs]
+    for t in threads:
+        t.join()
+    # The pumps are daemon threads; join() returns once each process's stdout
+    # pipe reaches EOF. This assumes eval_rhan.py runs in-process (it does —
+    # it drives the frozen sweep module directly, never spawning a child that
+    # would inherit the pipe and hold it open past the process exit).
+    if any(rc != 0 for rc in rcs):
+        raise subprocess.CalledProcessError(rcs, "parallel eval legs (T4x2)")
+    print("\n  ✓ both eval legs completed in parallel (T4x2)", flush=True)
+
 print("\n" + "="*70)
 print("  STEP C: 5-SEED MATCHED EVAL — rhan_next_ais_v1_halting_only vs TRADES Large baseline")
 print("="*70)
 
+def _eval_cmds(rhan_ckpt, bsl_ckpt):
+    """Return (cmd50, cmd100) — the two independent eval legs."""
+    # Main grid: PGD-50, eps 0.000/0.094 (the matched protocol).
+    cmd50 = (
+        f"python3 phase2_attacks/eval_rhan.py "
+        f"--ckpt-specs rhan_next_ais_v1_halting_only:{rhan_ckpt}:next "
+        f"trades_large_baseline:{bsl_ckpt}:large "
+        f"--seeds 41 42 43 44 45 "
+        f"--eps-list 0.000 0.094 "
+        f"--pgd-steps 50 "
+        f"--n-samples 300 "
+        f"--batch-size 64 "
+        f"--output-dir report/sweep_stage1_ais_v1_halting_only"
+    )
+    # PGD-100 spot-check at eps=0.094 ONLY — the 2-step PGD-50-vs-100
+    # convergence gap that first confirmed genuine robustness (not masking)
+    # for this configuration family (RHANv11.md: PGD-50 45.20% vs PGD-100
+    # 44.40% at eps=0.031, tight convergence d <= 1.0 pp). AIS-v1 is a
+    # REFACTOR of the same mechanism, so this must be re-confirmed, not
+    # assumed. Same seeds/n for a clean gap on the SAME samples.
+    cmd100 = (
+        f"python3 phase2_attacks/eval_rhan.py "
+        f"--ckpt-specs rhan_next_ais_v1_halting_only:{rhan_ckpt}:next "
+        f"trades_large_baseline:{bsl_ckpt}:large "
+        f"--seeds 41 42 43 44 45 "
+        f"--eps-list 0.094 "
+        f"--pgd-steps 100 "
+        f"--n-samples 300 "
+        f"--batch-size 64 "
+        f"--output-dir report/sweep_stage1_ais_v1_halting_only_pgd100"
+    )
+    return cmd50, cmd100
+
+
 if DO_STEP_C and (PROCEED_STEP_B or SKIP_TRAINING):
     if DRY_RUN:
-        # Pre-flight: print the two eval invocations + the checkpoint names
-        # Step C will resolve, WITHOUT launching them.
+        # Pre-flight: exercise the FULL Step C decision path (including the
+        # T4x2-parallel vs sequential choice) without launching anything.
         print("  [DRY-RUN] Step C would run:", flush=True)
         print("    python3 phase2_attacks/eval_rhan.py --self-test", flush=True)
         print("    ckpt-specs: rhan_next_ais_v1_halting_only:checkpoints/"
               "rhan_next_ais_v1_halting_only_best.pth:next  "
               "trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large",
               flush=True)
-        print("    main grid  : --seeds 41 42 43 44 45 --eps-list 0.000 0.094 "
-              "--pgd-steps 50 --n-samples 300 --batch-size 64 "
-              "--output-dir report/sweep_stage1_ais_v1_halting_only", flush=True)
-        print("    PGD-100    : --seeds 41 42 43 44 45 --eps-list 0.094 "
-              "--pgd-steps 100 --n-samples 300 --batch-size 64 "
-              "--output-dir report/sweep_stage1_ais_v1_halting_only_pgd100",
-              flush=True)
+        cmd50, cmd100 = _eval_cmds(
+            "checkpoints/rhan_next_ais_v1_halting_only_best.pth",
+            "checkpoints/rhan_stl10_large_pseudolabel_best.pth")
+        run_eval_legs(cmd50, cmd100)
     else:
         # Self-test the eval entrypoint first (structural, against checked-in ref).
         run("python3 phase2_attacks/eval_rhan.py --self-test")
@@ -1296,36 +1452,10 @@ if DO_STEP_C and (PROCEED_STEP_B or SKIP_TRAINING):
         rhan_ckpt = ensure_ckpt("rhan_next_ais_v1_halting_only_best.pth")
         bsl_ckpt  = ensure_ckpt("rhan_stl10_large_pseudolabel_best.pth")
 
-        # Main grid: PGD-50, eps 0.000/0.094 (the matched protocol).
-        run(
-            f"python3 phase2_attacks/eval_rhan.py "
-            f"--ckpt-specs rhan_next_ais_v1_halting_only:{rhan_ckpt}:next "
-            f"trades_large_baseline:{bsl_ckpt}:large "
-            f"--seeds 41 42 43 44 45 "
-            f"--eps-list 0.000 0.094 "
-            f"--pgd-steps 50 "
-            f"--n-samples 300 "
-            f"--batch-size 64 "
-            f"--output-dir report/sweep_stage1_ais_v1_halting_only"
-        )
-
-        # PGD-100 spot-check at eps=0.094 ONLY — the 2-step PGD-50-vs-100
-        # convergence gap that first confirmed genuine robustness (not masking)
-        # for this configuration family (RHANv11.md: PGD-50 45.20% vs PGD-100
-        # 44.40% at eps=0.031, tight convergence d <= 1.0 pp). AIS-v1 is a
-        # REFACTOR of the same mechanism, so this must be re-confirmed, not
-        # assumed. Same seeds/n for a clean gap on the SAME samples.
-        run(
-            f"python3 phase2_attacks/eval_rhan.py "
-            f"--ckpt-specs rhan_next_ais_v1_halting_only:{rhan_ckpt}:next "
-            f"trades_large_baseline:{bsl_ckpt}:large "
-            f"--seeds 41 42 43 44 45 "
-            f"--eps-list 0.094 "
-            f"--pgd-steps 100 "
-            f"--n-samples 300 "
-            f"--batch-size 64 "
-            f"--output-dir report/sweep_stage1_ais_v1_halting_only_pgd100"
-        )
+        cmd50, cmd100 = _eval_cmds(rhan_ckpt, bsl_ckpt)
+        # T4x2: the two legs are independent (own output-dir + own
+        # eval_provenance.json) — run them concurrently on separate GPUs.
+        run_eval_legs(cmd50, cmd100)
 elif DO_STEP_C:
     print("\n  [STOP] Step B did not complete (smoke health gate / isolation "
           "verdict) — rhan_next_ais_v1_halting_only_best.pth does not exist, "
