@@ -1299,6 +1299,40 @@ print("\n" + "="*70)
 print("  STEP C: 5-SEED MATCHED EVAL — rhan_next_ais_v1_halting_only vs TRADES Large baseline")
 print("="*70)
 
+# Skip-if-complete guard (2026-08-09): a same-session re-run or a wiped
+# session with HF-synced CSVs must NOT re-burn ~5 GPU-h on the 5-seed eval
+# that already completed. Restores the per-seed CSV from HF when missing;
+# the eval runs only when the CSV is genuinely absent everywhere.
+import csv as _csvc
+
+STEP_C_MAIN = "report/sweep_stage1_ais_v1_halting_only"
+STEP_C_MAIN100 = STEP_C_MAIN + "_pgd100"
+STEP_C_SEEDS = [41, 42, 43, 44, 45]
+
+
+def _stepC_done(main_dir, seeds, eps_list):
+    """True when the 5-seed per-seed CSV covers every (ckpt, eps) combo AND
+    the provenance JSON exists — i.e. Step C already completed here or in a
+    prior session (restored from HF)."""
+    _csv_p = os.path.join(main_dir, "epsilon_sweep_per_seed.csv")
+    _prov_p = os.path.join(main_dir, "eval_provenance.json")
+    if not os.path.exists(_csv_p):
+        download_hf_file(os.path.basename(main_dir) + "_epsilon_sweep_per_seed.csv",
+                         _csv_p)
+    if not os.path.exists(_csv_p) or not os.path.exists(_prov_p):
+        return False
+    got = {}
+    with open(_csv_p, newline='') as f:
+        for _r in _csvc.DictReader(f):
+            got.setdefault((_r['ckpt_label'],
+                            round(float(_r['eps_pixel']), 4)),
+                           set()).add(int(_r['seed']))
+    return all(set(seeds) <= got.get((lab, eps), set())
+               for lab in ("rhan_next_ais_v1_halting_only",
+                           "trades_large_baseline")
+               for eps in eps_list)
+
+
 if DO_STEP_C and (PROCEED_STEP_B or SKIP_TRAINING):
     if DRY_RUN:
         # Pre-flight: print the two eval invocations + the checkpoint names
@@ -1317,53 +1351,63 @@ if DO_STEP_C and (PROCEED_STEP_B or SKIP_TRAINING):
               "--output-dir report/sweep_stage1_ais_v1_halting_only_pgd100",
               flush=True)
     else:
-        # Self-test the eval entrypoint first (structural, against checked-in ref).
-        run("python3 phase2_attacks/eval_rhan.py --self-test")
+        if _stepC_done(STEP_C_MAIN, STEP_C_SEEDS, (0.000, 0.094)) and \
+           _stepC_done(STEP_C_MAIN100, STEP_C_SEEDS, (0.094,)):
+            print("\n  [C] Step C already complete (5-seed per-seed CSVs + "
+                  "provenance present locally or restored from HF) — "
+                  "SKIPPING the eval; STEP C2 will run the seed extension "
+                  "and merge.", flush=True)
+        else:
+            # Self-test the eval entrypoint first (structural, against
+            # checked-in ref).
+            run("python3 phase2_attacks/eval_rhan.py --self-test")
 
-        rhan_ckpt = ensure_ckpt("rhan_next_ais_v1_halting_only_best.pth")
-        bsl_ckpt  = ensure_ckpt("rhan_stl10_large_pseudolabel_best.pth")
+            rhan_ckpt = ensure_ckpt("rhan_next_ais_v1_halting_only_best.pth")
+            bsl_ckpt  = ensure_ckpt("rhan_stl10_large_pseudolabel_best.pth")
 
-        # Main grid: PGD-50, eps 0.000/0.094 (the matched protocol).
-        run(
-            f"python3 phase2_attacks/eval_rhan.py "
-            f"--ckpt-specs rhan_next_ais_v1_halting_only:{rhan_ckpt}:next "
-            f"trades_large_baseline:{bsl_ckpt}:large "
-            f"--seeds 41 42 43 44 45 "
-            f"--eps-list 0.000 0.094 "
-            f"--pgd-steps 50 "
-            f"--n-samples 300 "
-            f"--batch-size 64 "
-            f"--output-dir report/sweep_stage1_ais_v1_halting_only"
-        )
+            # Main grid: PGD-50, eps 0.000/0.094 (the matched protocol).
+            run(
+                f"python3 phase2_attacks/eval_rhan.py "
+                f"--ckpt-specs rhan_next_ais_v1_halting_only:{rhan_ckpt}:next "
+                f"trades_large_baseline:{bsl_ckpt}:large "
+                f"--seeds 41 42 43 44 45 "
+                f"--eps-list 0.000 0.094 "
+                f"--pgd-steps 50 "
+                f"--n-samples 300 "
+                f"--batch-size 64 "
+                f"--output-dir report/sweep_stage1_ais_v1_halting_only"
+            )
 
-        # PGD-100 spot-check at eps=0.094 ONLY — the 2-step PGD-50-vs-100
-        # convergence gap that first confirmed genuine robustness (not masking)
-        # for this configuration family (RHANv11.md: PGD-50 45.20% vs PGD-100
-        # 44.40% at eps=0.031, tight convergence d <= 1.0 pp). AIS-v1 is a
-        # REFACTOR of the same mechanism, so this must be re-confirmed, not
-        # assumed. Same seeds/n for a clean gap on the SAME samples.
-        run(
-            f"python3 phase2_attacks/eval_rhan.py "
-            f"--ckpt-specs rhan_next_ais_v1_halting_only:{rhan_ckpt}:next "
-            f"trades_large_baseline:{bsl_ckpt}:large "
-            f"--seeds 41 42 43 44 45 "
-            f"--eps-list 0.094 "
-            f"--pgd-steps 100 "
-            f"--n-samples 300 "
-            f"--batch-size 64 "
-            f"--output-dir report/sweep_stage1_ais_v1_halting_only_pgd100"
-        )
-        # Durability (2026-08-09): sync the per-seed CSVs + provenance to HF
-        # so a wiped session can still run STEP C2's 8-seed merge without
-        # re-running the 5-seed legs (the originals were lost on every wipe).
-        for _d in ("report/sweep_stage1_ais_v1_halting_only",
-                   "report/sweep_stage1_ais_v1_halting_only_pgd100"):
-            for _f in ("epsilon_sweep_per_seed.csv",
-                       "epsilon_sweep_results.csv",
-                       "eval_provenance.json"):
-                _p = os.path.join(_d, _f)
-                if os.path.exists(_p):
-                    upload_hf_file(_p, os.path.basename(_d) + "_" + _f)
+            # PGD-100 spot-check at eps=0.094 ONLY — the 2-step PGD-50-vs-100
+            # convergence gap that first confirmed genuine robustness (not
+            # masking) for this configuration family (RHANv11.md: PGD-50
+            # 45.20% vs PGD-100 44.40% at eps=0.031, tight convergence
+            # d <= 1.0 pp). AIS-v1 is a REFACTOR of the same mechanism, so
+            # this must be re-confirmed, not assumed. Same seeds/n for a clean
+            # gap on the SAME samples.
+            run(
+                f"python3 phase2_attacks/eval_rhan.py "
+                f"--ckpt-specs rhan_next_ais_v1_halting_only:{rhan_ckpt}:next "
+                f"trades_large_baseline:{bsl_ckpt}:large "
+                f"--seeds 41 42 43 44 45 "
+                f"--eps-list 0.094 "
+                f"--pgd-steps 100 "
+                f"--n-samples 300 "
+                f"--batch-size 64 "
+                f"--output-dir report/sweep_stage1_ais_v1_halting_only_pgd100"
+            )
+            # Durability (2026-08-09): sync the per-seed CSVs + provenance to
+            # HF so a wiped session can still run STEP C2's 8-seed merge
+            # without re-running the 5-seed legs (the originals were lost on
+            # every wipe).
+            for _d in ("report/sweep_stage1_ais_v1_halting_only",
+                       "report/sweep_stage1_ais_v1_halting_only_pgd100"):
+                for _f in ("epsilon_sweep_per_seed.csv",
+                           "epsilon_sweep_results.csv",
+                           "eval_provenance.json"):
+                    _p = os.path.join(_d, _f)
+                    if os.path.exists(_p):
+                        upload_hf_file(_p, os.path.basename(_d) + "_" + _f)
 elif DO_STEP_C:
     print("\n  [STOP] Step B did not complete (smoke health gate / isolation "
           "verdict) — rhan_next_ais_v1_halting_only_best.pth does not exist, "
@@ -1425,6 +1469,17 @@ if DO_STEP_C2 and (PROCEED_STEP_B or SKIP_TRAINING):
         _ext100 = _ext50 + "_pgd100"
         _m50 = "report/sweep_stage1_ais_v1_halting_only_merged"
         _m100 = _m50 + "_pgd100"
+
+        # Durability restore: a wiped session MUST restore the 5-seed per-seed
+        # CSVs from HF before the merge (they were synced after Step C).
+        # Without this, STEP C2 would fatal on the missing main CSV or force a
+        # pointless 4.5-5.5 GPU-h re-run of the 5-seed legs.
+        for _d in ("report/sweep_stage1_ais_v1_halting_only",
+                   "report/sweep_stage1_ais_v1_halting_only_pgd100"):
+            _f = os.path.join(_d, "epsilon_sweep_per_seed.csv")
+            if not os.path.exists(_f):
+                download_hf_file(
+                    os.path.basename(_d) + "_epsilon_sweep_per_seed.csv", _f)
 
         for _steps, _ext in ((50, _ext50), (100, _ext100)):
             if _per_seed_complete(
