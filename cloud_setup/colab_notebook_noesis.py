@@ -197,7 +197,15 @@ before spending the compute window.
 # ## Step 1: Install Dependencies
 
 # %%
-import os, sys, subprocess, time, json
+import os, sys, subprocess, time, json, threading
+
+# Fail-fast on HF network stalls: huggingface_hub freezes HF_HUB_DOWNLOAD_TIMEOUT
+# at import time (per-request/read timeout), so set it BEFORE any huggingface_hub
+# import (the dep-check loop below imports it). Trainer subprocesses inherit it
+# too. A stalled download now raises within ~30s per request instead of hanging
+# the session silently (the 2026-08-09 incident: Step A hung ~2 h in a
+# no-timeout hf_hub_download of the ~300 MB rolling checkpoint).
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "30")
 
 # ── PRE-FLIGHT (dry-run) MODE ───────────────────────────────────────────────
 # Set NOESIS_DRY_RUN=1 to print every command that WOULD run + exercise the
@@ -339,14 +347,47 @@ if os.path.exists(BASE):
 # resume-aware so a restarted session can never force-restart and never
 # silently restart from the base checkpoint.
 
+def _call_with_deadline(fn, timeout_s, label):
+    """Run fn in a daemon thread with a hard wall-clock deadline.
+
+    HF_HUB_DOWNLOAD_TIMEOUT bounds each HTTP request, but a stalled socket can
+    still slip past it (2026-08-09: Step A hung ~2 h inside hf_rolling_epoch's
+    no-timeout hf_hub_download of the ~300 MB rolling checkpoint). This is the
+    last line of defense: if fn has not returned within timeout_s, raise
+    TimeoutError so callers fail fast (print a warning + continue) instead of
+    hanging the whole session silently.
+    """
+    box = {}
+
+    def _run():
+        try:
+            box["val"] = fn()
+        except Exception as e:  # noqa: BLE001 — re-raised in the main thread
+            box["err"] = e
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(timeout_s)
+    if t.is_alive():
+        raise TimeoutError(f"{label} exceeded {timeout_s}s deadline "
+                           f"(HF network stall?)")
+    if "err" in box:
+        raise box["err"]
+    return box.get("val")
+
+
 def hf_rolling_epoch(ckpt_name):
     """Epoch of <ckpt_name>_rolling.pth on HF, or None if not present."""
-    try:
+    def _fetch():
         from huggingface_hub import hf_hub_download
         p = hf_hub_download(repo_id="FerrariKazu/rhan-checkpoints-rolling",
                             filename=f"{ckpt_name}_rolling.pth",
                             repo_type="dataset", token=hf_token)
         return torch.load(p, map_location="cpu", weights_only=False).get("epoch")
+    try:
+        print(f"  [resume-gate] reading HF epoch for {ckpt_name} "
+              f"(downloading rolling checkpoint)...", flush=True)
+        return _call_with_deadline(_fetch, 240, f"HF epoch check {ckpt_name}")
     except Exception as e:
         print(f"  [resume-gate] could not read HF epoch for {ckpt_name}: {e}",
               flush=True)

@@ -45,6 +45,14 @@ Frozen files: model_rhan_v12.py / eval conventions are never touched.
 import os
 import sys
 
+# Fail-fast on HF network stalls: huggingface_hub freezes HF_HUB_DOWNLOAD_TIMEOUT
+# at import time, so set it BEFORE any huggingface_hub import (all HF imports in
+# this file are function-level, so module top is safe). A stalled restore
+# download now raises within ~30s per request instead of hanging the trainer
+# silently (2026-08-09: the notebook's Step A hung ~2 h on a no-timeout
+# hf_hub_download; the trainer's own resume-restore had the same exposure).
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "30")
+
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 
 import argparse
