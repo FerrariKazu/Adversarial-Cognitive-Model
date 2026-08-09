@@ -1444,6 +1444,9 @@ def _stepC_done(main_dir, seeds, eps_list):
     if not os.path.exists(_csv_p):
         download_hf_file(os.path.basename(main_dir) + "_epsilon_sweep_per_seed.csv",
                          _csv_p)
+    if not os.path.exists(_prov_p):
+        download_hf_file(os.path.basename(main_dir) + "_eval_provenance.json",
+                         _prov_p)
     if not os.path.exists(_csv_p) or not os.path.exists(_prov_p):
         return False
     got = {}
@@ -1563,10 +1566,11 @@ else:
 # per-seed rows and recompute the 2-sigma crossover + masking gap on 8 seeds.
 # Whatever it resolves to (both real / neither / still split) IS the actual
 # Stage 1 verdict — a consistent split is itself a reportable honest outcome.
-# NOTE: the 3-seed extension legs run the FROZEN sweep directly
-# (eval_full_epsilon_sweep.py, --eps-norm-space) because eval_rhan.py enforces
-# a >=5-seed floor by design; the merge (scripts/merge_stage1_seed_extension.py)
-# produces the publishable 8-seed numbers.
+# NOTE: the 3-seed extension legs run through phase2_attacks/eval_sweep_next.py
+# (the frozen eval_full_epsilon_sweep.py with eval_rhan's arch registry — incl.
+# 'next' — but WITHOUT the >=5-seed floor eval_rhan.py enforces by design); the
+# merge (scripts/merge_stage1_seed_extension.py) produces the publishable 8-seed
+# numbers.
 import csv as _csv
 
 DO_STEP_C2 = True
@@ -1624,7 +1628,7 @@ if DO_STEP_C2 and (PROCEED_STEP_B or SKIP_TRAINING):
                       f"skipping eval.", flush=True)
             else:
                 run(
-                    f"python3 phase2_attacks/eval_full_epsilon_sweep.py "
+                    f"python3 phase2_attacks/eval_sweep_next.py "
                     f"--n-samples 300 --seeds {_seeds_txt} "
                     f"--pgd-steps {_steps} --batch-size 64 "
                     f"--eps-norm-space --eps-list 0.094 "
