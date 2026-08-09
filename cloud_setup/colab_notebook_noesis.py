@@ -387,7 +387,7 @@ def hf_rolling_epoch(ckpt_name):
     try:
         print(f"  [resume-gate] reading HF epoch for {ckpt_name} "
               f"(downloading rolling checkpoint)...", flush=True)
-        return _call_with_deadline(_fetch, 240, f"HF epoch check {ckpt_name}")
+        return _call_with_deadline(_fetch, 420, f"HF epoch check {ckpt_name}")
     except Exception as e:
         print(f"  [resume-gate] could not read HF epoch for {ckpt_name}: {e}",
               flush=True)
