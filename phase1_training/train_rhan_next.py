@@ -130,6 +130,22 @@ class RHANNextEpochDiagnostics(EpochDiagnostics):
             self.effective_steps.append(conts_cpu.sum(dim=0))   # (B,)
             self.halted_steps.append((conts_cpu < 0.5).sum(dim=0).float())  # (B,)
 
+    def _steps_used_line(self, mean_steps):
+        """Override the inherited v12 line: report the hard cap + the
+        soft-gated effective mean, not a bare fixed step count.
+
+        The HARD loop is capped at self.max_steps; the entropy gate acts on the
+        continuation weights, so the per-sample effective evidence steps (sum
+        of continuations) is what actually varies. Presenting both together
+        stops the old 'Steps used: mean=4.00 (fixed T=4)' line from reading as
+        a red flag at a glance when halting is clearly active. Cosmetic only.
+        """
+        if self.effective_steps:
+            eff = torch.cat(self.effective_steps)
+            return (f"  Continuation steps: hard cap={self.max_steps}, "
+                    f"soft-halted effective mean={eff.mean():.2f}")
+        return super()._steps_used_line(mean_steps)
+
     def report(self, epoch, eps):
         super().report(epoch, eps)   # beta_dyn, gate, recon, Pi_D per class
 
@@ -634,6 +650,29 @@ def main():
             if rank == 0:
                 print(f"Resuming from Epoch {start_epoch} "
                       f"(best val {best_acc:.2f}%)", flush=True)
+                # ALSO restore the *_best.pth from HF (best-effort). A fresh
+                # session has no local best artifact, and without this, if no
+                # epoch beats the restored best_acc the best is never written
+                # locally and never re-synced — Step C's eval then has nothing
+                # to point at (the 2026-08-08 Kaggle Step C runtime error
+                # this fixes).
+                if not os.path.exists(best_path):
+                    try:
+                        from huggingface_hub import hf_hub_download
+                        temp_best = hf_hub_download(
+                            repo_id='FerrariKazu/rhan-checkpoints',
+                            filename=f"{args.ckpt_name}_best.pth",
+                            repo_type='dataset', token=hf_token)
+                        compat_load(temp_best, map_location='cpu')  # loadable?
+                        os.makedirs(os.path.dirname(best_path), exist_ok=True)
+                        shutil.copy(temp_best, best_path)
+                        print(f"  Restored best checkpoint from HF "
+                              f"({os.path.basename(best_path)})", flush=True)
+                    except Exception as e:
+                        print(f"  WARNING: no *_best.pth on HF to restore "
+                              f"({e}) — finalize will fall back to the "
+                              f"final-epoch model if nothing improves.",
+                              flush=True)
     elif rank == 0:
         print("--force-restart: starting from Epoch 1.", flush=True)
 
@@ -641,7 +680,9 @@ def main():
     WARMUP_EPOCHS = 5
     diagnostics = RHANNextEpochDiagnostics(max_steps=cfg.max_foraging_steps)
 
+    last_epoch = start_epoch - 1  # honest label for the finalize fallback
     for epoch in range(start_epoch, args.max_epochs + 1):
+        last_epoch = epoch
         t0 = time.time()
         diagnostics.reset()
 
@@ -856,10 +897,31 @@ def main():
 
     if rank == 0:
         print("\nFinalizing Hugging Face sync...", flush=True)
+        best_fallback_used = False
+        if not os.path.exists(best_path):
+            # Last-resort: nothing improved this session AND no *_best.pth on
+            # HF to restore. Write the final-epoch model as the best artifact
+            # so Step C's eval always has a checkpoint, then sync it to HF.
+            best_fallback_used = True
+            print(f"  WARNING: {os.path.basename(best_path)} does not exist — "
+                  f"no epoch beat the restored best ({best_acc:.2f}%) and no "
+                  f"HF best was available. Writing the FINAL-EPOCH model "
+                  f"(epoch {last_epoch}) as the best artifact.", flush=True)
+            torch.save({'model': raw_model.state_dict(),
+                        'config': cfg.to_dict(),
+                        'arch': 'rhan_next'}, best_path)
         sync_to_hf(best_path)
         wait_for_hf_sync()
         print(f"{'═'*60}")
-        print(f"  Training complete. Best: {best_acc:.2f}% -> {best_path}")
+        if best_fallback_used:
+            # The artifact is NOT the peak-val model — say so explicitly so no
+            # reader or downstream parser mistakes it for the 54.05% weights.
+            print(f"  Training complete. Peak best val: {best_acc:.2f}% — but "
+                  f"those weights are NOT available (lost to a session wipe).")
+            print(f"  {os.path.basename(best_path)} = FINAL-EPOCH model "
+                  f"(epoch {last_epoch}), written as the eval artifact.")
+        else:
+            print(f"  Training complete. Best: {best_acc:.2f}% -> {best_path}")
         print(f"  Config: {cfg}")
         print(f"{'═'*60}")
 

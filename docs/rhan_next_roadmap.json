@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "roadmap_rev": 1,
+  "roadmap_rev": 2,
   "project": "RHAN-Next",
   "branch": "feature/rhan-next",
   "definition_of_done": "Stage 3 validated checkbox checked, with numbers (not projections) in docs/ARCHITECTURE.md. Do not report the refactor complete before that.",
@@ -42,8 +42,8 @@
       "result_labeling_rule": "Result tables, provenance JSON, and paper draft sections for the Stage 1 validated checkpoint must use the label 'AIS-v1 (halting-only variant)' (or the full run_identity) - NEVER plain 'AIS-v1' alone, NEVER unqualified 'AIS' or 'information-gain' (reserved for a future forward-looking implementation). Step B artifacts are named rhan_next_ais_v1_halting_only_* so the variant label propagates automatically; the smoke artifacts remain rhan_next_ais_v1_smoke_* (full AIS-v1 config, diagnostics only).",
       "code_complete": true,
       "code_complete_date": "2026-08-05",
-      "validated": false,
-      "validated_note": "IN EXECUTION (2026-08-07): Step A smoke COMPLETED (15 epochs, eps=0.031); health gate fired on the Pi_D ordering criterion only. Mechanism isolation COMPLETED and the pre-registered decision rule fired branch (2): isoB (precision-recon OFF, halting ON) RESTORED car/truck (car 0.5149 / truck 0.4842) - with halting ON in both smoke and isoB, the smoke<->isoB contrast proves the precision-modulated recon weight (recon-mod) is the CONFIRMED driver of the smoke's car/airplane reordering; the entropy-gated halting is exonerated by elimination. isoA's verdict is INCONCLUSIVE - telemetry lost to a session wipe (diag .jsonl was local-only); recaptured as a sufficiency test (amended max-epochs 14, resumes 12->14): car/airplane => recon-mod sufficient alone; car/truck => interaction effect. Step B now trains the 'AIS-v1 (halting-only variant)' (--no-ais-precision-recon); recon-mod DEFERRED to its own future isolation cycle (see recon_mod_deferred). Durability fix: diag .jsonl + roadmap now sync to HF alongside checkpoints/verdicts. Stage 1 verdict (5-seed matched protocol) will be recorded under stage1_verdict once Step B completes; null result = valid reportable outcome. Do NOT begin Stage 2 (HPC) until the Stage 1 verdict is recorded and reviewed.",
+      "validated": true,
+      "validated_note": "Stage 1 (AIS-v1 (halting-only variant)) 5-seed matched eval recorded from report/sweep_stage1_ais_v1_halting_only/eval_provenance.json \u2014 see roadmap.stages['1'].stage1_verdict. Verdict is what it is, including a null result.",
       "execution_plan": {
         "notebook": "cloud_setup/colab_notebook_noesis.py",
         "step_a_smoke": "train_rhan_next.py --enable-ais --ckpt-name rhan_next_ais_v1_smoke --max-epochs 15 --target-ckpt checkpoints/rhan_stl10_large_pseudolabel_best.pth --batch-size 16 --accum-steps 16 --diag-json report/rhan_next_ais_v1_smoke_diag.jsonl --force-single-gpu (epochs 1-15 all in phase 1 => epsilon 0.031 only)",
@@ -124,7 +124,7 @@
       },
       "isolation_verdict": {
         "schema": "stage1_isolation_verdict_v2",
-        "date_utc": "2026-08-07T19:15:23Z",
+        "date_utc": "2026-08-08T21:15:52Z",
         "smoke_pi_d_top2": [
           "car",
           "airplane"
@@ -170,15 +170,156 @@
           "claim": "recon-mod confirmed SUFFICIENT alone \u2014 isoA (halting OFF, recon-mod ON) reproduces the smoke's car/airplane ordering, so recon-mod is both necessary and sufficient for the reordering. BOUNDARY-LEVEL CAVEAT: the #2-slot margin is within noise \u2014 epoch 13: #airplane 0.4104 vs truck 0.4091 (margin 0.0013); epoch 14: #airplane 0.4069 vs truck 0.4067 (margin 0.0002). The direction is consistent across epochs 13-14 but this is not a clean separation; the sufficiency claim is scoped accordingly (the smoke<->isoB attribution is unaffected).",
           "averaging_note": "If the #2-slot ordering matters for any future claim, average the last-2-epoch Pi_D (13-14) instead of trusting the single final epoch."
         },
-        "status": "resolved",
-        "selected_step_b_config": "AIS-v1 (halting-only variant)",
         "attribution": "smoke vs isoB contrast (2026-08-07): with halting fixed ON, disabling recon-mod (isoB) restored car/truck \u2014 the precision-modulated recon weight is the CONFIRMED driver of the smoke's car/airplane reordering; the entropy-gated halting is exonerated by elimination.",
         "decision": "Step B trains the 'AIS-v1 (halting-only variant)' (--no-ais-precision-recon). recon-mod DEFERRED to its own future isolation cycle \u2014 not validated, not part of the headline config.",
+        "status": "resolved",
+        "selected_step_b_config": "AIS-v1 (halting-only variant)",
         "decision_rule": "Attribute the smoke's Pi_D reordering (top-2 = car/airplane instead of reference car/truck) from the two bounded isolation arms (each ablates exactly ONE AIS sub-mechanism, everything else identical to the smoke): (1) if Isolation A (--no-ais-halting) restores car/truck in top-2, the entropy-gated halting / continuation-weighted belief accumulation is the primary driver; (2) if Isolation B (--no-ais-precision-recon) restores car/truck in top-2, the precision-modulated reconstruction weight is the primary driver; (3) if both restore, both contribute - the next isolation runs a combined-off arm; (4) if neither restores, the driver is the remaining shared AIS wiring (gaze-policy relocation / step_net / continuation x belief interplay) - the next isolation disables step_net, or a per-class error/gaze-coverage analysis runs on the smoke artifacts. In every branch Step B stays GATED until the ordering question is understood; the isolation verdict is recorded regardless of outcome (a null/ambiguous isolation is a valid, reportable result).",
         "note": "Step B stays GATED until this verdict is understood. The driver attribution (and any fix / health-gate recalibration) is decided from this evidence \u2014 a null/ambiguous isolation is a valid, recorded result."
       },
       "gate_clear_path": "isolation_verdict",
-      "gate_clear_reason": "isolation_verdict 2026-08-07: recon-mod confirmed driver of the Pi_D reordering (smoke<->isoB contrast), 'AIS-v1 (halting-only variant)' selected by the pre-registered decision rule"
+      "gate_clear_reason": "isolation_verdict 2026-08-07: recon-mod confirmed driver of the Pi_D reordering (smoke<->isoB contrast), 'AIS-v1 (halting-only variant)' selected by the pre-registered decision rule. [Corrected 2026-08-09: the resume session mislabeled this 'healthy_smoke'/'healthy first try' \u2014 the smoke was NOT a healthy first try.]",
+      "step_b_resume": {
+        "source": "already_complete_on_hf",
+        "note": "resumed from HF rolling at epoch 60 (already at max 60) \u2014 0 epochs trained on 2026-08-09. Corrected 2026-08-09: the resume session clobbered this field to 'fresh_from_base'; the original launch source (per plan: seeded from isoB epoch 12, same config) was lost to that overwrite.",
+        "seeded": false,
+        "original_launch_source": "unknown (overwritten by the 2026-08-09 resume session); the pre-registered plan was SEED_STEP_B_FROM_ISOB (isoB epoch 12)"
+      },
+      "validated_date": "2026-08-09",
+      "stage1_verdict": {
+        "validated": true,
+        "validated_date": "2026-08-09",
+        "git_sha": "069d9aadc19bdcf33e4bad3adadd1dc5f58b177f",
+        "run_label": "AIS-v1 (halting-only variant)",
+        "run_identity": "AIS-v1 (halting-only variant): Relocated Equation II (mechanistically identical to v10/v11/v12's gaze update, refactored into the new interface) with the precision-modulated reconstruction weight DISABLED per the 2026-08-07 mechanism-isolation verdict (smoke<->isoB contrast: recon-mod is the confirmed driver of the smoke's Pi_D reordering; the entropy-gated halting is exonerated by elimination). This is a REPLICATION-UNDER-REFACTOR control, not a test of genuine information-gain gaze. recon-mod is DEFERRED to its own future isolation cycle - not validated, not part of the headline config.",
+        "checkpoints": [
+          {
+            "arch": "next",
+            "freeze": false,
+            "label": "rhan_next_ais_v1_halting_only",
+            "path": "checkpoints/rhan_next_ais_v1_halting_only_rolling.pth",
+            "sha256": "50b8f9176b2fb6bbda95cecc6096cbe519532b178f33031a34d79bc8df5c74b5"
+          },
+          {
+            "arch": "large",
+            "freeze": false,
+            "label": "trades_large_baseline",
+            "path": "checkpoints/rhan_stl10_large_pseudolabel_best.pth",
+            "sha256": "37a4eee0c37b77adc291cb45cc19310de1249c7cd81b0e779b2ebaea6d466afc"
+          }
+        ],
+        "seeds": [
+          41,
+          42,
+          43,
+          44,
+          45
+        ],
+        "eps_list": [
+          0.0,
+          0.094
+        ],
+        "n_samples": 300,
+        "pgd_steps": 50,
+        "results": [
+          {
+            "acc_mean": "49.4",
+            "acc_std": "3.48",
+            "ckpt_label": "rhan_next_ais_v1_halting_only",
+            "eps_norm_B": "0.0",
+            "eps_norm_G": "0.0",
+            "eps_norm_R": "0.0",
+            "eps_pixel": "0.0",
+            "macro_dprime_mean": "1.8348",
+            "macro_dprime_std": "0.2745",
+            "n_seeds": "5"
+          },
+          {
+            "acc_mean": "31.07",
+            "acc_std": "2.09",
+            "ckpt_label": "rhan_next_ais_v1_halting_only",
+            "eps_norm_B": "0.094",
+            "eps_norm_G": "0.094",
+            "eps_norm_R": "0.094",
+            "eps_pixel": "0.094",
+            "macro_dprime_mean": "0.9589",
+            "macro_dprime_std": "0.2273",
+            "n_seeds": "5"
+          },
+          {
+            "acc_mean": "53.47",
+            "acc_std": "2.87",
+            "ckpt_label": "trades_large_baseline",
+            "eps_norm_B": "0.0",
+            "eps_norm_G": "0.0",
+            "eps_norm_R": "0.0",
+            "eps_pixel": "0.0",
+            "macro_dprime_mean": "1.8737",
+            "macro_dprime_std": "0.2432",
+            "n_seeds": "5"
+          },
+          {
+            "acc_mean": "22.93",
+            "acc_std": "3.43",
+            "ckpt_label": "trades_large_baseline",
+            "eps_norm_B": "0.094",
+            "eps_norm_G": "0.094",
+            "eps_norm_R": "0.094",
+            "eps_pixel": "0.094",
+            "macro_dprime_mean": "0.4338",
+            "macro_dprime_std": "0.348",
+            "n_seeds": "5"
+          }
+        ],
+        "crossover_verdicts": [
+          {
+            "acc_mean": 31.07,
+            "acc_std": 2.09,
+            "baseline": "trades_large_baseline",
+            "baseline_acc_mean": 22.93,
+            "checkpoint": "rhan_next_ais_v1_halting_only",
+            "diff_pp": 8.14,
+            "eps": 0.094,
+            "threshold_2sig": 8.03,
+            "verdict": "CROSSOVER REAL"
+          }
+        ],
+        "masking_check": {
+          "eps": 0.094,
+          "gap_bar_genuine_pp": 1.0,
+          "gap_bar_borderline_pp": 2.5,
+          "nondeterminism_caveat": "cross-run GPU nondeterminism (grid_sample/attention backward) can shift identical configs by ~1.5 pp; PGD-50 vs PGD-100 here are separate invocations, so gaps <= 2.5 pp are NOT conclusive evidence of masking.",
+          "pgd50_provenance": {
+            "git_sha": "069d9aadc19bdcf33e4bad3adadd1dc5f58b177f",
+            "timestamp_utc": "2026-08-09T00:07:03+00:00"
+          },
+          "pgd100_provenance": {
+            "git_sha": "069d9aadc19bdcf33e4bad3adadd1dc5f58b177f",
+            "timestamp_utc": "2026-08-09T01:38:36+00:00"
+          },
+          "rhan_next_ais_v1_halting_only": {
+            "available": true,
+            "acc_pgd50": 31.07,
+            "acc_pgd100": 30.6,
+            "gap_pp": 0.47,
+            "masking_verdict": "GENUINE robustness (no masking): PGD-50->100 drop +0.47 pp <= 1.0 pp bar (RHANv11 bar)"
+          },
+          "trades_large_baseline": {
+            "available": true,
+            "acc_pgd50": 22.93,
+            "acc_pgd100": 22.67,
+            "gap_pp": 0.26,
+            "masking_verdict": "GENUINE robustness (no masking): PGD-50->100 drop +0.26 pp <= 1.0 pp bar (RHANv11 bar)"
+          }
+        },
+        "note": "Stage 1 (AIS-v1 (halting-only variant)) validated via the 5-seed matched protocol. This is a REPLICATION-UNDER-REFACTOR control, not a test of genuine information-gain gaze. A null result is still a valid, reportable outcome.",
+        "eval_target_note": "rhan_next_ais_v1_halting_only: evaluated on the FINAL-EPOCH rolling checkpoint (rhan_next_ais_v1_halting_only_rolling.pth) \u2014 NOT the peak-val best model. The *_best.pth artifact was missing on HF (no epoch beat the restored best), so the recorded results correspond to the epoch-final model, not the peak-val model."
+      },
+      "eval_target_note": "rhan_next_ais_v1_halting_only: evaluated on the FINAL-EPOCH rolling checkpoint (rhan_next_ais_v1_halting_only_rolling.pth) \u2014 NOT the peak-val best model. The *_best.pth artifact was missing on HF (no epoch beat the restored best), so the recorded results correspond to the epoch-final model, not the peak-val model.",
+      "verdict_metadata_fix": {
+        "date_utc": "2026-08-09",
+        "what": "step_b_resume + gate_clear_path/reason corrected after the 2026-08-09 resume session mislabeled them; eval_target_note added (rolling/epoch-final eval target). Numbers unchanged \u2014 the 8-seed merged verdict (STEP C2) lands here next."
+      }
     },
     "2": {
       "name": "Pillar 1 \u2014 Hierarchical Predictive Coding (one level at a time)",

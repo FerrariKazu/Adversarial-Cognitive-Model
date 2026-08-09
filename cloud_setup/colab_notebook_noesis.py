@@ -1017,7 +1017,15 @@ _run_label = _roadmap.get("stages", {}).get("1", {}).get("run_label")
 _isolation_clears = (_iso_status == "resolved"
                      and bool(_iso_selects)
                      and _iso_selects == _run_label)
-if smoke_healthy:
+if smoke_healthy and verdict.get("resume"):
+    # 2026-08-09: a restored verdict (Step B rolling already on HF) is NOT a
+    # healthy first-try pass — label the resumed path honestly so the record
+    # never reads as a fresh healthy smoke.
+    gate_clear_path = "prior_session_pass"
+    gate_clear_reason = ("smoke health gate passed in a PRIOR session "
+                         "(verdict restored from HF); this session resumed "
+                         "the already-running protocol")
+elif smoke_healthy:
     gate_clear_path, gate_clear_reason = "healthy_smoke", \
         "smoke health gate passed (healthy first try)"
 elif _isolation_clears:
@@ -1044,6 +1052,9 @@ if PROCEED_STEP_B:
         print("  GATE CLEARED VIA ISOLATION VERDICT — NOT a healthy-smoke pass,")
         print("  NOT an override. Roadmap gate_clear_reason:")
         print(f"    {gate_clear_reason}")
+    elif gate_clear_path == "prior_session_pass":
+        print("  GATE CLEARED — smoke gate passed in a PRIOR session "
+              "(verdict restored); resuming, not a fresh pass.")
     elif gate_clear_path == "healthy_smoke":
         print("  GATE CLEARED — smoke health gate passed (healthy first try).")
     else:
@@ -1206,13 +1217,29 @@ if DO_STEP_B and not SKIP_TRAINING and PROCEED_STEP_B:
         )
         verify_no_restart("rhan_next_ais_v1_halting_only", pre_b_epoch)
         # Record the resume provenance in the roadmap (honest epoch accounting).
+        # 2026-08-09 fix: a resume session MUST NOT clobber the original launch
+        # record with a misleading "fresh_from_base" — when Step B was already
+        # complete on HF (rolling epoch >= max 60), record that fact instead of
+        # pretending this session started from epoch 1.
         _roadmap_b = json.load(open("docs/rhan_next_roadmap.json"))
-        _roadmap_b["stages"]["1"]["step_b_resume"] = {
-            "source": ("seeded_from_isoB_epoch_12" if _seed_note
-                       else "fresh_from_base"),
-            "note": _seed_note or "started fresh from base checkpoint (epoch 1)",
-            "seeded": bool(_seed_note),
-        }
+        if pre_b_epoch is not None and pre_b_epoch >= 60:
+            _roadmap_b["stages"]["1"]["step_b_resume"] = {
+                "source": "already_complete_on_hf",
+                "note": (f"resumed from HF rolling at epoch {pre_b_epoch} "
+                         f"(already at max 60) — 0 epochs trained this "
+                         f"session. The original launch source was recorded "
+                         f"by the session that STARTED Step B; do not read "
+                         f"this as a fresh-from-base launch."),
+                "seeded": bool(_seed_note),
+            }
+        else:
+            _roadmap_b["stages"]["1"]["step_b_resume"] = {
+                "source": ("seeded_from_isoB_epoch_12" if _seed_note
+                           else "fresh_from_base"),
+                "note": (_seed_note
+                         or "started fresh from base checkpoint (epoch 1)"),
+                "seeded": bool(_seed_note),
+            }
         with open("docs/rhan_next_roadmap.json", "w") as f:
             json.dump(_roadmap_b, f, indent=2, sort_keys=False)
         sync_roadmap_up()
@@ -1326,6 +1353,17 @@ if DO_STEP_C and (PROCEED_STEP_B or SKIP_TRAINING):
             f"--batch-size 64 "
             f"--output-dir report/sweep_stage1_ais_v1_halting_only_pgd100"
         )
+        # Durability (2026-08-09): sync the per-seed CSVs + provenance to HF
+        # so a wiped session can still run STEP C2's 8-seed merge without
+        # re-running the 5-seed legs (the originals were lost on every wipe).
+        for _d in ("report/sweep_stage1_ais_v1_halting_only",
+                   "report/sweep_stage1_ais_v1_halting_only_pgd100"):
+            for _f in ("epsilon_sweep_per_seed.csv",
+                       "epsilon_sweep_results.csv",
+                       "eval_provenance.json"):
+                _p = os.path.join(_d, _f)
+                if os.path.exists(_p):
+                    upload_hf_file(_p, os.path.basename(_d) + "_" + _f)
 elif DO_STEP_C:
     print("\n  [STOP] Step B did not complete (smoke health gate / isolation "
           "verdict) — rhan_next_ais_v1_halting_only_best.pth does not exist, "
@@ -1334,6 +1372,101 @@ elif DO_STEP_C:
           "publishable numbers).", flush=True)
 else:
     print("  (Step C skipped: DO_STEP_C=False)", flush=True)
+
+# %% [markdown]
+# ## Step 7c — STEP C2: SEED EXTENSION 46-48 (eps=0.094, both legs) → 8-SEED MERGED VERDICT
+
+# %%
+# The 5-seed crossover was real but razor-thin (PGD-50 +8.13 vs 8.02
+# threshold; PGD-100 +7.93 vs 8.46, NOT significant). Per the pre-registered
+# decision (2026-08-09), extend the seed set to 8 (add 46,47,48) at eps=0.094
+# ONLY, both legs, SAME checkpoints + protocol, then MERGE with the existing
+# per-seed rows and recompute the 2-sigma crossover + masking gap on 8 seeds.
+# Whatever it resolves to (both real / neither / still split) IS the actual
+# Stage 1 verdict — a consistent split is itself a reportable honest outcome.
+# NOTE: the 3-seed extension legs run the FROZEN sweep directly
+# (eval_full_epsilon_sweep.py, --eps-norm-space) because eval_rhan.py enforces
+# a >=5-seed floor by design; the merge (scripts/merge_stage1_seed_extension.py)
+# produces the publishable 8-seed numbers.
+import csv as _csv
+
+DO_STEP_C2 = True
+C2_SEEDS = [46, 47, 48]
+
+
+def _per_seed_complete(path, seeds, eps):
+    """True when the per-seed CSV already has ALL seeds at the given eps."""
+    if not os.path.exists(path):
+        return False
+    got = set()
+    with open(path, newline='') as f:
+        for row in _csv.DictReader(f):
+            if abs(float(row['eps_pixel']) - float(eps)) < 1e-9:
+                got.add(int(row['seed']))
+    return set(seeds) <= got
+
+
+if DO_STEP_C2 and (PROCEED_STEP_B or SKIP_TRAINING):
+    if DRY_RUN:
+        print("  [DRY-RUN] STEP C2 would run seeds 46 47 48 at eps=0.094 "
+              "(PGD-50 + PGD-100) on the SAME checkpoints, then merge to an "
+              "8-seed verdict.", flush=True)
+    else:
+        print("\n" + "="*70)
+        print("  STEP C2: SEED EXTENSION 46-48 @ eps=0.094 (both legs) → "
+              "8-seed merged verdict")
+        print("="*70)
+        _rhan_ckpt = ensure_ckpt("rhan_next_ais_v1_halting_only_best.pth")
+        _bsl_ckpt = ensure_ckpt("rhan_stl10_large_pseudolabel_best.pth")
+        _specs = (f"rhan_next_ais_v1_halting_only:{_rhan_ckpt}:next "
+                  f"trades_large_baseline:{_bsl_ckpt}:large")
+        _seeds_txt = " ".join(str(s) for s in C2_SEEDS)
+        _ext50 = "report/sweep_stage1_ais_v1_halting_only_c2_seeds46_48"
+        _ext100 = _ext50 + "_pgd100"
+        _m50 = "report/sweep_stage1_ais_v1_halting_only_merged"
+        _m100 = _m50 + "_pgd100"
+
+        for _steps, _ext in ((50, _ext50), (100, _ext100)):
+            if _per_seed_complete(
+                    os.path.join(_ext, "epsilon_sweep_per_seed.csv"),
+                    C2_SEEDS, 0.094):
+                print(f"  [C2] PGD-{_steps} extension already complete — "
+                      f"skipping eval.", flush=True)
+            else:
+                run(
+                    f"python3 phase2_attacks/eval_full_epsilon_sweep.py "
+                    f"--n-samples 300 --seeds {_seeds_txt} "
+                    f"--pgd-steps {_steps} --batch-size 64 "
+                    f"--eps-norm-space --eps-list 0.094 "
+                    f"--baseline-label trades_large_baseline "
+                    f"--ckpt-specs {_specs} "
+                    f"--output-dir {_ext}"
+                )
+
+        for _steps, _ext, _merged in ((50, _ext50, _m50),
+                                      (100, _ext100, _m100)):
+            run(
+                f"python3 scripts/merge_stage1_seed_extension.py "
+                f"--main-dir report/sweep_stage1_ais_v1_halting_only "
+                f"--ext-dir {_ext} --out-dir {_merged} "
+                f"--baseline-label trades_large_baseline "
+                f"--pgd-steps {_steps} --n-samples 300 --batch-size 64 "
+                f"--ckpt-specs {_specs} "
+                f"--main-seeds 41 42 43 44 45 --ext-seeds {_seeds_txt}"
+            )
+        # Durability: the merged artifacts must survive a /kaggle/working wipe.
+        for _d in (_m50, _m100):
+            for _f in ("epsilon_sweep_per_seed.csv",
+                       "epsilon_sweep_results.csv",
+                       "eval_provenance.json"):
+                _p = os.path.join(_d, _f)
+                if os.path.exists(_p):
+                    upload_hf_file(_p, os.path.basename(_d) + "_" + _f)
+        print("  ✓ STEP C2 complete — merged 8-seed provenance written. "
+              "record_verdict() (Step 7b) will now read the merged files.",
+              flush=True)
+else:
+    print("  (STEP C2 skipped: DO_STEP_C2=False or gate blocked)", flush=True)
 
 # %% [markdown]
 # ## Step 7b — RECORD VERDICT IN docs/rhan_next_roadmap.json
@@ -1424,8 +1557,32 @@ def masking_verdict(prov50, prov100, eps=0.094):
     return out
 
 
+def _eval_target_note(checkpoints):
+    """Stamp the rolling-fallback caveat when any evaluated checkpoint was
+    the FINAL-EPOCH artifact rather than the peak-val best (see ensure_ckpt)."""
+    notes = []
+    for c in checkpoints or []:
+        p = str(c.get("path", ""))
+        if p.endswith("_rolling.pth"):
+            notes.append(f"{c.get('label')}: evaluated on the FINAL-EPOCH "
+                         f"rolling checkpoint ({os.path.basename(p)}) — NOT "
+                         f"the peak-val best model")
+    if notes:
+        return ("; ".join(notes) + ". The *_best.pth artifact was missing on "
+                "HF (no epoch beat the restored best), so results correspond "
+                "to the epoch-final model, not the peak-val model.")
+    return "All evaluated artifacts are *_best.pth (peak-val) checkpoints."
+
+
 def record_verdict():
+    # 2026-08-09: STEP C2's 8-seed merged provenance (same eval_rhan schema)
+    # takes precedence when present; otherwise fall back to the 5-seed run.
     prov_path = "report/sweep_stage1_ais_v1_halting_only/eval_provenance.json"
+    merged_path = "report/sweep_stage1_ais_v1_halting_only_merged/eval_provenance.json"
+    if os.path.exists(merged_path):
+        prov_path = merged_path
+        print("  Using MERGED 8-seed provenance (STEP C2 seed extension "
+              "applied).", flush=True)
     if not os.path.exists(prov_path):
         # Step C did not complete — do NOT touch the roadmap (a sync_roadmap_down
         # here would clobber the just-written isolation verdict / gate_clear
@@ -1446,6 +1603,9 @@ def record_verdict():
 
     # PGD-100 spot-check provenance (same seeds/n at eps=0.094 only).
     prov100_path = "report/sweep_stage1_ais_v1_halting_only_pgd100/eval_provenance.json"
+    merged100 = "report/sweep_stage1_ais_v1_halting_only_merged_pgd100/eval_provenance.json"
+    if os.path.exists(merged100):
+        prov100_path = merged100
     prov100 = None
     if os.path.exists(prov100_path):
         with open(prov100_path) as f:
@@ -1472,22 +1632,28 @@ def record_verdict():
         "pgd_steps": prov.get("pgd_steps"),
         "results": prov.get("results"),
         "crossover_verdicts": prov.get("crossover_verdicts"),
+        "eval_target_note": _eval_target_note(prov.get("checkpoints")),
+        "seed_extension": (prov.get("seed_extension")
+                           or {"applied": False,
+                               "note": "5-seed protocol only (no STEP C2 merge)"}),
         "masking_check": (masking_verdict(prov, prov100)
                            if prov100 is not None else {"available": False,
                            "note": "PGD-100 spot-check did not run"}),
         "note": "Stage 1 (%s) validated via the "
-                "5-seed matched protocol. This is a REPLICATION-UNDER-REFACTOR "
+                "%d-seed matched protocol. This is a REPLICATION-UNDER-REFACTOR "
                 "control, not a test of genuine information-gain gaze. A null "
                 "result is still a valid, reportable outcome."
-                % stage1_cfg.get("run_label", "UNLABELED — see roadmap"),
+                % (stage1_cfg.get("run_label", "UNLABELED — see roadmap"),
+                   len(prov.get("seeds") or [])),
     }
     roadmap["stages"]["1"]["validated"] = True
     roadmap["stages"]["1"]["validated_date"] = stage1["validated_date"]
     roadmap["stages"]["1"]["validated_note"] = (
-        "Stage 1 (%s) 5-seed matched eval recorded from "
-        "report/sweep_stage1_ais_v1_halting_only/eval_provenance.json — see "
-        "roadmap.stages['1'].stage1_verdict. Verdict is what it is, "
-        "including a null result." % stage1_cfg.get("run_label", "UNLABELED"))
+        "Stage 1 (%s) %d-seed matched eval recorded from "
+        "%s — see roadmap.stages['1'].stage1_verdict. Verdict is what it is, "
+        "including a null result."
+        % (stage1_cfg.get("run_label", "UNLABELED"),
+           len(prov.get("seeds") or []), prov_path))
     roadmap["stages"]["1"]["stage1_verdict"] = stage1
     with open("docs/rhan_next_roadmap.json", "w") as f:
         json.dump(roadmap, f, indent=2, sort_keys=False)
