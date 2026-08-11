@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
 """
-Kaggle Notebook — RHAN-Next Stage 1 Execution (AIS-v1: Relocated Equation II)
-=============================================================================
+Kaggle Notebook — RHAN-Next Stage 2 Execution (Pillar 1 HPC, matrix C)
+======================================================================
+ACTIVE protocol: Stage 2 (HPC-only, matrix entry C_hpc_only) — smoke →
+health gate → 60-epoch run → three-way eval → verdict, all for config C
+per rhan_core/ablation/matrix.py. Stage 1 is COMPLETE and FINAL (2026-08-09,
+8 seeds): AIS-v1 (halting-only) shows +8.5 pp @ ε=0.094 vs the static TRADES
+baseline — positive but NOT significant under the pre-registered 2σ bar, with
+gradient masking definitively ruled out. The Stage 1 blocks below (Steps 5-7c)
+are the executable validated record and DEFAULT OFF (Step 4 toggles) — flip
+one only to deliberately re-run that step; re-runs are resume-gated and
+skip-if-complete protected, never a restart.
 This is the Kaggle-native twin of cloud_setup/colab_notebook_noesis.py
 (2026-08-07): identical protocol, gate logic, NEVER-RESTART guarantees, and
 artifact names — adapted for a Kaggle Notebook runtime.
@@ -34,10 +43,11 @@ KAGGLE ADAPTATIONS (vs the Colab twin):
                   verify_no_restart make that safe — NEVER --force-restart.
                   Run DO_RESUME_SELFTEST on the FIRST session only (proves the
                   resume path once), then set it False on later sessions.
-Runs the pre-registered Stage 1 protocol for RHANNext(enable_ais=True,
-enable_hpc=False).
+Pre-registered STAGE 1 protocol record — what the Stage 1 blocks below
+execute when re-enabled — for RHANNext(enable_ais=True, enable_hpc=False):
 
-RUN LABEL — this run is **AIS-v1: Relocated Equation II** (mechanistically
+RUN LABEL — the Stage 1 validated run was **AIS-v1: Relocated Equation II**
+(mechanistically
 identical to v10/v11/v12's gaze update, refactored into the new interface).
 It is a **REPLICATION-UNDER-REFACTOR control, not a test of genuine
 information-gain gaze.** Unqualified "AIS" / "information-gain" is reserved
@@ -203,13 +213,11 @@ validated checkbox is checked.
 Usage: paste cells into a Kaggle Notebook (or run the whole file).
 Set HF_TOKEN in Kaggle Secrets (Add-ons > Secrets > "HF_TOKEN").
 Select accelerator GPU T4 x2 (recommended) or T4 x1. Internet: ON.
-Toggles: DO_STEP_A / DO_STEP_B / DO_STEP_C, SKIP_TRAINING (eval-only),
-SMOKE_EPOCHS (10-15), FORCE_STEP_B_OVERRIDE (debug escape — do not use for
-publishable numbers), DO_ISOLATION / ISO_EPOCHS (mechanism isolation phase),
-DO_RESUME_SELFTEST (bounded HF rolling-resume proof before Step B),
-SEED_STEP_B_FROM_ISOB (Step B resumes from the isolation-B checkpoint at
-epoch 12 — same config, 60-epochs-from-base accounting preserved, ~4.4h
-saved; NOT a restart).
+Toggles: the ACTIVE Stage 2 protocol is DO_STAGE2 / DO_STEP2_A/B/C (and
+SKIP_STAGE2_TRAINING for eval-only). The Stage 1 toggles (DO_STEP_A/B/C,
+DO_ISOLATION, DO_RESUME_SELFTEST, SEED_STEP_B_FROM_ISOB, DO_STEP_C2) DEFAULT
+OFF — Stage 1 is final; flip one only to deliberately re-run that step.
+FORCE_STEP_B_OVERRIDE is a debug escape — do not use for publishable numbers.
 
 GATE-CLEAR PATH (2026-08-07): PROCEED_STEP_B = smoke healthy OR (isolation
 verdict status == "resolved" AND its decision selects THIS exact Step B
@@ -223,18 +231,28 @@ exercise the full gate/isolation/verdict logic against LIVE HF state without
 launching training or touching git/HF. Verify the exact Step B launch config
 before spending the compute window.
 
-STAGE 2 BLOCK (appended below): the same protocol shape for Pillar 1 (HPC),
+STAGE 2 BLOCK (the ACTIVE protocol below): same protocol shape as Stage 1,
 matrix entry C_hpc_only (HPC-only — AIS mechanisms OFF, per
 rhan_core/ablation/matrix.py). Step A smoke (15 ep, ε=0.031) → Stage 2 health
 gate (4 checks: HPC gradient flow, error trend >= 10% decrease / never >10x,
 AIS-v1 disable backward-compat, Π_D car/truck) → Step B full (60 ep) → Step C
 THREE-WAY 5-seed matched eval vs A (baseline) AND B (AIS-v1) via the new
---ablation-matrix flag → Step C2 seed extension ONLY if borderline. Verdict
-recorded to roadmap.stages['2'].stage2_verdict. D (AIS+HPC) stays
-SCAFFOLDED_NOT_RUN — code-complete + tested, deliberately not trained."""
+--ablation-matrix flag → Step C2 seed extension ONLY if borderline. Verdictrecorded to roadmap.stages['2'].stage2_verdict. D (AIS+HPC) stays
+SCAFFOLDED_NOT_RUN — code-complete + tested, deliberately not trained.
+
+STAGE 1 BLOCKS (Steps 5-7c) — COMPLETE & FINAL (2026-08-09): retained as the
+executable validated record and DEFAULTED OFF in Step 4 (DO_STEP_A/B/C,
+DO_ISOLATION, DO_RESUME_SELFTEST, DO_STEP_C2 all False). Flip a toggle only
+to deliberately re-run that step.
+"""
 
 # %% [markdown]
-# # RHAN-Next Stage 1: AIS-v1 (Relocated Equation II) — Smoke → Full → 5-seed Validation
+# # RHAN-Next Stage 2: HPC (Pillar 1, matrix C) — Smoke → Health gate → 60-epoch → 3-way Eval → Verdict
+# #
+# # The Stage 1 blocks below (Steps 5-7c) are the COMPLETED validated record
+# # (AIS-v1 halting-only, 8-seed, +8.5 pp @ ε=0.094, not significant,
+# # masking-free) and DEFAULT OFF — flip the Stage 1 toggles in Step 4 only
+# # to re-run a Stage 1 step. This run trains config C (HPC-only) per Stage 2.
 
 # %% [markdown]
 # ## Step 1: Install Dependencies
@@ -364,9 +382,15 @@ else:
 # ## Step 4: Toggles + Base Checkpoint
 
 # %%
-DO_STEP_A   = True    # smoke: 12-15 epochs, ε=0.031 only
-DO_STEP_B   = True    # full 60-epoch 3-phase run (auto-gated on Step A health)
-DO_STEP_C   = True    # 5-seed matched eval + roadmap verdict recorder
+# ── Stage 1 toggles — STAGE 1 IS COMPLETE & FINAL (2026-08-09) ───────────────
+# The 8-seed Stage 1 verdict is recorded in the roadmap (AIS-v1 halting-only:
+# +8.5 pp @ ε=0.094 vs baseline, NOT significant under the 2σ bar, masking
+# ruled out). The Stage 1 blocks below are the executable validated record and
+# DEFAULT OFF. Flip a toggle to True ONLY to deliberately re-run that step —
+# every re-run is resume-gated / skip-if-complete protected, never a restart.
+DO_STEP_A   = False   # smoke (Stage 1 DONE — re-run only if re-validating)
+DO_STEP_B   = False   # full 60-epoch run (Stage 1 DONE)
+DO_STEP_C   = False   # 5-seed matched eval + verdict recorder (Stage 1 DONE)
 SKIP_TRAINING = False # eval-only mode (requires rhan_next_ais_v1_halting_only_best.pth on HF/local)
 SMOKE_EPOCHS = 15     # 10-15 per protocol
 # Step C runtime: 20 combos × ~13-17 min ≈ 4.5-5.5 GPU-hours on a T4 —
@@ -385,7 +409,7 @@ FORCE_STEP_B_OVERRIDE = False  # debug escape — do NOT use for publishable num
 # reordering driver (smoke<->isoB contrast); isoA's telemetry was lost to a
 # session wipe -> recaptured as a SUFFICIENCY TEST at its arm-level
 # max_epochs (isolation_plan.arms[].max_epochs), never a force-restart.
-DO_ISOLATION = True
+DO_ISOLATION = False  # Stage 1 isolation COMPLETE (2026-08-07) — re-run only to re-derive
 ISO_EPOCHS   = 12     # 8-15 sanctioned; the Π_D ordering is visible by ~epoch 12
 # 2026-08-07: Step B is SEEDED from the isolation-B rolling checkpoint
 # (epoch 12, IDENTICAL config: --enable-ais --no-ais-precision-recon, same
@@ -393,11 +417,11 @@ ISO_EPOCHS   = 12     # 8-15 sanctioned; the Π_D ordering is visible by ~epoch 
 # (12 isoB + 48 Step B = 60) and ~4.4 GPU-h are saved on the T4. This is a
 # forward resume, NEVER a restart. Set False to start Step B fresh from the
 # base pseudolabel checkpoint at epoch 1.
-SEED_STEP_B_FROM_ISOB = True
+SEED_STEP_B_FROM_ISOB = False  # inert while DO_STEP_B=False (Stage 1 complete)
 # Bounded HF rolling-resume self-test BEFORE Step B (~1.5h on a T4): proves
 # the exact HF restore+continue mechanism Step B will rely on across the
 # ~3-4 session boundaries (60 epochs ≈ 21-22h). Set False to skip.
-DO_RESUME_SELFTEST = True
+DO_RESUME_SELFTEST = False  # Stage 1 DONE — would otherwise burn ~1.5h on a redundant self-test
 
 BASE = "checkpoints/rhan_stl10_large_pseudolabel_best.pth"
 os.makedirs("report", exist_ok=True)   # --diag-json / health verdicts live here
@@ -1653,6 +1677,8 @@ else:
 
 # %% [markdown]
 # ## Step 7c — STEP C2: SEED EXTENSION 46-48 (eps=0.094, both legs) → 8-SEED MERGED VERDICT
+# COMPLETED 2026-08-09 — the merged 8-seed verdict is recorded in the roadmap;
+# this cell defaults OFF (DO_STEP_C2=False). Retained as the executable record.
 
 # %%
 # The 5-seed crossover was real but razor-thin (PGD-50 +8.13 vs 8.02
@@ -1669,7 +1695,7 @@ else:
 # numbers.
 import csv as _csv
 
-DO_STEP_C2 = True
+DO_STEP_C2 = False  # Stage 1 C2 COMPLETE (2026-08-09, merged 8-seed verdict recorded)
 C2_SEEDS = [46, 47, 48]
 
 
@@ -2017,7 +2043,11 @@ def record_verdict():
     print("  Masking check:", json.dumps(stage1.get("masking_check"),
                                           indent=2), flush=True)
 
-record_verdict()
+if DO_STEP_C:
+    record_verdict()
+else:
+    print("  (Stage 1 verdict recorder skipped: DO_STEP_C=False — Stage 1 is "
+          "already final and recorded in the roadmap)", flush=True)
 
 # %% [markdown]
 # ## Stage 2 — HPC (Pillar 1, matrix C): Smoke → Health gate → 60-epoch → 3-way eval → Verdict
@@ -2816,14 +2846,16 @@ if DO_STEP2_C:
 # %% [markdown]
 # ## Done — next gate
 #
-# Stage 1 (AIS-v1 halting-only) recorded; Stage 2 (HPC-only, matrix C)
-# protocol executed above — D (AIS+HPC) remains SCAFFOLDED_NOT_RUN and
+# Stage 2 (HPC-only, matrix C) executed above; Stage 1 (AIS-v1 halting-only)
+# remains the validated FINAL record (8-seed, +8.5 pp @ ε=0.094, not
+# significant, masking-free). D (AIS+HPC) stays SCAFFOLDED_NOT_RUN and
 # enable_sbr stays locked. Next gate: Stage 3 integration & reporting.
 
 # %%
 print("\n" + "="*70)
-print("  STAGE 1 EXECUTION COMPLETE")
+print("  STAGE 2 EXECUTION COMPLETE")
 print("="*70)
+print("  - Stage 1 (validated record): AIS-v1 halting-only — 8-seed, +8.5 pp @ ε=0.094, not significant, masking-free")
 print("  - Step A smoke telemetry : report/rhan_next_ais_v1_smoke_diag.jsonl")
 print("  - Step A health verdict  : report/rhan_next_ais_v1_smoke_health.json")
 print("  - Isolation A (halt off) : checkpoints/rhan_next_ais_v1_isoA_nohalt_{best,rolling}.pth")
@@ -2834,7 +2866,7 @@ print("  - Step C eval (PGD-50)   : report/sweep_stage1_ais_v1_halting_only/")
 print("  - Step C PGD-100 spot    : report/sweep_stage1_ais_v1_halting_only_pgd100/ (eps=0.094, masking check)")
 print("  - Verdict recorded       : docs/rhan_next_roadmap.json (stages.1)")
 print()
-print("  DO NOT begin Stage 2 (HPC) until the Stage 1 verdict is reviewed.")
-print("  Stage 2 must keep AIS-v1 (halting-only variant) fixed at whatever")
-print("  Stage 1 validated — recon-mod stays deferred until its own isolation.")
+print("  Stage 2 kept AIS-v1 (halting-only variant) fixed as its base — the")
+print("  config Stage 1 validated. recon-mod stays deferred until its own")
+print("  isolation. Next gate: Stage 3 integration & reporting.")
 print("="*70)
