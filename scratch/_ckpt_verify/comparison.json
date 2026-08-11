@@ -1,0 +1,16 @@
+{
+  "arch_best": "rhan_next",
+  "arch_rolling": "rhan_next",
+  "best_best_acc": null,
+  "best_epoch": null,
+  "best_sha256": "19582ff4b32afdb2a46e88a7089167844a2ac3b24d01d6c34cac79ebbf1118e3",
+  "best_state_hash": "fddc8e09214a0574b42b00df5804bc6747d087445e5bfabe568171a73df6a014",
+  "config_match": true,
+  "file_sha256_equal": false,
+  "name": "rhan_next_ais_v1_halting_only",
+  "rolling_best_acc": 54.05,
+  "rolling_epoch": 60,
+  "rolling_sha256": "50b8f9176b2fb6bbda95cecc6096cbe519532b178f33031a34d79bc8df5c74b5",
+  "rolling_state_hash": "fddc8e09214a0574b42b00df5804bc6747d087445e5bfabe568171a73df6a014",
+  "state_dict_equal": true
+}

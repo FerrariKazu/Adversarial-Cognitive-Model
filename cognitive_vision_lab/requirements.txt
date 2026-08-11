@@ -1,20 +1,29 @@
-# Core
-streamlit>=1.28.0
-plotly>=5.18.0
-pandas>=2.0.0
+# Cognitive Vision Lab v2.0 — dependencies
+# Core UI (>=1.47 for width="stretch" API; use_container_width removed upstream)
+streamlit>=1.47
+plotly>=5.20
+altair>=5.3
+pandas>=2.1
+numpy>=1.26
 
-# Backend
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-pydantic>=2.0.0
-python-multipart>=0.0.6
+# Science stack
+scipy>=1.11
+scikit-learn>=1.4
+Pillow>=10.0
+opencv-python-headless>=4.9
+matplotlib>=3.8
+networkx>=3.2
 
-# ML
-torch>=2.0.0
-torchvision>=0.15.0
-scipy>=1.10.0
-Pillow>=10.0.0
-numpy>=1.24.0
+# Deep learning (optional for live inference; curated mode runs without it)
+torch>=2.1
+torchvision>=0.16
 
-# Utils
-requests>=2.31.0
+# Data
+datasets>=2.18
+
+# Testing / dev
+pytest>=8.0
+
+# Optional accelerators (uncomment if desired)
+# umap-learn>=0.5     # UMAP embeddings on Representation Drift page
+# pyvis>=0.3          # interactive RHAN architecture graph

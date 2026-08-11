@@ -190,7 +190,9 @@ def test_hpc_gradient_reaches_stack_predictor():
     assert l_hpc.requires_grad
     loss = F.cross_entropy(logits, y) + 0.05 * l_hpc
     loss.backward()
-    _assert_param_grads(m, ["hpc_stack.levels.0.fc", "hpc_stack.levels.0.decoder"])
+    # HPCLevel1 owns the stack; the state-dict path is hpc_level1.stack.*
+    _assert_param_grads(
+        m, ["hpc_level1.stack.levels.0.fc", "hpc_level1.stack.levels.0.decoder"])
     del m
     gc.collect()
 

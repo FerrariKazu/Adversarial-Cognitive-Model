@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "roadmap_rev": 2,
+  "roadmap_rev": 4,
   "project": "RHAN-Next",
   "branch": "feature/rhan-next",
   "definition_of_done": "Stage 3 validated checkbox checked, with numbers (not projections) in docs/ARCHITECTURE.md. Do not report the refactor complete before that.",
@@ -43,11 +43,11 @@
       "code_complete": true,
       "code_complete_date": "2026-08-05",
       "validated": true,
-      "validated_note": "Stage 1 (AIS-v1 (halting-only variant)) 5-seed matched eval recorded from report/sweep_stage1_ais_v1_halting_only/eval_provenance.json \u2014 see roadmap.stages['1'].stage1_verdict. Verdict is what it is, including a null result.",
+      "validated_note": "Stage 1 (AIS-v1 (halting-only variant)) 8-seed matched eval recorded from report/sweep_stage1_ais_v1_halting_only_merged/eval_provenance.json \u2014 see roadmap.stages['1'].stage1_verdict. Merged 8-seed result is FINAL (2026-08-10): no third seed extension. Verdict is what it is, including a null result.",
       "execution_plan": {
         "notebook": "cloud_setup/colab_notebook_noesis.py",
         "step_a_smoke": "train_rhan_next.py --enable-ais --ckpt-name rhan_next_ais_v1_smoke --max-epochs 15 --target-ckpt checkpoints/rhan_stl10_large_pseudolabel_best.pth --batch-size 16 --accum-steps 16 --diag-json report/rhan_next_ais_v1_smoke_diag.jsonl --force-single-gpu (epochs 1-15 all in phase 1 => epsilon 0.031 only)",
-        "health_gate": "reads last report/rhan_next_ais_v1_smoke_diag.jsonl line; aborts Step B unless: gaze_shift_total_mean >= 0.05 (CALIBRATED: local dry-run of this pipeline measured 0.2795, v11 post-fix 0.36-0.39, v11 pre-fix dead state ~0.007 \u2014 the old 0.01 bar sat inside the dead-state noise and was raised) AND steps_effective_std >= 0.02 AND frac_halted_any >= 0.02 (tightened from just > 0 per calibration directive; calibrated: known-good std=0.561/frac=0.125, flat failure exactly 0.0/0.0) AND car/truck both in top-2 Pi_D per class (v11: car 0.4198/truck 0.4670; v12: car 0.4726/truck 0.4587 highest). Full calibration table in docs/ARCHITECTURE.md \u00a78.1a; constants pinned in the notebook (GAZE_THRESHOLD=0.05, HALT_FRAC_THRESHOLD=0.02). Verdict -> report/rhan_next_ais_v1_smoke_health.json. FINDING 2026-08-06: the gate FIRED on the Pi_D criterion on the Colab smoke (top-2 = car/airplane; car/truck not met; gaze/halting passed). The smoke trained on 5K real + ~46K pseudo (trainer default pipeline), ruling out the data-mix hypothesis; the pre-registered mechanism-isolation phase (see isolation_plan) now runs before Step B. FORCE_STEP_B_OVERRIDE is a debug escape, NOT for publishable numbers. OUTCOME 2026-08-07: the isolation verdict fired branch (2) - isoB restored car/truck, so recon-mod is the confirmed Pi_D-reordering driver; Step B trains the halting-only variant (--no-ais-precision-recon). The car/truck criterion itself was NOT recalibrated.",
+        "health_gate": "reads last report/rhan_next_ais_v1_smoke_diag.jsonl line; aborts Step B unless: gaze_shift_total_mean >= 0.05 (CALIBRATED: local dry-run of this pipeline measured 0.2795, v11 post-fix 0.36-0.39, v11 pre-fix dead state ~0.007 \u2014 the old 0.01 bar sat inside the dead-state noise and was raised) AND steps_effective_std >= 0.02 AND frac_halted_any >= 0.02 (tightened from just > 0 per calibration directive; calibrated: known-good std=0.561/frac=0.125, flat failure exactly 0.0/0.0) AND car/truck both in top-2 Pi_D per class (v11: car 0.4198/truck 0.4670; v12: car 0.4726/truck 0.4587 highest). Full calibration table in docs/ARCHITECTURE.md \u00a79.1a; constants pinned in the notebook (GAZE_THRESHOLD=0.05, HALT_FRAC_THRESHOLD=0.02). Verdict -> report/rhan_next_ais_v1_smoke_health.json. FINDING 2026-08-06: the gate FIRED on the Pi_D criterion on the Colab smoke (top-2 = car/airplane; car/truck not met; gaze/halting passed). The smoke trained on 5K real + ~46K pseudo (trainer default pipeline), ruling out the data-mix hypothesis; the pre-registered mechanism-isolation phase (see isolation_plan) now runs before Step B. FORCE_STEP_B_OVERRIDE is a debug escape, NOT for publishable numbers. OUTCOME 2026-08-07: the isolation verdict fired branch (2) - isoB restored car/truck, so recon-mod is the confirmed Pi_D-reordering driver; Step B trains the halting-only variant (--no-ais-precision-recon). The car/truck criterion itself was NOT recalibrated.",
         "step_b_full": "same trainer --no-ais-precision-recon --ckpt-name rhan_next_ais_v1_halting_only --max-epochs 60; the 'AIS-v1 (halting-only variant)' per the 2026-08-07 isolation verdict (recon-mod = confirmed Pi_D-reordering driver; deferred). Curriculum (1-20 @0.031, 21-40 @0.062, 41-60 @0.094) byte-identical to train_rhan_v11.py = exact null_ablation_v11 boundaries (31.56+-2.88 @ eps=0.094). Same base checkpoint; NEVER --force-restart.",
         "step_c_eval": "eval_rhan.py --ckpt-specs rhan_next_ais_v1_halting_only:checkpoints/rhan_next_ais_v1_halting_only_best.pth:next trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300 --pgd-steps 50 --batch-size 64 --output-dir report/sweep_stage1_ais_v1_halting_only",
         "step_c_eval_pgd100_spot": "SECOND invocation: eval_rhan.py --ckpt-specs rhan_next_ais_v1_halting_only:checkpoints/rhan_next_ais_v1_halting_only_best.pth:next trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large --seeds 41 42 43 44 45 --eps-list 0.094 --n-samples 300 --pgd-steps 100 --batch-size 64 --output-dir report/sweep_stage1_ais_v1_halting_only_pgd100. Reconfirms the PGD-50-vs-100 convergence gap at eps=0.094 (RHANv11 bar: drop <= 1.0 pp = genuine robustness, no masking). AIS-v1 (halting-only variant) is a refactor of the same mechanism, so masking-freedom must be re-confirmed, not assumed. Runtime add-on ~4.5-5.5 GPU-hours.",
@@ -124,7 +124,7 @@
       },
       "isolation_verdict": {
         "schema": "stage1_isolation_verdict_v2",
-        "date_utc": "2026-08-08T21:15:52Z",
+        "date_utc": "2026-08-11T04:21:22Z",
         "smoke_pi_d_top2": [
           "car",
           "airplane"
@@ -162,7 +162,7 @@
               ]
             ],
             "car_truck_restored": true,
-            "status": "carried forward from prior record (telemetry unavailable this session)"
+            "status": "car/truck RESTORED"
           }
         },
         "sufficiency_test": {
@@ -177,19 +177,18 @@
         "decision_rule": "Attribute the smoke's Pi_D reordering (top-2 = car/airplane instead of reference car/truck) from the two bounded isolation arms (each ablates exactly ONE AIS sub-mechanism, everything else identical to the smoke): (1) if Isolation A (--no-ais-halting) restores car/truck in top-2, the entropy-gated halting / continuation-weighted belief accumulation is the primary driver; (2) if Isolation B (--no-ais-precision-recon) restores car/truck in top-2, the precision-modulated reconstruction weight is the primary driver; (3) if both restore, both contribute - the next isolation runs a combined-off arm; (4) if neither restores, the driver is the remaining shared AIS wiring (gaze-policy relocation / step_net / continuation x belief interplay) - the next isolation disables step_net, or a per-class error/gaze-coverage analysis runs on the smoke artifacts. In every branch Step B stays GATED until the ordering question is understood; the isolation verdict is recorded regardless of outcome (a null/ambiguous isolation is a valid, reportable result).",
         "note": "Step B stays GATED until this verdict is understood. The driver attribution (and any fix / health-gate recalibration) is decided from this evidence \u2014 a null/ambiguous isolation is a valid, recorded result."
       },
-      "gate_clear_path": "isolation_verdict",
-      "gate_clear_reason": "isolation_verdict 2026-08-07: recon-mod confirmed driver of the Pi_D reordering (smoke<->isoB contrast), 'AIS-v1 (halting-only variant)' selected by the pre-registered decision rule. [Corrected 2026-08-09: the resume session mislabeled this 'healthy_smoke'/'healthy first try' \u2014 the smoke was NOT a healthy first try.]",
+      "gate_clear_path": "prior_session_pass",
+      "gate_clear_reason": "smoke health gate passed in a PRIOR session (verdict restored from HF); this session resumed the already-running protocol",
       "step_b_resume": {
         "source": "already_complete_on_hf",
-        "note": "resumed from HF rolling at epoch 60 (already at max 60) \u2014 0 epochs trained on 2026-08-09. Corrected 2026-08-09: the resume session clobbered this field to 'fresh_from_base'; the original launch source (per plan: seeded from isoB epoch 12, same config) was lost to that overwrite.",
-        "seeded": false,
-        "original_launch_source": "unknown (overwritten by the 2026-08-09 resume session); the pre-registered plan was SEED_STEP_B_FROM_ISOB (isoB epoch 12)"
+        "note": "resumed from HF rolling at epoch 60 (already at max 60) \u2014 0 epochs trained this session. The original launch source was recorded by the session that STARTED Step B; do not read this as a fresh-from-base launch.",
+        "seeded": false
       },
-      "validated_date": "2026-08-09",
+      "validated_date": "2026-08-10",
       "stage1_verdict": {
         "validated": true,
-        "validated_date": "2026-08-09",
-        "git_sha": "069d9aadc19bdcf33e4bad3adadd1dc5f58b177f",
+        "validated_date": "2026-08-10",
+        "git_sha": "3e40c95ba6307bb1568ffd29f2c5c82e166fa3cd",
         "run_label": "AIS-v1 (halting-only variant)",
         "run_identity": "AIS-v1 (halting-only variant): Relocated Equation II (mechanistically identical to v10/v11/v12's gaze update, refactored into the new interface) with the precision-modulated reconstruction weight DISABLED per the 2026-08-07 mechanism-isolation verdict (smoke<->isoB contrast: recon-mod is the confirmed driver of the smoke's Pi_D reordering; the entropy-gated halting is exonerated by elimination). This is a REPLICATION-UNDER-REFACTOR control, not a test of genuine information-gain gaze. recon-mod is DEFERRED to its own future isolation cycle - not validated, not part of the headline config.",
         "checkpoints": [
@@ -197,8 +196,8 @@
             "arch": "next",
             "freeze": false,
             "label": "rhan_next_ais_v1_halting_only",
-            "path": "checkpoints/rhan_next_ais_v1_halting_only_rolling.pth",
-            "sha256": "50b8f9176b2fb6bbda95cecc6096cbe519532b178f33031a34d79bc8df5c74b5"
+            "path": "checkpoints/rhan_next_ais_v1_halting_only_best.pth",
+            "sha256": "19582ff4b32afdb2a46e88a7089167844a2ac3b24d01d6c34cac79ebbf1118e3"
           },
           {
             "arch": "large",
@@ -213,7 +212,10 @@
           42,
           43,
           44,
-          45
+          45,
+          46,
+          47,
+          48
         ],
         "eps_list": [
           0.0,
@@ -224,7 +226,7 @@
         "results": [
           {
             "acc_mean": "49.4",
-            "acc_std": "3.48",
+            "acc_std": "3.47",
             "ckpt_label": "rhan_next_ais_v1_halting_only",
             "eps_norm_B": "0.0",
             "eps_norm_G": "0.0",
@@ -235,16 +237,16 @@
             "n_seeds": "5"
           },
           {
-            "acc_mean": "31.07",
-            "acc_std": "2.09",
+            "acc_mean": "32.21",
+            "acc_std": "2.74",
             "ckpt_label": "rhan_next_ais_v1_halting_only",
             "eps_norm_B": "0.094",
             "eps_norm_G": "0.094",
             "eps_norm_R": "0.094",
             "eps_pixel": "0.094",
-            "macro_dprime_mean": "0.9589",
-            "macro_dprime_std": "0.2273",
-            "n_seeds": "5"
+            "macro_dprime_mean": "1.0075",
+            "macro_dprime_std": "0.1887",
+            "n_seeds": "8"
           },
           {
             "acc_mean": "53.47",
@@ -255,86 +257,170 @@
             "eps_norm_R": "0.0",
             "eps_pixel": "0.0",
             "macro_dprime_mean": "1.8737",
-            "macro_dprime_std": "0.2432",
+            "macro_dprime_std": "0.2431",
             "n_seeds": "5"
           },
           {
-            "acc_mean": "22.93",
-            "acc_std": "3.43",
+            "acc_mean": "23.71",
+            "acc_std": "3.47",
             "ckpt_label": "trades_large_baseline",
             "eps_norm_B": "0.094",
             "eps_norm_G": "0.094",
             "eps_norm_R": "0.094",
             "eps_pixel": "0.094",
-            "macro_dprime_mean": "0.4338",
-            "macro_dprime_std": "0.348",
-            "n_seeds": "5"
+            "macro_dprime_mean": "0.3797",
+            "macro_dprime_std": "0.2886",
+            "n_seeds": "8"
           }
         ],
         "crossover_verdicts": [
           {
-            "acc_mean": 31.07,
-            "acc_std": 2.09,
+            "acc_mean": 32.21,
+            "acc_std": 2.74,
             "baseline": "trades_large_baseline",
-            "baseline_acc_mean": 22.93,
+            "baseline_acc_mean": 23.71,
             "checkpoint": "rhan_next_ais_v1_halting_only",
-            "diff_pp": 8.14,
+            "diff_pp": 8.5,
             "eps": 0.094,
-            "threshold_2sig": 8.03,
-            "verdict": "CROSSOVER REAL"
+            "threshold_2sig": 8.84,
+            "verdict": "positive but NOT significant"
           }
         ],
+        "eval_target_note": "rhan_next_ais_v1_halting_only: the evaluated artifact is checkpoints/rhan_next_ais_v1_halting_only_best.pth, VERIFIED (2026-08-10, state-dict hash fddc8e09214a0574...) to carry state-dict-IDENTICAL weights to the final-epoch rolling checkpoint (epoch 60). It is the FINAL-EPOCH model, NOT the peak-val (54.05%) best \u2014 the peak-val weights were lost to a session wipe and the trainer's finalize fallback wrote the epoch-60 model as the best artifact. All recorded results (clean 49.4 +/- 3.47, eps=0.094 32.21 +/- 2.74, 8-seed) correspond to this epoch-final model; the 54.05% peak-val figure must NOT be cited as this artifact's accuracy.",
+        "seed_extension": {
+          "applied": true,
+          "eps": 0.094,
+          "extended_seeds": [
+            46,
+            47,
+            48
+          ],
+          "main_seeds": [
+            41,
+            42,
+            43,
+            44,
+            45
+          ],
+          "note": "8-seed merged verdict: seeds [41, 42, 43, 44, 45] (main) + [46, 47, 48] (extension) at eps=0.094, both PGD-50 and PGD-100 legs, same checkpoints/protocol. Extension rows were generated by eval_sweep_next.py (the frozen sweep + eval_rhan's arch registry) because eval_rhan.py enforces a >=5-seed floor by design."
+        },
         "masking_check": {
           "eps": 0.094,
           "gap_bar_genuine_pp": 1.0,
           "gap_bar_borderline_pp": 2.5,
           "nondeterminism_caveat": "cross-run GPU nondeterminism (grid_sample/attention backward) can shift identical configs by ~1.5 pp; PGD-50 vs PGD-100 here are separate invocations, so gaps <= 2.5 pp are NOT conclusive evidence of masking.",
           "pgd50_provenance": {
-            "git_sha": "069d9aadc19bdcf33e4bad3adadd1dc5f58b177f",
-            "timestamp_utc": "2026-08-09T00:07:03+00:00"
+            "git_sha": "3e40c95ba6307bb1568ffd29f2c5c82e166fa3cd",
+            "timestamp_utc": "2026-08-10T03:19:43+00:00"
           },
           "pgd100_provenance": {
-            "git_sha": "069d9aadc19bdcf33e4bad3adadd1dc5f58b177f",
-            "timestamp_utc": "2026-08-09T01:38:36+00:00"
+            "git_sha": "3e40c95ba6307bb1568ffd29f2c5c82e166fa3cd",
+            "timestamp_utc": "2026-08-10T03:19:45+00:00"
           },
           "rhan_next_ais_v1_halting_only": {
             "available": true,
-            "acc_pgd50": 31.07,
-            "acc_pgd100": 30.6,
-            "gap_pp": 0.47,
-            "masking_verdict": "GENUINE robustness (no masking): PGD-50->100 drop +0.47 pp <= 1.0 pp bar (RHANv11 bar)"
+            "acc_pgd50": 32.21,
+            "acc_pgd100": 32.17,
+            "gap_pp": 0.04,
+            "masking_verdict": "GENUINE robustness (no masking): PGD-50->100 drop +0.04 pp <= 1.0 pp bar (RHANv11 bar)"
           },
           "trades_large_baseline": {
             "available": true,
-            "acc_pgd50": 22.93,
-            "acc_pgd100": 22.67,
-            "gap_pp": 0.26,
-            "masking_verdict": "GENUINE robustness (no masking): PGD-50->100 drop +0.26 pp <= 1.0 pp bar (RHANv11 bar)"
+            "acc_pgd50": 23.71,
+            "acc_pgd100": 23.58,
+            "gap_pp": 0.13,
+            "masking_verdict": "GENUINE robustness (no masking): PGD-50->100 drop +0.13 pp <= 1.0 pp bar (RHANv11 bar)"
           }
         },
-        "note": "Stage 1 (AIS-v1 (halting-only variant)) validated via the 5-seed matched protocol. This is a REPLICATION-UNDER-REFACTOR control, not a test of genuine information-gain gaze. A null result is still a valid, reportable outcome.",
-        "eval_target_note": "rhan_next_ais_v1_halting_only: evaluated on the FINAL-EPOCH rolling checkpoint (rhan_next_ais_v1_halting_only_rolling.pth) \u2014 NOT the peak-val best model. The *_best.pth artifact was missing on HF (no epoch beat the restored best), so the recorded results correspond to the epoch-final model, not the peak-val model."
+        "note": "Stage 1 (AIS-v1 (halting-only variant)) validated via the 8-seed matched protocol. This is a REPLICATION-UNDER-REFACTOR control, not a test of genuine information-gain gaze. A null result is still a valid, reportable outcome.",
+        "best_vs_rolling_verification": {
+          "verified": true,
+          "verified_date": "2026-08-10",
+          "method": "per-tensor state-dict sha256 of best.pth (FerrariKazu/rhan-checkpoints) vs rolling.pth (FerrariKazu/rhan-checkpoints-rolling); see scratch/verify_best_vs_rolling.py",
+          "state_dict_hash": "fddc8e09214a0574b42b00df5804bc6747d087445e5bfabe568171a73df6a014",
+          "best_path": "checkpoints/rhan_next_ais_v1_halting_only_best.pth",
+          "rolling_path": "checkpoints/rhan_next_ais_v1_halting_only_rolling.pth",
+          "rolling_epoch": 60,
+          "rolling_best_acc": 54.05,
+          "conclusion": "best.pth and rolling.pth carry state-dict-IDENTICAL weights = the FINAL-EPOCH (epoch 60) model. The 54.05% figure in the rolling checkpoint's best_acc metadata is the PEAK-VAL accuracy reached during training (those weights were lost to a session wipe); it is NOT the accuracy of this artifact. Do NOT cite 54.05% as this checkpoint's clean accuracy."
+        },
+        "stage1_headline": {
+          "date_utc": "2026-08-10",
+          "text": "AIS-v1 (halting-only variant) shows a consistent positive trend (+8.5pp merged, 8 seeds) at eps=0.094 vs the static TRADES baseline, comparable in direction and rough magnitude to the earlier null_ablation_v11 finding, but does not reach significance under the pre-registered 2-sigma criterion at this sample size. Both models confirmed masking-free.",
+          "do_not_cite": "The 3-seed-extension-only PGD-100 result must NOT be cited as a standalone 'crossover real' finding.",
+          "verdict_summary": {
+            "eps": 0.094,
+            "n_seeds": 8,
+            "ais_acc_mean": 32.21,
+            "ais_acc_std": 2.74,
+            "baseline_acc_mean": 23.71,
+            "baseline_acc_std": 3.47,
+            "diff_pp": 8.5,
+            "threshold_2sig_pp": 8.84,
+            "verdict": "positive but NOT significant",
+            "pgd50_pgd100_gap_pp_ais": 0.04,
+            "masking": "GENUINE robustness (no masking) for both models"
+          },
+          "finality": "Merged 8-seed result accepted as the FINAL Stage 1 verdict (2026-08-10). No third seed extension will be run."
+        }
       },
-      "eval_target_note": "rhan_next_ais_v1_halting_only: evaluated on the FINAL-EPOCH rolling checkpoint (rhan_next_ais_v1_halting_only_rolling.pth) \u2014 NOT the peak-val best model. The *_best.pth artifact was missing on HF (no epoch beat the restored best), so the recorded results correspond to the epoch-final model, not the peak-val model.",
+      "eval_target_note": "rhan_next_ais_v1_halting_only: the evaluated artifact is checkpoints/rhan_next_ais_v1_halting_only_best.pth, VERIFIED (2026-08-10, state-dict hash fddc8e09214a0574...) to carry state-dict-IDENTICAL weights to the final-epoch rolling checkpoint (epoch 60). It is the FINAL-EPOCH model, NOT the peak-val (54.05%) best \u2014 the peak-val weights were lost to a session wipe and the trainer's finalize fallback wrote the epoch-60 model as the best artifact. All recorded results (clean 49.4 +/- 3.47, eps=0.094 32.21 +/- 2.74, 8-seed) correspond to this epoch-final model; the 54.05% peak-val figure must NOT be cited as this artifact's accuracy.",
       "verdict_metadata_fix": {
         "date_utc": "2026-08-09",
         "what": "step_b_resume + gate_clear_path/reason corrected after the 2026-08-09 resume session mislabeled them; eval_target_note added (rolling/epoch-final eval target). Numbers unchanged \u2014 the 8-seed merged verdict (STEP C2) lands here next."
+      },
+      "stage2_handoff": {
+        "date_utc": "2026-08-10",
+        "decision": "Proceed to Stage 2 (HPC) with AIS-v1 (halting-only, no recon-mod) FIXED as the validated Stage 1 config \u2014 exactly as this roadmap's own gating rule specifies.",
+        "note": "Stage 2 inherits a real, honestly-scoped, non-significant-but-promising baseline to build on. recon-mod stays DEFERRED until its own validated isolation; HPC must be isolated on/off with AIS-v1 (halting-only variant) held fixed."
       }
     },
     "2": {
-      "name": "Pillar 1 \u2014 Hierarchical Predictive Coding (one level at a time)",
+      "name": "Pillar 1 \u2014 Hierarchical Predictive Coding (one level at a time; THIS ROUND = matrix C, HPC-only)",
       "code_complete": true,
       "code_complete_date": "2026-08-05",
       "validated": false,
-      "validated_note": "PENDING: isolated on/off test (hpc_num_levels=0 vs 1, AIS held fixed) via the 5-seed matched protocol. Only after this single level validates may hpc_num_levels=2 begin its own code-complete + validated cycle.",
+      "validated_note": "2026-08-11: Stage 2 infrastructure code-complete + tested (HPCLevel1 wiring, gradient-flow + AIS-v1 disable backward-compat tests, ablation matrix A/B/C/D registry + runner, eval_rhan.py --ablation-matrix flag, SBR feasibility probe built+dormant). THIS ROUND trains/evaluates ONLY matrix entry C (HPC-only) via the notebook Stage 2 block. D (AIS+HPC) stays SCAFFOLDED_NOT_RUN \u2014 dormant until the Stage 2 verdict says HPC is worth combining with AIS. Verdict recorded to stages['2'].stage2_verdict.",
       "code_complete_acceptance": [
         "hpc_num_levels=1: EdgeFeatureLevelPredictor (feature_target=edge_map) alongside existing top-level predictor",
         "feature target is edges, NOT raw pixels (feature-vs-pixel rule)",
         "test_gradient_flow.py extended for the new predictor/error path",
         "Mid-transformer-layer hooking evaluated + documented as deferred (gradient-checkpointed dual-stream encoder)",
-        "tests/test_hpc_isolated.py: code-level on/off isolation (params only when enabled, feature_target, level-count guards, extractor shapes)"
+        "tests/test_hpc_isolated.py: code-level on/off isolation (params only when enabled, feature_target, level-count guards, extractor shapes)",
+        "HPCLevel1 wiring module (rhan_core/predictive_coding/hpc_level1.py): edge-map target, documented single tap point (foveal_crop), returns (prediction, error, error_map); error NOT detached",
+        "w_hpc = 0.10 as a SEPARATE slot from w_recon (config hpc_error_weight + --w-hpc); hpc_num_levels default 0",
+        "tests/test_hpc_gradient_flow.py (hard NOT-detached assertion + param grads) and tests/test_hpc_disable_backward_compat.py (hpc_num_levels=0 == AIS-v1 forward) PASS",
+        "ablation matrix A/B/C/D registry + runner + eval_rhan.py --ablation-matrix flag; tests/test_ablation_matrix.py PASS",
+        "Stage 2 notebook block (colab + Kaggle twins, byte-identical): smoke -> 4-check gate -> 60-epoch -> 3-way eval -> C2 rule -> verdict",
+        "SBR feasibility probe built, smoke-tested, PAUSED (not interpreted)"
       ],
-      "isolated_test_required": true
+      "isolated_test_required": true,
+      "run_label": "C_hpc_only (HPC-only, w_hpc=0.10)",
+      "execution_plan": {
+        "notebook": "cloud_setup/colab_notebook_noesis.py (twin: Kaggle_NOESIS.py) \u2014 Stage 2 block, identical shape to Stage 1",
+        "matrix_entry": "C_hpc_only in rhan_core/ablation/matrix.py: RHANNextConfig(enable_ais=False, enable_hpc=True, hpc_num_levels=1, hpc_error_weight=0.10). Training commands are GENERATED from the registry (runner.train_command) so command<->matrix consistency is enforced, not assumed.",
+        "step_a_smoke": "train_rhan_next.py --enable-hpc --hpc-num-levels 1 --w-hpc 0.10 --ckpt-name rhan_next_hpc_only_smoke --max-epochs 15 --target-ckpt checkpoints/rhan_next_ais_v1_halting_only_best.pth --batch-size 16 --accum-steps 16 --diag-json report/rhan_next_hpc_only_smoke_diag.jsonl --force-single-gpu (epochs 1-15 all in phase 1 => epsilon 0.031 only; AIS mechanisms OFF per matrix C \u2014 do NOT layer AIS onto HPC)",
+        "health_gate": "4 checks; any failure STOPS before the 60-epoch run and writes report/rhan_next_hpc_only_smoke_health.json + roadmap.stages['2'].stage2_gate_verdict. (1) HPC gradient flow: tests/test_hpc_gradient_flow.py MUST pass (hard NOT-detached assertion \u2014 the Stage-1 lesson as an automated check, not a manual review); (2) HPC prediction-error trend from the diag: final-epoch hpc_error_mean <= 0.9 * first-epoch (>= 10% decrease) AND max over epochs <= 10x the first-epoch value (never explode); (3) AIS-v1 disable backward-compat: tests/test_hpc_disable_backward_compat.py MUST pass (hpc_num_levels=0 reproduces the validated AIS-v1 forward bit-for-bit \u2014 the Stage-0 v12-compat pattern, run as an automated smoke-time check); (4) Pi_D per-class car/truck top-2 (same criterion as Stage 1 \u2014 if HPC breaks it, directly comparable to the recon-mod finding). Since HPC is a single additive loss term decoupled from AIS internals, a failure implicates HPCLevel1 itself \u2014 NO isolation arms needed; the failure writeup CONFIRMS this explicitly rather than assuming it.",
+        "step_b_full": "same trainer, --ckpt-name rhan_next_hpc_only, --max-epochs 60, same base (validated AIS-v1 halting-only checkpoint); curriculum (1-20 @0.031, 21-40 @0.062, 41-60 @0.094) byte-identical to train_rhan_v11.py; NEVER --force-restart (mandatory HF resume gate + verify_no_restart); HF rolling+best sync with the best==rolling eval-target verification (_eval_target_note) applied from the start \u2014 the 2026-08-08/10 metadata lesson, not rediscovered.",
+        "step_c_eval": "THREE-WAY 5-seed matched eval via the new flag: eval_rhan.py --ablation-matrix A_baseline B_ais_only C_hpc_only --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --pgd-steps 50 --n-samples 300 --batch-size 64 --baseline-label trades_large_baseline --output-dir report/sweep_stage2_hpc_only \u2014 vs A (static TRADES baseline) AND vs B (AIS-v1 halting-only): this tells us whether HPC adds anything AIS didn't already provide (C-vs-B comparison recorded in the verdict). PGD-100 leg at eps=0.094 for the masking check on all three.",
+        "step_c2_rule": "Seed extension to 8 (46-48, eps=0.094, both legs, then scripts/merge_stage1_seed_extension.py) IF AND ONLY IF the 5-seed verdict is BORDERLINE (positive but NOT significant). Cleanly significant or cleanly null at 5 seeds => no extension (extension resolves ambiguity, it does not hunt for significance \u2014 the Stage 1 'no third extension' discipline applies at the FIRST extension here too).",
+        "verdict_recorded_to": "roadmap.stages['2'].stage2_verdict (parsed from report/sweep_stage2_hpc_only[_merged]/eval_provenance.json by the notebook; three-way table + crossover vs baseline + C-vs-B + masking + eval_target_note; null result = valid reportable outcome).",
+        "stage2_headline_rule": "Record whatever the numbers say, honestly. Do NOT cite D or SBR this round; D remains SCAFFOLDED_NOT_RUN and enable_sbr stays locked."
+      },
+      "ablation_matrix": {
+        "registry": "rhan_core/ablation/matrix.py (single source of truth for A/B/C/D)",
+        "runner": "rhan_core/ablation/runner.py \u2014 resolve(key) -> (config, checkpoint, ckpt_name); train_command(key) generates the trainer argv; eval_specs(keys) builds --ckpt-specs",
+        "eval_flag": "phase2_attacks/eval_rhan.py --ablation-matrix [keys...] (VALIDATED always; PENDING once its checkpoint exists; SCAFFOLDED_NOT_RUN never)",
+        "this_round": "ONLY C_hpc_only trains. A and B already validated. D_ais_plus_hpc = SCAFFOLDED_NOT_RUN (resolves + tested in tests/test_ablation_matrix.py, no training job).",
+        "test": "tests/test_ablation_matrix.py \u2014 all 4 entries resolve to valid, distinct, non-crashing configs."
+      },
+      "sbr_feasibility_probe": {
+        "status": "BUILT + SMOKE-TESTED (2026-08-11) \u2014 PAUSED, not interpreted",
+        "module": "rhan_core/beliefs/experimental/sbr_feasibility.py (standalone, read-only; explicitly OUTSIDE the config/gating system)",
+        "smoke": "runs against the Stage 1 AIS-v1 checkpoint (379/379 keys, stem tap (B,768,12,12)); outputs report/sbr_feasibility/ (probe_summary.json + PNG montages). Slot head UNTRAINED (feasibility of the machinery, not a learned result).",
+        "constraints": "never imports/modifies RHANNextConfig (constructs RHANNext(**embedded_config_dict)); never sets enable_sbr=True; never touches the training loop; output never merged into the ablation matrix.",
+        "gate": "Interpretation deferred until HPC (Stage 2) validates \u2014 per the agreed sequencing, do NOT schedule or cite before then."
+      }
     },
     "3": {
       "name": "Integration & Reporting",
