@@ -1944,12 +1944,19 @@ else:
 import math as _math
 import shlex as _shlex
 
-# Ensure the repo root is importable: the REAL run chdirs to WORK_DIR in Step
-# 2, but a NOESIS_DRY_RUN=1 preflight runs this file from anywhere and never
-# clones, so sys.path has only cloud_setup/ — without this the rhan_core
-# matrix import below would fail (2026-08-11, caught in the first dry-run).
-_REPO_ROOT = os.path.abspath(os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), ".."))
+# Ensure the repo root is importable. Two execution contexts:
+#   1. NOESIS_DRY_RUN=1 preflight runs this file as a SCRIPT from anywhere —
+#      __file__ is defined and the repo root is one dir above cloud_setup/.
+#   2. Pasted into a Colab/Kaggle CELL — __file__ is NOT defined (NameError;
+#      caught on the first real Colab launch, 2026-08-11). Step 2 already
+#      chdir'd into the repo root, so cwd IS the repo root there.
+# Without this the rhan_core matrix import below would fail in both
+# contexts — the dry-run caught context 1; the real launch caught context 2.
+try:
+    _REPO_ROOT = os.path.abspath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), ".."))
+except NameError:
+    _REPO_ROOT = os.getcwd()
 for _p in (_REPO_ROOT, os.path.join(_REPO_ROOT, "phase1_training")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
