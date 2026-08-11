@@ -56,6 +56,23 @@ Runtime on a single T4: Step 0a (~40 min, optional — already run locally)
 + 3-seed eval of both mixes (~1.5 h) => ~4-5 h total.
 Use Toggles to cut scope: DO_STEP0A=0 (already done locally),
 DO_STEP0B_MIX_A=1/0, DO_STEP0B_MIX_B=1/0, BATCH_SIZE (default 64).
+
+NEVER-RESTART GUARANTEE (v2):
+  This notebook NEVER forces a training restart. Every Colab session starts
+  empty (/content is wiped), so checkpoints/ is always gone. Therefore the
+  Hugging Face rolling checkpoint (FerrariKazu/rhan-checkpoints-rolling /
+  rhan_v12_mix{A,B}_rolling.pth) is the SINGLE source of truth for training
+  progress.
+    - Before each training run, Step 4b restores the HF rolling checkpoint
+      into checkpoints/ (fail-fast, 3 retries) so train_rhan_v12.py resumes
+      from it. train_rhan_v12.py also treats an existing HF rolling checkpoint
+      as mandatory: it aborts loudly if it cannot be restored, instead of
+      silently restarting from epoch 1.
+    - train_rhan_v12.py is NEVER launched with --force-restart here.
+    - After each run we verify the rolling checkpoint's epoch did not go
+      backwards; a silent restart aborts the notebook.
+    - The v12 *_best.pth checkpoints are restored from HF before the eval
+      sweep, so a fresh session can always re-run Step 8.
 """
 
 # %% [markdown]
@@ -143,6 +160,145 @@ _bsl = resolve("rhan_stl10_large_pseudolabel_best.pth", "FerrariKazu/rhan-checkp
 print(f"  baseline -> {_bsl}")
 
 # %% [markdown]
+# ## Step 4b: Mandatory HF resume gate (NEVER force-restart)
+#
+# Restores the v12 rolling checkpoints from HuggingFace before every training
+# run and the v12 best checkpoints before the eval sweep. Fail-fast: if a file
+# exists on HF but cannot be restored, the notebook ABORTS instead of silently
+# restarting from scratch.
+
+# %%
+import time as _time
+
+ROLLING_REPO = "FerrariKazu/rhan-checkpoints-rolling"
+BEST_REPO    = "FerrariKazu/rhan-checkpoints"
+
+
+def _ckpt_epoch(path):
+    """Return the 'epoch' recorded in a checkpoint, or None if unreadable.
+
+    weights_only=False matches checkpoint_utils.compat_load (the trainer's own
+    load path) so a valid checkpoint is never misjudged as corrupt.
+    """
+    try:
+        return torch.load(path, map_location="cpu", weights_only=False).get("epoch")
+    except Exception as e:
+        print(f"  [resume-gate] unreadable checkpoint {path}: {e}", flush=True)
+        return None
+
+
+def _hf_rolling_files():
+    from huggingface_hub import HfApi
+    api = HfApi(token=os.environ["HF_TOKEN"])
+    return api.list_repo_files(repo_id=ROLLING_REPO, repo_type="dataset")
+
+
+def restore_rolling_or_abort(ckpt_name):
+    """Restore <ckpt_name>_rolling.pth from HF into checkpoints/ (fail-fast).
+
+    NEVER lets a v12 training run silently restart from the base checkpoint:
+      - HF has the rolling checkpoint  -> download it (3 retries) and verify it
+        loads with an epoch; abort loudly if that fails;
+      - HF has none                    -> genuine first run; training starts
+        from base (this is NOT a restart).
+    Returns the restored HF epoch, or None for a first run.
+    """
+    filename = f"{ckpt_name}_rolling.pth"
+    local = f"checkpoints/{filename}"
+    local_ep = _ckpt_epoch(local) if os.path.exists(local) else None
+    if local_ep is not None:
+        print(f"  [resume-gate] {local} already present locally "
+              f"(epoch {local_ep}) — will resume from it.", flush=True)
+        return local_ep
+    try:
+        rolling_files = _hf_rolling_files()
+    except Exception as e:
+        print(f"  [resume-gate] could not list HF rolling repo ({e}) — "
+              f"gate cannot confirm first-run; train_rhan_v12.py will "
+              f"independently enforce the mandatory HF resume.", flush=True)
+        rolling_files = []
+    if filename not in rolling_files and rolling_files:
+        print(f"  [resume-gate] HF has no {filename} yet — first run, training "
+              f"starts from base (NOT a restart).", flush=True)
+        return None
+    if not rolling_files:
+        # listing failed: cannot distinguish first-run from restore failure.
+        # Leave the decision to train_rhan_v12.py's mandatory-resume logic.
+        print(f"  [resume-gate] HF listing unavailable for {filename} — "
+              f"deferring to train_rhan_v12.py resume enforcement.", flush=True)
+        return None
+    print(f"  [resume-gate] HF HAS {filename} — mandatory resume.", flush=True)
+    last_err = None
+    for attempt in range(1, 4):
+        try:
+            from huggingface_hub import hf_hub_download
+            hf_hub_download(repo_id=ROLLING_REPO, filename=filename,
+                            repo_type="dataset", local_dir="checkpoints",
+                            token=os.environ["HF_TOKEN"])
+            ep = _ckpt_epoch(local)
+            if ep is None:
+                raise RuntimeError("downloaded checkpoint did not load or has no epoch")
+            print(f"  [resume-gate] ✓ {filename} restored locally "
+                  f"(epoch {ep}) — training will resume from HF.", flush=True)
+            return ep
+        except Exception as e:
+            last_err = e
+            print(f"  [resume-gate] attempt {attempt}/3 failed: {e}", flush=True)
+            if attempt < 3:
+                _time.sleep(15 * attempt)
+    raise RuntimeError(
+        f"[resume-gate] FATAL: {filename} exists on HF but could not be restored "
+        f"after 3 attempts ({last_err}). Aborting — refusing to force-restart.")
+
+
+def verify_no_restart(ckpt_name, pre_epoch):
+    """After training, assert the run did not silently restart from epoch 1."""
+    local = f"checkpoints/{ckpt_name}_rolling.pth"
+    ep = _ckpt_epoch(local)
+    print(f"  [resume-gate] post-train {ckpt_name} rolling epoch: {ep}", flush=True)
+    if pre_epoch is not None and (ep is None or ep < pre_epoch):
+        raise RuntimeError(
+            f"[resume-gate] FATAL: {ckpt_name} went BACKWARD (epoch {ep} < HF "
+            f"epoch {pre_epoch}). A force-restart happened — aborting.")
+
+
+def _torch_load_any(path):
+    """Load a checkpoint with the same lax path the trainer uses."""
+    return torch.load(path, map_location="cpu", weights_only=False)
+
+
+def restore_best_or_abort(filename):
+    """Restore a v12 best checkpoint from HF (required before the eval sweep)."""
+    local = f"checkpoints/{filename}"
+    if os.path.exists(local):
+        try:
+            _torch_load_any(local)
+            print(f"  [restore] {filename} already present locally and loadable.",
+                  flush=True)
+            return local
+        except Exception:
+            print(f"  [restore] {local} is corrupt — re-downloading from HF.", flush=True)
+    print(f"  [restore] Downloading {filename} from {BEST_REPO}...", flush=True)
+    last_err = None
+    for attempt in range(1, 4):
+        try:
+            from huggingface_hub import hf_hub_download
+            p = hf_hub_download(repo_id=BEST_REPO, filename=filename,
+                                repo_type="dataset", local_dir="checkpoints",
+                                token=os.environ["HF_TOKEN"])
+            _torch_load_any(p)
+            print(f"  [restore] ✓ {filename} restored and loadable.", flush=True)
+            return p
+        except Exception as e:
+            last_err = e
+            print(f"  [restore] attempt {attempt}/3 failed: {e}", flush=True)
+            if attempt < 3:
+                _time.sleep(10 * attempt)
+    raise RuntimeError(
+        f"[restore] FATAL: {filename} exists on HF but could not be restored "
+        f"after 3 attempts ({last_err}).")
+
+# %% [markdown]
 # ## Step 5: STEP 0a — mid-training (epoch 41) 3-seed sweep vs 31.56±2.88
 
 # %%
@@ -156,19 +312,6 @@ if DO_STEP0A:
             f"--pin-revision {EP41_REV} "
             "--out checkpoints/rhan_stl10_v11_ep41.pth")
 
-    n_gpus = torch.cuda.device_count()
-    BATCH = int(os.environ.get("BATCH_SIZE", "64" if n_gpus >= 1 else "32"))
-    print(f"\n=== STEP 0a: 3-seed sweep on epoch-41 checkpoint "
-          f"(eps 0.0/0.094, n=300/seed, PGD-50) ===")
-    run("python3 phase2_attacks/shard_2gpu.py "
-        f"--gpus {max(n_gpus, 1)} "
-        "--n-samples 300 --seeds 41 42 43 --pgd-steps 50 "
-        f"--batch-size {BATCH} "
-        "--output-dir report/sweep_step0a_ep41 "
-        "--eps-norm-space --eps-list 0.0 0.094 "
-        "--baseline-label trades_large_baseline "
-        "--ckpt-specs "
-        "null_ablation_ep41:checkpoints/rhan_stl10_v11_ep41.pth:v11")
 
 # %% [markdown]
 # ## Step 6: STEP 0b Mix A — v12, 10 epochs, 5K real + 115K synthetic
@@ -236,28 +379,43 @@ def download_synthetic_pt():
 
 if DO_STEP0B_MA:
     synth_pt = download_synthetic_pt()
+    mixA_pre_epoch = restore_rolling_or_abort("rhan_v12_mixA")
     print(f"\n=== STEP 0b Mix A: v12 x10 epochs, 5K real + 115K synthetic "
-          f"(no pseudo) ===")
+          f"(no pseudo) — resume-from-HF epoch {mixA_pre_epoch} ===")
+    # NEVER pass --force-restart: train_rhan_v12.py resumes from the rolling
+    # checkpoint (HF is mandatory once it exists) or starts from base on a
+    # genuine first run.
     run("python3 phase1_training/train_rhan_v12.py "
         f"--synthetic-data {synth_pt} --no-pseudo "
         "--batch-size 16 --accum-steps 16 "
         "--max-epochs 10 --seed 42 --ckpt-name rhan_v12_mixA --force-single-gpu")
+    verify_no_restart("rhan_v12_mixA", mixA_pre_epoch)
 
 # %% [markdown]
 # ## Step 7: STEP 0b Mix B — v12, 10 epochs, 5K real + pseudo-labels only
 
 # %%
 if DO_STEP0B_MB:
-    print(f"\n=== STEP 0b Mix B: v12 x10 epochs, 5K real + pseudo-labels ===")
+    mixB_pre_epoch = restore_rolling_or_abort("rhan_v12_mixB")
+    print(f"\n=== STEP 0b Mix B: v12 x10 epochs, 5K real + pseudo-labels "
+          f"— resume-from-HF epoch {mixB_pre_epoch} ===")
+    # NEVER --force-restart (see Mix A comment).
     run("python3 phase1_training/train_rhan_v12.py "
         "--batch-size 16 --accum-steps 16 "
         "--max-epochs 10 --seed 42 --ckpt-name rhan_v12_mixB --force-single-gpu")
+    verify_no_restart("rhan_v12_mixB", mixB_pre_epoch)
 
 # %% [markdown]
 # ## Step 8: 3-seed eval of both mixes at eps 0.0 / 0.094 (arch=v12)
 
 # %%
 if DO_STEP0B_MA or DO_STEP0B_MB:
+    # Restore the v12 best checkpoints from HF so the eval sweep never fails on
+    # a fresh session (eval_full_epsilon_sweep.py has no HF fallback).
+    if DO_STEP0B_MA:
+        restore_best_or_abort("rhan_v12_mixA_best.pth")
+    if DO_STEP0B_MB:
+        restore_best_or_abort("rhan_v12_mixB_best.pth")
     n_gpus = torch.cuda.device_count()
     BATCH = int(os.environ.get("BATCH_SIZE", "64" if n_gpus >= 1 else "32"))
     specs = []

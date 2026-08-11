@@ -1,0 +1,121 @@
+/* Cognitive Vision Lab v2 — professional stylesheet
+   Injected via components.layout.inject_css(). */
+
+/* ── Typography ─────────────────────────────────────────────────────────── */
+html, body, [class*="css"] {
+    font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+h1, h2, h3 {
+    letter-spacing: -0.01em;
+    font-weight: 650;
+}
+
+/* ── Hero / headers ─────────────────────────────────────────────────────── */
+.cvl-hero {
+    padding: 1.4rem 1.6rem 1.2rem;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+    border: 1px solid #e2e8f0;
+    margin-bottom: 1.4rem;
+}
+.cvl-hero h1 {
+    font-size: 2.1rem;
+    margin: 0 0 0.2rem;
+    color: #0f172a;
+}
+.cvl-hero p {
+    margin: 0;
+    color: #475569;
+    font-size: 1.02rem;
+}
+
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+.cvl-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem 1.1rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    height: 100%;
+}
+.cvl-card .cvl-card-title {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+    margin-bottom: 0.35rem;
+}
+.cvl-card .cvl-card-value {
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+.cvl-card .cvl-card-note {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-top: 0.2rem;
+}
+
+/* ── Pills / badges ─────────────────────────────────────────────────────── */
+.cvl-pill {
+    display: inline-block;
+    padding: 0.12rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    border: 1px solid transparent;
+}
+.cvl-pill-good  { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.cvl-pill-warn  { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+.cvl-pill-bad   { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.cvl-pill-info  { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+
+/* ── Equations / math ───────────────────────────────────────────────────── */
+.cvl-equation {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-left: 3px solid #2563eb;
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+    font-family: "STIX Two Math", "Cambria Math", serif;
+    font-size: 1.02rem;
+    color: #1e293b;
+    margin: 0.6rem 0;
+}
+
+/* ── Dark mode overrides ────────────────────────────────────────────────── */
+[data-theme="dark"] .cvl-hero {
+    background: linear-gradient(135deg, #111827 0%, #1e293b 100%);
+    border-color: #334155;
+}
+[data-theme="dark"] .cvl-hero h1 { color: #f1f5f9; }
+[data-theme="dark"] .cvl-hero p  { color: #94a3b8; }
+[data-theme="dark"] .cvl-card {
+    background: #0f172a;
+    border-color: #334155;
+}
+[data-theme="dark"] .cvl-card .cvl-card-title { color: #94a3b8; }
+[data-theme="dark"] .cvl-card .cvl-card-value { color: #f1f5f9; }
+[data-theme="dark"] .cvl-equation {
+    background: #111827;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+
+/* ── Misc polish ────────────────────────────────────────────────────────── */
+div[data-testid="stMetric"] {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0.6rem 0.9rem;
+}
+[data-theme="dark"] div[data-testid="stMetric"] {
+    background: #0f172a;
+    border-color: #334155;
+}
+
+hr {
+    border-color: #e2e8f0;
+}

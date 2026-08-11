@@ -21,7 +21,8 @@ from typing import Any, Dict
 class RHANNextConfig:
     # ── Pillar toggles ────────────────────────────────────────────────────────
     enable_hpc: bool = False      # Pillar 1 — off by default until Stage 2 lands
-    hpc_num_levels: int = 1       # add levels one at a time, never jump
+    hpc_num_levels: int = 0       # add levels one at a time, never jump; 0 = off,
+                                  # 1 = the single implemented level (edge_map)
     enable_ais: bool = False      # Pillar 2 — off by default until Stage 1 lands
     enable_sbr: bool = False      # Pillar 3 — MUST remain False; scaffold only
     enable_iwm: bool = False      # Pillar 4 — MUST remain False; scaffold only
@@ -60,7 +61,11 @@ class RHANNextConfig:
     ais_precision_recon_enabled: bool = True
 
     # ── Pillar 1 (HPC) knobs ─────────────────────────────────────────────────
-    hpc_error_weight: float = 0.05      # loss weight used by train_rhan_next.py
+    # w_hpc — the HPC prediction-error loss weight. Deliberately a SEPARATE
+    # slot from w_recon (never reuse the recon weight's slot): ablation of the
+    # whole HPC pillar is then a clean single-parameter toggle (hpc_num_levels
+    # 1 -> 0, or w_hpc -> 0).
+    hpc_error_weight: float = 0.10      # loss weight used by train_rhan_next.py
 
     # ── v12 constructor compatibility ────────────────────────────────────────
     def v12_kwargs(self) -> Dict[str, Any]:

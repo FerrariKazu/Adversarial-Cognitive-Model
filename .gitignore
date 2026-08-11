@@ -3,6 +3,10 @@ __pycache__
 *.pth
 *.npy
 data/
+cognitive_vision_lab/cache/
+# Large scratch data (regenerated/downloaded, never committed)
+scratch/synthetic_stl10_115k_tradeslabels.pt
+scratch/synth_shards/
 phase1_training/checkpoints/
 phase2_attacks/adv_images/
 phase3_human_study/stimuli/

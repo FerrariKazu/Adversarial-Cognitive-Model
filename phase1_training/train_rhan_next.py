@@ -123,6 +123,12 @@ class RHANNextEpochDiagnostics(EpochDiagnostics):
         self.gaze_shifts = []       # list of (B,) per step boundary, per batch
         self.effective_steps = []   # list of (B,) per batch (sum of continuations)
         self.halted_steps = []      # list of (B,) counts of steps with cont < 0.5
+        # ── Stage 2 (HPC) telemetry ──────────────────────────────────────────
+        # One scalar per batch (mean over steps AND samples) plus per-batch
+        # error-map stats — the Step A health gate reads these to enforce the
+        # downward-trend / no-explosion criteria.
+        self.hpc_err_means = []     # float per batch (epoch-mean -> trend)
+        self.hpc_emap = {'min': [], 'max': [], 'std': []}
 
     def update(self, beta_dyn, traj_c, labels):
         super().update(beta_dyn, traj_c, labels)
@@ -137,6 +143,17 @@ class RHANNextEpochDiagnostics(EpochDiagnostics):
             conts_cpu = torch.stack([c.detach().cpu() for c in conts], dim=0)  # (T,B)
             self.effective_steps.append(conts_cpu.sum(dim=0))   # (B,)
             self.halted_steps.append((conts_cpu < 0.5).sum(dim=0).float())  # (B,)
+        # ── Stage 2 (HPC): collect per-batch error mean + map stats ──────────
+        hpc_errs = traj_c.get('hpc_errors') or []
+        if hpc_errs:
+            # mean over steps AND samples (each err is (B,) and attached;
+            # detach here — diagnostics only, the loss uses the raw tensors).
+            self.hpc_err_means.append(
+                float(torch.stack([e.detach().mean() for e in hpc_errs]).mean()))
+        emaps = traj_c.get('hpc_error_maps') or []
+        for m in emaps:
+            for k in ('min', 'max', 'std'):
+                self.hpc_emap[k].append(float(m[k]))
 
     def _steps_used_line(self, mean_steps):
         """Override the inherited v12 line: report the hard cap + the
@@ -177,6 +194,21 @@ class RHANNextEpochDiagnostics(EpochDiagnostics):
                   f"min={eff.min():.2f} max={eff.max():.2f} "
                   f"| frac with any halting: {(hal > 0).float().mean():.3f}")
 
+        # ── Stage 2 (HPC): prediction error + error-map summary ──────────────
+        # Same format as the β_dynamic / Π_D / gaze-shift block above so logs
+        # stay comparable across stages. Mean should trend DOWN over training;
+        # map min/max/std flag collapse (all -> 0) or explosion (std -> huge).
+        if self.hpc_err_means:
+            print(f"  HPC prediction error (mean): "
+                  f"{np.mean(self.hpc_err_means):.4f} "
+                  f"(epoch-1 baseline compare in the health gate)")
+            emin = np.mean(self.hpc_emap['min'])
+            emax = np.mean(self.hpc_emap['max'])
+            estd = np.mean(self.hpc_emap['std'])
+            print(f"  HPC error map (min/max/std): {emin:.4f} / {emax:.4f} / "
+                  f"{estd:.4f} "
+                  f"({'collapse' if emax < 1e-6 else 'explosion?' if estd > 5.0 else 'ok'})")
+
     def summary_dict(self, epoch, eps):
         """Machine-readable per-epoch telemetry (written by --diag-json)."""
         d = {
@@ -201,6 +233,17 @@ class RHANNextEpochDiagnostics(EpochDiagnostics):
         if self.gaze_shifts:
             d['gaze_shift_total_mean'] = round(
                 float(torch.cat(self.gaze_shifts).mean()), 5)
+        # Stage 2 (HPC): the health gate's trend / explosion criteria consume
+        # these keys. Always present (0.0 when HPC off) so a future gate never
+        # hits a missing-key edge case.
+        d['hpc_error_mean'] = round(float(np.mean(self.hpc_err_means)), 6) \
+            if self.hpc_err_means else 0.0
+        d['hpc_error_map_min'] = round(float(np.mean(self.hpc_emap['min'])), 6) \
+            if self.hpc_emap['min'] else 0.0
+        d['hpc_error_map_max'] = round(float(np.mean(self.hpc_emap['max'])), 6) \
+            if self.hpc_emap['max'] else 0.0
+        d['hpc_error_map_std'] = round(float(np.mean(self.hpc_emap['std'])), 6) \
+            if self.hpc_emap['std'] else 0.0
         d['pi_d_per_class'] = {}
         for c in range(10):
             if self.precisions_per_class[c]:
@@ -213,7 +256,7 @@ class RHANNextEpochDiagnostics(EpochDiagnostics):
 _WARMUP_FROZEN_FRAGMENTS = [
     'foveal_stream', 'precision_ctrl', 'action_init', 'parafoveal_stream',
     'foveal_gate', 'generative_prior', 'image_precision',
-    'gaze_policy', 'precision_modulator', 'hpc_stack',
+    'gaze_policy', 'precision_modulator', 'hpc_stack', 'hpc_level1',
 ]
 
 
@@ -349,10 +392,13 @@ def main():
                              'replication-under-refactor control)')
     parser.add_argument('--enable-hpc', action='store_true',
                         help='Pillar 1: hierarchical predictive coding (Stage 2)')
-    parser.add_argument('--hpc-num-levels', type=int, default=1,
-                        help='HPC levels (1 implemented; never jump levels)')
-    parser.add_argument('--w-hpc', type=float, default=0.05,
-                        help='HPC prediction-error loss weight')
+    parser.add_argument('--hpc-num-levels', type=int, default=0,
+                        help='HPC levels (0 = off, matching the config '
+                             'default; 1 implemented; never jump levels)')
+    parser.add_argument('--w-hpc', type=float, default=0.10,
+                        help='HPC prediction-error loss weight (w_hpc — a '
+                             'SEPARATE slot from w_recon; 0.0 disables the '
+                             'term without touching recon weighting)')
     parser.add_argument('--ais-halt-threshold', type=float, default=0.35,
                         help='EntropyGatedHalting: halt when uncertainty < this')
     parser.add_argument('--ais-continuation-softness', type=float, default=8.0)

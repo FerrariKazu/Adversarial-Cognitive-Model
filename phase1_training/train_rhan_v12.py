@@ -361,6 +361,16 @@ class EpochDiagnostics:
 
         self.steps_used.append(traj_c['steps'])
 
+    def _steps_used_line(self, mean_steps):
+        """Human-readable 'steps used' diagnostic line (overridable).
+
+        v12 runs fixed-T foraging with no halt network, so the default wording
+        states the fixed step count. Subclass trainers (e.g. RHANNext with the
+        soft entropy-gated halting) override this so their diagnostic block
+        reflects their own gating. Print-only; no training behavior.
+        """
+        return f"  Steps used: mean={mean_steps:.2f} (fixed T={mean_steps:.0f})"
+
     def report(self, epoch, eps):
         beta_all = torch.cat(self.beta_dynamics)
         mean_steps = np.mean(self.steps_used)
@@ -371,7 +381,7 @@ class EpochDiagnostics:
         print(f"  β_dynamic: mean={beta_all.mean():.4f} "
               f"std={beta_all.std():.4f} "
               f"min={beta_all.min():.4f} max={beta_all.max():.4f}")
-        print(f"  Steps used: mean={mean_steps:.2f} (fixed T={mean_steps:.0f})")
+        print(self._steps_used_line(mean_steps))
 
         if self.gate_alphas:
             print(f"  Gate alpha (foveal weight): {np.mean(self.gate_alphas):.4f}")
@@ -911,32 +921,93 @@ def main():
     local_epoch = -1
     checkpoint_data = None
     if not args.force_restart:
+        # ── v12: ALWAYS resume from the HF rolling checkpoint when one exists. ──
+        # A fresh Colab/Kaggle session has NO local checkpoints, so the HF copy
+        # is the single source of truth. Once a rolling checkpoint has been
+        # uploaded, a silent fresh start (epoch 1 from base) is NEVER acceptable:
+        # if the HF checkpoint exists we restore it or abort loudly. We only ever
+        # start from the base checkpoint on the genuine first run (no HF file).
         if os.path.exists(rolling_path):
             try:
                 local_data = compat_load(rolling_path, map_location='cpu')
                 local_epoch = local_data.get('epoch', -1)
             except Exception:
-                pass
+                print(f"WARNING: local rolling checkpoint {rolling_path} is corrupt "
+                      f"or unreadable — will rely on the HF copy.", flush=True)
+                local_epoch = -1
 
+        hf_rolling_exists = False
+        hf_listing_ok = False
         if rank == 0:
             try:
-                from huggingface_hub import hf_hub_download
-                print("Checking for a newer checkpoint on Hugging Face...", flush=True)
+                from huggingface_hub import HfApi
                 rolling_filename = f"{args.ckpt_name}_rolling.pth"
-                temp_rolling_path = hf_hub_download(
+                api = HfApi(token=hf_token)
+                hf_files = api.list_repo_files(
                     repo_id='FerrariKazu/rhan-checkpoints-rolling',
-                    filename=rolling_filename,
-                    repo_type='dataset',
-                    token=hf_token
-                )
-                remote_data = compat_load(temp_rolling_path, map_location='cpu')
-                remote_epoch = remote_data.get('epoch', -1)
-                if remote_epoch > local_epoch:
-                    print(f"Hugging Face has a newer checkpoint (Epoch {remote_epoch}) than local (Epoch {local_epoch}). Synchronizing...", flush=True)
-                    os.makedirs(os.path.dirname(rolling_path), exist_ok=True)
-                    shutil.copy(temp_rolling_path, rolling_path)
+                    repo_type='dataset')
+                hf_rolling_exists = rolling_filename in hf_files
+                hf_listing_ok = True
             except Exception as e:
-                print(f"Hugging Face sync check skipped/failed: {e}", flush=True)
+                print(f"Hugging Face repo listing failed: {e}", flush=True)
+
+        if rank == 0 and hf_rolling_exists:
+            # Mandatory resume: the checkpoint exists on HF. Restore it or fail —
+            # never fall through to a fresh start.
+            print("Hugging Face has a rolling checkpoint for this run — "
+                  "resume from HF is MANDATORY.", flush=True)
+            last_err = None
+            for attempt in range(1, 4):
+                try:
+                    from huggingface_hub import hf_hub_download
+                    print(f"  Downloading {rolling_filename} from HF (attempt {attempt}/3)...", flush=True)
+                    temp_rolling_path = hf_hub_download(
+                        repo_id='FerrariKazu/rhan-checkpoints-rolling',
+                        filename=rolling_filename,
+                        repo_type='dataset',
+                        token=hf_token
+                    )
+                    remote_data = compat_load(temp_rolling_path, map_location='cpu')
+                    remote_epoch = remote_data.get('epoch', -1)
+                    print(f"  HF rolling epoch: {remote_epoch} | local epoch: {local_epoch}", flush=True)
+                    if remote_epoch >= local_epoch:
+                        os.makedirs(os.path.dirname(rolling_path), exist_ok=True)
+                        shutil.copy(temp_rolling_path, rolling_path)
+                        local_epoch = remote_epoch
+                        print(f"  Synchronized HF checkpoint (Epoch {remote_epoch}) "
+                              f"to {rolling_path}", flush=True)
+                    break
+                except Exception as e:
+                    last_err = e
+                    print(f"  HF resume attempt {attempt}/3 failed: {e}", flush=True)
+                    if attempt < 3:
+                        time.sleep(15 * attempt)
+            if not os.path.exists(rolling_path):
+                if is_ddp:
+                    import torch.distributed as dist
+                    dist.barrier()
+                print(f"\n[FATAL] Rolling checkpoint {rolling_filename} exists on HF but "
+                      f"could not be restored after 3 attempts ({last_err}). "
+                      f"Aborting instead of silently restarting from scratch.", flush=True)
+                sys.exit(1)
+        elif rank == 0 and hf_listing_ok:
+            print("No rolling checkpoint on Hugging Face yet — first run, "
+                  "training starts from the base checkpoint.", flush=True)
+        elif rank == 0:
+            # HF repo listing failed: we cannot distinguish a genuine first run
+            # from a restore failure. If no valid local checkpoint exists, abort
+            # instead of risking a silent restart; otherwise resume from local.
+            if not os.path.exists(rolling_path):
+                if is_ddp:
+                    import torch.distributed as dist
+                    dist.barrier()
+                print(f"\n[FATAL] Could not verify whether Hugging Face has a rolling "
+                      f"checkpoint ({rolling_filename}) — repo listing failed and no "
+                      f"local checkpoint exists. Aborting rather than silently "
+                      f"restarting from scratch.", flush=True)
+                sys.exit(1)
+            print("Hugging Face repo listing failed but a local rolling checkpoint "
+                  "exists — resuming from the local copy.", flush=True)
 
         if is_ddp:
             import torch.distributed as dist
@@ -945,10 +1016,18 @@ def main():
         if os.path.exists(rolling_path):
             if rank == 0:
                 print(f"\nFound rolling checkpoint at {rolling_path}. Attempting to resume...", flush=True)
-            checkpoint_data = compat_load(rolling_path, map_location=device)
-            raw_model.load_state_dict(checkpoint_data['model'])
-            best_acc = checkpoint_data.get('best_acc', 0.0)
-            start_epoch = checkpoint_data['epoch'] + 1
+            try:
+                checkpoint_data = compat_load(rolling_path, map_location=device)
+                raw_model.load_state_dict(checkpoint_data['model'])
+                best_acc = checkpoint_data.get('best_acc', 0.0)
+                start_epoch = checkpoint_data['epoch'] + 1
+            except Exception as e:
+                if is_ddp:
+                    import torch.distributed as dist
+                    dist.barrier()
+                print(f"\n[FATAL] Rolling checkpoint {rolling_path} is unreadable: {e}. "
+                      f"Aborting instead of silently restarting from scratch.", flush=True)
+                sys.exit(1)
             if rank == 0:
                 print(f"Resuming from Epoch {start_epoch} (Best validation accuracy so far: {best_acc:.2f}%)")
     else:

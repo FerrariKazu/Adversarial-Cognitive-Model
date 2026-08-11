@@ -120,7 +120,7 @@ Gated behind `enable_ais=True`.
 >
 > **STAGE 1 VARIANT LABEL (2026-08-07 — the validated run):** the mechanism
 > isolation attributed the smoke's Π_D reordering to the precision-modulated
-> reconstruction weight (see §8.1a outcome). Per the pre-registered decision
+> reconstruction weight (see §9.1a outcome). Per the pre-registered decision
 > rule, the Step B validated run is labeled **"AIS-v1 (halting-only
 > variant)"** — AIS-v1 with `--no-ais-precision-recon` (halting + relocated
 > Eq. II gaze + precision-driven step/β ON; recon-mod OFF and **DEFERRED** to
@@ -196,7 +196,7 @@ exposes per-consumer modulation so each can be isolated and tested:
 reconstruction-weight consumer is disabled in the validated run
 (`--no-ais-precision-recon`, the "AIS-v1 (halting-only variant)") — the
 mechanism isolation attributed the smoke's Π_D reordering to exactly this
-consumer (see §8.1a outcome). It gets its own future isolation cycle before
+consumer (see §9.1a outcome). It gets its own future isolation cycle before
 any AIS-v1 claim may include it. Also deferred (logged in roadmap):
 precision-modulated **attention gating** and **skip-connection gating** —
 too many simultaneous knobs broke precision calibration before.
@@ -247,7 +247,61 @@ mandatory gradient-flow test. The belief-anchored level is gradient-safe,
 isolated, and satisfies the feature-vs-pixel rule. Mid-transformer hooking
 is logged in the roadmap as a deferred increment.
 
-## 6. Pillars 3 & 4 — scaffolds
+### 5.3 `HPCLevel1` — the Stage 2 wiring module (`rhan_core/predictive_coding/hpc_level1.py`)
+
+Stage 2 wires the stack into the model through a single dedicated module:
+
+```
+HPCLevel1(embed_dim, tap_layer="foveal_crop", proj_dim=512, fovea_size=48)
+    └─ owns HierarchicalPredictiveStack(num_levels=1)  # state dict: hpc_level1.stack.*
+forward(top_down_belief=s (B,512), bottom_up_activations=x_foveal (B,3,48,48))
+    -> (prediction (B,1,48,48), error (B,), error_map (B,1,48,48))
+```
+
+- **Tap point (documented, one layer)**: the bottom-up input for level 0 is
+the **foveal crop at the current gaze position** — the output of
+`foveal_sample` in `model.RHANNext._forage` (the input to the foveal
+stream). It is a SINGLE tap, never an average across layers. The
+`EdgeMapExtractor` (Sobel, non-learnable) derives the edge-map target from
+it. Mid-transformer-layer hooking stays deferred (§5.2).
+- **Loss** (trainer): `L = w_trades·L_trades + w_recon_eff·L_recon +
+w_hpc·L_hpc` — `w_hpc` is a SEPARATE slot (`hpc_error_weight`, default
+**0.10**) from `w_recon`, so ablating HPC on/off is a clean single-parameter
+toggle (`hpc_num_levels` 1→0 or `w_hpc`→0).
+- **Gradient contract**: `HPCLevel1.forward` returns the error tensor
+ATTACHED to the graph (never detached) — `tests/test_hpc_gradient_flow.py`
+asserts `error.requires_grad`, `grad_fn`, and nonzero grads on the
+predictor's fc/decoder as a HARD check (project lesson #1, applied to HPC).
+- **Diagnostics**: the per-epoch block prints `HPC prediction error (mean)`
+and `HPC error map (min/max/std)` (collapse/explosion flags) alongside the
+β_dynamic / Π_D / gaze-shift block; `--diag-json` adds `hpc_error_mean`,
+`hpc_error_map_min/max/std` for the Stage 2 health gate.
+
+## 6. Ablation matrix (A/B/C/D) — `rhan_core/ablation/`
+
+One declarative registry (`matrix.py`) + a resolver (`runner.py`) for the
+four configuration families of the validation campaign. `status` gates what
+the tooling may do: VALIDATED → eval always; PENDING → train now, eval once
+its checkpoint exists; SCAFFOLDED_NOT_RUN → resolve + test, but never train
+or eval (dormant, like Pillars 3/4).
+
+| Key | Config | Checkpoint | Status |
+|---|---|---|---|
+| `A_baseline` | None (static TRADES, arch "large") | `rhan_stl10_large_pseudolabel_best.pth` | VALIDATED (Stage 1) |
+| `B_ais_only` | AIS-v1 halting-only (`ais_precision_recon_enabled=False`) | `rhan_next_ais_v1_halting_only_best.pth` | VALIDATED (Stage 1, +8.5pp not significant) |
+| `C_hpc_only` | HPC-only (`enable_ais=False, enable_hpc=True, levels=1, w_hpc=0.10`) | — (trained this round) | PENDING |
+| `D_ais_plus_hpc` | AIS-v1 + HPC | — | SCAFFOLDED_NOT_RUN (Stage 3) |
+
+`runner.train_command(key)` generates the exact `train_rhan_next.py` argv
+from the registry (command ↔ matrix consistency enforced, never assumed);
+`runner.eval_specs(keys)` builds `--ckpt-specs`-style dicts for the matched
+eval loop. `phase2_attacks/eval_rhan.py --ablation-matrix [keys...]` consumes
+those specs automatically (entries with status VALIDATED, or PENDING once the
+checkpoint exists) — the Stage 2 three-way A/B/C comparison is one flag, not
+hand-typed specs. `tests/test_ablation_matrix.py` pins all four entries to
+valid, distinct, non-crashing configs and the flag plumbing.
+
+## 7. Pillars 3 & 4 — scaffolds
 
 - **SBR (`StructuredBeliefState`)**: real, importable, instantiable
   interface (slot count/dim); `as_tensor`, `uncertainty`, `update_slots`,
@@ -258,14 +312,14 @@ is logged in the roadmap as a deferred increment.
   notice. `WorldModel.simulate(belief, action)` is the reserved interface for
   the future `SimulatedGazePolicy` (Dreamer/MuZero-style rollout).
 
-## 7. Config
+## 8. Config
 
 `RHANNextConfig` (dataclass) carries every v12 hyperparameter unchanged plus
 the pillar toggles. `validate()` enforces the stage gates:
 `enable_sbr`/`enable_iwm` → error; `hpc_num_levels > 1` → error. Serialization
 (`to_dict`/`from_dict`) round-trips so checkpoints can embed the config.
 
-## 8. Training (`phase1_training/train_rhan_next.py`)
+## 9. Training (`phase1_training/train_rhan_next.py`)
 
 A **strict superset** of `train_rhan_v12.py`: same data pipeline (STL-10
 real + pseudo + synthetic mixes), same curriculum (3 phases, SGD), same
@@ -281,7 +335,7 @@ where `L_hpc = 0` when HPC is off. **No step-count penalty exists.** The
 checkpoint saves the model state dict under `model` and the `RHANNextConfig`
 under `config`, so `eval_rhan.py` can reconstruct the exact pillar config.
 
-### 8.1 AIS diagnostics (RHANNextEpochDiagnostics + `--diag-json`)
+### 9.1 AIS diagnostics (RHANNextEpochDiagnostics + `--diag-json`)
 
 `train_rhan_next.py` uses `RHANNextEpochDiagnostics` (subclass of v12's
 `EpochDiagnostics`; the frozen v12 file is untouched), which emits the v12
@@ -300,7 +354,7 @@ steps_effective mean/std/min/max, frac_halted_any, gaze_shift_total_mean,
 pi_d_per_class`. The notebook health gate parses this file; it is also
 human-readable in the per-epoch printed block.
 
-### 8.1a Health-gate threshold calibration (every threshold is calibrated)
+### 9.1a Health-gate threshold calibration (every threshold is calibrated)
 
 Each health-gate threshold is fixed against a **known-good run's measured
 value**, not an arbitrary nonzero floor (a gate that passes trivially is not
@@ -376,7 +430,7 @@ validated isolation. Durability fix: per-epoch diag `.jsonl` files and the
 roadmap now sync to HF alongside verdicts and checkpoints, so no future
 session interruption can lose telemetry the way isoA lost 12 epochs.
 
-### 8.2 Local pipeline validation (RTX 4060, < 1 h)
+### 9.2 Local pipeline validation (RTX 4060, < 1 h)
 
 A real-only dry-run was executed locally to prove the pipeline end-to-end:
 `--enable-ais --dry-run --no-pseudo --force-restart --ckpt-name
@@ -389,7 +443,7 @@ sample even in a single batch. This validates the diagnostics and the AIS
 forward path; it is NOT the Stage 1 validation (that is the 5-seed matched
 protocol on GPU).
 
-## 9. Evaluation (`phase2_attacks/eval_rhan.py`)
+## 10. Evaluation (`phase2_attacks/eval_rhan.py`)
 
 Frozen entrypoint with conventions **identical** to
 `eval_full_epsilon_sweep.py`: norm-space eps applied directly, per-channel
@@ -398,7 +452,7 @@ criterion. It extends the arch registry with `next`, which constructs
 `RHANNext` from the config embedded in the checkpoint (falling back to the
 v12-equivalent default). No other eval script may be added per stage.
 
-### 9.1 Protocol hardening (every future number routes through this file)
+### 10.1 Protocol hardening (every future number routes through this file)
 
 Since every published number now routes through `eval_rhan.py`, four
 guarantees are enforced at the entrypoint (the frozen sweep file underneath
@@ -415,7 +469,7 @@ is untouched):
 The Stage 1 eval command (Step C) therefore needs no `--eps-norm-space` flag
 (it is injected) and satisfies the seed floor with `--seeds 41 42 43 44 45`.
 
-## 9a. Stage 1 execution protocol (Steps A → B → C)
+## 10a. Stage 1 execution protocol (Steps A → B → C)
 
 Pre-registered in `cloud_setup/colab_notebook_noesis.py`; the notebook
 checkout is branch-gated on `feature/rhan-next` (it never resets to
@@ -435,7 +489,7 @@ and aborts Step B — with reasons — unless:
 1. `gaze_shift_total_mean ≥ 0.05` (fovea actually moves — calibrated: local
    dry-run measured 0.2795, v11 post-fix 0.36–0.39, v11 pre-fix dead state
    ~0.007; the old 0.01 bar would have passed the dead state, so it was
-   raised; see §8.1a);
+   raised; see §9.1a);
 2. `steps_effective_std ≥ 0.02` and `frac_halted_any ≥ 0.02` (halting varies
    per sample — not the v10/v11 flat 4.00; known-good std=0.561, frac=0.125,
    so both floors are calibrated well below healthy and above the exact 0.0
@@ -450,7 +504,7 @@ synced telemetry summary against the CURRENT criteria (a stale boolean
 verdict can never block a legitimate resume).
 
 **Step 5c — Mechanism isolation (Run A / Run B pattern).** The smoke gate
-fired on the Π_D ordering criterion only (see §8.1a finding), and the
+fired on the Π_D ordering criterion only (see §9.1a finding), and the
 pre-registered decision rule keeps Step B gated until the driver is
 identified. Two BOUNDED arms ablate exactly one AIS sub-mechanism each,
 everything else identical to the smoke:
@@ -472,13 +526,13 @@ and the next isolation disables `step_net`. The verdict is recorded to
 `report/rhan_next_ais_v1_isolation_verdict.json`and `roadmap.stages['1'].isolation_verdict` regardless of outcome.
 2026-08-07 outcome: branch (2) fired — isoB restored car/truck; isoA
 inconclusive (telemetry lost to a session wipe; recaptured as a sufficiency
-test at an amended 14-epoch budget); see §8.1a for the full attribution and
+test at an amended 14-epoch budget); see §9.1a for the full attribution and
 the decision.
 
 **Step B — Full validated run (AIS-v1 (halting-only variant))**: same trainer,
 `--no-ais-precision-recon --ckpt-name rhan_next_ais_v1_halting_only`,
 `--max-epochs 60` (recon-mod OFF + DEFERRED per the isolation verdict — see
-§8.1a; halting and the relocated Eq. II gaze remain ON). The curriculum
+§9.1a; halting and the relocated Eq. II gaze remain ON). The curriculum
 `(1-20 @0.031, 21-40 @0.062, 41-60 @0.094)`
 is byte-identical to `train_rhan_v11.py`'s — the exact boundaries of the
 null_ablation_v11 run that produced 31.56±2.88 @ ε=0.094 — so the result is
@@ -533,13 +587,13 @@ Runtime add-on: ~4.5–5.5 GPU-hours (10 combos × PGD-100).
 
 **Stage 2 (HPC) must not begin until this verdict is recorded and reviewed.**
 
-## 10. Validation status
+## 11. Validation status
 
 | Stage | Code complete | Validated | Evidence |
 |---|---|---|---|
 | 0 | ✅ | ✅ | 11 local tests pass (RTX 4060) — no eval sweep required |
-| 1 | ✅ | ⏳ **in execution** | Isolation verdict recorded (2026-08-07): isoB restored car/truck → recon-mod confirmed as the Π_D-reordering driver (smoke↔isoB contrast; halting exonerated); isoA inconclusive (telemetry lost, recaptured as sufficiency test). Step B now trains the **AIS-v1 (halting-only variant)** (`--no-ais-precision-recon`); recon-mod deferred to its own isolation cycle. Step B (60-epoch) + 5-seed matched eval pending |
-| 2 | ✅ | ⏳ pending | isolated on/off test, hpc_num_levels 0 vs 1 (must NOT start until Stage 1 verdict recorded) |
+| 1 | ✅ | ✅ (2026-08-10, 8 seeds) | AIS-v1 (halting-only variant) vs TRADES baseline: +8.5pp @ eps=0.094, positive but NOT significant (2-sigma bar 8.84); both models masking-free (PGD-50→100 gap ≤ 0.13pp). Final — no third seed extension. Details in roadmap.stages['1'].stage1_verdict |
+| 2 | ✅ | ⏳ **in execution (this round)** | Matrix C (HPC-only) trained/evaluated via the notebook Stage 2 block; gate tests pass locally (gradient flow + AIS-v1 disable backward-compat); D stays SCAFFOLDED_NOT_RUN |
 | 3 | ⏳ (trainer + eval entrypoint implemented) | ⏳ pending | final 3-model comparison, full grid, numbers here |
 
 **Validation runs (not yet executed — require GPU hours and STL-10 data):**
@@ -559,15 +613,18 @@ python3 phase2_attacks/eval_rhan.py \
     --seeds 41 42 43 44 45 --eps-list 0.094 --n-samples 300 --pgd-steps 100 \
     --batch-size 64 --output-dir report/sweep_stage1_ais_v1_halting_only_pgd100
 
-# Stage 2 (HPC on/off at fixed AIS-v1 (halting-only variant)):
-    ... rhan_next_ais_v1_halting_only:...:next  rhan_next_hpc1:checkpoints/rhan_next_hpc1_best.pth:next
+# Stage 2 (matrix C — HPC-only) vs A (baseline) AND B (AIS-v1), one flag:
+python3 phase2_attacks/eval_rhan.py --ablation-matrix A_baseline B_ais_only C_hpc_only \
+    --seeds 41 42 43 44 45 --eps-list 0.000 0.094 --n-samples 300 \
+    --pgd-steps 50 --batch-size 64 --baseline-label trades_large_baseline \
+    --output-dir report/sweep_stage2_hpc_only
 ```
 
-### 10.1 Explicit statement on Pillars 3 & 4 (Stage 3 requirement)
+### 11.1 Explicit statement on Pillars 3 & 4 (Stage 3 requirement)
 
 Pillars 3 (SBR) and 4 (IWM) remain **unimplemented**; their interfaces were not touched or broken by any Stage 1-3 work — `tests/test_pillar_scaffold_import.py` is re-run in the final validation pass to prove this.
 
-## 11. Interpretations & decisions recorded
+## 12. Interpretations & decisions recorded
 
 - `phase2_attacks/eval_rhan.py` did not exist in the repo; the spec lists it
   under "CREATE THIS EXACTLY", so it was created as the frozen canonical
@@ -633,7 +690,7 @@ Pillars 3 (SBR) and 4 (IWM) remain **unimplemented**; their interfaces were not 
   pinned by `tests/test_ais_ablation_flags.py` (constant continuation when
   halting off; flat `w_recon` when recon modulation off).
 
-## 12. Research clusters — long-term roadmap (all will be implemented)
+## 13. Research clusters — long-term roadmap (all will be implemented)
 
 **Master document: `rhan_core/docs/RESEARCH_CLUSTERS.md`.** This section is a
 pointer + status snapshot only; the master document holds the full detail

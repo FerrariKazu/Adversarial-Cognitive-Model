@@ -1,4 +1,10 @@
-"""Batch sweep generator: loads every discoverable checkpoint and generates d' data."""
+"""Batch sweep generator: loads every discoverable checkpoint and generates d' data.
+
+Migrated to the Cognitive Vision Lab v2 API (backend/models.py, backend/attacks.py,
+backend/metrics.py). Behaviour is unchanged: for each discoverable checkpoint it
+runs a PGD-40 sweep over the Finding-16 pixel-space epsilon grid and appends
+accuracy + d′ curves to `report/final_sweep_results_stl10.json`.
+"""
 import json
 import sys
 import time
@@ -16,11 +22,8 @@ from cognitive_vision_lab.config import (
     SWEEP_PATH, CHECKPOINTS_DIR, CHECKPOINTS_TIER2_DIR,
     STL10_MEAN, STL10_STD,
 )
-from cognitive_vision_lab.backend.model_registry import (
-    get_all_checkpoint_models, load_model, predict,
-    ARCHITECTURE_LOOKUP,
-)
-from cognitive_vision_lab.backend.attacks import pgd_attack, compute_accuracy
+from cognitive_vision_lab.backend.models import discover_checkpoints, load_model
+from cognitive_vision_lab.backend.attacks import pgd
 from cognitive_vision_lab.backend.metrics import accuracy_to_dprime, find_ethresh
 
 EPSILONS = [0.0, 0.002, 0.004, 0.006, 0.008, 0.016, 0.024, 0.0313]
@@ -48,6 +51,20 @@ def build_stl10_loader(transform, n_samples=N_SAMPLES):
     return DataLoader(subset, batch_size=BATCH_SIZE, num_workers=0)
 
 
+def compute_accuracy(model, loader, device=DEVICE):
+    correct = total = 0
+    model.eval()
+    with torch.no_grad():
+        for images, labels in loader:
+            images, labels = images.to(device), labels.to(device)
+            out = model(images)
+            if isinstance(out, (tuple, list)):
+                out = out[0]
+            correct += out.argmax(1).eq(labels).sum().item()
+            total += images.size(0)
+    return 100.0 * correct / max(total, 1)
+
+
 def compute_sweep(model, loader, device=DEVICE):
     epsilons = EPSILONS
     clean_acc = compute_accuracy(model, loader, device)
@@ -61,12 +78,13 @@ def compute_sweep(model, loader, device=DEVICE):
         for images, labels in loader:
             images, labels = images.to(device), labels.to(device)
             for b in range(images.size(0)):
-                adv = pgd_attack(
-                    model, images[b], labels[b].item(),
-                    eps=eps, steps=40,
+                adv = pgd(
+                    model, images[b].unsqueeze(0),
+                    torch.tensor([labels[b].item()], device=device),
+                    eps=eps, steps=40, device=device,
                 )
                 with torch.no_grad():
-                    out = model(adv.unsqueeze(0))
+                    out = model(adv)
                     if isinstance(out, (tuple, list)):
                         out = out[0]
                     correct += out.argmax(1).eq(labels[b]).sum().item()
@@ -75,12 +93,11 @@ def compute_sweep(model, loader, device=DEVICE):
         accuracy_list.append(acc)
 
     for acc in accuracy_list:
-        dp = accuracy_to_dprime(acc, N_CLASSES)
-        macro_dprimes.append(dp.get("macro", 0.0) if isinstance(dp, dict) else dp)
-        pooled_dprimes.append(dp.get("pooled", 0.0) if isinstance(dp, dict) else dp)
+        macro_dprimes.append(accuracy_to_dprime(acc, N_CLASSES))
+        pooled_dprimes.append(accuracy_to_dprime(acc, N_CLASSES))
 
-    thresh_macro = find_ethresh(epsilons, macro_dprimes, target=1.0)
-    thresh_pooled = find_ethresh(epsilons, pooled_dprimes, target=1.0)
+    thresh_macro = find_ethresh(epsilons, macro_dprimes, threshold=1.0)
+    thresh_pooled = find_ethresh(epsilons, pooled_dprimes, threshold=1.0)
 
     return {
         "epsilons": epsilons,
@@ -119,7 +136,7 @@ def main():
             if fpath.name.endswith(".pth") and ":Zone.Identifier" not in fpath.name:
                 tier2_ckpts.add(fpath.name)
 
-    discovered = get_all_checkpoint_models()
+    discovered = discover_checkpoints()
     total = len(discovered)
     print(f"Found {total} checkpoints to benchmark")
 
@@ -129,20 +146,12 @@ def main():
             print(f"  [{idx+1}/{total}] {ckpt_name} — already in sweep data, skipping")
             continue
 
-        if ckpt_name.startswith("rhan_stl10_large_pseudolabel") and ckpt_name in tier2_ckpts:
-            # Check if the main dir version was already processed
-            main_version = ckpt_name  # same name in both dirs, process once
-            if ckpt_name in {e["checkpoint"] for e in discovered.values()}:
-                pass
-
         print(f"  [{idx+1}/{total}] Loading {ckpt_name}... ", end="", flush=True)
         t0 = time.time()
 
-        # Need to use _sweep_key as model_id since list_available uses the filename
-        model_id = ckpt_name
-
         try:
-            model, _, _ = load_model(model_id)
+            handle = load_model(f"ckpt:{ckpt_name}")
+            model = handle.model
             load_time = time.time() - t0
             print(f"loaded in {load_time:.1f}s ({sum(p.numel() for p in model.parameters())/1e6:.1f}M params)")
 

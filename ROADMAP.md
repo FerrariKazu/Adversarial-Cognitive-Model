@@ -272,3 +272,171 @@ genuine semantic grounding at scale."
 That is your paper. You didn't just measure the gap.
 You identified its structure, partially closed it, and explained what's left.
 That is a complete scientific contribution.
+
+
+
+
+
+----------------------------------------------------------------------------
+
+
+The Two-Level Structure
+LEVEL 1 — The Four Pillars (from the "RHAN Next" refactor)
+  This is the ARCHITECTURE. Four research directions, each with
+  its own interface in rhan_core/. Only Pillars 1 & 2 are being
+  built now; 3 & 4 are scaffolded (importable, safe, unimplemented).
+
+LEVEL 2 — The Blue-Sky Clusters (from the NOESIS ideation session)
+  This is the LONG-TERM VISION. 18 ideas across 6 tiers, grouped
+  into 7 research clusters, most feeding INTO the four pillars
+  above rather than existing separately.
+
+Think of it as: Pillars = what's being built right now.
+                Clusters = the menu everything future gets pulled from.
+LEVEL 1 — The Four Pillars
+Pillar 2 — Active Information-Seeking (AIS) — IN PROGRESS
+Status: Stage 1 (of Stage 1 only, for this sub-mechanism) COMPLETE.
+
+What was built: entropy-gated halting + precision-gain wiring
+  into gaze step size and halting depth, on top of a gaze update
+  that was HONESTLY RELABELED as "AIS-v1: Relocated Equation II"
+  — i.e. mechanistically the same gradient-ascent-on-current-error
+  update as v10/v11/v12, cleanly refactored, NOT yet a genuine
+  forward-looking information-gain policy (that's still future work).
+
+What happened:
+  1. Smoke test → flagged DEGENERATE (Π_D ordering broke:
+     car/airplane instead of reference car/truck)
+  2. Isolation A (halting OFF) + Isolation B (recon-mod OFF)
+     → cleanly attributed the break to the precision-modulated
+     reconstruction weight (recon-mod), NOT to halting
+  3. Step B trained the corrected config: halting ON, recon-mod
+     OFF ("AIS-v1, halting-only variant") — 60 epochs, full curriculum
+  4. Step C (8-seed matched eval vs static TRADES baseline):
+     +8.5pp at ε=0.094, does NOT clear the pre-registered
+     significance bar (8.5 vs 8.84 threshold) — "positive but
+     not significant." Masking ruled out cleanly (gap <0.13pp
+     PGD-50 vs PGD-100 for both models).
+
+Verdict: HONEST NULL-ADJACENT RESULT. A real, reproducible,
+  borderline effect. Not proven, not disproven. Recon-mod stays
+  DEFERRED (its own future isolation, not yet run).
+
+Status flag: Stage 1 gate says "DO NOT begin Stage 2 (HPC) until
+  the Stage 1 verdict is reviewed" — you just reviewed it. You are
+  now CLEARED to move to Pillar 1, carrying this exact AIS-v1
+  (halting-only) config forward as fixed.
+Pillar 1 — Hierarchical Predictive Coding (HPC) — NOT YET STARTED
+Status: Scaffolded only. HierarchicalPredictiveStack and
+  EdgeFeatureLevelPredictor exist as real, tested classes
+  (feature_target="edge_map", non-learnable Sobel front-end
+  already built), but hpc_num_levels=0 in every run so far —
+  it has never actually been trained or evaluated.
+
+Next action (per the original refactor's own acceptance criteria):
+  Add hpc_num_levels=1 (one predictor level, alongside the
+  existing top-level one), on top of the validated Pillar 2 config.
+  Run the SAME protocol that just finished for AIS-v1:
+    smoke → health gate → isolation (if it breaks anything) →
+    full 60-epoch run → 5-to-8-seed matched eval → honest verdict.
+
+  This has NOT been scheduled or started yet. It's the literal
+  next thing to do.
+Pillar 3 — Structured Belief Representation (SBR) — SCAFFOLD ONLY, LOCKED
+StructuredBeliefState class exists, imports cleanly, raises
+NotImplementedError on actual use. enable_sbr=True is explicitly
+BLOCKED by RHANNextConfig.validate(). Not touched, not planned
+until Pillars 1 & 2 are both validated.
+
+This is the "object-centric belief / slots and relations" idea
+from the blue-sky Cluster 5 (below) — years out, not months.
+Pillar 4 — Internal World Model (IWM) — SCAFFOLD ONLY, LOCKED
+WorldModel ABC + NullWorldModel (zero-param passthrough) exist,
+wired into every model instance, doing nothing. enable_iwm=True
+is blocked the same way as Pillar 3.
+
+This is the Dreamer/MuZero-style "simulate before moving" idea
+from blue-sky Cluster 4. Also years out.
+LEVEL 2 — The Blue-Sky Clusters (Where Every Future Pillar Feature Comes From)
+
+This is the menu from the big ideation session. Each cluster maps to a pillar, or to something explicitly beyond all four pillars.
+
+┌─────────────────────────────────────────────────────────────────┐
+│ CLUSTER              │ MAPS TO      │ STATUS                     │
+├─────────────────────────────────────────────────────────────────┤
+│ 1. Hierarchical       │ Pillar 1     │ Scaffolded, level 1        │
+│    Predictive Coding  │ (HPC)        │ not yet run                │
+│    (feature-not-pixel │              │                            │
+│    targets, multiscale│              │                            │
+│    world model)       │              │                            │
+├─────────────────────────────────────────────────────────────────┤
+│ 2. Curiosity-driven    │ Pillar 2     │ AIS-v1 is a RELOCATION,    │
+│    gaze, precision     │ (AIS)        │ not the real thing yet.    │
+│    everywhere,         │              │ Genuine info-gain gaze     │
+│    uncertainty-gated   │              │ ("AIS-v2") is future work. │
+│    recurrence          │              │ Entropy-gated halting IS   │
+│                        │              │ built and validated.       │
+├─────────────────────────────────────────────────────────────────┤
+│ 3. Episodic/schema     │ No pillar    │ Not started. Would need    │
+│    memory + temporal   │ yet — closest│ its own new module         │
+│    belief persistence  │ to Pillar 2  │ (ties back to TDV/UCF-101  │
+│                        │ /future IWM  │ video infra you already    │
+│                        │              │ have from months ago)      │
+├─────────────────────────────────────────────────────────────────┤
+│ 4. Counterfactual      │ Pillar 4     │ Scaffold only (NullWorld-  │
+│    reasoning, internal │ (IWM)        │ Model). Real Dreamer-style │
+│    simulation, object  │              │ rollout not started.       │
+│    permanence          │              │                            │
+├─────────────────────────────────────────────────────────────────┤
+│ 5. Structured/         │ Pillar 3     │ Scaffold only              │
+│    relational belief   │ (SBR)        │ (StructuredBeliefState).   │
+│    (object slots)      │              │ Not started, multi-month   │
+│                        │              │ sub-project when it comes. │
+├─────────────────────────────────────────────────────────────────┤
+│ 6. Distributional/     │ Pillar 3-ish │ Not started. Would extend  │
+│    multi-hypothesis    │ + touches    │ Π_D from scalar to a real  │
+│    belief (μ,Σ,        │ Pillar 2's   │ (μ,Σ) distribution.        │
+│    competing           │ precision    │                            │
+│    hypotheses)         │ mechanism    │                            │
+├─────────────────────────────────────────────────────────────────┤
+│ 7. Self-monitoring/    │ No pillar    │ Not started. Cheapest,     │
+│    abstention          │ yet —        │ highest near-term value    │
+│    ("could I be        │ standalone   │ item still fully open.     │
+│    wrong?")            │ addition     │ Ties directly to your own  │
+│                        │              │ SDT/d' framework.          │
+└─────────────────────────────────────────────────────────────────┘
+
+One honest note: the recon-mod isolation you just ran (Pillar 2's Step B decision) already touches Cluster 2's "precision everywhere" idea directly — that's the mechanism that turned out to reorder Π_D. So Cluster 2 isn't purely future work anymore; you've already run real experiments inside it. Clusters 1, 3, 4, 5, 6, 7 remain untouched.
+
+The Actual Sequence, Laid Out Straight
+DONE:
+  ✅ Sprint 1 & 2 (CIFAR-10 → STL-10, pseudo-labels, synthetic data,
+     TDV/UCF-101 pretraining) — the pre-NOESIS foundation
+  ✅ RHAN v3-v12 lineage, all documented findings
+  ✅ RHAN Next refactor (rhan_core/ package, 4 pillar interfaces)
+  ✅ Pillar 2, Stage 1 (AIS-v1 halting-only): trained, isolated,
+     evaluated, honestly verdicted as non-significant-but-real
+
+NEXT (not yet started — this is THE next action):
+  ⬜ Pillar 1, Stage 1 (HPC, hpc_num_levels=1):
+     smoke → gate → possible isolation → 60-epoch run →
+     8-seed matched eval → verdict
+     This uses the SAME protocol you just ran for Pillar 2.
+     Base config carries AIS-v1 (halting-only) forward, fixed.
+
+AFTER THAT:
+  ⬜ Stage 3 (Integration): combined AIS-v1 + validated HPC level(s)
+     trained together, final comparison vs TRADES baseline and
+     vs each pillar alone — this is what "RHAN Next" fully means
+  ⬜ Write up Stage 1+2+3 as the NOESIS-v1 paper/report
+
+LATER (real, but not started, no timeline pressure):
+  ⬜ Cluster 7 (self-monitoring/abstention) — cheapest next new idea
+  ⬜ Cluster 2's genuine info-gain gaze ("AIS-v2") — replaces the
+     current relocated-Eq.-II policy with real forward-looking gaze
+  ⬜ Recon-mod's own isolation (deferred from Pillar 2, still open)
+  ⬜ Cluster 3 (temporal/episodic memory) — natural extension of
+     your existing TDV/video infrastructure
+  ⬜ Clusters 4, 5, 6 (world model, object slots, distributional
+     belief) — multi-month efforts each, Pillars 3 & 4 stay locked
+     until these are individually scoped
