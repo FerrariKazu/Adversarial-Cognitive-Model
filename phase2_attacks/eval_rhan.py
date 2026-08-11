@@ -33,13 +33,22 @@ PROTOCOL GUARANTEES ENFORCED BY THIS ENTRYPOINT (added Stage 3.1):
      SHA-256, seed list, full CLI settings, timestamp, and the merged
      results table + crossover verdicts.
 
-The ONLY extension over eval_full_epsilon_sweep.py is the arch registry:
+The ONLY extensions over eval_full_epsilon_sweep.py are:
 
-    arch "next"  ->  RHANNext (rhan_core), constructed from the RHANNextConfig
-                     embedded in the checkpoint's 'config' key (falling back
-                     to the v12-equivalent default config when absent). This
-                     is how a pillar-enabled RHANNext checkpoint is evaluated
-                     through the unchanged protocol.
+  1. ARCH REGISTRY. arch "next" -> RHANNext (rhan_core), constructed from the
+     RHANNextConfig embedded in the checkpoint's 'config' key (falling back
+     to the v12-equivalent default config when absent). This is how a
+     pillar-enabled RHANNext checkpoint is evaluated through the unchanged
+     protocol.
+  2. ABLATION-MATRIX FLAG (Stage 2). `--ablation-matrix [keys...]` builds
+     `--ckpt-specs` automatically from rhan_core/ablation/matrix.py (entries
+     with status VALIDATED, or PENDING once their checkpoint exists) instead
+     of requiring them typed out each time — the three-way A/B/C comparison
+     of the Stage 2 protocol is one flag, not a hand-built spec string. The
+     flag is consumed here (never forwarded to the frozen parser) and is
+     mutually exclusive with an explicit --ckpt-specs. Keys, when given,
+     follow the flag directly (e.g. `--ablation-matrix C_hpc_only B_ais_only
+     A_baseline`); without keys, every eligible matrix entry is used.
 
 No other eval script may be added per stage (roadmap). Examples:
 
@@ -208,6 +217,61 @@ def _force_norm_space():
         print("  [eval_rhan] NORM-SPACE MANDATORY: injected --eps-norm-space "
               "(pixel-space mode is disabled through this entrypoint).",
               flush=True)
+
+
+def _ablation_matrix_specs():
+    """Build ckpt-specs from the ablation registry for --ablation-matrix.
+
+    Consumes `--ablation-matrix [keys...]` (stripped from sys.argv so the
+    frozen parser never sees an unknown flag), then returns the spec list;
+    the caller injects them as a trailing `--ckpt-specs` (last-occurrence
+    wins). Mutually exclusive with an explicit --ckpt-specs (a silent
+    last-wins override could mask a hand-typed spec). Returns [] when the
+    flag is absent.
+    """
+    if not any(a == '--ablation-matrix' or a.startswith('--ablation-matrix=')
+               for a in sys.argv):
+        return []
+    keys = _argv_flag_values('--ablation-matrix')
+    # Strip the flag (+ its values, and the --flag=KEY equals form) so the
+    # frozen parser never sees an unknown token.
+    stripped = []
+    i = 0
+    while i < len(sys.argv):
+        tok = sys.argv[i]
+        if tok == '--ablation-matrix' or tok.startswith('--ablation-matrix='):
+            i += 1
+            while i < len(sys.argv) and not sys.argv[i].startswith('--'):
+                i += 1
+            continue
+        stripped.append(tok)
+        i += 1
+    sys.argv = stripped
+
+    if '--ckpt-specs' in sys.argv:
+        print("=" * 72, flush=True)
+        print("  eval_rhan.py: PROTOCOL ERROR — --ablation-matrix and", flush=True)
+        print("  --ckpt-specs are mutually exclusive (the registry builds", flush=True)
+        print("  the specs; passing both risks a silent last-wins override).", flush=True)
+        print("=" * 72, flush=True)
+        raise SystemExit(2)
+
+    from rhan_core.ablation import runner as _ablation
+    specs, skipped = _ablation.eval_specs(keys=keys or None, require_present=False)
+    for why in skipped:
+        print(f"  [ablation-matrix] SKIPPED: {why}", flush=True)
+    if not specs:
+        print("=" * 72, flush=True)
+        print("  eval_rhan.py: no eval-eligible ablation-matrix entries.", flush=True)
+        print("  (VALIDATED always; PENDING only once its checkpoint exists.)", flush=True)
+        print("=" * 72, flush=True)
+        raise SystemExit(2)
+    print(f"  [eval_rhan] --ablation-matrix: {len(specs)} checkpoint(s) "
+          f"from the registry:", flush=True)
+    for s in specs:
+        print(f"    {s['label']}:{os.path.basename(s['path'])}:{s['arch']}",
+              flush=True)
+    return specs
 
 
 # ── Provenance ────────────────────────────────────────────────────────────────
@@ -465,6 +529,11 @@ if __name__ == '__main__':
     if '--self-test' in sys.argv:
         regen = '--regenerate-reference' in sys.argv
         sys.exit(_self_test(regenerate=regen))
+
+    specs = _ablation_matrix_specs()
+    if specs:
+        sys.argv += ['--ckpt-specs'] + [
+            f"{s['label']}:{s['path']}:{s['arch']}" for s in specs]
 
     _enforce_seed_protocol()
     _force_norm_space()

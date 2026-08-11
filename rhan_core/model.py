@@ -111,12 +111,21 @@ class RHANNext(RHANv12):
         if self.config.enable_hpc and self.config.hpc_num_levels >= 1:
             # Deferred import so the Stage-1 tree (before the stack lands)
             # imports cleanly; RHANNextConfig already guards level count.
-            from rhan_core.predictive_coding.hierarchical_stack import (
-                HierarchicalPredictiveStack)
-            self.hpc_stack = HierarchicalPredictiveStack(
+            from rhan_core.predictive_coding.hpc_level1 import HPCLevel1
+            self.hpc_level1 = HPCLevel1(
+                embed_dim=self.config.embed_dim,
+                tap_layer="foveal_crop",   # documented tap point (see class)
                 proj_dim=self.config.proj_dim,
-                num_levels=self.config.hpc_num_levels,
                 fovea_size=self.config.fovea_size)
+            # PLAIN-REFERENCE alias (object.__setattr__ bypasses nn.Module's
+            # submodule registration — state_dict() does NOT dedup like
+            # named_parameters() does, so a registered alias would duplicate
+            # every hpc_weight in checkpoints; caught 2026-08-11 by
+            # test_hpc_on_state_dict_has_no_duplicate_keys). State dict keys
+            # live ONLY under hpc_level1.stack.*; m.hpc_stack keeps working
+            # for the Stage-0-era API (same pattern as the AIS plain-reference
+            # machinery).
+            object.__setattr__(self, "hpc_stack", self.hpc_level1.stack)
 
     @property
     def pillars_active(self) -> bool:
@@ -166,6 +175,7 @@ class RHANNext(RHANv12):
             }
             if hasattr(self, 'hpc_stack') and len(self.hpc_stack.levels) > 0:
                 trajectory['hpc_errors'] = []
+                trajectory['hpc_error_maps'] = []
 
         history: list = []
 
@@ -197,14 +207,20 @@ class RHANNext(RHANv12):
             # error reaches the stack's parameters through the loss. Computed
             # only when the trajectory is collected (the trainer reads the HPC
             # loss exclusively from trajectories; inference skips the cost).
-            if (collect_traj and hasattr(self, 'hpc_stack')
-                    and len(self.hpc_stack.levels) > 0):
-                for lvl in range(len(self.hpc_stack.levels)):
-                    target = self.hpc_stack.extract_targets(x_foveal, lvl)
-                    pred_hpc = self.hpc_stack.predict(s, lvl)
-                    err_hpc = self.hpc_stack.compute_error(pred_hpc, target, lvl)
-                    if collect_traj:
-                        trajectory['hpc_errors'].append(err_hpc)
+            # hpc_num_levels is exactly 1 in this pass, so the loop is the
+            # single-level HPCLevel1 call; the per-level loop form is kept for
+            # forward-compat with hpc_num_levels=1 only (config.validate()
+            # blocks > 1).
+            if (collect_traj and hasattr(self, 'hpc_level1')):
+                pred_hpc, err_hpc, err_map = self.hpc_level1(s, x_foveal)
+                trajectory['hpc_errors'].append(err_hpc)         # (B,), attached
+                # Diagnostics-only error-map summary (detached scalars; the
+                # attached err_hpc above is what reaches the loss).
+                trajectory['hpc_error_maps'].append({
+                    'min': float(err_map.min().detach()),
+                    'max': float(err_map.max().detach()),
+                    'std': float(err_map.std().detach()),
+                })
 
             # ── Belief wrapper + policies (AIS); v12 fallback otherwise ────
             has_ais = hasattr(self, 'halt_policy') and hasattr(self, 'gaze_policy')

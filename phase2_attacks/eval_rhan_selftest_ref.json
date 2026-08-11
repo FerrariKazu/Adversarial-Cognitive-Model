@@ -14,8 +14,8 @@
     "ff_dim": 3072,
     "fovea_size": 48,
     "gaze_lambda": 0.5,
-    "hpc_error_weight": 0.05,
-    "hpc_num_levels": 1,
+    "hpc_error_weight": 0.1,
+    "hpc_num_levels": 0,
     "max_foraging_steps": 4,
     "metabolic_cost": 0.05,
     "num_classes": 10,
@@ -37,7 +37,7 @@
       10
     ]
   },
-  "generated_at_utc": "2026-08-06T20:58:04+00:00",
+  "generated_at_utc": "2026-08-11T04:02:04+00:00",
   "generated_by_torch": "2.9.1+cu128",
   "n_params": 75440469,
   "n_state_dict_keys": 374,
