@@ -2170,13 +2170,17 @@ if DO_STEP2_A and not SKIP_STAGE2_TRAINING:
     else:
         pre_a_epoch = hf_rolling_epoch(HPC_SMOKE_CKPT)
     print(f"  [resume-gate] pre-Step-A HF rolling epoch: {pre_a_epoch}", flush=True)
+    # extra_args MUST be separate argv tokens: a space-joined string
+    # ("--max-epochs 15") round-trips through shlex.join + shell=True as ONE
+    # token and is silently dropped by parse_known_args — the 2026-08-12 bug
+    # that made the Stage 2 smoke run 60 epochs from the WRONG base.
     _smoke_cmd = _shlex.join(_ablation.train_command(
         "C_hpc_only",
         ckpt_name=HPC_SMOKE_CKPT,          # smoke artifact name (same config)
-        extra_args=[f"--max-epochs {SMOKE2_EPOCHS}",
-                    f"--target-ckpt {HPC_BASE}",
-                    "--batch-size 16 --accum-steps 16",
-                    f"--diag-json {HPC_SMOKE_DIAG}",
+        extra_args=["--max-epochs", str(SMOKE2_EPOCHS),
+                    "--target-ckpt", HPC_BASE,
+                    "--batch-size", "16", "--accum-steps", "16",
+                    "--diag-json", HPC_SMOKE_DIAG,
                     "--force-single-gpu"]))
     # NEVER --force-restart: the trainer's mandatory HF resume gate restores or
     # aborts; the notebook's verify_no_restart asserts forward-only progress.
@@ -2438,10 +2442,10 @@ if DO_STEP2_B and not SKIP_STAGE2_TRAINING and PROCEED_STEP2_B:
               flush=True)
         print("    " + _shlex.join(_ablation.train_command(
             "C_hpc_only",
-            extra_args=["--max-epochs 60",
-                        f"--target-ckpt {HPC_BASE}",
-                        "--batch-size 16 --accum-steps 16",
-                        f"--diag-json {HPC_FULL_DIAG}",
+            extra_args=["--max-epochs", "60",
+                        "--target-ckpt", HPC_BASE,
+                        "--batch-size", "16", "--accum-steps", "16",
+                        "--diag-json", HPC_FULL_DIAG,
                         "--force-single-gpu"])), flush=True)
     else:
         pre_b_epoch = hf_rolling_epoch(HPC_FULL_CKPT)
@@ -2454,10 +2458,10 @@ if DO_STEP2_B and not SKIP_STAGE2_TRAINING and PROCEED_STEP2_B:
         # 41-60 @0.094) so results stay directly comparable.
         run(_shlex.join(_ablation.train_command(
             "C_hpc_only",
-            extra_args=["--max-epochs 60",
-                        f"--target-ckpt {HPC_BASE}",
-                        "--batch-size 16 --accum-steps 16",
-                        f"--diag-json {HPC_FULL_DIAG}",
+            extra_args=["--max-epochs", "60",
+                        "--target-ckpt", HPC_BASE,
+                        "--batch-size", "16", "--accum-steps", "16",
+                        "--diag-json", HPC_FULL_DIAG,
                         "--force-single-gpu"])))
         verify_no_restart(HPC_FULL_CKPT, pre_b_epoch)
         # Record honest resume provenance (same pattern as Stage 1 Step B).

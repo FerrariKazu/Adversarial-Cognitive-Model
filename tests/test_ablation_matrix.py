@@ -5,7 +5,10 @@ Confirms all four A/B/C/D entries resolve to valid, distinct, non-crashing
 configs (the task's test_ablation_matrix.py requirement) and that the eval
 entrypoint's --ablation-matrix flag builds --ckpt-specs from the registry.
 """
+import ast
 import os
+import shlex
+import subprocess
 import sys
 
 import pytest
@@ -69,6 +72,57 @@ def test_train_command_c_only_and_correct_flags():
     assert "--enable-ais" not in argv            # HPC-only per matrix entry C
     assert "--w-hpc" in argv
     assert argv[argv.index("--ckpt-name") + 1] == "rhan_next_hpc_only"
+
+
+def test_train_command_extra_args_survive_shell_roundtrip():
+    """Regression: 2026-08-12 Colab bug. The notebook passed space-joined
+    extra_args ("--max-epochs 15"); after shlex.join + shell=True they arrived
+    as ONE argv token and train_rhan_next.py's parse_known_args() SILENTLY
+    dropped them — the Stage 2 smoke ran 60 epochs from the WRONG base
+    checkpoint (and wrote no diag-json). train_command must normalize so the
+    delivered argv is lossless (asserts the exact notebook construction)."""
+    argv = r.train_command(
+        "C_hpc_only", ckpt_name="rhan_next_hpc_only_smoke",
+        extra_args=["--max-epochs 15",
+                    "--target-ckpt "
+                    "checkpoints/rhan_next_ais_v1_halting_only_best.pth",
+                    "--batch-size 16 --accum-steps 16",
+                    "--diag-json report/rhan_next_hpc_only_smoke_diag.jsonl",
+                    "--force-single-gpu"])
+    roundtrip = shlex.split(shlex.join(argv))
+    assert roundtrip == argv, (f"shlex round-trip is lossy — the shell would "
+                               f"deliver merged tokens:\n{argv}\nvs\n{roundtrip}")
+    # The two flags that were silently dropped on Colab must now be real tokens.
+    i = argv.index("--max-epochs")
+    assert argv[i + 1] == "15"
+    j = argv.index("--target-ckpt")
+    assert argv[j + 1] == "checkpoints/rhan_next_ais_v1_halting_only_best.pth"
+    k = argv.index("--diag-json")
+    assert argv[k + 1] == "report/rhan_next_hpc_only_smoke_diag.jsonl"
+    assert "--batch-size" in argv and argv[argv.index("--batch-size") + 1] == "16"
+
+
+def test_train_command_delivered_argv_via_shell_is_lossless():
+    """Faithful to the failing path (Popen with shell=True on the shlex.join'd
+    command): the 2026-08-12 Colab bug delivered '--max-epochs 15' as ONE argv
+    token. The runner must now deliver separate tokens through a real shell."""
+    argv = r.train_command(
+        "C_hpc_only", ckpt_name="rhan_next_hpc_only_smoke",
+        extra_args=["--max-epochs 15",
+                    "--target-ckpt "
+                    "checkpoints/rhan_next_ais_v1_halting_only_best.pth",
+                    "--batch-size 16 --accum-steps 16",
+                    "--diag-json report/rhan_next_hpc_only_smoke_diag.jsonl",
+                    "--force-single-gpu"])
+    probe = shlex.join(argv).replace(
+        "python3 phase1_training/train_rhan_next.py",
+        f"{shlex.quote(sys.executable)} -c "
+        f"\"import sys; print(sys.argv[1:])\"")
+    out = subprocess.run(probe, shell=True, capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    delivered = ast.literal_eval(out.stdout.strip())   # list printed by python -c
+    start = next(i for i, t in enumerate(delivered) if t.startswith("--"))
+    assert delivered[start:] == argv[2:]           # flags only, in order
 
 
 def test_train_command_d_refuses_to_run():
