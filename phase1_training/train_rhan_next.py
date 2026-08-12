@@ -209,7 +209,7 @@ class RHANNextEpochDiagnostics(EpochDiagnostics):
                   f"{estd:.4f} "
                   f"({'collapse' if emax < 1e-6 else 'explosion?' if estd > 5.0 else 'ok'})")
 
-    def summary_dict(self, epoch, eps):
+    def summary_dict(self, epoch, eps, tr_acc=None, te_acc=None):
         """Machine-readable per-epoch telemetry (written by --diag-json)."""
         d = {
             'epoch': int(epoch),
@@ -217,6 +217,12 @@ class RHANNextEpochDiagnostics(EpochDiagnostics):
             'beta_dyn_mean': round(float(torch.cat(self.beta_dynamics).mean()), 4),
             'beta_dyn_std': round(float(torch.cat(self.beta_dynamics).std()), 4),
             'steps_hard_fixed': self.max_steps,
+            # Clean accuracy (None when dry-run/rank>0 skips validation) so
+            # the smoke diag lets callers WATCH clean acc next to the HPC
+            # error. Intentionally NOT a health-gate criterion (pre-registered
+            # checks unchanged).
+            'tr_acc': round(float(tr_acc), 4) if tr_acc is not None else None,
+            'te_acc': round(float(te_acc), 4) if te_acc is not None else None,
         }
         if self.gate_alphas:
             d['gate_alpha'] = round(float(np.mean(self.gate_alphas)), 4)
@@ -414,7 +420,19 @@ def main():
                         help='Append one JSON line per epoch with machine-readable '
                              'AIS telemetry (gaze shift, effective steps, Pi_D per '
                              'class) — consumed by the notebook health gate.')
-    args, _ = parser.parse_known_args()
+    args, _unknown = parser.parse_known_args()
+    if _unknown:
+        # parse_known_args() SILENTLY drops unrecognized tokens — the
+        # 2026-08-12 Stage 2 smoke lost --max-epochs/--target-ckpt/
+        # --diag-json this way (it ran 60 epochs from the wrong base).
+        # Fail loudly so a dropped flag can never silently corrupt a run.
+        print(f"\n[FATAL] train_rhan_next.py received {len(_unknown)} "
+              f"unrecognized argument(s): {_unknown}", flush=True)
+        print(f"  Refusing to start — parse_known_args would silently ignore "
+              f"them, and a dropped flag\n  (2026-08-12: --max-epochs / "
+              f"--target-ckpt / --diag-json) silently changed the run.\n  "
+              f"Fix the caller or define the flag in this parser.", flush=True)
+        sys.exit(2)
 
     # ── Environment / device ────────────────────────────────────────────────
     is_ddp = "WORLD_SIZE" in os.environ and "RANK" in os.environ
@@ -925,7 +943,10 @@ def main():
             if args.diag_json and rank == 0:
                 try:
                     with open(args.diag_json, 'a') as f:
-                        f.write(json.dumps(diagnostics.summary_dict(epoch, eps))
+                        f.write(json.dumps(diagnostics.summary_dict(
+                            epoch, eps,
+                            tr_acc=100.0 * correct / max(n_total, 1),
+                            te_acc=val_acc))
                                 + '\n')
                 except OSError as e:
                     print(f"  WARNING: could not write --diag-json: {e}",
