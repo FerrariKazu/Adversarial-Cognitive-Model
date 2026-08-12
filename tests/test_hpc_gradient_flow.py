@@ -17,6 +17,7 @@ in this file, not a manual review step:
 See docs/rhan_next_roadmap.json stage 2, health-gate check #1.
 """
 import gc
+import math
 
 import pytest
 import torch
@@ -150,3 +151,127 @@ def test_hpc_off_means_zero_hpc_loss():
         assert "hpc_errors" not in traj
         del m
         gc.collect()
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Dead-head regression (2026-08-12 Stage 2 smoke).
+#
+# The smoke's hpc_error_mean sat frozen at its init value (0.2848) across ALL
+# 10 logged epochs — including 5 main-phase epochs where the stack was
+# unfrozen and w_hpc*L_hpc was in the loss — while the rest of the model
+# trained fine (loss down, TrAcc up). Root cause: the Tanh output head started
+# at the default kaiming init, pinning its output at the Tanh saturation
+# extremes (error-map max ~1.92 ~ |−1 − 1|) where gradients vanish. The fix is
+# two-part: (1) zero-init the final ConvTranspose2d so the head starts in the
+# linear regime, and (2) rescale the [0, 1] Sobel target to [-1, 1] so MSE is
+# computed against the Tanh head's own range. These tests pin BOTH parts.
+# ────────────────────────────────────────────────────────────────────────────
+
+def test_hpc_head_starts_in_linear_regime():
+    """Dead-head fix: a fresh head must start just inside the linear Tanh
+    regime (d/dz tanh = 1 - pred^2 > 0.5 everywhere, i.e. |pred| < ~0.71), never
+    ±1 saturation — the state that froze the smoke's prediction error."""
+    torch.manual_seed(0)
+    level = HPCLevel1(embed_dim=768, tap_layer="foveal_crop").to(_DEVICE)
+    belief = torch.randn(4, 512, device=_DEVICE)
+    crops = torch.randn(4, 3, 48, 48, device=_DEVICE)
+    pred, _, _ = level(belief, crops)
+    slope = 1.0 - pred ** 2              # tanh'(z) per output pixel
+    assert float(slope.min()) > 0.5, (
+        "head output must stay in the Tanh linear regime (|pred| < ~0.71); "
+        "a saturated head pins the prediction error at its init value — the "
+        "2026-08-12 dead-head failure")
+    assert float(pred.abs().max()) < 0.71
+    del level
+    gc.collect()
+
+
+def test_hpc_target_rescaled_to_match_tanh_head():
+    """Range-match fix: extract_target must return 2*t - 1 of the [0, 1]
+    Sobel magnitude, so MSE is computed against the Tanh head's [-1, 1]
+    range (the raw extractor contract [0, 1] is unchanged)."""
+    torch.manual_seed(0)
+    level = HPCLevel1(embed_dim=768, tap_layer="foveal_crop").to(_DEVICE)
+    lvl = level.stack.levels[0]
+    crops = torch.randn(4, 3, 48, 48, device=_DEVICE)
+    raw = lvl.extractor(crops)                    # Sobel magnitude in [0, 1]
+    tgt = lvl.extract_target(crops)
+    assert float(raw.min()) >= 0.0 and float(raw.max()) <= 1.0
+    assert float(tgt.min()) >= -1.0 - 1e-5 and float(tgt.max()) <= 1.0 + 1e-5
+    assert torch.allclose(tgt, raw * lvl.TARGET_SCALE + lvl.TARGET_SHIFT)
+    del level
+    gc.collect()
+
+
+def test_hpc_head_init_gradient_is_full_scale():
+    """Dead-head discriminator: at init the output conv must receive a
+    FULL-SCALE gradient. The un-fixed kaiming-inited head sat at Tanh
+    saturation where d/dz tanh ~ 0, so this gradient collapsed to a tiny
+    fraction of its healthy scale — the head's weights barely moved and the
+    smoke's hpc_error_mean stayed frozen at its init value. Measured for the
+    fixed head: ~0.4."""
+    torch.manual_seed(0)
+    level = HPCLevel1(embed_dim=768, tap_layer="foveal_crop").to(_DEVICE)
+    belief = torch.randn(4, 512, device=_DEVICE)
+    crops = torch.randn(4, 3, 48, 48, device=_DEVICE)
+    _, err, _ = level(belief, crops)
+    err.mean().backward()
+    head = level.stack.levels[0].decoder[-2]
+    gn = float(head.weight.grad.norm())
+    assert gn > 0.05, (
+        f"output-conv init gradient collapsed to {gn:.4f} — the head is at "
+        "Tanh saturation (dead head). It must be > 0.05 for the predictor "
+        "to learn; the 2026-08-12 smoke froze at its init error for this "
+        "reason.")
+    del level
+    gc.collect()
+
+
+def test_hpc_head_learns_under_optimization():
+    """THE dead-head regression, measured the way the smoke does: on the REAL
+    belief (correlated with the foveal crop, backbone frozen), the head must
+    reduce its prediction error under a few SGD steps. The un-fixed head's
+    error never moved across the smoke's 10 logged epochs (frozen at init);
+    this asserts the fixed head learns (>= 10% drop over 10 steps).
+    NOTE (robustness): measured drop is ~28% (B=4) / passes at B=2; if this
+    ever flakes on another backend, raise steps 10->15 or relax the bar to
+    5% — it is deliberately stricter than the gate's >=10%-over-15-epochs."""
+    torch.manual_seed(0)
+    cfg = RHANNextConfig(enable_hpc=True, hpc_num_levels=1)
+    m = RHANNext(config=cfg).to(_DEVICE).eval()
+    x = torch.randn(_B, _C, _H, _W, device=_DEVICE)
+    # Freeze everything except the HPC predictor: the backbone produces the
+    # belief, and only the head learns — exactly the mechanism the smoke
+    # exercises (warmup keeps the head frozen, main phase unfreezes it).
+    hpc_params = []
+    for name, p in m.named_parameters():
+        if "hpc_level1" in name:
+            p.requires_grad = True
+            hpc_params.append(p)
+        else:
+            p.requires_grad = False
+    assert hpc_params, "expected HPCLevel1 parameters to train"
+    opt = torch.optim.SGD(hpc_params, lr=0.05)
+
+    def hpc_err():
+        with torch.enable_grad():
+            logits, traj = m(x, return_trajectory=True)
+        return torch.stack(traj["hpc_errors"]).mean().detach()
+
+    e0 = float(hpc_err())
+    assert math.isfinite(e0), "init HPC error must be finite"
+    for _ in range(10):
+        opt.zero_grad()
+        with torch.enable_grad():
+            logits, traj = m(x, return_trajectory=True)
+        torch.stack(traj["hpc_errors"]).mean().backward()
+        opt.step()
+    e10 = float(hpc_err())
+    drop = 1.0 - e10 / e0
+    assert drop >= 0.10, (
+        f"HPC prediction error did not learn (10 SGD steps: {e0:.4f} -> "
+        f"{e10:.4f}, {drop*100:.1f}% drop) — dead head (Tanh saturation) or "
+        f"detached target. The 2026-08-12 smoke froze at its init value for "
+        f"this reason.")
+    del m
+    gc.collect()
