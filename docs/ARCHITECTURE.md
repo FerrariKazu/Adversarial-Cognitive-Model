@@ -227,6 +227,17 @@ error = MSE(prediction, actual)                        [(B,), enters the loss]
 
 - The target is a **feature (edges), never raw pixels above the lowest
   level** — the raw-pixel level remains the existing `generative_prior`.
+- **Target-range contract (2026-08-12 dead-head fix):** the Sobel target is
+  rescaled from [0, 1] to [-1, 1] (`extract_target` applies `2*t - 1`) to
+  match the Tanh-bounded head, and the final `ConvTranspose2d` is
+  small-inited (zero bias, uniform ±0.01 weights) so the head starts just
+  inside the linear regime (~0 output). The Stage 2 smoke showed the
+  un-fixed head pinned at Tanh saturation with the prediction error frozen
+  at its init value across all logged epochs (incl. the main phase);
+  `tests/test_hpc_gradient_flow.py::test_hpc_head_learns_one_step_regression`
+  pins the fix. (A hard zero-init was rejected: gradient through a
+  zero-weight layer's input is 0, which washes out upstream gradients on
+  the first backward.)
 - The extractor (`EdgeMapExtractor`) is non-learnable (Sobel, buffers only),
   so the predictor is the only trainable piece — exactly what
   `test_gradient_flow.py` asserts.
