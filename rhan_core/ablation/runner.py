@@ -14,6 +14,7 @@ safe to import from notebooks and tests.
 from __future__ import annotations
 
 import os
+import shlex
 from typing import Any, Dict, List, Optional, Tuple
 
 from rhan_core.ablation import matrix as _matrix
@@ -91,7 +92,16 @@ def train_command(key: str, extra_args: Optional[List[str]] = None,
         argv += ["--enable-hpc", "--hpc-num-levels", str(cfg.hpc_num_levels),
                  "--w-hpc", str(cfg.hpc_error_weight)]
     argv += ["--ckpt-name", ckpt_name or entry["label"]]
-    argv += list(extra_args or [])
+    # Legacy-compat shim: callers historically passed space-joined strings
+    # ("--max-epochs 15") which, after the notebook's shlex.join + shell=True
+    # round-trip, arrived as ONE argv token and were SILENTLY dropped by
+    # parse_known_args — the 2026-08-12 Colab bug that made the Stage 2 smoke
+    # run 60 epochs from the WRONG base checkpoint. New callers pass real
+    # tokens; this normalizes any legacy caller. NOTE: a value containing a
+    # space (e.g. a path with spaces) must be pre-split — this repo's
+    # checkpoint paths never contain spaces.
+    for arg in (extra_args or []):
+        argv += shlex.split(arg) if " " in arg else [arg]
     return argv
 
 
