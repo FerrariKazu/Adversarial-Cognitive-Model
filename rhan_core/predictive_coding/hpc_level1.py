@@ -23,7 +23,11 @@ Level / tap-point contract (Stage 2 cycle 1 — exactly one level):
                         The tap is a single layer (the foveal sampling
                         operation), never an average across multiple layers.
         predicted     : (B, 1, 48, 48) edge map decoded from the belief
-        target        : EdgeMapExtractor(x_foveal) — Sobel magnitude, [0, 1]
+        target        : EdgeMapExtractor(x_foveal) — Sobel magnitude, [0, 1],
+                        rescaled to [-1, 1] (2*t - 1) in extract_target() so
+                        MSE is computed against the Tanh head's range
+                        (2026-08-12 dead-head fix; the un-fixed mismatch
+                        froze the smoke's prediction error at its init value)
         error         : (B,) per-sample MSE  (this is L_hpc, enters the loss)
 
 Gradient-flow contract (project lesson #1 — the v11/v12 detached-recon bug):

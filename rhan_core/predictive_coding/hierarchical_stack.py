@@ -51,9 +51,22 @@ class EdgeFeatureLevelPredictor(LevelPredictor, nn.Module):
         ConvTranspose2d(64->32, k=4, s=2) -> 12x12
         ConvTranspose2d(32->16, k=4, s=2) -> 24x24
         ConvTranspose2d(16->1,  k=4, s=2) -> 48x48  (Tanh, [-1, 1])
+
+    Target contract (2026-08-12 dead-head fix): the raw EdgeMapExtractor
+    output is Sobel magnitude in [0, 1]; extract_target() rescales it to
+    [-1, 1] (2*t - 1) so MSE is computed against a target spanning the SAME
+    range as the Tanh-bounded head, and the final ConvTranspose2d is
+    small-inited (zero bias, uniform +-0.01 weights) so the head starts just
+    inside the linear regime (~0 output, Tanh slope > 0.5 everywhere). The
+    Stage 2 smoke showed the un-fixed head pinned at Tanh saturation with
+    the prediction error frozen at its init value across all logged epochs.
     """
 
     feature_target: str = "edge_map"
+
+    #: Affine applied to the [0, 1] Sobel magnitude to match the Tanh head's
+    #: [-1, 1] output range: target' = TARGET_SCALE * target + TARGET_SHIFT.
+    TARGET_SHIFT, TARGET_SCALE = -1.0, 2.0
 
     def __init__(self, proj_dim: int = 512, spatial: int = 48):
         super().__init__()
@@ -72,6 +85,25 @@ class EdgeFeatureLevelPredictor(LevelPredictor, nn.Module):
             nn.ConvTranspose2d(16, 1, 4, 2, 1),                # -> 48x48
             nn.Tanh(),
         )
+        # Dead-head fix (2026-08-12 Stage 2 smoke): the default kaiming init
+        # of the output conv produced large pre-Tanh activations, pinning the
+        # head at the Tanh saturation extremes where gradients vanish — the
+        # smoke's hpc_error_mean stayed frozen at its init value through all
+        # 10 logged epochs (including 5 main-phase, all-components epochs).
+        # Fix: small-init the last layer (zero bias + tiny uniform weights)
+        # so the head starts just inside the linear regime and learns the
+        # mean target first, then the structure. NOTE: a hard zero-init of
+        # the weight was rejected — the gradient wrt the INPUT of a
+        # zero-weight layer is 0, so it would wash out ALL upstream
+        # gradients on the first backward (breaking the gradient-flow tests
+        # and wasting the first optimizer step). Small-but-nonzero keeps
+        # every parameter reachable from step 1.
+        _head = self.decoder[-2]
+        assert isinstance(_head, nn.ConvTranspose2d), \
+            "decoder[-2] must be the output ConvTranspose2d (before Tanh)"
+        if _head.bias is not None:
+            nn.init.zeros_(_head.bias)
+        nn.init.uniform_(_head.weight, -0.01, 0.01)
 
     # ── LevelPredictor ───────────────────────────────────────────────────────
     def predict(self, top_down: torch.Tensor) -> torch.Tensor:
@@ -85,8 +117,17 @@ class EdgeFeatureLevelPredictor(LevelPredictor, nn.Module):
 
     # ── Level helpers ────────────────────────────────────────────────────────
     def extract_target(self, x_foveal: torch.Tensor) -> torch.Tensor:
-        """(B, 3, spatial, spatial) crop -> (B, 1, spatial, spatial) target."""
-        return self.extractor(x_foveal)
+        """(B, 3, spatial, spatial) crop -> (B, 1, spatial, spatial) target.
+
+        The raw EdgeMapExtractor output is Sobel magnitude in [0, 1]; it is
+        rescaled here to [-1, 1] (2*t - 1) so MSE is computed against a
+        target spanning the same range as the Tanh-bounded head — part of the
+        2026-08-12 dead-head fix (a [0, 1] target against a [-1, 1] head
+        forced the network to learn an offset through a saturating
+        activation; the smoke's prediction error froze at its init value).
+        """
+        t = self.extractor(x_foveal)          # (B, 1, H, W) Sobel in [0, 1]
+        return t * self.TARGET_SCALE + self.TARGET_SHIFT
 
 
 class HierarchicalPredictiveStack(nn.Module):
