@@ -2236,7 +2236,7 @@ def _module_importable(name):
 
 
 def _run_stage2_gate_tests():
-    """Gate checks 1 + 3 — the HARD, test-time assertions.
+    """Gate checks 1, 3 + 5 — the HARD, test-time assertions.
 
     Check 1 (gradient flow): tests/test_hpc_gradient_flow.py asserts the HPC
         error tensor is NOT detached and backward reaches HPCLevel1's params —
@@ -2244,13 +2244,19 @@ def _run_stage2_gate_tests():
     Check 3 (disable backward-compat): tests/test_hpc_disable_backward_compat.py
         asserts hpc_num_levels=0 reproduces the validated AIS-v1 forward
         pass bit-for-bit (same pattern as the Stage-0 v12 backward-compat).
+    Check 5 (optimizer-group resume): tests/test_hpc_optimizer_group_resume.py
+        asserts a legacy 1-group optimizer state (Stage 1 AIS-v1 shape) can
+        never be silently restored onto the two-group optimizer — the fresh
+        fallback must start the HPC group with uninherited momentum.
     Runs via pytest when available (Colab/Kaggle preinstall it); falls back to
     direct function calls otherwise. Either way a failure raises LOUDLY here,
     before Step B.
     """
     tests = [("tests/test_hpc_gradient_flow.py", "test_hpc_gradient_flow"),
              ("tests/test_hpc_disable_backward_compat.py",
-              "test_hpc_disable_backward_compat")]
+              "test_hpc_disable_backward_compat"),
+             ("tests/test_hpc_optimizer_group_resume.py",
+              "test_hpc_optimizer_group_resume")]
     if _module_importable("pytest"):
         for path, _ in tests:
             rc = run(f"python3 -m pytest {path} -q", check=False)
@@ -2285,7 +2291,7 @@ def _run_stage2_gate_tests():
 def health_verdict_stage2(rows):
     """Evaluate checks 2 (error trend) + 4 (Π_D ordering) from the smoke diag.
 
-    Checks 1 + 3 are the pytest files (run separately, they FAIL LOUD). This
+    Checks 1, 3 + 5 are the pytest files (run separately, they FAIL LOUD). This
     function scores the telemetry-only criteria:
       - hpc_error_mean must decrease >= HPC_TREND_MIN_DECREASE (10%) from the
         first logged epoch to the last, and never exceed HPC_EXPLOSION_RATIO
@@ -2365,18 +2371,21 @@ for r in rows2:
           f"{r.get('hpc_error_map_std')} | Π_D top2={sorted(r.get('pi_d_per_class', {}).items(), key=lambda kv: -kv[1])[:2]}",
           flush=True)
 
-# ── Assemble the 4-check verdict ────────────────────────────────────────────
+# ── Assemble the 5-check verdict ────────────────────────────────────────────
 hpc_gate = {"healthy": True, "checks": {}, "reasons": []}
-# Checks 1 + 3 (hard assertions — fail LOUD before anything else).
+# Checks 1, 3 + 5 (hard assertions — fail LOUD before anything else).
 try:
     _run_stage2_gate_tests()
     hpc_gate["checks"]["1_hpc_gradient_flow"] = "PASS (tests/test_hpc_gradient_flow.py)"
     hpc_gate["checks"]["3_ais_v1_disable_backward_compat"] = \
         "PASS (tests/test_hpc_disable_backward_compat.py)"
+    hpc_gate["checks"]["5_optimizer_group_resume"] = \
+        "PASS (tests/test_hpc_optimizer_group_resume.py)"
 except Exception as e:  # noqa: BLE001 — a gate test failure must STOP Step B
     hpc_gate["healthy"] = False
     hpc_gate["checks"]["1_hpc_gradient_flow"] = "FAIL"
     hpc_gate["checks"]["3_ais_v1_disable_backward_compat"] = "FAIL"
+    hpc_gate["checks"]["5_optimizer_group_resume"] = "FAIL"
     hpc_gate["reasons"].append(f"Gate test failure: {e}")
 
 # Checks 2 + 4 (telemetry).
