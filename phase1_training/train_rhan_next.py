@@ -327,6 +327,84 @@ def clip_grad_per_group(optimizer, max_norm=1.0):
             nn.utils.clip_grad_norm_(params, max_norm)
 
 
+def optimizer_restore_compatible(saved_opt, optimizer, saved_scheduler=None):
+    """Can a checkpoint's saved optimizer state be restored onto `optimizer`?
+
+    The 2026-08-13 two-group optimizer (backbone lr + HPC lr*hpc_lr_mult)
+    must never load a state written by a DIFFERENT configuration:
+      * pre-2026-08-13 checkpoints carry ONE group (Stage 1's AIS-v1 runs had
+        no HPC module) — loading them raises ValueError, and if the group
+        count ever matched with a different param order, PyTorch maps
+        momentum buffers BY POSITION, silently misassigning them (HPC params
+        receiving backbone momentum, or vice versa — the checkpoint-resume
+        bug class this project has been burned by: the destroyed rolling
+        checkpoint, the best/rolling parity gap);
+      * same-commit flag drift (e.g. a --hpc-lr-mult 1.0 checkpoint resumed
+        with the 6.67 default) would otherwise restore the OLD head lr
+        silently (2026-08-12 parse_known_args).
+    Comparison source: the saved optimizer's param_groups carry the CURRENT
+    (cosine-decayed) lrs of the epoch at which the checkpoint was written,
+    while the trainer rebuilds a fresh optimizer at the phase-start lrs on
+    resume — comparing those would falsely refuse every legitimate mid-phase
+    session-continuation resume (dropping momentum + restarting the cosine
+    schedule). So when `saved_scheduler` is provided, its base_lrs (the
+    flag-derived phase-start lrs, invariant to decay) are compared instead;
+    otherwise the saved current lrs are used as a fallback.
+    Returns True only when the group count AND per-group lrs match this run's
+    flags. On False the trainer falls back to a fresh optimizer with a loud
+    warning instead of calling load_state_dict.
+    """
+    if not isinstance(saved_opt, dict):
+        return False
+    saved_groups = saved_opt.get('param_groups', [])
+    if len(saved_groups) != len(optimizer.param_groups):
+        return False
+    expected = None
+    if isinstance(saved_scheduler, dict):
+        base = saved_scheduler.get('base_lrs')
+        if (isinstance(base, (list, tuple))
+                and len(base) == len(optimizer.param_groups)):
+            expected = [float(x) for x in base]
+    if expected is None:
+        expected = [g.get('lr') for g in saved_groups]
+    cur_lrs = [g.get('lr') for g in optimizer.param_groups]
+    return all(
+        isinstance(a, (int, float)) and isinstance(b, (int, float))
+        and abs(float(a) - float(b)) < 1e-9
+        for a, b in zip(expected, cur_lrs))
+
+
+def restore_optimizer_from_checkpoint(optimizer, scheduler, checkpoint_data,
+                                      rank=0):
+    """Resume-path optimizer restore with the group-count/LR guard.
+
+    The trainer's ONE and only way to restore optimizer/scheduler state on
+    resume (2026-08-13). Refuses a saved state that does not match THIS run's
+    flags (optimizer_restore_compatible) and falls back to a fresh optimizer
+    with a loud warning — never a silent load_state_dict. Returns True when
+    the state was restored, False when the fresh-optimizer fallback ran.
+    """
+    _saved_opt = checkpoint_data.get('optimizer')
+    if optimizer_restore_compatible(_saved_opt, optimizer,
+                                    checkpoint_data.get('scheduler')):
+        optimizer.load_state_dict(_saved_opt)
+        scheduler.load_state_dict(checkpoint_data['scheduler'])
+        if rank == 0:
+            print("Restored optimizer/scheduler state.", flush=True)
+        return True
+    if rank == 0:
+        if (not isinstance(_saved_opt, dict) or
+                len(_saved_opt.get('param_groups', [])) !=
+                len(optimizer.param_groups)):
+            _why = (f"group count {len(_saved_opt.get('param_groups', []))}"
+                    if isinstance(_saved_opt, dict) else "no optimizer state")
+        else:
+            _why = "lr mismatch (different --hpc-lr-mult)"
+        print(f"  WARNING: checkpoint optimizer {_why} vs this run (HPC "
+              f"group). Starting a fresh optimizer for this phase.", flush=True)
+    return False
+
+
 def dynamic_trades_loss_next(model, imgs, labels, weights, x_adv,
                              beta_base, w_recon, w_hpc,
                              precision_recon_enabled: bool = True):
@@ -873,54 +951,16 @@ def main():
                         eta_min=phase_lr * 0.1)
                     if (epoch == start_epoch and checkpoint_data is not None
                             and 'optimizer' in checkpoint_data):
-                        # Group-count guard: pre-2026-08-13 checkpoints carry a
-                        # single-group optimizer state (no HPC group). Loading
-                        # one into the two-group optimizer would ValueError or
-                        # silently misalign groups — fall back to a fresh
-                        # optimizer instead (the code-identity resume guard
-                        # already refuses old-code checkpoints; this is the
-                        # belt-and-suspenders case of a same-commit flag
-                        # change like --hpc-lr-mult).
-                        # Group-count + LR-ratio guard: pre-2026-08-13
-                        # checkpoints carry a single-group optimizer state (no
-                        # HPC group), and a same-commit flag change (e.g. a
-                        # --hpc-lr-mult 1.0 checkpoint resumed with the 6.67
-                        # default) would otherwise have load_state_dict
-                        # SILENTLY restore the OLD head lr — the exact
-                        # silent-flag-drift class of bug this project's guards
-                        # exist to catch (2026-08-12 parse_known_args). On any
-                        # mismatch we fall back to a fresh optimizer with a
-                        # loud warning.
-                        _saved_opt = checkpoint_data['optimizer']
-                        _ok_opt = False
-                        if isinstance(_saved_opt, dict):
-                            _saved_groups = _saved_opt.get('param_groups', [])
-                            if len(_saved_groups) == len(optimizer.param_groups):
-                                # lr ratio must match THIS run's flags.
-                                _saved_lrs = [g.get('lr') for g in _saved_groups]
-                                _cur_lrs = [g['lr'] for g in optimizer.param_groups]
-                                _ok_opt = all(
-                                    isinstance(a, (int, float))
-                                    and abs(float(a) - float(b)) < 1e-9
-                                    for a, b in zip(_saved_lrs, _cur_lrs))
-                        if _ok_opt:
-                            optimizer.load_state_dict(_saved_opt)
-                            scheduler.load_state_dict(
-                                checkpoint_data['scheduler'])
-                            if rank == 0:
-                                print("Restored optimizer/scheduler state.",
-                                      flush=True)
-                        elif rank == 0:
-                            _why = (f"group count {len(_saved_opt.get('param_groups', []))}"
-                                    if isinstance(_saved_opt, dict)
-                                    else "no optimizer state") \
-                                if not isinstance(_saved_opt, dict) or \
-                                   len(_saved_opt.get('param_groups', [])) != \
-                                   len(optimizer.param_groups) \
-                                else "lr mismatch (different --hpc-lr-mult)"
-                            print(f"  WARNING: checkpoint optimizer {_why} vs "
-                                  f"this run (HPC group). Starting a fresh "
-                                  f"optimizer for this phase.", flush=True)
+                        # Guarded resume (restore_optimizer_from_checkpoint):
+                        # pre-2026-08-13 checkpoints carry a single-group
+                        # optimizer state (no HPC group) — loading one into
+                        # the two-group optimizer would ValueError or silently
+                        # misalign groups; and a same-commit flag change (e.g.
+                        # --hpc-lr-mult) would silently restore the OLD head
+                        # lr. On any mismatch we fall back to a fresh
+                        # optimizer with a loud warning.
+                        restore_optimizer_from_checkpoint(
+                            optimizer, scheduler, checkpoint_data, rank)
                     if rank == 0:
                         print(f"\n--- Epoch {epoch}: phase {p_start}-{p_end} "
                               f"(lr={phase_lr}) ---", flush=True)
