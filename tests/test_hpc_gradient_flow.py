@@ -32,7 +32,8 @@ from rhan_core.predictive_coding.hpc_level1 import HPCLevel1
 # group clip). Import the real functions — not a re-implementation — so a
 # regression in the trainer's optimizer construction fails HERE, at the gate.
 sys.path.insert(0, 'phase1_training')
-from train_rhan_next import build_next_optimizer, clip_grad_per_group
+from train_rhan_next import (
+    build_next_optimizer, clip_grad_per_group, optimizer_restore_compatible)
 
 _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 _B, _C, _H, _W = 2, 3, 96, 96
@@ -320,17 +321,10 @@ def test_optimizer_restore_guard_rejects_old_lr_ratio():
     wrong = copy.deepcopy(saved)
     for g in wrong['param_groups']:
         g['lr'] = 0.003
-    # The guard's exact logic: same group count but mismatched lr ratio.
-    def _guard_ok(saved_groups, cur_groups):
-        if len(saved_groups) != len(cur_groups):
-            return False
-        saved_lrs = [g.get('lr') for g in saved_groups]
-        cur_lrs = [g['lr'] for g in cur_groups]
-        return all(isinstance(a, (int, float))
-                   and abs(float(a) - float(b)) < 1e-9
-                   for a, b in zip(saved_lrs, cur_lrs))
-    assert _guard_ok(wrong['param_groups'], opt.param_groups) is False
-    assert _guard_ok(saved['param_groups'], opt.param_groups) is True
+    # The guard's real implementation (imported from the trainer — never a
+    # copy in a test file): same group count but mismatched lr ratio.
+    assert optimizer_restore_compatible(wrong, opt) is False
+    assert optimizer_restore_compatible(saved, opt) is True
     del m
     gc.collect()
 
