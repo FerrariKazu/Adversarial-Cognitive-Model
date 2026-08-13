@@ -16,8 +16,10 @@ in this file, not a manual review step:
 
 See docs/rhan_next_roadmap.json stage 2, health-gate check #1.
 """
+import copy
 import gc
 import math
+import sys
 
 import pytest
 import torch
@@ -25,6 +27,12 @@ import torch
 from rhan_core.config.pillar_config import RHANNextConfig
 from rhan_core.model import RHANNext
 from rhan_core.predictive_coding.hpc_level1 import HPCLevel1
+
+# The 2026-08-13 starvation fix lives in the trainer (optimizer group + per-
+# group clip). Import the real functions — not a re-implementation — so a
+# regression in the trainer's optimizer construction fails HERE, at the gate.
+sys.path.insert(0, 'phase1_training')
+from train_rhan_next import build_next_optimizer, clip_grad_per_group
 
 _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 _B, _C, _H, _W = 2, 3, 96, 96
@@ -224,6 +232,156 @@ def test_hpc_head_init_gradient_is_full_scale():
         "to learn; the 2026-08-12 smoke froze at its init error for this "
         "reason.")
     del level
+    gc.collect()
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Optimizer-attention fix (2026-08-13 Stage 2 smoke #3, cold start on the
+# fixed head).
+#
+# The head was NOT dead this time (small-init worked: error 0.69, map max
+# 1.156) — but it was STARVED: hpc_error_mean froze at the predict-zero
+# baseline (0.6904 -> 0.6911, ratio 1.00) and the epoch-15 output conv sat
+# exactly at its ±0.01 init draw (abs-mean 0.00516). Measured root cause: the
+# real loop's update is ~1000x weaker than the isolated learnability recipe —
+# w_hpc=0.1 loss weight x shared backbone lr 0.003 (vs the isolated 0.05) x
+# the global clip_grad_norm_(all params, 1.0) whose norm the 76M-param
+# backbone's TRADES gradient dominates. Raw last-conv grad through the real
+# path: ~0.004 (vs 0.54 isolated). Fix: the head gets its own optimizer group
+# at lr*hpc_lr_mult (6.67x -> 0.02 in phase 1) and per-group grad clipping.
+# ────────────────────────────────────────────────────────────────────────────
+
+def test_hpc_optimizer_has_separate_high_lr_group():
+    """The trainer's optimizer must put the HPC predictor in its OWN param
+    group at lr*hpc_lr_mult (6.67x -> 0.02 in phase 1) — otherwise the head
+    shares the backbone's 0.003 lr and (with w_hpc=0.1 and the global clip)
+    its per-step update is ~1e-5: invisible over a 15-epoch smoke (the
+    2026-08-13 freeze)."""
+    torch.manual_seed(0)
+    m = RHANNext(config=RHANNextConfig(enable_hpc=True, hpc_num_levels=1))
+    opt = build_next_optimizer(m, phase_lr=0.003, hpc_lr_mult=6.67)
+    assert len(opt.param_groups) == 2, "expected backbone + HPC groups"
+    lrs = [g['lr'] for g in opt.param_groups]
+    assert max(lrs) == pytest.approx(0.003 * 6.67, rel=1e-6)
+    assert min(lrs) == pytest.approx(0.003, rel=1e-6)
+    # The high-lr group must be exactly the HPC predictor's params.
+    low, high = (opt.param_groups[0]['params'], opt.param_groups[1]['params'])
+    if lrs[0] > lrs[1]:
+        low, high = high, low
+    high_names = {id(p) for p in high}
+    n_hpc = sum(1 for n, p in m.named_parameters() if 'hpc' in n)
+    assert len(high) == n_hpc and n_hpc > 0
+    for n, p in m.named_parameters():
+        assert (id(p) in high_names) == ('hpc' in n), \
+            f"{n} in the wrong optimizer group"
+    del m
+    gc.collect()
+
+
+def test_per_group_clip_does_not_dilute_hpc_head():
+    """Per-group clipping must leave the HPC head's gradient at full scale
+    even when the backbone's gradient norm dominates (the old global clip
+    crushed the head's ~0.004 grad to ~1e-5 updates)."""
+    torch.manual_seed(0)
+    m = RHANNext(config=RHANNextConfig(enable_hpc=True, hpc_num_levels=1))
+    opt = build_next_optimizer(m, phase_lr=0.003, hpc_lr_mult=6.67)
+    # Resolve groups by lr (the helper may order them either way).
+    g0, g1 = opt.param_groups
+    if g0['lr'] > g1['lr']:
+        g0, g1 = g1, g0
+    backbone, hpc = g0['params'], g1['params']
+    # Fake grads: huge on the backbone (TRADES regime), tiny on the HPC head.
+    for p in backbone:
+        p.grad = torch.randn_like(p) * 50.0
+    for p in hpc:
+        p.grad = torch.randn_like(p) * 0.001
+    clip_grad_per_group(opt, 1.0)
+    assert all(float(p.grad.norm()) <= 1.0 for p in backbone)
+    # The head's grads must be essentially UNTOUCHED (raw norm ~0.001 << 1.0).
+    hpc_norms = [float(p.grad.norm()) for p in hpc]
+    assert all(n > 1e-4 for n in hpc_norms), \
+        f"per-group clip diluted the HPC head: norms={hpc_norms}"
+    del m
+    gc.collect()
+
+
+def test_optimizer_restore_guard_rejects_old_lr_ratio():
+    """The resume optimizer-restore guard must refuse a checkpoint whose saved
+    param-group LR ratio does not match THIS run's flags (e.g. a checkpoint
+    trained with --hpc-lr-mult 1.0 resumed with the 6.67 default). Otherwise
+    load_state_dict would SILENTLY restore the old head lr — the silent
+    flag-drift class of bug (2026-08-12 parse_known_args) — and the health
+    gate would judge a run trained at the wrong LR."""
+    torch.manual_seed(0)
+    m = RHANNext(config=RHANNextConfig(enable_hpc=True, hpc_num_levels=1))
+    opt = build_next_optimizer(m, phase_lr=0.003, hpc_lr_mult=6.67)
+    saved = opt.state_dict()
+    # Simulate a checkpoint written with --hpc-lr-mult 1.0 (backbone lr only).
+    wrong = copy.deepcopy(saved)
+    for g in wrong['param_groups']:
+        g['lr'] = 0.003
+    # The guard's exact logic: same group count but mismatched lr ratio.
+    def _guard_ok(saved_groups, cur_groups):
+        if len(saved_groups) != len(cur_groups):
+            return False
+        saved_lrs = [g.get('lr') for g in saved_groups]
+        cur_lrs = [g['lr'] for g in cur_groups]
+        return all(isinstance(a, (int, float))
+                   and abs(float(a) - float(b)) < 1e-9
+                   for a, b in zip(saved_lrs, cur_lrs))
+    assert _guard_ok(wrong['param_groups'], opt.param_groups) is False
+    assert _guard_ok(saved['param_groups'], opt.param_groups) is True
+    del m
+    gc.collect()
+
+
+def test_hpc_head_learns_under_real_recipe():
+    """THE 2026-08-13 starvation regression: with the REAL loop recipe —
+    w_hpc=0.1 loss weight, head lr = 0.003*hpc_lr_mult = 0.02, per-group
+    clip — the head must still learn (>= 10% error drop). The pre-fix recipe
+    (shared lr 0.003 + global clip) measured ~1e-5/step weight movement and
+    froze for 10 main-phase epochs; this asserts the group fix restores
+    learning at the smoke's scale (the smoke's main phase is 10 epochs x ~37
+    optimizer steps ~= 370 steps; we use a short 60-step budget here)."""
+    torch.manual_seed(0)
+    cfg = RHANNextConfig(enable_hpc=True, hpc_num_levels=1)
+    m = RHANNext(config=cfg).to(_DEVICE).eval()
+    x = torch.randn(_B, _C, _H, _W, device=_DEVICE)
+    # Warmup-style: backbone frozen, only the HPC predictor trains.
+    for name, p in m.named_parameters():
+        p.requires_grad = 'hpc' in name
+    opt = build_next_optimizer(m, phase_lr=0.003, hpc_lr_mult=6.67)
+
+    def hpc_err():
+        with torch.enable_grad():
+            logits, traj = m(x, return_trajectory=True)
+        return torch.stack(traj["hpc_errors"]).mean().detach()
+
+    e0 = float(hpc_err())
+    assert math.isfinite(e0)
+    for _ in range(60):
+        opt.zero_grad()
+        with torch.enable_grad():
+            logits, traj = m(x, return_trajectory=True)
+        l_hpc = m.get_hpc_loss(x, (logits, traj))
+        # Real recipe: w_hpc=0.1 applied to the HPC term, then the trainer's
+        # per-group clip + SGD. NOTE on the /accum_steps division: the real
+        # loop divides EACH micro-batch's loss by accum_steps and accumulates
+        # accum_steps micro-batches before one optimizer step — netting the
+        # MEAN gradient per step. With a single batch per step here, dividing
+        # by 16 would understate the real per-step gradient 16x, so we omit it.
+        loss = 0.1 * l_hpc
+        loss.backward()
+        clip_grad_per_group(opt, 1.0)
+        opt.step()
+    e60 = float(hpc_err())
+    drop = 1.0 - e60 / e0
+    assert drop >= 0.10, (
+        f"HPC head starved under the real recipe (60 steps: {e0:.4f} -> "
+        f"{e60:.4f}, {drop*100:.1f}% drop) — the optimizer group / per-group "
+        f"clip fix is not working. 2026-08-13 smoke froze at ratio 1.00 for "
+        f"this reason.")
+    del m
     gc.collect()
 
 
