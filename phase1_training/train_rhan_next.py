@@ -73,6 +73,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from rhan_core.config.pillar_config import RHANNextConfig
 from rhan_core.model import RHANNext
+from checkpoint_utils import compat_load, current_code_commit, resume_commit_ok
 
 # ── Reuse the frozen v12 pipeline (data, pseudo-labeling, HF, diagnostics) ──
 from train_rhan_v12 import (
@@ -642,6 +643,11 @@ def main():
     best_path = os.path.join(ckpt_dir, f'{args.ckpt_name}_best.pth')
     rolling_path = os.path.join(ckpt_dir, f'{args.ckpt_name}_rolling.pth')
 
+    # Code identity of THIS run, recorded in every checkpoint and enforced at
+    # resume: a checkpoint written by different code must never be resumed
+    # (the 2026-08-12 stale-resume bug that invalidated the Stage 2 smoke).
+    code_commit = current_code_commit()
+
     hf_token = os.environ.get("HF_TOKEN")
     if not hf_token:
         try:
@@ -716,6 +722,24 @@ def main():
         if os.path.exists(rolling_path):
             from checkpoint_utils import compat_load
             checkpoint_data = compat_load(rolling_path, map_location=device)
+            # Code-identity resume guard (2026-08-12 stale-resume bug): a
+            # checkpoint written by DIFFERENT code must never be resumed — the
+            # invalid Stage 2 smoke resumed old dead-head weights at epoch 12
+            # and produced a meaningless health-gate verdict. Legacy
+            # checkpoints (no recorded commit) are refused too: they are by
+            # definition older than this guard. POLICY NOTE: this applies to
+            # the rolling RESUME path only — base-checkpoint loads
+            # (--target-ckpt) and eval loads are unaffected, so the legacy
+            # AIS-v1 artifacts still work as Stage 2's base.
+            _commit_ok, _commit_why = resume_commit_ok(checkpoint_data, code_commit)
+            if not _commit_ok:
+                print(f"\n[FATAL] Refusing to resume {rolling_path}:", flush=True)
+                print(f"  {_commit_why}", flush=True)
+                print("  Resuming across a code change silently invalidates the "
+                      "run. Delete the stale\n  rolling/best artifacts (locally "
+                      "and on HF) and re-run for a genuine cold start.",
+                      flush=True)
+                sys.exit(2)
             raw_model.load_state_dict(checkpoint_data['model'])
             best_acc = checkpoint_data.get('best_acc', 0.0)
             start_epoch = checkpoint_data['epoch'] + 1
@@ -747,6 +771,22 @@ def main():
                               flush=True)
     elif rank == 0:
         print("--force-restart: starting from Epoch 1.", flush=True)
+
+    # Fresh-start telemetry: a cold start (start_epoch == 1) must NOT append to
+    # a diag jsonl left behind by a previous session/code — the health gate's
+    # epoch-1 reference would be polluted (the 2026-08-12 gate compared the old
+    # code's 0.2848 against the new code's 1.0144 within one history). Skipped
+    # in dry-run (a validation invocation must never delete telemetry).
+    if (not args.dry_run and start_epoch == 1 and args.diag_json
+            and os.path.exists(args.diag_json)):
+        try:
+            os.remove(args.diag_json)
+            if rank == 0:
+                print(f"  Fresh start: cleared stale {args.diag_json}", flush=True)
+        except OSError as e:
+            if rank == 0:
+                print(f"  WARNING: could not clear stale {args.diag_json}: {e}",
+                      flush=True)
 
     # ── 7. Training loop ────────────────────────────────────────────────────
     WARMUP_EPOCHS = 5
@@ -926,7 +966,8 @@ def main():
             if rank == 0:
                 torch.save({'model': raw_model.state_dict(),
                             'config': cfg.to_dict(),
-                            'arch': 'rhan_next'}, best_path)
+                            'arch': 'rhan_next',
+                            'code_commit': code_commit}, best_path)
                 sync_to_hf(best_path)
 
         if rank == 0:
@@ -959,7 +1000,8 @@ def main():
                         'scaler': scaler.state_dict(),
                         'best_acc': best_acc,
                         'config': cfg.to_dict(),
-                        'arch': 'rhan_next'}, rolling_path)
+                        'arch': 'rhan_next',
+                        'code_commit': code_commit}, rolling_path)
             sync_to_hf(rolling_path)
             gc.collect()
             torch.cuda.empty_cache()
@@ -984,7 +1026,8 @@ def main():
                   f"(epoch {last_epoch}) as the best artifact.", flush=True)
             torch.save({'model': raw_model.state_dict(),
                         'config': cfg.to_dict(),
-                        'arch': 'rhan_next'}, best_path)
+                        'arch': 'rhan_next',
+                        'code_commit': code_commit}, best_path)
         sync_to_hf(best_path)
         wait_for_hf_sync()
         print(f"{'═'*60}")
