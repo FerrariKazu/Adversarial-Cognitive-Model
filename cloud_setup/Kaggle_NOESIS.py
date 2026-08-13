@@ -2168,6 +2168,36 @@ if DO_STEP2_A and not SKIP_STAGE2_TRAINING:
     if DRY_RUN:
         pre_a_epoch = "(dry-run: not read)"
     else:
+        # Stale-local resume guard (2026-08-12): a smoke rolling checkpoint
+        # left behind by a PREVIOUS session in the same Colab runtime (or
+        # written by older code) must never be resumed — the invalid smoke
+        # resumed old dead-head weights at epoch 12 and produced a meaningless
+        # gate verdict. The trainer refuses it too, but we catch it HERE,
+        # before the ~20-min pseudo-label phase. A same-commit local resume
+        # (legitimate session continuation) still passes.
+        _local_roll = os.path.join("checkpoints", f"{HPC_SMOKE_CKPT}_rolling.pth")
+        if os.path.exists(_local_roll):
+            from checkpoint_utils import current_code_commit
+            try:
+                _c = torch.load(_local_roll, map_location="cpu", weights_only=False)
+                _rec = _c.get("code_commit") if isinstance(_c, dict) else None
+                _cur = current_code_commit()
+                _stale = (_rec is None) or (_rec != _cur)
+            except Exception as e:
+                print(f"  [resume-gate] could not read local {_local_roll}: {e}",
+                      flush=True)
+                _rec, _cur, _stale = None, "?", True
+            if _stale:
+                raise SystemExit(
+                    f"[resume-gate] FATAL: stale local checkpoint {_local_roll}\n"
+                    f"  recorded code_commit={_rec}, current={_cur} — written by a "
+                    f"previous session/code.\n"
+                    f"  Delete it (rm {_local_roll}), delete the HF smoke artifacts "
+                    f"(rolling+best+diag+health), or\n"
+                    f"  restart the runtime, then re-run Step A for a genuine cold "
+                    f"start.")
+            print(f"  [resume-gate] local {os.path.basename(_local_roll)} matches "
+                  f"current commit ({_cur}) — resumable.", flush=True)
         pre_a_epoch = hf_rolling_epoch(HPC_SMOKE_CKPT)
     print(f"  [resume-gate] pre-Step-A HF rolling epoch: {pre_a_epoch}", flush=True)
     # extra_args MUST be separate argv tokens: a space-joined string
