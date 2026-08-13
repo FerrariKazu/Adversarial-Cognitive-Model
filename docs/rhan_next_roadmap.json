@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "roadmap_rev": 4,
+  "roadmap_rev": 5,
   "project": "RHAN-Next",
   "branch": "feature/rhan-next",
   "definition_of_done": "Stage 3 validated checkbox checked, with numbers (not projections) in docs/ARCHITECTURE.md. Do not report the refactor complete before that.",
@@ -124,7 +124,7 @@
       },
       "isolation_verdict": {
         "schema": "stage1_isolation_verdict_v2",
-        "date_utc": "2026-08-11T04:21:22Z",
+        "date_utc": "2026-08-13T12:45:53Z",
         "smoke_pi_d_top2": [
           "car",
           "airplane"
@@ -420,6 +420,23 @@
         "smoke": "runs against the Stage 1 AIS-v1 checkpoint (379/379 keys, stem tap (B,768,12,12)); outputs report/sbr_feasibility/ (probe_summary.json + PNG montages). Slot head UNTRAINED (feasibility of the machinery, not a learned result).",
         "constraints": "never imports/modifies RHANNextConfig (constructs RHANNext(**embedded_config_dict)); never sets enable_sbr=True; never touches the training loop; output never merged into the ablation matrix.",
         "gate": "Interpretation deferred until HPC (Stage 2) validates \u2014 per the agreed sequencing, do NOT schedule or cite before then."
+      },
+      "optimizer_configuration_fix_2026_08_13": {
+        "nature": "OPTIMIZER CONFIGURATION correction - NOT a loss-budget or gate-criteria change; the original pre-registration (w_hpc=0.10, all health-gate criteria) stands unchanged.",
+        "commits": "8bb564f (two-group SGD + per-group clip) + ed05c85 (resume guard + tests)",
+        "w_hpc_unchanged": 0.1,
+        "gate_criteria_unchanged": "all Stage 2 health-gate checks exactly as pre-registered (1 gradient flow, 2 hpc_error_trend >=10%, 3 disable backward-compat, 4 pi_d car/truck ordering, 5 optimizer-group resume guard)",
+        "trigger": "Smoke #3 (genuine cold start @ commit 7c8b39b) froze hpc_error_mean at the predict-zero baseline 0.6904 -> 0.6911 (ratio 1.00) across 15 epochs; epoch-15 output conv sat exactly at its +/-0.01 init draw (abs-mean 0.00516).",
+        "root_cause_measured": "optimizer starvation: w_hpc=0.1 x shared backbone lr 0.003 x global clip_grad_norm_(all 76M params, 1.0) whose norm the backbone TRADES gradient dominates (~1000x attenuation; raw last-conv grad ~0.004 vs 0.54 isolated; per-step |dW| ~1.4e-5 on |W|~0.005).",
+        "fix": "Two SGD param groups: backbone lr=0.003, hpc_stack lr=0.003*6.67=0.02 (phase 1) with per-group grad clip (clip_grad_per_group); resume guard refuses group-count / LR-ratio mismatch (restore_optimizer_from_checkpoint).",
+        "pre_flight_2026_08_13": {
+          "script": "scratch/measure_hpc_dw.py (real base ckpt rhan_next_ais_v1_halting_only_best.pth, STL10-normalized inputs, backbone frozen so only the HPC head per-step |dW| is measured - faithful for this quantity)",
+          "real_recipe_result": "last-conv |dW|/step mean 2.74e-3 (rel 2.85%/step); HPC err 0.1974 -> 0.1799 (8.9% drop over 24 optimizer steps); 201.8x the pre-fix 1.36e-5 per-step movement",
+          "isolated_reference_result": "last-conv |dW|/step 2.27e-3 (rel 2.15%/step) at lr=0.05 / w_hpc=1.0 / no clip (ran post-A on the same weights; the committed test_hpc_head_learns_under_real_recipe 27%-in-60-steps remains the canonical isolated reference)",
+          "verdict": "PROCEED - all 4 criteria PASS (C1 >=5x starved, C2 rel >=1%/step, C3 error declines, C4 within ~10x of isolated). Head movement is in the learnable regime; re-run the full 15-epoch smoke with the SAME health gate.",
+          "caveats": "random normalized inputs -> predict-zero error baseline 0.197 lower than the smoke's real-image ~0.69; real-image gradients are larger, so this is a conservative lower bound on per-step movement"
+        },
+        "next_action": "Re-run the full 15-epoch Stage 2 smoke (same gate). Expect hpc_error_mean flat through epochs 1-5 warmup (HPC frozen - expected) then declining from epoch 6."
       }
     },
     "3": {
