@@ -22,7 +22,10 @@ all gated behind RHANNextConfig toggles (OFF by default = exactly v12):
           EntropyGatedHalting (no step-count penalty — see
           tests/test_gradient_flow.py::test_no_step_count_penalty_in_loss_path).
   * --enable-hpc / --hpc-num-levels (Pillar 1, Stage 2):
-        - loss gains w_hpc * L_hpc (mean hierarchical prediction error).
+        - loss gains w_hpc * L_hpc (mean hierarchical prediction error);
+        - the HPC predictor gets its OWN optimizer group at lr*hpc_lr_mult
+          (default 6.67 -> 0.02 in phase 1) with per-group grad clipping
+          (2026-08-13 starvation fix — see build_next_optimizer).
   * ISOLATION flags (Stage 1 mechanism isolation, Run A/B pattern — each
     ablates exactly ONE AIS sub-mechanism, everything else identical):
         --no-ais-halting          -> entropy gate forced open (cont=1,
@@ -276,6 +279,54 @@ def set_new_component_training(model, trainable):
             param.requires_grad = True
 
 
+def build_next_optimizer(model, phase_lr, hpc_lr_mult=6.67, weight_decay=1e-4):
+    """Two-group SGD: backbone at phase_lr, HPC predictor at phase_lr*hpc_lr_mult.
+
+    2026-08-13 (Stage 2 smoke #3, cold start on the fixed head): the HPC
+    predictor's output conv stayed EXACTLY at its ±0.01 init draw after 15
+    epochs (abs-mean 0.00516), and hpc_error_mean froze at the predict-zero
+    baseline (~0.69 = mean(target^2)) for all 10 main-phase epochs. Root
+    cause: optimizer starvation, not wiring — the isolated learnability test
+    (lr=0.05, no w_hpc cut, no clip) proved the head learns 28%/10 steps, but
+    the real loop attenuated that update ~1000x (w_hpc=0.1 loss weight x
+    shared backbone lr 0.003 x the global clip_grad_norm_(...1.0) whose norm
+    the 76M-param backbone's TRADES gradient dominates). Measured: raw
+    last-conv grad through the real loss path ~0.004 (vs 0.54 isolated),
+    per-step |dW| ~1.4e-5 on |W|~0.005 — invisible.
+
+    Fix: the head gets its own param group at lr*hpc_lr_mult (6.67x -> 0.02
+    in phase 1, matching the proven isolated recipe) and per-group grad
+    clipping (clip_grad_per_group) so the backbone's norm can never dilute
+    it. Loss budget (w_hpc) and the pre-registered health-gate criteria are
+    UNCHANGED.
+    """
+    backbone_params, hpc_params = [], []
+    for name, p in model.named_parameters():
+        if 'hpc' in name:          # hpc_level1.stack.* (the hpc_stack alias
+            hpc_params.append(p)   # never appears in named_parameters)
+        else:
+            backbone_params.append(p)
+    return optim.SGD([
+        {'params': backbone_params, 'lr': phase_lr},
+        {'params': hpc_params, 'lr': phase_lr * hpc_lr_mult},
+    ], momentum=0.9, weight_decay=weight_decay, foreach=True)
+
+
+def clip_grad_per_group(optimizer, max_norm=1.0):
+    """Per-group grad clipping (2026-08-13).
+
+    Each param group is clipped to ITS OWN max_norm budget. This is what
+    keeps the HPC head's update alive: under the old single global clip, the
+    backbone's TRADES gradient owns the norm and the head's tiny grad got
+    crushed to ~1e-5 updates. Groups with no gradients (e.g. the frozen HPC
+    stack during warmup) are skipped.
+    """
+    for group in optimizer.param_groups:
+        params = [p for p in group['params'] if p.grad is not None]
+        if params:
+            nn.utils.clip_grad_norm_(params, max_norm)
+
+
 def dynamic_trades_loss_next(model, imgs, labels, weights, x_adv,
                              beta_base, w_recon, w_hpc,
                              precision_recon_enabled: bool = True):
@@ -406,6 +457,13 @@ def main():
                         help='HPC prediction-error loss weight (w_hpc — a '
                              'SEPARATE slot from w_recon; 0.0 disables the '
                              'term without touching recon weighting)')
+    parser.add_argument('--hpc-lr-mult', type=float, default=6.67,
+                        help='HPC predictor optimizer-group LR multiplier '
+                             '(2026-08-13 starvation fix: the head learns at '
+                             'lr*hpc_lr_mult = 0.02 in phase 1; the shared '
+                             'backbone lr 0.003 + w_hpc=0.1 + global clip '
+                             'starved it to ~1e-5 updates/step — see '
+                             'build_next_optimizer. Loss budget unchanged)')
     parser.add_argument('--ais-halt-threshold', type=float, default=0.35,
                         help='EntropyGatedHalting: halt when uncertainty < this')
     parser.add_argument('--ais-continuation-softness', type=float, default=8.0)
@@ -474,6 +532,10 @@ def main():
             print(f"    HPC: levels={cfg.hpc_num_levels}, "
                   f"w_hpc={cfg.hpc_error_weight}, "
                   f"targets={cfg.hpc_num_levels and 'edge_map'}")
+            print(f"    HPC optimizer group: lr x {args.hpc_lr_mult} "
+                  f"(head lr {CURRICULUM[0][-1] * args.hpc_lr_mult:.4f} "
+                  f"in phase 1) + per-group grad clip "
+                  f"(2026-08-13 starvation fix)")
         print(f"  Loss weights: trades={args.w_trades}, recon={args.w_recon}"
               + (f", hpc={args.w_hpc}" if cfg.enable_hpc else ""))
         print(f"  Max epochs: {args.max_epochs}")
@@ -804,18 +866,61 @@ def main():
                 phase_lr = lr
                 if current_phase_start != p_start:
                     current_phase_start = p_start
-                    optimizer = optim.SGD(model.parameters(), lr=phase_lr,
-                                          momentum=0.9, weight_decay=1e-4,
-                                          foreach=True)
+                    optimizer = build_next_optimizer(
+                        raw_model, phase_lr, args.hpc_lr_mult)
                     scheduler = optim.lr_scheduler.CosineAnnealingLR(
                         optimizer, T_max=p_end - p_start + 1,
                         eta_min=phase_lr * 0.1)
                     if (epoch == start_epoch and checkpoint_data is not None
                             and 'optimizer' in checkpoint_data):
-                        optimizer.load_state_dict(checkpoint_data['optimizer'])
-                        scheduler.load_state_dict(checkpoint_data['scheduler'])
-                        if rank == 0:
-                            print("Restored optimizer/scheduler state.", flush=True)
+                        # Group-count guard: pre-2026-08-13 checkpoints carry a
+                        # single-group optimizer state (no HPC group). Loading
+                        # one into the two-group optimizer would ValueError or
+                        # silently misalign groups — fall back to a fresh
+                        # optimizer instead (the code-identity resume guard
+                        # already refuses old-code checkpoints; this is the
+                        # belt-and-suspenders case of a same-commit flag
+                        # change like --hpc-lr-mult).
+                        # Group-count + LR-ratio guard: pre-2026-08-13
+                        # checkpoints carry a single-group optimizer state (no
+                        # HPC group), and a same-commit flag change (e.g. a
+                        # --hpc-lr-mult 1.0 checkpoint resumed with the 6.67
+                        # default) would otherwise have load_state_dict
+                        # SILENTLY restore the OLD head lr — the exact
+                        # silent-flag-drift class of bug this project's guards
+                        # exist to catch (2026-08-12 parse_known_args). On any
+                        # mismatch we fall back to a fresh optimizer with a
+                        # loud warning.
+                        _saved_opt = checkpoint_data['optimizer']
+                        _ok_opt = False
+                        if isinstance(_saved_opt, dict):
+                            _saved_groups = _saved_opt.get('param_groups', [])
+                            if len(_saved_groups) == len(optimizer.param_groups):
+                                # lr ratio must match THIS run's flags.
+                                _saved_lrs = [g.get('lr') for g in _saved_groups]
+                                _cur_lrs = [g['lr'] for g in optimizer.param_groups]
+                                _ok_opt = all(
+                                    isinstance(a, (int, float))
+                                    and abs(float(a) - float(b)) < 1e-9
+                                    for a, b in zip(_saved_lrs, _cur_lrs))
+                        if _ok_opt:
+                            optimizer.load_state_dict(_saved_opt)
+                            scheduler.load_state_dict(
+                                checkpoint_data['scheduler'])
+                            if rank == 0:
+                                print("Restored optimizer/scheduler state.",
+                                      flush=True)
+                        elif rank == 0:
+                            _why = (f"group count {len(_saved_opt.get('param_groups', []))}"
+                                    if isinstance(_saved_opt, dict)
+                                    else "no optimizer state") \
+                                if not isinstance(_saved_opt, dict) or \
+                                   len(_saved_opt.get('param_groups', [])) != \
+                                   len(optimizer.param_groups) \
+                                else "lr mismatch (different --hpc-lr-mult)"
+                            print(f"  WARNING: checkpoint optimizer {_why} vs "
+                                  f"this run (HPC group). Starting a fresh "
+                                  f"optimizer for this phase.", flush=True)
                     if rank == 0:
                         print(f"\n--- Epoch {epoch}: phase {p_start}-{p_end} "
                               f"(lr={phase_lr}) ---", flush=True)
@@ -909,7 +1014,7 @@ def main():
 
             if (batch_idx + 1) % args.accum_steps == 0:
                 scaler.unscale_(optimizer)
-                nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                clip_grad_per_group(optimizer, 1.0)
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad(set_to_none=True)
@@ -932,7 +1037,7 @@ def main():
 
         if num_batches % args.accum_steps != 0:
             scaler.unscale_(optimizer)
-            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            clip_grad_per_group(optimizer, 1.0)
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad(set_to_none=True)
