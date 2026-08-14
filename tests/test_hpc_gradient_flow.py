@@ -427,3 +427,98 @@ def test_hpc_head_learns_under_optimization():
         f"this reason.")
     del m
     gc.collect()
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# NaN-gradient poisoning (2026-08-15 Stage 2 smoke #4 — THE root cause of the
+# ratio-1.00 freeze).
+#
+# The v2 smoke ran a GENUINELY clean 15 epochs under the fixed two-group
+# optimizer and still froze at ratio 1.00 — and checkpoint diffing showed ZERO
+# weight change anywhere (not just the head): even the backbone (TRADES CE at
+# lr 0.003) never moved. Root cause: the trainer's GradScaler had collapsed to
+# scale 0, so optimizer.step() was silently skipped for every param group.
+# The scaler collapsed because 287 backbone params received NaN gradients on
+# EVERY backward. The NaN source: the HPC target path. In the full-model
+# wiring the foveal crop x_foveal is differentiable back through grid_sample
+# into the gaze action -> backbone, and the Sobel magnitude's sqrt backward
+# is 1/(2*sqrt(gx^2+gy^2)) -> inf at flat patches (gx=gy=0 exactly, which
+# real images contain and which fp16 underflow also fabricates on noise).
+# inf * 0 = NaN poisons every backbone param reachable from the gaze policy.
+# Fix: the extractors are "pure target generators and never contribute
+# gradients" (feature_targets.py module contract) — now enforced by
+# detaching the extractor output (and extract_target). Gradient flows ONLY
+# through the prediction path (head -> belief -> backbone).
+#
+# The existing tests above missed this because they feed RANDOM-NOISE crops,
+# where gx^2+gy^2 is nonzero almost everywhere — the inf backward fires only
+# at EXACT zeros. These tests pin the fix with the exact failure condition.
+# ────────────────────────────────────────────────────────────────────────────
+
+def test_flat_region_crop_does_not_poison_backbone_grads():
+    """HARD assertion — the 2026-08-15 NaN-poisoning regression.
+
+    A crop containing a large constant (flat) region drives gx=gy=0 exactly,
+    where the Sobel magnitude's sqrt backward is inf; if the target path is
+    NOT detached, inf*0 = NaN reaches the backbone through grid_sample ->
+    gaze action and the trainer's GradScaler collapses (the v2 smoke's
+    ratio-1.00 freeze: ZERO weight change for all 15 epochs). Assert the full
+    model's L_hpc backward leaves every param's grad NaN-free.
+    """
+    torch.manual_seed(0)
+    cfg = RHANNextConfig(enable_hpc=True, hpc_num_levels=1)
+    m = RHANNext(config=cfg).to(_DEVICE).train()
+    # A real-image-like input: structured content in the top half, a fully
+    # constant (flat) bottom half where gx=gy=0 exactly.
+    x = torch.randn(_B, _C, _H, _W, device=_DEVICE) * 0.3
+    x[:, :, _H // 2:, :] = 0.5                      # flat patch: no gradients
+    logits, traj = m(x, return_trajectory=True)
+    l_hpc = m.get_hpc_loss(x, (logits, traj))
+    assert math.isfinite(float(l_hpc.detach())), "L_hpc must be finite"
+    l_hpc.backward()
+    bad = [(n, p) for n, p in m.named_parameters()
+           if p.grad is not None and (not torch.isfinite(p.grad).all())]
+    assert not bad, (
+        f"NaN/inf gradients reached {len(bad)} params via the HPC target "
+        "path (e.g. " + bad[0][0] + "). The extractor must never contribute "
+        "gradients — a NaN here collapses the trainer's GradScaler to scale "
+        "0 and silently disables optimizer.step() for the whole run "
+        "(2026-08-15 smoke freeze: ratio 1.00, zero weight change).")
+    # And the head itself must still receive a healthy gradient through the
+    # prediction path (the detach must not detach the PREDICTION).
+    head_grabs = [float(p.grad.abs().sum()) for n, p in m.named_parameters()
+                  if 'hpc' in n and p.grad is not None]
+    assert head_grabs and all(g > 0 for g in head_grabs), (
+        "HPC head params must still receive gradients through the prediction "
+        "path — the detach must only sever the TARGET branch.")
+    del m
+    gc.collect()
+
+
+def test_extractor_output_is_detached_contract_enforced():
+    """The extractor contract ("never contribute gradients") must be ENFORCED,
+    not just documented: EdgeMapExtractor's output (and extract_target's) must
+    be detached, so no future wiring can re-introduce the NaN-poisoning path.
+    """
+    torch.manual_seed(0)
+    level = HPCLevel1(embed_dim=768, tap_layer="foveal_crop").to(_DEVICE)
+    lvl = level.stack.levels[0]
+    # Flat crop: gx=gy=0 exactly — the condition that makes the un-detached
+    # sqrt backward produce inf (and NaN upstream under real wiring).
+    flat = torch.ones(4, 3, 48, 48, device=_DEVICE, requires_grad=True) * 0.5
+    raw = lvl.extractor(flat)
+    assert not raw.requires_grad, "EdgeMapExtractor output must be detached"
+    assert raw.grad_fn is None, "EdgeMapExtractor output must be detached"
+    tgt = lvl.extract_target(flat)
+    assert not tgt.requires_grad, "extract_target output must be detached"
+    # Values still correct after the detach (the dead-head rescale contract).
+    assert float(raw.min()) >= 0.0 and float(raw.max()) <= 1.0
+    assert torch.allclose(tgt, raw * lvl.TARGET_SCALE + lvl.TARGET_SHIFT)
+    # The PREDICTION side must remain attached: error still flows to belief.
+    belief = torch.randn(4, 512, device=_DEVICE, requires_grad=True)
+    pred, err, err_map = level(belief, flat)
+    assert pred.requires_grad and err.requires_grad
+    err.mean().backward()
+    assert belief.grad is not None and belief.grad.abs().sum().item() > 0
+    del level
+    gc.collect()

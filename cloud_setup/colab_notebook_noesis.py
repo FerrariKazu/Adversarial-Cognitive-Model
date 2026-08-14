@@ -2174,42 +2174,64 @@ def health_verdict_stage2(rows):
                 "reasons": ["no --diag-json rows found (smoke crashed before "
                             "completing an epoch)"]}
     reasons, healthy = [], True
-    e1 = rows[0].get('hpc_error_mean')
-    eN = rows[-1].get('hpc_error_mean')
-    if e1 is None or eN is None or float(e1) <= 0:
+    # Epoch-span guard (2026-08-14): a trend verdict must compare TWO DISTINCT
+    # logged epochs. A resume-only session whose diag carried just its final
+    # epoch degenerated the check into a self-comparison ("epoch 15 0.6906 ->
+    # epoch 15 0.6906, ratio 1.00") — that 2026-08-13 verdict was NOT evidence
+    # the head failed to learn; it was the gate comparing a number to itself.
+    # The trainer now carries the run's first-epoch summary in the rolling
+    # checkpoint ('first_epoch_diag') and prepends it to --diag-json on
+    # resume, so rows[0] is the true epoch-1 baseline. If a single-epoch diag
+    # still shows up, say "not judgeable" instead of fabricating a ratio.
+    epochs = sorted({r.get('epoch') for r in rows if r.get('epoch') is not None})
+    if len(epochs) < 2:
         healthy = False
-        reasons.append(f"HPC telemetry missing/zero (epoch-1 hpc_error_mean="
-                       f"{e1}, final={eN}) — the smoke must log hpc_error_mean "
-                       f"per epoch (RHANNextEpochDiagnostics adds it when "
-                       f"hpc_errors are collected)")
+        reasons.append(f"HPC trend NOT judgeable: telemetry spans only "
+                       f"{len(epochs)} logged epoch(s) ({epochs or 'none'}) — "
+                       f"the trend check needs >= 2 DISTINCT epochs (epoch-1 "
+                       f"baseline vs final). A single-epoch diag means the "
+                       f"resume did not carry the epoch-1 baseline forward "
+                       f"(trainer first_epoch_diag); re-run the smoke's full "
+                       f"schedule.")
     else:
-        e1, eN = float(e1), float(eN)
-        emax = max(float(r.get('hpc_error_mean', 0.0)) for r in rows)
-        ratio = eN / e1
-        if eN > (1.0 - HPC_TREND_MIN_DECREASE) * e1:
+        e1_row = min(rows, key=lambda r: r.get('epoch', 0))
+        eN_row = max(rows, key=lambda r: r.get('epoch', 0))
+        e1 = e1_row.get('hpc_error_mean')
+        eN = eN_row.get('hpc_error_mean')
+        if e1 is None or eN is None or float(e1) <= 0:
             healthy = False
-            reasons.append(f"HPC prediction error did NOT decrease >= "
-                           f"{HPC_TREND_MIN_DECREASE*100:.0f}% (epoch "
-                           f"{rows[0]['epoch']} {e1:.4f} -> epoch "
-                           f"{rows[-1]['epoch']} {eN:.4f}, ratio {ratio:.2f})")
-        if emax > HPC_EXPLOSION_RATIO * e1:
-            healthy = False
-            reasons.append(f"HPC prediction error EXPLODED: max over epochs "
-                           f"{emax:.4f} > {HPC_EXPLOSION_RATIO:.0f}x the "
-                           f"epoch-1 value {e1:.4f}")
-        emap_std = rows[-1].get('hpc_error_map_std')
-        emap_max = rows[-1].get('hpc_error_map_max')
-        if emap_std is not None and float(emap_std) < 1e-6 and eN > 1e-8:
-            reasons.append(f"WARNING (not gating): HPC error-map std collapsed "
-                           f"to {emap_std} while error is non-zero — check the "
-                           f"error map is not degenerate")
+            reasons.append(f"HPC telemetry missing/zero (epoch-1 hpc_error_mean="
+                           f"{e1}, final={eN}) — the smoke must log hpc_error_mean "
+                           f"per epoch (RHANNextEpochDiagnostics adds it when "
+                           f"hpc_errors are collected)")
         else:
-            reasons.append(f"HPC prediction error trend OK: epoch "
-                           f"{rows[0]['epoch']} {e1:.4f} -> epoch "
-                           f"{rows[-1]['epoch']} {eN:.4f} (ratio {ratio:.2f}), "
-                           f"max {emax:.4f}; final error-map "
-                           f"min/max/std = {rows[-1].get('hpc_error_map_min')} / "
-                           f"{emap_max} / {emap_std}")
+            e1, eN = float(e1), float(eN)
+            emax = max(float(r.get('hpc_error_mean', 0.0)) for r in rows)
+            ratio = eN / e1
+            if eN > (1.0 - HPC_TREND_MIN_DECREASE) * e1:
+                healthy = False
+                reasons.append(f"HPC prediction error did NOT decrease >= "
+                               f"{HPC_TREND_MIN_DECREASE*100:.0f}% (epoch "
+                               f"{e1_row['epoch']} {e1:.4f} -> epoch "
+                               f"{eN_row['epoch']} {eN:.4f}, ratio {ratio:.2f})")
+            if emax > HPC_EXPLOSION_RATIO * e1:
+                healthy = False
+                reasons.append(f"HPC prediction error EXPLODED: max over epochs "
+                               f"{emax:.4f} > {HPC_EXPLOSION_RATIO:.0f}x the "
+                               f"epoch-1 value {e1:.4f}")
+            emap_std = eN_row.get('hpc_error_map_std')
+            emap_max = eN_row.get('hpc_error_map_max')
+            if emap_std is not None and float(emap_std) < 1e-6 and eN > 1e-8:
+                reasons.append(f"WARNING (not gating): HPC error-map std collapsed "
+                               f"to {emap_std} while error is non-zero — check the "
+                               f"error map is not degenerate")
+            else:
+                reasons.append(f"HPC prediction error trend OK: epoch "
+                               f"{e1_row['epoch']} {e1:.4f} -> epoch "
+                               f"{eN_row['epoch']} {eN:.4f} (ratio {ratio:.2f}), "
+                               f"max {emax:.4f}; final error-map "
+                               f"min/max/std = {eN_row.get('hpc_error_map_min')} / "
+                               f"{emap_max} / {emap_std}")
 
     pd = rows[-1].get('pi_d_per_class', {})
     top2 = sorted(pd.items(), key=lambda kv: -kv[1])[:2]

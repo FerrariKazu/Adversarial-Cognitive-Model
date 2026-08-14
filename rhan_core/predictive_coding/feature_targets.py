@@ -48,7 +48,21 @@ class EdgeMapExtractor(nn.Module):
         self.register_buffer("sobel_y", sobel_y, persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """(B, C, H, W) -> (B, 1, H, W) edge magnitude, [0, 1]."""
+        """(B, C, H, W) -> (B, 1, H, W) edge magnitude, [0, 1].
+
+        DETACHED output (2026-08-15): these extractors are "pure target
+        generators and never contribute gradients" (module contract) — but
+        nothing enforced it, and in the full-model wiring the crop x_foveal
+        is differentiable back through grid_sample into the gaze action ->
+        backbone. The Sobel magnitude's sqrt backward is inf at flat patches
+        (gx^2+gy^2 = 0 -> 1/(2*sqrt(x)) -> inf), so inf*0 = NaN poisoned the
+        backbone's gradients on every flat region of real images. The NaN
+        grads collapsed the trainer's GradScaler to scale 0, silently
+        disabling optimizer.step() for ALL params across a whole 15-epoch
+        smoke (ratio-1.00 freeze — the 2026-08-13 "starvation" smoke never
+        trained anything). Detaching the output enforces the documented
+        contract at the boundary where it is declared.
+        """
         C = x.shape[1]
         # Depthwise Sobel (kernel expanded to (C, 1, 3, 3)) so any channel
         # count works; magnitude collapses channels by max.
@@ -57,7 +71,7 @@ class EdgeMapExtractor(nn.Module):
         mag = (gx ** 2 + gy ** 2).sqrt()                    # (B, C, H, W)
         mag = mag.max(dim=1, keepdim=True).values           # (B, 1, H, W)
         peak = mag.amax(dim=(2, 3), keepdim=True) + 1e-8
-        return (mag / peak).clamp(0.0, 1.0)
+        return (mag / peak).clamp(0.0, 1.0).detach()
 
 
 class OrientationMapExtractor(nn.Module):
@@ -77,7 +91,13 @@ class OrientationMapExtractor(nn.Module):
         self.register_buffer("sobel_y", sobel_y, persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """(B, C, H, W) -> (B, 2, H, W) sin/cos orientation in [-1, 1]."""
+        """(B, C, H, W) -> (B, 2, H, W) sin/cos orientation in [-1, 1].
+
+        DETACHED output (2026-08-15): same contract as EdgeMapExtractor — the
+        extractor is a pure target generator and never contributes gradients
+        (see EdgeMapExtractor.forward for the NaN-poisoning mechanism this
+        prevents).
+        """
         C = x.shape[1]
         gx = F.conv2d(x, self.sobel_x.expand(C, 1, 3, 3), padding=1, groups=C)
         gy = F.conv2d(x, self.sobel_y.expand(C, 1, 3, 3), padding=1, groups=C)
@@ -86,7 +106,8 @@ class OrientationMapExtractor(nn.Module):
         mag = (gx ** 2 + gy ** 2).sqrt().max(dim=1, keepdim=True).values
         # Use the mean angle per spatial location across channels.
         theta = theta.mean(dim=1, keepdim=True)
-        return torch.cat([torch.sin(theta), torch.cos(theta)], dim=1) * (mag > 1e-6)
+        return (torch.cat([torch.sin(theta), torch.cos(theta)], dim=1)
+                * (mag > 1e-6)).detach()
 
 
 class ShapeEmbeddingExtractor(nn.Module):
