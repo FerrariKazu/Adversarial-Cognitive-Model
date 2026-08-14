@@ -405,6 +405,66 @@ def restore_optimizer_from_checkpoint(optimizer, scheduler, checkpoint_data,
     return False
 
 
+def ensure_diag_baseline(diag_path, baseline_row):
+    """Make `baseline_row` (the run's first-epoch telemetry summary) the first
+    row of a --diag-json file, preserving any existing rows.
+
+    Why: the health gate's trend check compares rows[0] (the epoch-1
+    baseline) against the last row. A session that resumes from a rolling
+    checkpoint and appends only its own epochs leaves a single-epoch diag —
+    the gate then compares the final epoch to ITSELF (ratio 1.00), which
+    reads as a "did not learn" verdict no matter what the model did (the
+    2026-08-13 Stage 2 smoke: "epoch 15 0.6906 -> epoch 15 0.6906, ratio
+    1.00"). The rolling checkpoint carries the run's first-epoch summary in
+    'first_epoch_diag'; this prepends it so the trend reference survives the
+    checkpoint boundary.
+
+    Idempotent: a file that already starts with the baseline's epoch is left
+    untouched (repeated resumes must not duplicate the baseline).
+    Returns True when the baseline is (or already was) the first row.
+    """
+    if not isinstance(baseline_row, dict) or baseline_row.get('epoch') is None:
+        return False
+    base_epoch = int(baseline_row['epoch'])
+    existing = ''
+    first = None
+    if os.path.exists(diag_path):
+        try:
+            with open(diag_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        first = json.loads(line).get('epoch')
+                        break
+            if first == base_epoch:
+                return True                     # baseline already first
+        except (OSError, ValueError):
+            first = None
+        try:
+            with open(diag_path) as f:
+                existing = f.read()
+        except OSError as e:
+            print(f"  WARNING: could not read {diag_path} for baseline "
+                  f"prepend: {e}", flush=True)
+            return False
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(diag_path)), exist_ok=True)
+        with open(diag_path, 'w') as f:
+            f.write(json.dumps(baseline_row) + '\n')
+            if existing and not existing.endswith('\n'):
+                existing += '\n'
+            f.write(existing)
+    except OSError as e:
+        print(f"  WARNING: could not prepend epoch-{base_epoch} baseline to "
+              f"{diag_path}: {e}", flush=True)
+        return False
+    print(f"  Resume telemetry: prepended epoch-{base_epoch} baseline to "
+          f"{os.path.basename(diag_path)} — the health gate's trend check "
+          f"now compares epoch {base_epoch} vs the final epoch, never an "
+          f"epoch against itself.", flush=True)
+    return True
+
+
 def dynamic_trades_loss_next(model, imgs, labels, weights, x_adv,
                              beta_base, w_recon, w_hpc,
                              precision_recon_enabled: bool = True):
@@ -912,6 +972,17 @@ def main():
     elif rank == 0:
         print("--force-restart: starting from Epoch 1.", flush=True)
 
+    # ── Telemetry baseline carried across resume boundaries (2026-08-14) ────
+    # The health gate's trend check compares the FIRST logged epoch of the RUN
+    # against the last. The rolling checkpoint stores the run's first-epoch
+    # summary ('first_epoch_diag'); a resumed session prepends it to
+    # --diag-json so rows[0] is always the true epoch-1 baseline — never a
+    # session-local epoch that makes the gate compare a number to itself (the
+    # 2026-08-13 Stage 2 verdict "epoch 15 0.6906 -> epoch 15 0.6906, ratio
+    # 1.00" was exactly that self-comparison, not evidence about the head).
+    first_epoch_diag = (checkpoint_data.get('first_epoch_diag')
+                        if isinstance(checkpoint_data, dict) else None)
+
     # Fresh-start telemetry: a cold start (start_epoch == 1) must NOT append to
     # a diag jsonl left behind by a previous session/code — the health gate's
     # epoch-1 reference would be polluted (the 2026-08-12 gate compared the old
@@ -927,6 +998,15 @@ def main():
             if rank == 0:
                 print(f"  WARNING: could not clear stale {args.diag_json}: {e}",
                       flush=True)
+
+    # Resume telemetry continuity: prepend the carried epoch-1 baseline so a
+    # session that resumes and logs only its own epochs still yields a diag
+    # whose rows[0] is the run's first logged epoch (the gate needs >= 2
+    # DISTINCT epochs; a single-epoch diag degenerates the trend check into a
+    # self-comparison — the 2026-08-13 verdict). Skipped in dry-run.
+    if (not args.dry_run and start_epoch > 1 and args.diag_json
+            and first_epoch_diag):
+        ensure_diag_baseline(args.diag_json, first_epoch_diag)
 
     # ── 7. Training loop ────────────────────────────────────────────────────
     WARMUP_EPOCHS = 5
@@ -1128,12 +1208,19 @@ def main():
             diagnostics.report(epoch, eps)
             if args.diag_json and rank == 0:
                 try:
+                    d = diagnostics.summary_dict(
+                        epoch, eps,
+                        tr_acc=100.0 * correct / max(n_total, 1),
+                        te_acc=val_acc)
                     with open(args.diag_json, 'a') as f:
-                        f.write(json.dumps(diagnostics.summary_dict(
-                            epoch, eps,
-                            tr_acc=100.0 * correct / max(n_total, 1),
-                            te_acc=val_acc))
-                                + '\n')
+                        f.write(json.dumps(d) + '\n')
+                    # Capture the run's first logged epoch ONCE (cold start:
+                    # epoch 1; a resume with no carried baseline: the first
+                    # epoch of this session). Never overwrite a carried
+                    # baseline — the gate's trend reference must stay the
+                    # run's epoch 1 across every subsequent session.
+                    if first_epoch_diag is None:
+                        first_epoch_diag = d
                 except OSError as e:
                     print(f"  WARNING: could not write --diag-json: {e}",
                           flush=True)
@@ -1146,6 +1233,7 @@ def main():
                         'best_acc': best_acc,
                         'config': cfg.to_dict(),
                         'arch': 'rhan_next',
+                        'first_epoch_diag': first_epoch_diag,
                         'code_commit': code_commit}, rolling_path)
             sync_to_hf(rolling_path)
             gc.collect()
