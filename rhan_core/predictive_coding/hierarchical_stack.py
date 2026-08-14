@@ -125,9 +125,24 @@ class EdgeFeatureLevelPredictor(LevelPredictor, nn.Module):
         2026-08-12 dead-head fix (a [0, 1] target against a [-1, 1] head
         forced the network to learn an offset through a saturating
         activation; the smoke's prediction error froze at its init value).
+
+        DETACHED (2026-08-15): the target is a bottom-up *actual* produced by
+        the non-learnable EdgeMapExtractor, so it must never contribute
+        gradients (feature_targets.py module contract: "pure target
+        generators and never contribute gradients"). In the full-model wiring
+        the crop x_foveal is differentiable back through grid_sample into the
+        gaze action -> backbone, and the Sobel magnitude's sqrt backward is
+        inf at flat patches (gx^2+gy^2 = 0 -> 1/(2*sqrt(x)) -> inf), so
+        inf*0 = NaN poisoned the backbone's gradients at every flat region of
+        real images. The NaN backbone grads collapsed the trainer's
+        GradScaler to scale 0, silently disabling optimizer.step() for ALL
+        params across the entire 15-epoch smoke (zero weight change — the
+        observed ratio-1.00 freeze was NOT optimizer starvation; nothing
+        trained at all). Detaching here keeps gradient flowing through the
+        prediction path (head -> belief -> backbone) only.
         """
         t = self.extractor(x_foveal)          # (B, 1, H, W) Sobel in [0, 1]
-        return t * self.TARGET_SCALE + self.TARGET_SHIFT
+        return (t * self.TARGET_SCALE + self.TARGET_SHIFT).detach()
 
 
 class HierarchicalPredictiveStack(nn.Module):
