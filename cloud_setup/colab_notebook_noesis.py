@@ -1970,11 +1970,17 @@ SKIP_STAGE2_TRAINING = False  # eval-only mode (needs rhan_next_hpc_only_best.pt
 SMOKE2_EPOCHS    = 15      # per protocol (10-15); the trend check compares epoch 1 vs SMOKE2_EPOCHS
 
 # Artifact names (matrix C label + smoke/full variants).
-HPC_SMOKE_CKPT   = "rhan_next_hpc_only_smoke"
+# v4: FRESH smoke name — the bare "rhan_next_hpc_only_smoke" name still carries
+# stale pre-fix rolling artifacts on HF (written by commit feb166f), which the
+# trainer's code-identity resume guard correctly refuses to resume under the
+# fixed code (339591d). A new name forces a genuine cold start: epoch 1 is
+# re-captured under the fixed pipeline, so the gate's trend check compares a
+# real epoch-1 baseline vs epoch-15 (never a resume-only self-comparison).
+HPC_SMOKE_CKPT   = "rhan_next_hpc_only_smoke_v4"
 HPC_FULL_CKPT    = "rhan_next_hpc_only"       # == ABLATION_MATRIX['C_hpc_only']['label']
-HPC_SMOKE_DIAG   = "report/rhan_next_hpc_only_smoke_diag.jsonl"
+HPC_SMOKE_DIAG   = "report/rhan_next_hpc_only_smoke_v4_diag.jsonl"
 HPC_FULL_DIAG    = "report/rhan_next_hpc_only_diag.jsonl"
-HPC_HEALTH_JSON  = "report/rhan_next_hpc_only_smoke_health.json"
+HPC_HEALTH_JSON  = "report/rhan_next_hpc_only_smoke_v4_health.json"
 
 STEP2_C_MAIN     = "report/sweep_stage2_hpc_only"
 STEP2_C_MAIN100  = STEP2_C_MAIN + "_pgd100"
