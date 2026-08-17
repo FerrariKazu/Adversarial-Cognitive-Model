@@ -58,14 +58,23 @@ def _extract_gate(nb_path):
     namespace holding the two constants it references.
     """
     tree = ast.parse(nb_path.read_text())
-    fn = next((n for n in ast.walk(tree)
-               if isinstance(n, ast.FunctionDef)
-               and n.name == "health_verdict_stage2"), None)
-    assert fn is not None, f"health_verdict_stage2 not found in {nb_path}"
-    mod = ast.Module(body=[fn], type_ignores=[])
-    ast.fix_missing_locations(mod)
-    ns = {"HPC_TREND_MIN_DECREASE": 0.10, "HPC_EXPLOSION_RATIO": 10.0}
-    exec(compile(mod, str(nb_path), "exec"), ns)
+    # Extract the gate together with its truck_watch_from_pi_d helper (the
+    # gate calls it for the non-blocking WATCH metric).
+    fns = []
+    for name in ("truck_watch_from_pi_d", "health_verdict_stage2"):
+        fn = next((n for n in ast.walk(tree)
+                   if isinstance(n, ast.FunctionDef) and n.name == name), None)
+        assert fn is not None, f"{name} not found in {nb_path}"
+        mod = ast.Module(body=[fn], type_ignores=[])
+        ast.fix_missing_locations(mod)
+        fns.append(mod)
+    ns = {"HPC_TREND_MIN_DECREASE": 0.10, "HPC_EXPLOSION_RATIO": 10.0,
+          "PI_D_REF_MIN": 0.2478, "PI_D_REF_MAX": 0.3860,
+          "PI_D_REF_STD": 0.0378,
+          "PI_D_REF_BAND_LO": 0.2478 - 2.0 * 0.0378,
+          "PI_D_REF_BAND_HI": 0.3860 + 2.0 * 0.0378}
+    for mod in fns:
+        exec(compile(mod, str(nb_path), "exec"), ns)
     return ns["health_verdict_stage2"]
 
 
