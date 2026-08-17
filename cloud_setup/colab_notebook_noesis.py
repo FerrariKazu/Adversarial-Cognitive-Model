@@ -1963,7 +1963,13 @@ for _p in (_REPO_ROOT, os.path.join(_REPO_ROOT, "phase1_training")):
 
 # ── Stage 2 toggles (mirror the Stage 1 toggles above) ──────────────────────
 DO_STAGE2        = True
-DO_STEP2_A       = True    # smoke: SMOKE2_EPOCHS phase-1 (ε=0.031) epochs
+DO_STEP2_A       = False   # smoke ALREADY COMPLETE (v4, epoch 15, commit 3eef245). The
+#                               HF v4 rolling artifact predates the 14c9b75 gate
+#                               amendment, so the code-identity guard would refuse
+#                               a resume; per the 2026-08-16 amendment the gate
+#                               re-scores the EXISTING v4 telemetry (no retraining)
+#                               and Step B cold-starts from the AIS-v1 base (no
+#                               rhan_next_hpc_only* artifacts on HF → no conflict).
 DO_STEP2_B       = True    # full 60-epoch 3-phase run (gated on the Stage 2 health gate)
 DO_STEP2_C       = True    # THREE-WAY 5-seed matched eval + PGD-100 + verdict recorder
 SKIP_STAGE2_TRAINING = False  # eval-only mode (needs rhan_next_hpc_only_best.pth)
