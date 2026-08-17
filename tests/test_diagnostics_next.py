@@ -41,6 +41,9 @@ def _synthetic_traj(B=8, T=4, halt_frac=0.4):
         'recon_errors': [torch.full((), 1.0) for _ in range(T)],
         'uncertainties': [torch.full((B,), 0.5) for _ in range(T)],
         'continuations': conts,
+        'hpc_errors': [torch.rand(B) for _ in range(T)],
+        'hpc_error_maps': [{'min': 0.0, 'max': 1.0, 'std': 0.1}
+                           for _ in range(T)],
         'steps': T,
     }
     return traj
@@ -108,6 +111,40 @@ def test_pi_d_per_class_ordering_car_truck_top():
     assert pd['car'] > pd['cat'] and pd['truck'] > pd['cat']
     top2 = sorted(pd.items(), key=lambda kv: -kv[1])[:2]
     assert {k for k, _ in top2} == {'car', 'truck'}, f"top-2 Pi_D: {top2}"
+
+
+def test_hpc_error_per_class_breakdown():
+    """2026-08-15 diagnosis: HPC prediction error must be broken down per
+    ground-truth class (mirroring pi_d_per_class) so truck vs car vs airplane
+    can be compared directly. The summary key must carry per-class means, and
+    each class's mean must pool ONLY that class's samples (not the batch
+    mean)."""
+    B, T = 8, 4
+    labels = torch.tensor([2, 2, 9, 9, 3, 3, 4, 4])   # car, truck, cat, deer
+    diag = RHANNextEpochDiagnostics(max_steps=T)
+    traj = _synthetic_traj(B, T)
+    errs = []
+    for _ in range(T):
+        e = torch.zeros(B)
+        e[labels == 2] = 0.30          # car: hardest
+        e[labels == 9] = 0.10          # truck: easiest
+        e[labels == 3] = 0.20          # cat
+        e[labels == 4] = 0.15          # deer
+        errs.append(e)
+    traj['hpc_errors'] = errs
+    _feed(diag, traj, labels)
+
+    s = diag.summary_dict(1, 0.031)
+    per = s['hpc_error_per_class']
+    assert abs(per['car'] - 0.30) < 1e-4, per
+    assert abs(per['truck'] - 0.10) < 1e-4, per
+    assert abs(per['cat'] - 0.20) < 1e-4, per
+    assert abs(per['deer'] - 0.15) < 1e-4, per
+    assert per['car'] > per['truck'], per
+    # Only classes present in the batch appear; the per-class mean must not
+    # leak the batch mean (0.1875) into an absent class.
+    assert set(per) == {'car', 'truck', 'cat', 'deer'}, per
+    assert s['hpc_error_mean'] > 0.0   # global mean still reported
 
 
 def test_summary_dict_is_json_serializable():

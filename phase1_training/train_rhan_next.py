@@ -130,9 +130,13 @@ class RHANNextEpochDiagnostics(EpochDiagnostics):
         # ── Stage 2 (HPC) telemetry ──────────────────────────────────────────
         # One scalar per batch (mean over steps AND samples) plus per-batch
         # error-map stats — the Step A health gate reads these to enforce the
-        # downward-trend / no-explosion criteria.
+        # downward-trend / no-explosion criteria. Per-class errors mirror the
+        # pi_d_per_class block (2026-08-15 diagnosis: is the Π_D reordering
+        # accompanied by a class-specific HPC error — truck worse than
+        # car/airplane — or is it purely a Π_D phenomenon?).
         self.hpc_err_means = []     # float per batch (epoch-mean -> trend)
         self.hpc_emap = {'min': [], 'max': [], 'std': []}
+        self.hpc_err_per_class = {c: [] for c in range(10)}
 
     def update(self, beta_dyn, traj_c, labels):
         super().update(beta_dyn, traj_c, labels)
@@ -154,6 +158,14 @@ class RHANNextEpochDiagnostics(EpochDiagnostics):
             # detach here — diagnostics only, the loss uses the raw tensors).
             self.hpc_err_means.append(
                 float(torch.stack([e.detach().mean() for e in hpc_errs]).mean()))
+            # Per ground-truth class, pooled over steps (same mask pattern as
+            # the inherited precisions_per_class block).
+            labels_cpu = labels.detach().cpu()
+            for c in range(10):
+                mask = (labels_cpu == c)
+                if mask.any():
+                    self.hpc_err_per_class[c].append(
+                        torch.cat([e.detach().cpu()[mask] for e in hpc_errs]))
         emaps = traj_c.get('hpc_error_maps') or []
         for m in emaps:
             for k in ('min', 'max', 'std'):
@@ -212,6 +224,16 @@ class RHANNextEpochDiagnostics(EpochDiagnostics):
             print(f"  HPC error map (min/max/std): {emin:.4f} / {emax:.4f} / "
                   f"{estd:.4f} "
                   f"({'collapse' if emax < 1e-6 else 'explosion?' if estd > 5.0 else 'ok'})")
+            per_cls = []
+            for c in range(10):
+                if self.hpc_err_per_class[c]:
+                    per_cls.append((self.CLASSES[c], float(
+                        torch.cat(self.hpc_err_per_class[c]).mean())))
+            if per_cls:
+                print("  HPC prediction error per class (mean):")
+                for name, v in sorted(per_cls, key=lambda kv: -kv[1]):
+                    marker = " ◄" if name in ('car', 'truck') else ""
+                    print(f"    {name:<12}: {v:.4f}{marker}")
 
     def summary_dict(self, epoch, eps, tr_acc=None, te_acc=None):
         """Machine-readable per-epoch telemetry (written by --diag-json)."""
@@ -254,11 +276,33 @@ class RHANNextEpochDiagnostics(EpochDiagnostics):
             if self.hpc_emap['max'] else 0.0
         d['hpc_error_map_std'] = round(float(np.mean(self.hpc_emap['std'])), 6) \
             if self.hpc_emap['std'] else 0.0
+        # Per-class HPC prediction error (2026-08-15 diagnosis) — mirrors
+        # pi_d_per_class so the gate/dashboards can compare truck vs car vs
+        # airplane directly. Present whenever hpc_errors were collected.
+        d['hpc_error_per_class'] = {}
+        for c in range(10):
+            if self.hpc_err_per_class[c]:
+                d['hpc_error_per_class'][self.CLASSES[c]] = round(
+                    float(torch.cat(self.hpc_err_per_class[c]).mean()), 6)
         d['pi_d_per_class'] = {}
         for c in range(10):
             if self.precisions_per_class[c]:
                 d['pi_d_per_class'][self.CLASSES[c]] = round(
                     float(torch.cat(self.precisions_per_class[c]).mean()), 4)
+        # Truck-rank WATCH (gate AMENDMENT 2026-08-16): truck's rank among
+        # the top-3 Π_D classes + its margin vs the #2 slot, per epoch —
+        # NON-BLOCKING, logged so the 60-epoch run's watch series can be
+        # assembled from --diag-json (roadmap stages['2'].watch_metrics.epochs).
+        _pd = d['pi_d_per_class']
+        if len(_pd) >= 2 and 'truck' in _pd:
+            _ranked = sorted(_pd.items(), key=lambda kv: -kv[1])
+            _truck_rank = next((i + 1 for i, (k, _) in enumerate(_ranked)
+                                if k == 'truck'), None)
+            if _truck_rank is not None:
+                d['truck_pi_d_rank'] = int(_truck_rank)
+                d['truck_pi_d_in_top3'] = bool(_truck_rank <= 3)
+                d['truck_pi_d_vs_2_margin'] = round(
+                    float(_pd['truck'] - _ranked[1][1]), 4)
         return d
 
 
