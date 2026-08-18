@@ -2809,10 +2809,12 @@ if DO_STEP2_C and (PROCEED_STEP2_B or SKIP_STAGE2_TRAINING):
         print("    --ablation-matrix A_baseline B_ais_only C_hpc_only "
               "--seeds 41 42 43 44 45 --eps-list 0.000 0.094 --pgd-steps 50 "
               "--n-samples 300 --batch-size 64 --baseline-label "
-              "trades_large_baseline --output-dir report/sweep_stage2_hpc_only",
+              "trades_large_baseline --output-dir report/sweep_stage2_hpc_only "
+              "--resume",
               flush=True)
         print("    PGD-100 leg: same specs, --eps-list 0.094 --pgd-steps 100 "
-              "--output-dir report/sweep_stage2_hpc_only_pgd100", flush=True)
+              "--output-dir report/sweep_stage2_hpc_only_pgd100 --resume",
+              flush=True)
     else:
         if _step2C_done(STEP2_C_MAIN, STEP2_SEEDS, (0.000, 0.094)) and \
            _step2C_done(STEP2_C_MAIN100, STEP2_SEEDS, (0.094,)):
@@ -2829,6 +2831,10 @@ if DO_STEP2_C and (PROCEED_STEP2_B or SKIP_STAGE2_TRAINING):
             ensure_ckpt("rhan_next_hpc_only_best.pth")
             # The three-way comparison comes from ONE sweep with the new
             # --ablation-matrix flag (registry-built --ckpt-specs).
+            # --resume makes the sweep idempotent per cell: any (ckpt, seed,
+            # eps) row already in the output dir per-seed CSV (restored from
+            # HF by _step2C_done above) is carried forward, not re-run — so a
+            # re-run never re-pays A/B PGD-50 cells that are already done.
             run(
                 f"python3 phase2_attacks/eval_rhan.py "
                 f"--ablation-matrix A_baseline B_ais_only C_hpc_only "
@@ -2838,8 +2844,20 @@ if DO_STEP2_C and (PROCEED_STEP2_B or SKIP_STAGE2_TRAINING):
                 f"--n-samples 300 "
                 f"--batch-size 64 "
                 f"--baseline-label trades_large_baseline "
-                f"--output-dir {STEP2_C_MAIN}"
+                f"--output-dir {STEP2_C_MAIN} --resume"
             )
+            # Durability: sync THIS leg's CSVs to HF IMMEDIATELY after the leg
+            # (not after both legs) — the 2026-08-17 loss: the previous session
+            # finished PGD-50 but died during PGD-100, so the sync loop that
+            # ran only after BOTH legs never fired and the A/B PGD-50 results
+            # were lost. Per-leg sync means a timeout in the next leg can never
+            # lose already-completed cells again.
+            for _f in ("epsilon_sweep_per_seed.csv",
+                       "epsilon_sweep_results.csv",
+                       "eval_provenance.json"):
+                _p = os.path.join(STEP2_C_MAIN, _f)
+                if os.path.exists(_p):
+                    upload_hf_file(_p, os.path.basename(STEP2_C_MAIN) + "_" + _f)
             # PGD-100 leg at eps=0.094 (masking re-confirmation for C AND B).
             run(
                 f"python3 phase2_attacks/eval_rhan.py "
@@ -2850,17 +2868,15 @@ if DO_STEP2_C and (PROCEED_STEP2_B or SKIP_STAGE2_TRAINING):
                 f"--n-samples 300 "
                 f"--batch-size 64 "
                 f"--baseline-label trades_large_baseline "
-                f"--output-dir {STEP2_C_MAIN100}"
+                f"--output-dir {STEP2_C_MAIN100} --resume"
             )
-            # Durability: sync CSVs + provenance to HF (a wiped session must
-            # still be able to run STEP C2 / the verdict without re-running).
-            for _d in (STEP2_C_MAIN, STEP2_C_MAIN100):
-                for _f in ("epsilon_sweep_per_seed.csv",
-                           "epsilon_sweep_results.csv",
-                           "eval_provenance.json"):
-                    _p = os.path.join(_d, _f)
-                    if os.path.exists(_p):
-                        upload_hf_file(_p, os.path.basename(_d) + "_" + _f)
+            # Durability: sync the PGD-100 leg's CSVs immediately too.
+            for _f in ("epsilon_sweep_per_seed.csv",
+                       "epsilon_sweep_results.csv",
+                       "eval_provenance.json"):
+                _p = os.path.join(STEP2_C_MAIN100, _f)
+                if os.path.exists(_p):
+                    upload_hf_file(_p, os.path.basename(STEP2_C_MAIN100) + "_" + _f)
 elif DO_STEP2_C:
     print("\n  [STOP] Stage 2 Step B did not complete (health gate) — "
           "rhan_next_hpc_only_best.pth does not exist, so there is nothing to "

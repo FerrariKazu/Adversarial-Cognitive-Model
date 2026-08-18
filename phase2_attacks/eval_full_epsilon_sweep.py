@@ -349,6 +349,11 @@ def main():
                              'normalized inputs), matching the Finding-17 baseline table '
                              '(quick_eval_hf/eval_rhan_v11 convention). Default: pixel-space [0,1] '
                              'converted per-channel via /std.')
+    parser.add_argument('--resume', action='store_true',
+                        help='Skip (label, seed, eps) cells already present in the output dir '
+                             'per-seed CSV: carry their rows forward into the fresh CSV and the '
+                             'aggregation instead of re-running PGD for them (idempotent '
+                             're-runs after a partial/timeout session).')
     parser.add_argument('--freeze-gaze', action='store_true',
                         help='GLOBAL freeze-gaze (all checkpoints). For per-checkpoint control '
                              'use the optional 4th field in --ckpt-specs: label:path:arch:freeze')
@@ -424,14 +429,46 @@ def main():
 
     agg = {}   # (label, eps) -> {'accs': [...], 'dps': [...]} across seeds
 
+    # --resume: a cell key is (label, seed, round(eps,4)). Rows already in the
+    # output dir per-seed CSV are carried forward — skipped in the compute loop,
+    # written into the fresh CSV, and folded into the aggregation so the
+    # aggregated CSV + crossover verdicts still cover previously-computed cells
+    # (an idempotent re-run after a partial/timeout session never re-pays PGD).
+    done = {}
+    if args.resume and os.path.exists(csv_per_seed):
+        with open(csv_per_seed, newline='') as f:
+            for r in csv.DictReader(f):
+                try:
+                    key = (r['ckpt_label'], int(r['seed']),
+                           round(float(r['eps_pixel']), 4))
+                except (KeyError, ValueError):
+                    continue
+                done[key] = r
+        for (label, _s, eps), r in done.items():
+            agg.setdefault((label, eps), {'accs': [], 'dps': []})
+            agg[(label, eps)]['accs'].append(float(r['acc_pct']))
+            agg[(label, eps)]['dps'].append(float(r['macro_dprime']))
+        if done:
+            print(f"  [resume] {len(done)} previously-evaluated cell(s) found "
+                  f"in {os.path.basename(csv_per_seed)} — skipping them and "
+                  f"carrying their rows forward.", flush=True)
+
     # Per-seed CSV is written incrementally (flushed after every seed) so a
     # long run that hits a Kaggle session timeout still keeps partial data.
     with open(csv_per_seed, 'w', newline='') as f_seed:
         writer_seed = csv.DictWriter(f_seed, fieldnames=seed_fields)
         writer_seed.writeheader()
+        for r in done.values():
+            writer_seed.writerow(r)
         f_seed.flush()
 
         for label, ckpt_path, arch, freeze_this in checkpoints:
+            cell_keys = [(label, seed, round(eps, 4))
+                         for seed in seeds for eps in args.eps_list]
+            if args.resume and all(k in done for k in cell_keys):
+                print(f"\n  [resume] {label}: all {len(cell_keys)} cell(s) "
+                      f"already evaluated — skipping model load.", flush=True)
+                continue
             print(f"\n{'='*60}", flush=True)
             print(f"  Checkpoint : {label}", flush=True)
             print(f"  Path       : {ckpt_path}", flush=True)
@@ -444,6 +481,10 @@ def main():
             for seed in seeds:
                 x_norm_cpu, y_test_cpu = datasets[seed]
                 for eps in args.eps_list:
+                    if args.resume and (label, seed, round(eps, 4)) in done:
+                        print(f"  [resume] SKIP {label} seed={seed} eps={eps} "
+                              f"(already evaluated)", flush=True)
+                        continue
                     eps_norm = resolve_eps_norm(eps, device, norm_space=args.eps_norm_space)
                     log_eps(eps, eps_norm, prefix=f"[{label} seed={seed}] ",
                             norm_space=args.eps_norm_space)
