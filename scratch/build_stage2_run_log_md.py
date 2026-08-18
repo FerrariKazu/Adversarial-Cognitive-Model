@@ -8,17 +8,29 @@ resume baseline + epochs 35-60 of the Step B run that finished 2026-08-16
 under commit b606c55). The printed per-epoch diagnostic blocks in the Kaggle
 log are exactly these rows, so the tables here match the log 1:1.
 
+Step C eval numbers come from the HF-synced sweep CSVs
+(report/sweep_stage2_hpc_only/epsilon_sweep_{per_seed,results}.csv —
+the re-run under commit 3c50d51 completed the full THREE-WAY PGD-50 sweep
+(A baseline / B AIS-v1 / C HPC-only) on 2026-08-18 and syncs each leg to HF
+immediately, so these are the exact final numbers). The PGD-100 leg was still
+in progress when the log was captured, so its partial rows are transcribed
+from the pasted log below.
+
 Metadata that is NOT in the diag (pseudo-label distribution, per-epoch
-loss/throughput/epoch-duration from the printed epoch lines, and the Step C
-PGD-50 eval table + per-seed numbers) is transcribed from the pasted Kaggle
-log below and sanity-checked against the diag where they overlap (tr_acc /
-te_acc / beta / recon / gate / hpc_err / pi_d / hpc_err_per_class).
+loss/throughput/epoch-duration from the printed epoch lines) is transcribed
+from the pasted Kaggle log and sanity-checked against the diag where they
+overlap (tr_acc / te_acc / beta / recon / gate / hpc_err / pi_d /
+hpc_err_per_class).
 """
+import csv
 import json
 import os
 
 DIAG = "report/rhan_next_hpc_only_diag.jsonl"
 OUT = "report/stage2_hpc_run_log.md"
+SWEEP_DIR = "report/sweep_stage2_hpc_only"
+SWEEP_RESULTS = os.path.join(SWEEP_DIR, "epsilon_sweep_results.csv")
+SWEEP_PER_SEED = os.path.join(SWEEP_DIR, "epsilon_sweep_per_seed.csv")
 
 CLASSES = ["airplane", "bird", "car", "cat", "deer",
            "dog", "horse", "monkey", "ship", "truck"]
@@ -49,36 +61,21 @@ PSEUDO = [  # (class, images, mean confidence)
     ("truck", 6642, 0.8171),
 ]
 
-# ── Step C PGD-50 eval (A + B only; C_hpc_only was registry-skipped) ────────
-# (label, seed, eps, acc, dprime)
-PGD50_PER_SEED = [
-    ("trades_large_baseline", 41, 0.000, 51.00, 1.9081),
-    ("trades_large_baseline", 42, 0.000, 56.33, 2.0828),
-    ("trades_large_baseline", 43, 0.000, 50.00, 2.1296),
-    ("trades_large_baseline", 44, 0.000, 56.00, 1.6498),
-    ("trades_large_baseline", 45, 0.000, 54.00, 1.5981),
-    ("trades_large_baseline", 41, 0.094, 19.33, 0.2296),
-    ("trades_large_baseline", 42, 0.094, 22.00, 0.1662),
-    ("trades_large_baseline", 43, 0.094, 21.33, 0.6586),
-    ("trades_large_baseline", 44, 0.094, 20.00, 0.3286),
-    ("trades_large_baseline", 45, 0.094, 19.33, 0.2427),
-    ("rhan_next_ais_v1_halting_only", 41, 0.000, 50.33, 2.0008),
-    ("rhan_next_ais_v1_halting_only", 42, 0.000, 49.00, 2.0939),
-    ("rhan_next_ais_v1_halting_only", 43, 0.000, 44.67, 1.3856),
-    ("rhan_next_ais_v1_halting_only", 44, 0.000, 54.33, 1.7986),
-    ("rhan_next_ais_v1_halting_only", 45, 0.000, 48.67, 1.8953),
-    ("rhan_next_ais_v1_halting_only", 41, 0.094, 32.00, 0.6725),
-    ("rhan_next_ais_v1_halting_only", 42, 0.094, 33.00, 1.0068),
-    ("rhan_next_ais_v1_halting_only", 43, 0.094, 30.67, 1.0468),
-    ("rhan_next_ais_v1_halting_only", 44, 0.094, 35.67, 1.1497),
-    ("rhan_next_ais_v1_halting_only", 45, 0.094, 31.33, 0.9812),
+# ── Step C PGD-100 partial rows (transcribed from the log; leg still running) ─
+# The PGD-100 leg (eps=0.094, 5 seeds × 300 samples) was captured mid-run at
+# A (trades_large_baseline) seed 44. (label, seed, acc, dprime)
+PGD100_PARTIAL = [
+    ("trades_large_baseline", 41, 19.00, 0.2352),
+    ("trades_large_baseline", 42, 21.33, 0.1366),
+    ("trades_large_baseline", 43, 20.67, 0.6272),
 ]
-PGD50_AGG = {  # (label, eps) -> (acc mean±std, d' mean±std)
-    ("trades_large_baseline", 0.000): ("53.47±2.87", "1.8737±0.2432"),
-    ("trades_large_baseline", 0.094): ("20.40±1.21", "0.3251±0.1952"),
-    ("rhan_next_ais_v1_halting_only", 0.000): ("49.40±3.48", "1.8348±0.2745"),
-    ("rhan_next_ais_v1_halting_only", 0.094): ("32.53±1.95", "0.9714±0.1790"),
-}
+
+# Crossover verdicts from eval_provenance.json (report/sweep_stage2_hpc_only/)
+# (checkpoint, diff_pp, threshold_2sig)
+CROSSOVER = [
+    ("rhan_next_ais_v1_halting_only", 12.13, 4.57),
+    ("rhan_next_hpc_only", 7.33, 5.16),
+]
 
 
 def load_rows():
@@ -89,6 +86,26 @@ def load_rows():
     return rows, by_epoch
 
 
+def load_sweep():
+    """Read the three-way PGD-50 CSVs (synced to HF by the re-run's per-leg sync)."""
+    assert os.path.exists(SWEEP_RESULTS), \
+        f"missing {SWEEP_RESULTS} — download sweep_stage2_hpc_only_* from " \
+        "FerrariKazu/rhan-checkpoints-rolling (dataset) first"
+    agg = []   # (label, eps, acc_mean, acc_std, dprime_mean, dprime_std)
+    with open(SWEEP_RESULTS, newline="") as f:
+        for r in csv.DictReader(f):
+            agg.append((r["ckpt_label"], float(r["eps_pixel"]),
+                        r["acc_mean"], r["acc_std"],
+                        r["macro_dprime_mean"], r["macro_dprime_std"]))
+    per_seed = []  # (label, seed, eps, acc, dprime)
+    with open(SWEEP_PER_SEED, newline="") as f:
+        for r in csv.DictReader(f):
+            per_seed.append((r["ckpt_label"], int(r["seed"]),
+                             float(r["eps_pixel"]),
+                             float(r["acc_pct"]), float(r["macro_dprime"])))
+    return agg, per_seed
+
+
 def fmt(v, nd=4):
     if v is None:
         return "—"
@@ -97,24 +114,22 @@ def fmt(v, nd=4):
 
 def main():
     rows, by_epoch = load_rows()
-
-    # Sanity: diag tr/te acc match the printed log's epoch lines (we did NOT
-    # transcribe them; the printed log showed e.g. epoch 35 TrAcc 69.3/TeAcc 54.5).
-    for e in (35, 36, 40, 41, 50, 60):
-        r = by_epoch[e]
-        assert abs(r["tr_acc"] * 100 - EPOCH_LINE[e][0] * 0 + 0) >= -1  # noop guard
-    # (tr_acc/te_acc are read straight from the diag below, so no assertion needed.)
+    agg, per_seed = load_sweep()
 
     lines = []
     A = lines.append
 
-    A("# Stage 2 Step B Run Log — HPC-only (matrix C), 60-epoch full run")
+    A("# Stage 2 Run Log — HPC-only (matrix C): 60-epoch training + three-way Step C eval")
     A("")
     A("> Recorded 2026-08-16 from the Kaggle run that completed Step B "
-      "(60/60 epochs) and hit the 12 h timeout mid-Step-C PGD-100. "
-      "Per-epoch numbers below are the exact rows of the trainer diag "
-      "`report/rhan_next_hpc_only_diag.jsonl` (synced to HF); the printed "
-      "diagnostic blocks in the run log are those same rows.")
+      "(60/60 epochs) and hit the 12 h timeout mid-Step-C PGD-100. Updated "
+      "2026-08-18 with the **completed three-way PGD-50 eval** (A baseline / "
+      "B AIS-v1 / C HPC-only) from the re-run under commit `3c50d51` (per-cell "
+      "`--resume` + per-leg HF sync). Per-epoch numbers below are the exact "
+      "rows of the trainer diag `report/rhan_next_hpc_only_diag.jsonl` "
+      "(synced to HF); the printed diagnostic blocks in the run log are those "
+      "same rows. Step C numbers are the exact HF-synced sweep CSVs "
+      "(`report/sweep_stage2_hpc_only/epsilon_sweep_*.csv`).")
     A("")
     A("## 0. Run metadata")
     A("")
@@ -129,6 +144,8 @@ def main():
     A("| dataloader | num_workers=4, persistent_workers=True, prefetch_factor=4 |")
     A("| diag rows | 27 (prepended epoch-1 resume baseline + epochs 35–60) |")
     A("| final | Training complete, Best **56.81%**; rolling epoch 60; truck-rank WATCH series logged (27 epochs, final rank=3, margin −0.0169) |")
+    A("| Step C PGD-50 | **COMPLETE** (three-way A/B/C, 5 seeds × 300 samples, eps ∈ {0.0, 0.094}, norm-space) — 2026-08-18, commit `3c50d51`, provenance `report/sweep_stage2_hpc_only/eval_provenance.json` |")
+    A("| Step C PGD-100 | **IN PROGRESS** — A seeds 41–43 done at log cut (A seed 44 running, B/C not started) |")
     A("")
     A("## 1. Pseudo-label distribution (train-split step, this session)")
     A("")
@@ -200,34 +217,52 @@ def main():
       "tripped. Truck's per-class HPC error was the **lowest** of the "
       "car/airplane/truck contenders in every logged epoch.")
     A("")
-    A("## 6. Step C — PGD-50 matched eval (5 seeds × 300 samples, eps ∈ {0.0, 0.094})")
+    A("## 6. Step C — PGD-50 matched eval (THREE-WAY: A baseline / B AIS-v1 / C HPC-only)")
     A("")
-    A("> **NOTE:** `C_hpc_only` was silently skipped by the ablation registry "
-      "(its `checkpoint` was still `None` in `rhan_core/ablation/matrix.py`), "
-      "so this run's sweep covers only A (baseline) and B (AIS-v1). The "
-      "registry now declares C's trained checkpoint path, so the re-run "
-      "evaluates all three (A/B/C) in one sweep.")
+    A("5 seeds × 300 samples, eps ∈ {0.0, 0.094}, PGD-50, norm-space "
+      "(Finding-17 matched convention), baseline `trades_large_baseline`. "
+      "Run 2026-08-18 under commit `3c50d51` — the registry now declares C's "
+      "trained checkpoint (previously `None`, which silently dropped C from "
+      "the first sweep), and both legs use per-cell `--resume` + per-leg HF "
+      "sync. Numbers are the exact HF-synced CSVs.")
     A("")
     A("### 6.1 Aggregated (mean ± std over seeds)")
     A("")
     A("| checkpoint | eps | Acc% | d′ |")
     A("|---|---|---|---|")
-    for (lab, eps), (acc, dp) in sorted(PGD50_AGG.items()):
-        A(f"| {lab} | {eps:.3f} | {acc} | {dp} |")
+    for lab, eps, acc_m, acc_s, dp_m, dp_s in agg:
+        A(f"| {lab} | {eps:.3f} | {float(acc_m):.2f}±{float(acc_s):.2f} | "
+          f"{float(dp_m):.4f}±{float(dp_s):.4f} |")
     A("")
-    A("Crossover @ eps=0.094 (B vs A): **+12.13 pp**, 2·σ_comb = 4.59 → **CROSSOVER REAL**.")
+    A("Crossover @ eps=0.094 (criterion: diff > 2·σ_comb):")
+    A("")
+    A("| checkpoint | diff (pp) | 2·σ_comb | verdict |")
+    A("|---|---|---|---|")
+    for lab, diff, thresh in CROSSOVER:
+        A(f"| {lab} | **+{diff:.2f}** | {thresh:.2f} | **CROSSOVER REAL** |")
     A("")
     A("### 6.2 Per-seed")
     A("")
     A("| checkpoint | seed | eps | Acc% | d′ |")
     A("|---|---|---|---|---|")
-    for lab, seed, eps, acc, dp in PGD50_PER_SEED:
+    for lab, seed, eps, acc, dp in per_seed:
         A(f"| {lab} | {seed} | {eps:.3f} | {acc:.2f} | {dp:.4f} |")
     A("")
     A("## 7. Step C — PGD-100 leg (eps=0.094, masking re-confirmation)")
     A("")
-    A("Interrupted by the 12 h Kaggle timeout after `trades_large_baseline` "
-      "seed=41 began — **no PGD-100 numbers completed**. Re-run required.")
+    A("In progress at the time the log was captured (12 h Kaggle budget, "
+      "session still running). Completed cells at the cut:")
+    A("")
+    A("| checkpoint | seed | Acc% | d′ |")
+    A("|---|---|---|---|")
+    for lab, seed, acc, dp in PGD100_PARTIAL:
+        A(f"| {lab} | {seed} | {acc:.2f} | {dp:.4f} |")
+    A("")
+    A("Remaining at the cut: A seed 44 (running) + seed 45, then all of "
+      "B (AIS-v1) and C (HPC-only). Because the leg syncs to HF only after "
+      "completing, and `--resume` skips already-evaluated `(ckpt, seed, eps)` "
+      "cells, any re-run continues from exactly the completed cells — "
+      "nothing already computed is recomputed.")
     A("")
     A("## 8. Key observations")
     A("")
@@ -246,6 +281,16 @@ def main():
       "expected for the HPC-only variant (entropy-gated halting is AIS-only).")
     A("- Recon MSE kept falling through the 0.094 phase (0.901 → 0.858) — the "
       "generative prior keeps improving even under the strongest perturbation.")
+    A("- **Three-way eval (PGD-50):** HPC-only (C) has the **best clean "
+      "accuracy** of the three (55.20±3.67 vs baseline 53.47±2.87, AIS-v1 "
+      "49.40±3.48) but the **weakest robustness** of the two RHANNext "
+      "variants at ε=0.094 (27.73±2.28 vs AIS-v1 32.53±1.94). Both variants "
+      "cross over the TRADES baseline: AIS-v1 **+12.13 pp** (2·σ = 4.57), "
+      "HPC-only **+7.33 pp** (2·σ = 5.16) — both CROSSOVER REAL.")
+    A("- HPC-only's clean-acc edge over AIS-v1 (+5.8 pp) flips to a **−4.8 pp "
+      "robustness deficit** under attack — the auxiliary HPC signal helps "
+      "clean generalization but does not add adversarial margin the way the "
+      "AIS halting/precision machinery does.")
     A("")
 
     with open(OUT, "w") as f:
