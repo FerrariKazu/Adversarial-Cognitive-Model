@@ -2544,19 +2544,32 @@ if DO_STEP2_B and not SKIP_STAGE2_TRAINING and PROCEED_STEP2_B:
         pre_b_epoch = hf_rolling_epoch(HPC_FULL_CKPT)
         print(f"  [resume-gate] pre-Step-B HF rolling epoch: {pre_b_epoch}",
               flush=True)
-        # NEVER --force-restart: the trainer's mandatory HF resume gate
-        # restores/aborts instead of silently restarting; verify_no_restart
-        # below asserts the epoch only went forward. Same curriculum
-        # boundaries as train_rhan_v11.py (1-20 @0.031, 21-40 @0.062,
-        # 41-60 @0.094) so results stay directly comparable.
-        run(_shlex.join(_ablation.train_command(
-            "C_hpc_only",
-            extra_args=["--max-epochs", "60",
-                        "--target-ckpt", HPC_BASE,
-                        "--batch-size", "16", "--accum-steps", "16",
-                        "--diag-json", HPC_FULL_DIAG,
-                        "--force-single-gpu"])))
-        verify_no_restart(HPC_FULL_CKPT, pre_b_epoch)
+        # Skip the trainer when the run already COMPLETED on HF (rolling
+        # epoch 60). Re-invoking it here would (a) waste the ~10 h of the
+        # 60-epoch run and (b) trip the trainer's code-identity resume guard
+        # whenever this notebook's commit changed since the run finished —
+        # the guard refuses to resume across ANY code change by design. The
+        # bookkeeping below (roadmap note, diag sync, truck-rank WATCH
+        # series) still runs so the roadmap stays fresh on re-runs.
+        if pre_b_epoch is not None and pre_b_epoch >= 60:
+            print("  [skip] Step B already complete on HF (rolling epoch "
+                  f"{pre_b_epoch} = max 60) — skipping the trainer; "
+                  "bookkeeping only (diag restore, roadmap note, truck-rank "
+                  "WATCH series).", flush=True)
+        else:
+            # NEVER --force-restart: the trainer's mandatory HF resume gate
+            # restores/aborts instead of silently restarting; verify_no_restart
+            # below asserts the epoch only went forward. Same curriculum
+            # boundaries as train_rhan_v11.py (1-20 @0.031, 21-40 @0.062,
+            # 41-60 @0.094) so results stay directly comparable.
+            run(_shlex.join(_ablation.train_command(
+                "C_hpc_only",
+                extra_args=["--max-epochs", "60",
+                            "--target-ckpt", HPC_BASE,
+                            "--batch-size", "16", "--accum-steps", "16",
+                            "--diag-json", HPC_FULL_DIAG,
+                            "--force-single-gpu"])))
+            verify_no_restart(HPC_FULL_CKPT, pre_b_epoch)
         # Record honest resume provenance (same pattern as Stage 1 Step B).
         _roadmap_b2 = json.load(open(ROADMAP_LOCAL))
         if pre_b_epoch is not None and pre_b_epoch >= 60:
@@ -2580,6 +2593,10 @@ if DO_STEP2_B and not SKIP_STAGE2_TRAINING and PROCEED_STEP2_B:
         with open(ROADMAP_LOCAL, "w") as f:
             json.dump(_roadmap_b2, f, indent=2, sort_keys=False)
         sync_roadmap_up()
+        # Restore the diag from HF when this session did not produce it (the
+        # timeout-re-run path): the WATCH series below needs the rows.
+        if not os.path.exists(HPC_FULL_DIAG):
+            download_hf_file(os.path.basename(HPC_FULL_DIAG), HPC_FULL_DIAG)
         if os.path.exists(HPC_FULL_DIAG):
             upload_hf_file(HPC_FULL_DIAG, os.path.basename(HPC_FULL_DIAG))
         # ── Truck-rank WATCH series (gate AMENDMENT 2026-08-16) ────────────

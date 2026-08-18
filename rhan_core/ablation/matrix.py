@@ -85,12 +85,14 @@ ABLATION_MATRIX: Dict[str, Dict[str, Any]] = {
     "C_hpc_only": {
         "label": "rhan_next_hpc_only",
         "config": _hpc_config(ais=False),
-        "checkpoint": None,  # TO BE TRAINED this round
+        "checkpoint": "checkpoints/rhan_next_hpc_only_best.pth",
         "arch": "next",
         "status": PENDING,
         "note": "HPC-only (enable_ais=False, enable_hpc=True, "
-                "hpc_num_levels=1, w_hpc=0.10). This round's training target; "
-                "AIS mechanisms are NOT layered on top (per matrix entry C).",
+                "hpc_num_levels=1, w_hpc=0.10). Trained 2026-08-16 (60-epoch "
+                "Step B, best 56.81%); PENDING until the 5-seed matched "
+                "verdict is recorded. AIS mechanisms are NOT layered on top "
+                "(per matrix entry C).",
     },
     "D_ais_plus_hpc": {
         "label": "rhan_next_ais_hpc",
