@@ -154,15 +154,26 @@ def test_eval_specs_labels_and_archs():
     assert archs["trades_large_baseline"] == "large"
     assert archs["rhan_next_ais_v1_halting_only"] == "next"
     assert any("D_ais_plus_hpc" in why for why in skipped)
-    skipped_c = r.eval_specs(keys=["C_hpc_only"])[1]
-    assert any("C_hpc_only" in why for why in skipped_c)
+    # C is PENDING with a DECLARED checkpoint path: eligible once the file
+    # exists, skipped with a clear reason while it is absent (env-dependent,
+    # so branch on what is actually on disk).
+    c_specs, c_skipped = r.eval_specs(keys=["C_hpc_only"])
+    if r.checkpoint_exists("C_hpc_only"):
+        assert [s["label"] for s in c_specs] == ["rhan_next_hpc_only"]
+        assert not any("C_hpc_only" in why for why in c_skipped)
+    else:
+        assert not c_specs
+        assert any("C_hpc_only" in why for why in c_skipped)
 
 
 def test_checkpoint_paths_resolve_to_repo():
     p = r.resolve_checkpoint_path("A_baseline")
     assert p and p.endswith("checkpoints/rhan_stl10_large_pseudolabel_best.pth")
     assert os.path.isabs(p)
-    assert r.resolve_checkpoint_path("C_hpc_only") is None   # not trained yet
+    # C declared its trained-checkpoint path (2026-08-16: Step B complete).
+    p_c = r.resolve_checkpoint_path("C_hpc_only")
+    assert p_c and p_c.endswith("checkpoints/rhan_next_hpc_only_best.pth")
+    assert os.path.isabs(p_c)
 
 
 # ── eval_rhan.py --ablation-matrix flag plumbing ─────────────────────────────
