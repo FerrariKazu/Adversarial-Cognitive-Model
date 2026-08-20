@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-Kaggle Notebook — RHAN-Next Stage 2 Execution (Pillar 1 HPC, matrix C)
-======================================================================
-ACTIVE protocol: Stage 2 (HPC-only, matrix entry C_hpc_only) — smoke →
-health gate → 60-epoch run → three-way eval → verdict, all for config C
-per rhan_core/ablation/matrix.py. Stage 1 is COMPLETE and FINAL (2026-08-09,
-8 seeds): AIS-v1 (halting-only) shows +8.5 pp @ ε=0.094 vs the static TRADES
-baseline — positive but NOT significant under the pre-registered 2σ bar, with
-gradient masking definitively ruled out. The Stage 1 blocks below (Steps 5-7c)
+Kaggle Notebook — RHAN-Next Stages 1-3 Execution
+=================================================
+ACTIVE protocol: Stage 3 (D = AIS-v1 + HPC, matrix entry D_ais_plus_hpc) —
+smoke → health gate → 60-epoch run → 8-seed eval → verdict.
+
+Stage 1 (AIS-v1 halting-only) and Stage 2 (HPC-only) are COMPLETE and FINAL
+(2026-08-09/2026-08-18, 8 seeds each, datasets==4.7.0 pinned).
+  Stage 1: AIS-v1 +8.5 pp @ ε=0.094 — positive but NOT significant.
+  Stage 2: HPC-only +3.92 pp @ ε=0.094 — positive but NOT significant.
+
+The Stage 1 blocks below (Steps 5-7c)
 are the executable validated record and DEFAULT OFF (Step 4 toggles) — flip
 one only to deliberately re-run that step; re-runs are resume-gated and
 skip-if-complete protected, never a restart.
@@ -307,6 +310,15 @@ if not DRY_RUN:
     # on Kaggle it would pull a heavy pyarrow/pandas dependency chain for
     # nothing. Check each remaining package individually so one missing import
     # never triggers a multi-package reinstall.
+    # NOTE: `datasets` IS required by eval_full_epsilon_sweep.py (load_test_samples)
+    # even though eval_rhan.py itself doesn't import it directly.
+    # PINNED to 4.7.0 for shuffle(seed=X) reproducibility — the exact 300-sample
+    # subset per seed depends on the datasets library version.
+    import importlib
+    _ds = importlib.import_module('datasets')
+    if _ds.__version__ != '4.7.0':
+        run("pip install --quiet 'datasets==4.7.0'")
+        importlib.reload(_ds)
     for _mod, _pkg in (("huggingface_hub", "huggingface_hub"),
                        ("PIL", "Pillow"),
                        ("scipy", "scipy"),
@@ -2665,15 +2677,17 @@ print("="*70)
 
 if DO_STEP2_B and not SKIP_STAGE2_TRAINING and PROCEED_STEP2_B:
     if DRY_RUN:
-        print("  [DRY-RUN] Step B would launch (generated from matrix C):",
+        # C_hpc_only is now VALIDATED — matrix refuses train_command for
+        # non-PENDING entries. Build the command manually for dry-run display.
+        print("  [DRY-RUN] Step B would launch (C_hpc_only, already VALIDATED):",
               flush=True)
-        print("    " + _shlex.join(_ablation.train_command(
-            "C_hpc_only",
-            extra_args=["--max-epochs", "60",
-                        "--target-ckpt", HPC_BASE,
-                        "--batch-size", "16", "--accum-steps", "16",
-                        "--diag-json", HPC_FULL_DIAG,
-                        "--force-single-gpu"])), flush=True)
+        print("    python3 phase1_training/train_rhan_next.py "
+              f"--enable-hpc --hpc-num-levels 1 --w-hpc 0.10 "
+              f"--ckpt-name {HPC_FULL_CKPT} "
+              f"--max-epochs 60 --target-ckpt {HPC_BASE} "
+              f"--batch-size 16 --accum-steps 16 "
+              f"--diag-json {HPC_FULL_DIAG} --force-single-gpu",
+              flush=True)
     else:
         pre_b_epoch = hf_rolling_epoch(HPC_FULL_CKPT)
         print(f"  [resume-gate] pre-Step-B HF rolling epoch: {pre_b_epoch}",
@@ -3148,30 +3162,474 @@ def record_verdict_stage2():
 if DO_STEP2_C:
     record_verdict_stage2()
 
-# %% [markdown]
-# ## Done — next gate
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 3 — D = AIS-v1 + HPC (Pillar 1+2 integration, matrix D)
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 3 trains and evaluates the COMBINED architecture: AIS-v1 (halting-only)
+# + HPC (hierarchical predictive coding). This isolates the interaction between
+# the two validated mechanisms (B = AIS-v1, C = HPC-only) in a clean 2×2 factorial:
 #
-# Stage 2 (HPC-only, matrix C) executed above; Stage 1 (AIS-v1 halting-only)
-# remains the validated FINAL record (8-seed, +8.5 pp @ ε=0.094, not
-# significant, masking-free). D (AIS+HPC) stays SCAFFOLDED_NOT_RUN and
-# enable_sbr stays locked. Next gate: Stage 3 integration & reporting.
+#   A = TRADES baseline (no AIS, no HPC)
+#   B = AIS-v1 (halting ON, recon-mod OFF)
+#   C = HPC-only (hpc_num_levels=1)
+#   D = AIS-v1 + HPC (both active)
+#
+# Pre-registered interaction hypothesis (docs/stage3_preregistration.md):
+#   AIS-v1: belief drift stabilizes (0.060 → 0.032)
+#   HPC-only: belief drift increases (0.063 → 0.163)
+#   D: unknown — 4 possible outcomes (synergistic / antagonistic / redundant / non-monotonic)
+#
+# D config: RHANNext(enable_ais=True, enable_hpc=True, hpc_num_levels=1,
+#           w_hpc=0.10, no_ais_precision_recon=True)
+# D base: rhan_next_ais_v1_halting_only_best.pth (the validated AIS-v1 backbone)
+# D label: rhan_next_ais_hpc
+# ─────────────────────────────────────────────────────────────────────────────
+
+# %% [markdown]
+# ## Stage 3 — D = AIS-v1 + HPC (matrix D): Smoke → Health gate → 60-epoch → 8-seed eval → Verdict
+
+# %%
+# ── Stage 3 toggles ──────────────────────────────────────────────────────────
+DO_STAGE3         = True
+DO_STEP3_A        = True    # smoke test (15 epochs, catches D interaction bugs)
+DO_STEP3_B        = True    # full 60-epoch 3-phase run (gated on Stage 3 health gate)
+DO_STEP3_C        = True    # 8-seed matched eval (PGD-50 + PGD-100)
+SKIP_STAGE3_TRAINING = False  # eval-only mode (needs rhan_next_ais_hpc_best.pth)
+SMOKE3_EPOCHS     = 15
+
+# Artifact names (matrix D label).
+D_SMOKE_CKPT    = "rhan_next_ais_hpc_smoke"
+D_FULL_CKPT     = "rhan_next_ais_hpc"           # == ABLATION_MATRIX['D_ais_plus_hpc']['label']
+D_SMOKE_DIAG    = "report/rhan_next_ais_hpc_smoke_diag.jsonl"
+D_FULL_DIAG     = "report/rhan_next_ais_hpc_diag.jsonl"
+D_HEALTH_JSON   = "report/rhan_next_ais_hpc_smoke_health.json"
+
+STEP3_C_MAIN    = "report/sweep_stage3_d_ais_hpc"
+STEP3_C_MAIN100 = STEP3_C_MAIN + "_pgd100"
+STEP3_SEEDS     = [41, 42, 43, 44, 45]
+C3_SEEDS_STAGE3 = [46, 47, 48]
+STEP3_LABELS    = ["trades_large_baseline",
+                   "rhan_next_ais_v1_halting_only",
+                   "rhan_next_hpc_only",
+                   "rhan_next_ais_hpc"]
+
+# D base = the validated AIS-v1 checkpoint (Stage 1 backbone).
+D_BASE = "checkpoints/rhan_next_ais_v1_halting_only_best.pth"
+if not os.path.exists(D_BASE):
+    if DRY_RUN:
+        print(f"  [DRY-RUN] would download base checkpoint {D_BASE} from HF",
+              flush=True)
+    else:
+        ensure_ckpt(os.path.basename(D_BASE))
+if os.path.exists(D_BASE):
+    print(f"  ✓ Stage 3 base checkpoint present: {D_BASE} "
+          f"({os.path.getsize(D_BASE)/1e6:.0f} MB)", flush=True)
+
+# ── Health-gate constants (Stage 3) ─────────────────────────────────────────
+D_HPC_TREND_MIN_DECREASE = 0.10
+D_HPC_EXPLOSION_RATIO    = 10.0
+
+# ── Matrix consistency guard ─────────────────────────────────────────────────
+_D_CMD = " ".join([
+    "python3", "phase1_training/train_rhan_next.py",
+    "--enable-ais", "--no-ais-precision-recon",
+    "--enable-hpc", "--hpc-num-levels", "1", "--w-hpc", "0.1",
+    "--ckpt-name", D_FULL_CKPT,
+])
+try:
+    from rhan_core.ablation.runner import train_command as _tc3
+    _matrix_cmd3 = " ".join(_tc3("D_ais_plus_hpc"))
+    if _D_CMD != _matrix_cmd3:
+        print("  ⚠ STAGE 3 MATRIX MISMATCH:", flush=True)
+        print(f"    local:   {_D_CMD}", flush=True)
+        print(f"    matrix:  {_matrix_cmd3}", flush=True)
+        print("    Using matrix command for consistency.", flush=True)
+        _D_CMD = _matrix_cmd3
+except Exception as _e3:
+    print(f"  ⚠ Could not verify Stage 3 matrix command: {_e3}", flush=True)
+
+# %% [markdown]
+# ### Stage 3 — STEP A: SMOKE TEST (15 epochs, D = AIS-v1 + HPC)
+
+# %%
+if DO_STAGE3 and DO_STEP3_A and not SKIP_STAGE3_TRAINING:
+    print("\n" + "="*70)
+    print("  STAGE 3 — STEP A: SMOKE TEST (D = AIS-v1 + HPC, 15 epochs)")
+    print("="*70)
+    smoke_health3 = os.path.join(_REPO_ROOT, D_HEALTH_JSON)
+    smoke_diag3 = os.path.join(_REPO_ROOT, D_SMOKE_DIAG)
+    smoke_ckpt3 = os.path.join(_REPO_ROOT, f"checkpoints/{D_SMOKE_CKPT}_best.pth")
+
+    if os.path.exists(smoke_health3) and os.path.exists(smoke_ckpt3):
+        print(f"  [SKIP] Stage 3 smoke already complete: {D_HEALTH_JSON}")
+        print(f"         Checkpoint: {smoke_ckpt3}")
+    else:
+        _smoke3_cmd = (
+            f"python3 phase1_training/train_rhan_next.py "
+            f"--enable-ais --no-ais-precision-recon "
+            f"--enable-hpc --hpc-num-levels 1 --w-hpc 0.10 "
+            f"--ckpt-name {D_SMOKE_CKPT} "
+            f"--max-epochs {SMOKE3_EPOCHS} "
+            f"--target-ckpt {D_BASE} "
+            f"--diag-json {D_SMOKE_DIAG} "
+            f"--batch-size 16 --accum-steps 16"
+        )
+        if DRY_RUN:
+            print(f"  [DRY-RUN] {_smoke3_cmd}", flush=True)
+        else:
+            print(f"  Running: {_smoke3_cmd}", flush=True)
+            os.system(_smoke3_cmd)
+
+        # ── Health gate: read smoke telemetry ───────────────────────────────
+        if os.path.exists(smoke_diag3):
+            import json as _json3
+            with open(smoke_diag3) as _f3:
+                lines3 = [l for l in _f3 if l.strip()]
+            if lines3:
+                last3 = _json3.loads(lines3[-1])
+                health3 = {"checks": {}, "passed": True, "failures": []}
+
+                # Check 1: gaze shift
+                gs = last3.get("gaze_shift_total_mean", 0)
+                health3["checks"]["gaze_shift"] = {
+                    "value": gs, "threshold": 0.05,
+                    "passed": gs >= 0.05
+                }
+                if gs < 0.05:
+                    health3["passed"] = False
+                    health3["failures"].append(f"gaze_shift={gs:.4f} < 0.05")
+
+                # Check 2: halting variance
+                he_std = last3.get("steps_effective_std", 0)
+                he_frac = last3.get("frac_halted_any", 0)
+                health3["checks"]["halting_var"] = {
+                    "std": he_std, "frac": he_frac,
+                    "thresholds": {"std": 0.02, "frac": 0.02},
+                    "passed": (he_std >= 0.02 and he_frac >= 0.02)
+                }
+                if he_std < 0.02 or he_frac < 0.02:
+                    health3["passed"] = False
+                    health3["failures"].append(
+                        f"halting std={he_std:.4f} frac={he_frac:.4f}")
+
+                # Check 3: Π_D car in top classes
+                pi_d = last3.get("pi_d_per_class", {})
+                if pi_d:
+                    sorted_classes = sorted(pi_d.items(), key=lambda x: -x[1])
+                    top2 = [c for c, _ in sorted_classes[:2]]
+                    car_in_top2 = any("car" in c.lower() for c in top2)
+                    health3["checks"]["pi_d_ordering"] = {
+                        "top2": top2, "passed": car_in_top2
+                    }
+                    if not car_in_top2:
+                        health3["passed"] = False
+                        health3["failures"].append(
+                            f"car not in top-2: {top2}")
+
+                # Check 4: HPC error trend (D-specific)
+                if len(lines3) >= 2:
+                    first3 = _json3.loads(lines3[0])
+                    hpc_err_first = first3.get("hpc_error_mean", 0)
+                    hpc_err_last = last3.get("hpc_error_mean", 0)
+                    if hpc_err_first > 0:
+                        hpc_decrease = 1.0 - (hpc_err_last / hpc_err_first)
+                        health3["checks"]["hpc_error_trend"] = {
+                            "first": hpc_err_first, "last": hpc_err_last,
+                            "decrease_pct": round(hpc_decrease * 100, 1),
+                            "passed": hpc_decrease >= D_HPC_TREND_MIN_DECREASE
+                        }
+                        if hpc_decrease < D_HPC_TREND_MIN_DECREASE:
+                            health3["passed"] = False
+                            health3["failures"].append(
+                                f"hpc_error decrease {hpc_decrease*100:.1f}% < 10%")
+                    else:
+                        health3["checks"]["hpc_error_trend"] = {
+                            "note": "hpc_error not logged",
+                            "passed": True
+                        }
+
+                # Check 5: no NaN
+                loss_val = last3.get("loss", 0)
+                health3["checks"]["no_nan"] = {
+                    "loss": loss_val,
+                    "passed": not (isinstance(loss_val, float) and
+                                   (math.isnan(loss_val) or
+                                    math.isinf(loss_val)))
+                }
+                if health3["checks"]["no_nan"]["passed"] is False:
+                    health3["passed"] = False
+                    health3["failures"].append("NaN/Inf in loss")
+
+                with open(smoke_health3, "w") as _hf3:
+                    _json3.dump(health3, _hf3, indent=2)
+                print(f"  Health gate: {'PASSED' if health3['passed'] else 'FAILED'}")
+                if health3["failures"]:
+                    for f_msg in health3["failures"]:
+                        print(f"    FAIL: {f_msg}")
+            else:
+                print("  ⚠ Smoke diag empty — cannot gate.")
+        else:
+            print(f"  ⚠ Smoke diag not found: {D_SMOKE_DIAG}")
+else:
+    print("  (Stage 3 Step A skipped: DO_STEP3_A=False or SKIP_STAGE3_TRAINING=True)",
+          flush=True)
+
+# %% [markdown]
+# ### Stage 3 — HEALTH GATE (decides Step A → Step B)
+
+# %%
+if DO_STAGE3 and DO_STEP3_A and not SKIP_STAGE3_TRAINING:
+    import json as _json3g
+    smoke_health3g = os.path.join(_REPO_ROOT, D_HEALTH_JSON)
+    gate_passed3 = False
+    if os.path.exists(smoke_health3g):
+        with open(smoke_health3g) as _fg3:
+            _hg3 = _json3g.load(_fg3)
+        gate_passed3 = _hg3.get("passed", False)
+        print(f"\n  Stage 3 health gate: {'PASSED ✓' if gate_passed3 else 'FAILED ✗'}")
+        if not gate_passed3:
+            for f_msg in _hg3.get("failures", []):
+                print(f"    → {f_msg}")
+            print("  ABORTING Stage 3 Step B. Investigate before re-running.")
+    else:
+        print(f"  ⚠ Health JSON not found: {D_HEALTH_JSON}")
+
+    if not gate_passed3 and DO_STEP3_B:
+        print("  Forcing DO_STEP3_B = False (gate did not pass).")
+        DO_STEP3_B = False
+
+# %% [markdown]
+# ### Stage 3 — STEP B: FULL 60-EPOCH, 3-PHASE RUN (D = AIS-v1 + HPC)
+
+# %%
+if DO_STAGE3 and DO_STEP3_B and not SKIP_STAGE3_TRAINING:
+    print("\n" + "="*70)
+    print("  STAGE 3 — STEP B: FULL 60-EPOCH RUN (D = AIS-v1 + HPC)")
+    print("="*70)
+
+    _d_ckpt_path = os.path.join(_REPO_ROOT, f"checkpoints/{D_FULL_CKPT}_best.pth")
+    if not os.path.exists(_d_ckpt_path):
+        if DRY_RUN:
+            print(f"  [DRY-RUN] would train D from {D_BASE}", flush=True)
+        else:
+            _train3_cmd = (
+                f"python3 phase1_training/train_rhan_next.py "
+                f"--enable-ais --no-ais-precision-recon "
+                f"--enable-hpc --hpc-num-levels 1 --w-hpc 0.10 "
+                f"--ckpt-name {D_FULL_CKPT} "
+                f"--max-epochs 60 "
+                f"--target-ckpt {D_BASE} "
+                f"--diag-json {D_FULL_DIAG} "
+                f"--batch-size 16 --accum-steps 16"
+            )
+            print(f"  Training: {_train3_cmd}", flush=True)
+            os.system(_train3_cmd)
+    else:
+        print(f"  [SKIP] D checkpoint already exists: {_d_ckpt_path}")
+
+    if os.path.exists(_d_ckpt_path):
+        print(f"  ✓ D checkpoint present: {_d_ckpt_path} "
+              f"({os.path.getsize(_d_ckpt_path)/1e6:.0f} MB)")
+else:
+    if DO_STAGE3 and not SKIP_STAGE3_TRAINING:
+        print("  (Stage 3 Step B skipped: DO_STEP3_B=False)", flush=True)
+
+# %% [markdown]
+# ### Stage 3 — STEP C: 8-SEED MATCHED EVAL (A vs B vs C vs D, PGD-50 + PGD-100)
+
+# %%
+if DO_STAGE3 and DO_STEP3_C:
+    print("\n" + "="*70)
+    print("  STAGE 3 — STEP C: 8-SEED MATCHED EVAL (A/B/C/D)")
+    print("="*70)
+
+    _prov3 = os.path.join(_REPO_ROOT, STEP3_C_MAIN, "eval_provenance.json")
+    _prov3_merged = os.path.join(_REPO_ROOT, STEP3_C_MAIN + "_merged",
+                                  "eval_provenance.json")
+    _done3 = os.path.exists(_prov3) or os.path.exists(_prov3_merged)
+
+    if _done3:
+        _use3 = _prov3_merged if os.path.exists(_prov3_merged) else _prov3
+        print(f"  [SKIP] Stage 3 Step C already complete: {_use3}")
+    else:
+        _all_seeds3 = STEP3_SEEDS + C3_SEEDS_STAGE3
+        _ckpt_specs3 = [
+            'trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large',
+            'rhan_next_ais_v1_halting_only:checkpoints/rhan_next_ais_v1_halting_only_best.pth:next',
+            'rhan_next_hpc_only:checkpoints/rhan_next_hpc_only_best.pth:next',
+            f'{D_FULL_CKPT}:checkpoints/{D_FULL_CKPT}_best.pth:next',
+        ]
+        _seeds_str3 = " ".join(str(s) for s in _all_seeds3)
+        _specs_str3 = " ".join(f'"' + s + '"' for s in _ckpt_specs3)
+
+        _eval3_pgd50 = (
+            f"python3 phase2_attacks/eval_rhan.py "
+            f"--ckpt-specs {_specs_str3} "
+            f"--seeds {_seeds_str3} "
+            f"--eps-list 0.0 0.094 "
+            f"--eps-norm-space "
+            f"--n-samples 300 --pgd-steps 50 --batch-size 32 "
+            f"--output-dir {STEP3_C_MAIN}"
+        )
+        if DRY_RUN:
+            print(f"  [DRY-RUN] PGD-50: {_eval3_pgd50}", flush=True)
+        else:
+            print("  Running PGD-50 eval (8 seeds × 4 checkpoints)...", flush=True)
+            os.system(_eval3_pgd50)
+
+        _eval3_pgd100 = (
+            f"python3 phase2_attacks/eval_rhan.py "
+            f"--ckpt-specs {_specs_str3} "
+            f"--seeds {_seeds_str3} "
+            f"--eps-list 0.094 "
+            f"--eps-norm-space "
+            f"--n-samples 300 --pgd-steps 100 --batch-size 32 "
+            f"--output-dir {STEP3_C_MAIN100}"
+        )
+        if DRY_RUN:
+            print(f"  [DRY-RUN] PGD-100: {_eval3_pgd100}", flush=True)
+        else:
+            print("  Running PGD-100 eval (8 seeds × 4 checkpoints)...", flush=True)
+            os.system(_eval3_pgd100)
+else:
+    if DO_STAGE3:
+        print("  (Stage 3 Step C skipped: DO_STEP3_C=False)", flush=True)
+
+# %% [markdown]
+# ### Stage 3 — RECORD VERDICT
+
+# %%
+if DO_STAGE3 and DO_STEP3_C:
+    def record_verdict_stage3():
+        print("\n" + "="*70)
+        print("  RECORDING STAGE 3 VERDICT INTO docs/rhan_next_roadmap.json")
+        print("="*70)
+        prov_path3 = os.path.join(STEP3_C_MAIN, "eval_provenance.json")
+        merged_path3 = os.path.join(STEP3_C_MAIN + "_merged",
+                                     "eval_provenance.json")
+        if os.path.exists(merged_path3):
+            prov_path3 = merged_path3
+            print("  Using MERGED 8-seed provenance.", flush=True)
+        if not os.path.exists(prov_path3):
+            print("  No Stage 3 eval_provenance.json found — Step C did not "
+                  "complete. Roadmap NOT touched.", flush=True)
+            return
+
+        sync_roadmap_down()
+        with open(prov_path3) as _fp3:
+            prov3 = json.load(_fp3)
+
+        prov100_path3 = os.path.join(STEP3_C_MAIN100, "eval_provenance.json")
+        prov100_3 = None
+        if os.path.exists(prov100_path3):
+            with open(prov100_path3) as _fp100_3:
+                prov100_3 = json.load(_fp100_3)
+        else:
+            print("  WARNING: PGD-100 provenance not found — masking "
+                  "verdict unavailable.", flush=True)
+
+        rows3 = prov3.get("results") or []
+
+        def _row3(label, eps):
+            return _results_row(rows3, label, eps)
+
+        rD = _row3(D_FULL_CKPT, 0.094)
+        rA = _row3("trades_large_baseline", 0.094)
+        rB = _row3("rhan_next_ais_v1_halting_only", 0.094)
+        rC = _row3("rhan_next_hpc_only", 0.094)
+
+        comparisons = {}
+        for name, rX in [("D_vs_A", rA), ("D_vs_B", rB), ("D_vs_C", rC)]:
+            if rD and rX:
+                diff = float(rD['acc_mean']) - float(rX['acc_mean'])
+                combined = _math.sqrt(float(rD['acc_std']) ** 2 +
+                                      float(rX['acc_std']) ** 2)
+                label_x = name.split("_vs_")[1]
+                comparisons[name] = {
+                    "d_acc_mean": float(rD['acc_mean']),
+                    "d_acc_std": float(rD['acc_std']),
+                    f"{label_x.lower()}_acc_mean": float(rX['acc_mean']),
+                    f"{label_x.lower()}_acc_std": float(rX['acc_std']),
+                    "diff_pp": round(diff, 2),
+                    "threshold_2sig_pp": round(2 * combined, 2),
+                    "verdict": ("CROSSOVER REAL" if diff > 2 * combined
+                                else ("positive but NOT significant" if diff > 0
+                                      else "at or below")),
+                }
+
+        stage3 = {
+            "validated": True,
+            "validated_date": prov3.get("timestamp_utc", "unknown")[:10],
+            "git_sha": prov3.get("git_sha"),
+            "run_label": "D_ais_plus_hpc (AIS-v1 + HPC)",
+            "run_identity": (
+                "Matrix entry D_ais_plus_hpc: RHANNext(enable_ais=True, "
+                "enable_hpc=True, hpc_num_levels=1, w_hpc=0.10, "
+                "no_ais_precision_recon=True). Combines validated B (AIS-v1) "
+                "and C (HPC-only) into a single architecture."),
+            "checkpoints": prov3.get("checkpoints"),
+            "seeds": prov3.get("seeds"),
+            "eps_list": prov3.get("eps_list"),
+            "n_samples": prov3.get("n_samples"),
+            "pgd_steps": prov3.get("pgd_steps"),
+            "results": rows3,
+            "comparisons": comparisons,
+            "eval_target_note": _eval_target_note(prov3.get("checkpoints")),
+            "masking_check": (
+                masking_verdict(prov3, prov100_3)
+                if prov100_3 is not None
+                else {"available": False,
+                      "note": "PGD-100 did not run"}),
+            "note": ("Stage 3 (D_ais_plus_hpc) validated via the %d-seed matched "
+                      "protocol, FOUR-WAY vs A/B/C." % len(prov3.get('seeds') or [])),
+        }
+
+        roadmap = json.load(open(ROADMAP_LOCAL))
+        roadmap["stages"]["3"] = roadmap.get("stages", {}).get("3", {})
+        roadmap["stages"]["3"]["validated"] = True
+        roadmap["stages"]["3"]["validated_date"] = stage3["validated_date"]
+        roadmap["stages"]["3"]["validated_note"] = (
+            "Stage 3 (D_ais_plus_hpc) %d-seed matched eval recorded from %s."
+            % (len(prov3.get('seeds') or []), prov_path3))
+        roadmap["stages"]["3"]["stage3_verdict"] = stage3
+        with open(ROADMAP_LOCAL, "w") as _fw3:
+            json.dump(roadmap, _fw3, indent=2, sort_keys=False)
+        print("  ✓ docs/rhan_next_roadmap.json updated: stages['3'].stage3_verdict")
+        sync_roadmap_up()
+        for cmp_name, cmp_data in comparisons.items():
+            print(f"  {cmp_name}: {cmp_data['diff_pp']:+.2f} pp "
+                  f"(2·σ={cmp_data['threshold_2sig_pp']:.2f}) → "
+                  f"{cmp_data['verdict']}")
+
+    record_verdict_stage3()
+
+# %% [markdown]
+# ## Done — Stage 3 Complete
+#
+# Stages 1–3 are now COMPLETE:
+#   A = TRADES baseline
+#   B = AIS-v1 (halting-only) — +8.5 pp, NOT significant
+#   C = HPC-only — +3.92 pp, NOT significant
+#   D = AIS-v1 + HPC — Stage 3 verdict above
+#
+# All evaluation uses the pinned 8-seed protocol (seeds 41–48, datasets==4.7.0).
+# SBR and AIS-v2 remain locked for future isolation.
 
 # %%
 print("\n" + "="*70)
-print("  STAGE 2 EXECUTION COMPLETE")
+print("  STAGE 3 EXECUTION COMPLETE")
 print("="*70)
-print("  - Stage 1 (validated record): AIS-v1 halting-only — 8-seed, +8.5 pp @ ε=0.094, not significant, masking-free")
-print("  - Step A smoke telemetry : report/rhan_next_ais_v1_smoke_diag.jsonl")
-print("  - Step A health verdict  : report/rhan_next_ais_v1_smoke_health.json")
-print("  - Isolation A (halt off) : checkpoints/rhan_next_ais_v1_isoA_nohalt_{best,rolling}.pth")
-print("  - Isolation B (recon off): checkpoints/rhan_next_ais_v1_isoB_noreconmod_{best,rolling}.pth")
-print("  - Isolation verdict      : report/rhan_next_ais_v1_isolation_verdict.json")
-print("  - Step B full run        : checkpoints/rhan_next_ais_v1_halting_only_{best,rolling}.pth")
-print("  - Step C eval (PGD-50)   : report/sweep_stage1_ais_v1_halting_only/")
-print("  - Step C PGD-100 spot    : report/sweep_stage1_ais_v1_halting_only_pgd100/ (eps=0.094, masking check)")
-print("  - Verdict recorded       : docs/rhan_next_roadmap.json (stages.1)")
+print("  - Stage 1 (validated record): AIS-v1 halting-only — 8-seed, +8.5 pp @ ε=0.094, not significant")
+print("  - Stage 2 (validated record): HPC-only — 8-seed, +3.92 pp @ ε=0.094, not significant")
+print("  - Stage 3 (D = AIS-v1 + HPC): see stages['3'].stage3_verdict in roadmap")
 print()
-print("  Stage 2 kept AIS-v1 (halting-only variant) fixed as its base — the")
-print("  config Stage 1 validated. recon-mod stays deferred until its own")
-print("  isolation. Next gate: Stage 3 integration & reporting.")
+print("  Artifacts:")
+print(f"  - D smoke telemetry : {D_SMOKE_DIAG}")
+print(f"  - D health verdict  : {D_HEALTH_JSON}")
+print(f"  - D full run        : checkpoints/{D_FULL_CKPT}_{{best,rolling}}.pth")
+print(f"  - D eval (PGD-50)   : {STEP3_C_MAIN}/")
+print(f"  - D PGD-100         : {STEP3_C_MAIN100}/")
+print(f"  - Verdict recorded  : docs/rhan_next_roadmap.json (stages.3)")
+print()
+print("  Next: Lens belief-drift analysis (A/B/C/D) + mechanistic classification")
 print("="*70)

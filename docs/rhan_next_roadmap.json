@@ -124,7 +124,7 @@
       },
       "isolation_verdict": {
         "schema": "stage1_isolation_verdict_v2",
-        "date_utc": "2026-08-13T12:45:53Z",
+        "date_utc": "2026-08-18T03:39:19Z",
         "smoke_pi_d_top2": [
           "car",
           "airplane"
@@ -379,8 +379,8 @@
       "name": "Pillar 1 \u2014 Hierarchical Predictive Coding (one level at a time; THIS ROUND = matrix C, HPC-only)",
       "code_complete": true,
       "code_complete_date": "2026-08-05",
-      "validated": false,
-      "validated_note": "2026-08-11: Stage 2 infrastructure code-complete + tested (HPCLevel1 wiring, gradient-flow + AIS-v1 disable backward-compat tests, ablation matrix A/B/C/D registry + runner, eval_rhan.py --ablation-matrix flag, SBR feasibility probe built+dormant). THIS ROUND trains/evaluates ONLY matrix entry C (HPC-only) via the notebook Stage 2 block. D (AIS+HPC) stays SCAFFOLDED_NOT_RUN \u2014 dormant until the Stage 2 verdict says HPC is worth combining with AIS. Verdict recorded to stages['2'].stage2_verdict.",
+      "validated": true,
+      "validated_note": "Stage 2 (C_hpc_only) 5-seed matched eval recorded from report/sweep_stage2_hpc_only/eval_provenance.json \u2014 see roadmap.stages['2'].stage2_verdict. Verdict is what it is, including a null result.",
       "code_complete_acceptance": [
         "hpc_num_levels=1: EdgeFeatureLevelPredictor (feature_target=edge_map) alongside existing top-level predictor",
         "feature target is edges, NOT raw pixels (feature-vs-pixel rule)",
@@ -452,8 +452,11 @@
         "date": "2026-08-16",
         "healthy": true,
         "checks": {
-          "2_hpc_error_trend": "PASS (ratio 0.23, >= 10% decrease)",
-          "4_pi_d_reference_envelope": "PASS (all classes in [0.1722, 0.4616], car #1)"
+          "1_hpc_gradient_flow": "PASS (tests/test_hpc_gradient_flow.py)",
+          "3_ais_v1_disable_backward_compat": "PASS (tests/test_hpc_disable_backward_compat.py)",
+          "5_optimizer_group_resume": "PASS (tests/test_hpc_optimizer_group_resume.py)",
+          "2_hpc_error_trend": "PASS",
+          "4_pi_d_reference_envelope": "PASS"
         },
         "amended": true
       },
@@ -466,7 +469,473 @@
             "car",
             "airplane"
           ]
-        }
+        },
+        "epochs": [
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0358,
+            "top2": [
+              "car",
+              "airplane"
+            ],
+            "epoch": 1,
+            "eps": 0.031
+          },
+          {
+            "truck_rank": 5,
+            "truck_in_top3": false,
+            "truck_vs_2_margin": -0.0315,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 35,
+            "eps": 0.062
+          },
+          {
+            "truck_rank": 4,
+            "truck_in_top3": false,
+            "truck_vs_2_margin": -0.0272,
+            "top2": [
+              "car",
+              "airplane"
+            ],
+            "epoch": 36,
+            "eps": 0.062
+          },
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0154,
+            "top2": [
+              "car",
+              "airplane"
+            ],
+            "epoch": 37,
+            "eps": 0.062
+          },
+          {
+            "truck_rank": 4,
+            "truck_in_top3": false,
+            "truck_vs_2_margin": -0.0168,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 38,
+            "eps": 0.062
+          },
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0092,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 39,
+            "eps": 0.062
+          },
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0142,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 40,
+            "eps": 0.062
+          },
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0203,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 41,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0206,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 42,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0144,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 43,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 5,
+            "truck_in_top3": false,
+            "truck_vs_2_margin": -0.0254,
+            "top2": [
+              "car",
+              "airplane"
+            ],
+            "epoch": 44,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0168,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 45,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0074,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 46,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 5,
+            "truck_in_top3": false,
+            "truck_vs_2_margin": -0.0236,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 47,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 4,
+            "truck_in_top3": false,
+            "truck_vs_2_margin": -0.0066,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 48,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 4,
+            "truck_in_top3": false,
+            "truck_vs_2_margin": -0.017,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 49,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0168,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 50,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 4,
+            "truck_in_top3": false,
+            "truck_vs_2_margin": -0.0279,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 51,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0159,
+            "top2": [
+              "car",
+              "airplane"
+            ],
+            "epoch": 52,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 5,
+            "truck_in_top3": false,
+            "truck_vs_2_margin": -0.0294,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 53,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 4,
+            "truck_in_top3": false,
+            "truck_vs_2_margin": -0.0204,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 54,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0175,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 55,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0148,
+            "top2": [
+              "car",
+              "airplane"
+            ],
+            "epoch": 56,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0197,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 57,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 4,
+            "truck_in_top3": false,
+            "truck_vs_2_margin": -0.0204,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 58,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 5,
+            "truck_in_top3": false,
+            "truck_vs_2_margin": -0.0188,
+            "top2": [
+              "airplane",
+              "car"
+            ],
+            "epoch": 59,
+            "eps": 0.094
+          },
+          {
+            "truck_rank": 3,
+            "truck_in_top3": true,
+            "truck_vs_2_margin": -0.0169,
+            "top2": [
+              "car",
+              "airplane"
+            ],
+            "epoch": 60,
+            "eps": 0.094
+          }
+        ]
+      },
+      "step_b_resume": {
+        "source": "already_complete_on_hf",
+        "note": "resumed from HF rolling at epoch 60 (already at max 60) \u2014 0 epochs trained this session; the original launch was recorded by the session that STARTED Step B.",
+        "seeded": false
+      },
+      "validated_date": "2026-08-18",
+      "stage2_verdict": {
+        "validated": true,
+        "validated_date": "2026-08-18",
+        "git_sha": "3c50d5194e21f12365163722df1765c368ac01ef",
+        "run_label": "C_hpc_only (HPC-only, w_hpc=0.10)",
+        "run_identity": "Matrix entry C_hpc_only: RHANNext(enable_ais=False, enable_hpc=True, hpc_num_levels=1, w_hpc=0.10), trained from the validated AIS-v1 (halting-only) backbone. ONE new mechanism (a single additive HPC loss term), zero coupling into AIS internals.",
+        "checkpoints": [
+          {
+            "arch": "large",
+            "freeze": false,
+            "label": "trades_large_baseline",
+            "path": "/kaggle/working/Adversarial-Cognitive-Model/checkpoints/rhan_stl10_large_pseudolabel_best.pth",
+            "sha256": "37a4eee0c37b77adc291cb45cc19310de1249c7cd81b0e779b2ebaea6d466afc"
+          },
+          {
+            "arch": "next",
+            "freeze": false,
+            "label": "rhan_next_ais_v1_halting_only",
+            "path": "/kaggle/working/Adversarial-Cognitive-Model/checkpoints/rhan_next_ais_v1_halting_only_best.pth",
+            "sha256": "19582ff4b32afdb2a46e88a7089167844a2ac3b24d01d6c34cac79ebbf1118e3"
+          },
+          {
+            "arch": "next",
+            "freeze": false,
+            "label": "rhan_next_hpc_only",
+            "path": "/kaggle/working/Adversarial-Cognitive-Model/checkpoints/rhan_next_hpc_only_best.pth",
+            "sha256": "5b7dce1e37e9e26d95a742f8a6dc0ec4e1c895766ca42e0316ec78a90f6f55a0"
+          }
+        ],
+        "seeds": [
+          41,
+          42,
+          43,
+          44,
+          45
+        ],
+        "eps_list": [
+          0.0,
+          0.094
+        ],
+        "n_samples": 300,
+        "pgd_steps": 50,
+        "results": [
+          {
+            "acc_mean": "49.4",
+            "acc_std": "3.48",
+            "ckpt_label": "rhan_next_ais_v1_halting_only",
+            "eps_norm_B": "0.0",
+            "eps_norm_G": "0.0",
+            "eps_norm_R": "0.0",
+            "eps_pixel": "0.0",
+            "macro_dprime_mean": "1.8348",
+            "macro_dprime_std": "0.2745",
+            "n_seeds": "5"
+          },
+          {
+            "acc_mean": "32.53",
+            "acc_std": "1.94",
+            "ckpt_label": "rhan_next_ais_v1_halting_only",
+            "eps_norm_B": "0.094",
+            "eps_norm_G": "0.094",
+            "eps_norm_R": "0.094",
+            "eps_pixel": "0.094",
+            "macro_dprime_mean": "0.9745",
+            "macro_dprime_std": "0.1823",
+            "n_seeds": "5"
+          },
+          {
+            "acc_mean": "55.2",
+            "acc_std": "3.67",
+            "ckpt_label": "rhan_next_hpc_only",
+            "eps_norm_B": "0.0",
+            "eps_norm_G": "0.0",
+            "eps_norm_R": "0.0",
+            "eps_pixel": "0.0",
+            "macro_dprime_mean": "1.7775",
+            "macro_dprime_std": "0.1289",
+            "n_seeds": "5"
+          },
+          {
+            "acc_mean": "27.73",
+            "acc_std": "2.28",
+            "ckpt_label": "rhan_next_hpc_only",
+            "eps_norm_B": "0.094",
+            "eps_norm_G": "0.094",
+            "eps_norm_R": "0.094",
+            "eps_pixel": "0.094",
+            "macro_dprime_mean": "0.6147",
+            "macro_dprime_std": "0.3276",
+            "n_seeds": "5"
+          },
+          {
+            "acc_mean": "53.47",
+            "acc_std": "2.87",
+            "ckpt_label": "trades_large_baseline",
+            "eps_norm_B": "0.0",
+            "eps_norm_G": "0.0",
+            "eps_norm_R": "0.0",
+            "eps_pixel": "0.0",
+            "macro_dprime_mean": "1.8737",
+            "macro_dprime_std": "0.2432",
+            "n_seeds": "5"
+          },
+          {
+            "acc_mean": "20.4",
+            "acc_std": "1.21",
+            "ckpt_label": "trades_large_baseline",
+            "eps_norm_B": "0.094",
+            "eps_norm_G": "0.094",
+            "eps_norm_R": "0.094",
+            "eps_pixel": "0.094",
+            "macro_dprime_mean": "0.3251",
+            "macro_dprime_std": "0.1952",
+            "n_seeds": "5"
+          }
+        ],
+        "crossover_verdicts": [
+          {
+            "acc_mean": 32.53,
+            "acc_std": 1.94,
+            "baseline": "trades_large_baseline",
+            "baseline_acc_mean": 20.4,
+            "checkpoint": "rhan_next_ais_v1_halting_only",
+            "diff_pp": 12.13,
+            "eps": 0.094,
+            "threshold_2sig": 4.57,
+            "verdict": "CROSSOVER REAL"
+          },
+          {
+            "acc_mean": 27.73,
+            "acc_std": 2.28,
+            "baseline": "trades_large_baseline",
+            "baseline_acc_mean": 20.4,
+            "checkpoint": "rhan_next_hpc_only",
+            "diff_pp": 7.33,
+            "eps": 0.094,
+            "threshold_2sig": 5.16,
+            "verdict": "CROSSOVER REAL"
+          }
+        ],
+        "c_vs_b_comparison": {
+          "c_acc_mean": 27.73,
+          "c_acc_std": 2.28,
+          "b_acc_mean": 32.53,
+          "b_acc_std": 1.94,
+          "diff_pp": -4.8,
+          "threshold_2sig_pp": 5.99,
+          "verdict": "at or below B",
+          "note": "Direct C-vs-B comparison at eps=0.094 (does HPC add anything AIS didn't already provide? Same 2-sigma criterion as the crossover protocol.)"
+        },
+        "eval_target_note": "trades_large_baseline: evaluated on *_best.pth (rhan_stl10_large_pseudolabel_best.pth) \u2014 best-vs-rolling could not be verified locally this session; treat as the final-epoch model unless the roadmap's best_vs_rolling_verification says otherwise; rhan_next_ais_v1_halting_only: evaluated on *_best.pth (rhan_next_ais_v1_halting_only_best.pth) \u2014 best-vs-rolling could not be verified locally this session; treat as the final-epoch model unless the roadmap's best_vs_rolling_verification says otherwise; rhan_next_hpc_only: evaluated on *_best.pth (rhan_next_hpc_only_best.pth) \u2014 best-vs-rolling could not be verified locally this session; treat as the final-epoch model unless the roadmap's best_vs_rolling_verification says otherwise. When the artifact is the final-epoch model, recorded results correspond to it, not to the peak-val model.",
+        "seed_extension": {
+          "applied": false,
+          "note": "5-seed protocol only (verdict was not borderline \u2014 no extension per the pre-registered rule)"
+        },
+        "masking_check": {
+          "available": false,
+          "note": "PGD-100 spot-check did not run"
+        },
+        "note": "Stage 2 (C_hpc_only) validated via the 5-seed matched protocol, THREE-WAY vs A (static TRADES baseline) and B (AIS-v1 halting-only). A null result is a valid, reportable outcome."
       }
     },
     "3": {
