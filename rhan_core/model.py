@@ -172,6 +172,7 @@ class RHANNext(RHANv12):
                 'actions': [], 'precisions': [], 'errors': [], 'gate_alphas': [],
                 'recon_errors': [], 'recon_maps': [], 'steps': 0,
                 'uncertainties': [], 'continuations': [],
+                'step_beliefs': [],   # per-step 512-dim belief state
             }
             if hasattr(self, 'hpc_stack') and len(self.hpc_stack.levels) > 0:
                 trajectory['hpc_errors'] = []
@@ -260,6 +261,7 @@ class RHANNext(RHANv12):
 
             # Record trajectory for diagnostics/losses.
             if collect_traj:
+                trajectory['step_beliefs'].append(s.detach())  # (B, 512)
                 trajectory['actions'].append(a.detach())
                 trajectory['precisions'].append(pi_d.detach())
                 trajectory['errors'].append(error_mag.detach())
