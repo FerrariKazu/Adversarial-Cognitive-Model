@@ -22,3 +22,4 @@ grad-cam>=1.4.0
 bagnets @ git+https://github.com/wielandbrendel/bag-of-local-features-models.git
 cornet @ git+https://github.com/dicarlolab/CORnet.git
 clip @ git+https://github.com/openai/CLIP.git
+datasets==4.7.0

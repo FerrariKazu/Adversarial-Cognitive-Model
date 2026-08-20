@@ -1,6 +1,6 @@
 # Stage 2 Run Log — HPC-only (matrix C): 60-epoch training + three-way Step C eval
 
-> Recorded 2026-08-16 from the Kaggle run that completed Step B (60/60 epochs) and hit the 12 h timeout mid-Step-C PGD-100. Updated 2026-08-18 with the **completed three-way PGD-50 eval** (A baseline / B AIS-v1 / C HPC-only) from the re-run under commit `3c50d51` (per-cell `--resume` + per-leg HF sync). Per-epoch numbers below are the exact rows of the trainer diag `report/rhan_next_hpc_only_diag.jsonl` (synced to HF); the printed diagnostic blocks in the run log are those same rows. Step C numbers are the exact HF-synced sweep CSVs (`report/sweep_stage2_hpc_only/epsilon_sweep_*.csv`).
+> Recorded 2026-08-16 from the Kaggle run that completed Step B (60/60 epochs) and hit the 12 h timeout mid-Step-C PGD-100. Updated 2026-08-18 with the **completed three-way PGD-50 eval** (A baseline / B AIS-v1 / C HPC-only) from the re-run under commit `3c50d51` (per-cell `--resume` + per-leg HF sync). Updated 2026-08-20 with the **definitive 8-seed reruns** (`datasets==4.7.0` pinned): AIS-v1 vs baseline (§8, +7.75 pp NOT significant) and HPC-only vs baseline (§9, +3.92/+4.29 pp NOT significant) — both confirm the pre-registered Stage 1 verdict. Per-epoch numbers below are the exact rows of the trainer diag `report/rhan_next_hpc_only_diag.jsonl` (synced to HF); the printed diagnostic blocks in the run log are those same rows. Step C numbers are the exact HF-synced sweep CSVs (`report/sweep_stage2_hpc_only/epsilon_sweep_*.csv`).
 
 ## 0. Run metadata
 
@@ -15,8 +15,8 @@
 | dataloader | num_workers=4, persistent_workers=True, prefetch_factor=4 |
 | diag rows | 27 (prepended epoch-1 resume baseline + epochs 35–60) |
 | final | Training complete, Best **56.81%**; rolling epoch 60; truck-rank WATCH series logged (27 epochs, final rank=3, margin −0.0169) |
-| Step C PGD-50 | **COMPLETE** (three-way A/B/C, 5 seeds × 300 samples, eps ∈ {0.0, 0.094}, norm-space) — 2026-08-18, commit `3c50d51`, provenance `report/sweep_stage2_hpc_only/eval_provenance.json` |
-| Step C PGD-100 | **IN PROGRESS** — A seeds 41–43 done at log cut (A seed 44 running, B/C not started) |
+| Step C PGD-50 | **COMPLETE** (three-way A/B/C, 5 seeds × 300 samples, eps ∈ {0.0, 0.094}, norm-space) — 2026-08-18, commit `3c50d51`, provenance `report/sweep_stage2_hpc_only/eval_provenance.json` — **superseded by 8-seed reruns** (§8: AIS-v1 +7.75 pp NOT sig; §9: HPC-only +3.92 pp NOT sig) |
+| Step C PGD-100 | **COMPLETE** (three-way A/B/C, 5 seeds × 300 samples, eps=0.094, norm-space) — 2026-08-18, commit `3c50d51`, provenance `report/sweep_stage2_hpc_only_pgd100/eval_provenance.json` — **superseded by 8-seed reruns** (§8: AIS-v1 +7.75 pp NOT sig; §9: HPC-only +4.29 pp NOT sig) |
 
 ## 1. Pseudo-label distribution (train-split step, this session)
 
@@ -226,17 +226,217 @@ Crossover @ eps=0.094 (criterion: diff > 2·σ_comb):
 
 ## 7. Step C — PGD-100 leg (eps=0.094, masking re-confirmation)
 
-In progress at the time the log was captured (12 h Kaggle budget, session still running). Completed cells at the cut:
+Complete 5-seed run under commit `3c50d51`, 2026-08-18, provenance `report/sweep_stage2_hpc_only_pgd100/eval_provenance.json`.
+
+### 7.1 Aggregated (mean ± std over seeds)
+
+| checkpoint | eps | Acc% | d′ |
+|---|---|---|---|
+| rhan_next_ais_v1_halting_only | 0.094 | 31.80±1.92 | 0.9665±0.1886 |
+| rhan_next_hpc_only | 0.094 | 27.40±2.22 | 0.6057±0.3374 |
+| trades_large_baseline | 0.094 | 19.87±1.07 | 0.3097±0.1879 |
+
+Crossover @ eps=0.094 (criterion: diff > 2·σ_comb):
+
+| checkpoint | diff (pp) | 2·σ_comb | verdict |
+|---|---|---|---|
+| rhan_next_ais_v1_halting_only | **+11.93** | 4.40 | **CROSSOVER REAL** |
+| rhan_next_hpc_only | **+7.53** | 4.92 | **CROSSOVER REAL** |
+
+### 7.2 Per-seed
 
 | checkpoint | seed | Acc% | d′ |
 |---|---|---|---|
 | trades_large_baseline | 41 | 19.00 | 0.2352 |
 | trades_large_baseline | 42 | 21.33 | 0.1366 |
 | trades_large_baseline | 43 | 20.67 | 0.6272 |
+| trades_large_baseline | 44 | 19.00 | 0.3099 |
+| trades_large_baseline | 45 | 19.33 | 0.2398 |
+| rhan_next_ais_v1_halting_only | 41 | 31.00 | 0.6529 |
+| rhan_next_ais_v1_halting_only | 42 | 32.00 | 1.0103 |
+| rhan_next_ais_v1_halting_only | 43 | 31.00 | 1.0397 |
+| rhan_next_ais_v1_halting_only | 44 | 35.00 | 1.1580 |
+| rhan_next_ais_v1_halting_only | 45 | 30.00 | 0.9715 |
+| rhan_next_hpc_only | 41 | 24.67 | 0.0890 |
+| rhan_next_hpc_only | 42 | 30.67 | 0.6882 |
+| rhan_next_hpc_only | 43 | 26.33 | 1.0278 |
+| rhan_next_hpc_only | 44 | 28.00 | 0.6527 |
+| rhan_next_hpc_only | 45 | 27.33 | 0.5707 |
 
-Remaining at the cut: A seed 44 (running) + seed 45, then all of B (AIS-v1) and C (HPC-only). Because the leg syncs to HF only after completing, and `--resume` skips already-evaluated `(ckpt, seed, eps)` cells, any re-run continues from exactly the completed cells — nothing already computed is recomputed.
+### 7.3 Masking analysis (PGD-50 → PGD-100 gap)
 
-## 8. Key observations
+Gap ≤ 1.0 pp = genuine robustness (no masking); 1.0–2.5 pp = borderline inconclusive (GPU nondeterminism caveat); >2.5 pp = potential masking.
+
+| checkpoint | acc PGD-50 | acc PGD-100 | gap (pp) | verdict |
+|---|---|---|---|---|
+| trades_large_baseline | 20.40 | 19.87 | 0.53 | **GENUINE** (no masking) |
+| rhan_next_ais_v1_halting_only | 32.53 | 31.80 | 0.73 | **GENUINE** (no masking) |
+| rhan_next_hpc_only | 27.73 | 27.40 | 0.33 | **GENUINE** (no masking) |
+
+All three checkpoints show PGD-50→100 gaps well within the genuine band (≤1.0 pp). None exhibit gradient masking. The cross-run GPU nondeterminism caveat (~1.5 pp) does not apply here — all gaps are < 1.0 pp.
+
+## 8. Step C — 8-seed rerun (AIS-v1 vs baseline only, `datasets==4.7.0` pinned)
+
+**Motivation:** The 5-seed PGD-50 run (§6) showed AIS-v1 **+12.13 pp** over baseline (32.53 vs 20.40), while the Stage 1 official 8-seed result was **+8.5 pp**. Investigation ruled out checkpoint drift (SHA-256 identical) and attack-code changes (byte-identical), so the discrepancy was attributed to `datasets` library shuffle non-determinism across Kaggle sessions. The `datasets` version was unpinned (`pip install --quiet datasets`), allowing different shuffled 300-sample subsets for the same seed.
+
+**Protocol:** Pin `datasets==4.7.0` in `requirements.txt`, `cloud_setup/colab_notebook_noesis.py`, `cloud_setup/Kaggle_NOESIS.py`. Re-run AIS-v1 vs baseline at 8 seeds (41–48), PGD-50, ε∈{0.0, 0.094}, 300 samples, batch 32, norm-space. Local GPU (RTX 4060, 8.6 GB VRAM). Commit `707a83d`. Provenance `report/sweep_rerun_ais_v1_8seed/eval_provenance.json`.
+
+### 8.1 Aggregated (mean ± std over 8 seeds)
+
+| checkpoint | eps | Acc% | d′ |
+|---|---|---|---|
+| rhan_next_ais_v1_halting_only | 0.000 | 50.38±3.09 | 1.8031±0.2654 |
+| rhan_next_ais_v1_halting_only | 0.094 | 31.67±2.92 | 0.8447±0.2015 |
+| trades_large_baseline | 0.000 | 54.54±2.95 | 1.8364±0.2081 |
+| trades_large_baseline | 0.094 | 23.92±4.62 | 0.5942±0.1655 |
+
+Crossover @ eps=0.094 (criterion: diff > 2·σ_comb):
+
+| checkpoint | diff (pp) | 2·σ_comb | verdict |
+|---|---|---|---|
+| rhan_next_ais_v1_halting_only | **+7.75** | 10.93 | positive but **NOT significant** |
+
+### 8.2 Per-seed
+
+| checkpoint | seed | eps | Acc% | d′ |
+|---|---|---|---|---|
+| rhan_next_ais_v1_halting_only | 41 | 0.000 | 50.33 | 2.0008 |
+| rhan_next_ais_v1_halting_only | 41 | 0.094 | 31.00 | 0.8350 |
+| rhan_next_ais_v1_halting_only | 42 | 0.000 | 48.67 | 2.0939 |
+| rhan_next_ais_v1_halting_only | 42 | 0.094 | 35.67 | 1.1609 |
+| rhan_next_ais_v1_halting_only | 43 | 0.000 | 44.67 | 1.3856 |
+| rhan_next_ais_v1_halting_only | 43 | 0.094 | 27.00 | 0.6515 |
+| rhan_next_ais_v1_halting_only | 44 | 0.000 | 54.33 | 1.7986 |
+| rhan_next_ais_v1_halting_only | 44 | 0.094 | 33.33 | 0.9940 |
+| rhan_next_ais_v1_halting_only | 45 | 0.000 | 48.33 | 1.8953 |
+| rhan_next_ais_v1_halting_only | 45 | 0.094 | 31.00 | 0.6213 |
+| rhan_next_ais_v1_halting_only | 46 | 0.000 | 53.00 | 1.8304 |
+| rhan_next_ais_v1_halting_only | 46 | 0.094 | 28.33 | 0.6116 |
+| rhan_next_ais_v1_halting_only | 47 | 0.000 | 51.33 | 2.0005 |
+| rhan_next_ais_v1_halting_only | 47 | 0.094 | 33.00 | 0.9685 |
+| rhan_next_ais_v1_halting_only | 48 | 0.000 | 52.33 | 1.4197 |
+| rhan_next_ais_v1_halting_only | 48 | 0.094 | 34.00 | 0.9148 |
+| trades_large_baseline | 41 | 0.000 | 51.00 | 1.9081 |
+| trades_large_baseline | 41 | 0.094 | 25.00 | 0.2166 |
+| trades_large_baseline | 42 | 0.000 | 56.33 | 2.0828 |
+| trades_large_baseline | 42 | 0.094 | 22.00 | 0.6920 |
+| trades_large_baseline | 43 | 0.000 | 50.00 | 2.1296 |
+| trades_large_baseline | 43 | 0.094 | 18.33 | 0.6258 |
+| trades_large_baseline | 44 | 0.000 | 56.00 | 1.6498 |
+| trades_large_baseline | 44 | 0.094 | 22.00 | 0.6980 |
+| trades_large_baseline | 45 | 0.000 | 54.00 | 1.5981 |
+| trades_large_baseline | 45 | 0.094 | 23.00 | 0.6924 |
+| trades_large_baseline | 46 | 0.000 | 53.67 | 1.9409 |
+| trades_large_baseline | 46 | 0.094 | 20.67 | 0.6245 |
+| trades_large_baseline | 47 | 0.000 | 58.67 | 1.6342 |
+| trades_large_baseline | 47 | 0.094 | 27.00 | 0.5094 |
+| trades_large_baseline | 48 | 0.000 | 56.67 | 1.7479 |
+| trades_large_baseline | 48 | 0.094 | 33.33 | 0.6949 |
+
+### 8.3 Cross-run comparison (AIS-v1 vs baseline @ ε=0.094)
+
+| run | seeds | AIS-v1 Acc% | Baseline Acc% | diff (pp) | 2·σ_comb | verdict |
+|---|---|---|---|---|---|---|
+| Stage 1 official (pre-registered) | 41–48 (8) | 32.21±2.74 | 23.71±3.47 | +8.5 | 8.77 | NOT significant |
+| Step C PGD-50 three-way (§6) | 41–45 (5) | 32.53±1.94 | 20.40±1.21 | +12.13 | 4.57 | CROSSOVER REAL |
+| **8-seed rerun, `datasets==4.7.0` (§8)** | **41–48 (8)** | **31.67±2.92** | **23.92±4.62** | **+7.75** | **10.93** | **NOT significant** |
+
+The 8-seed rerun with pinned `datasets` closely reproduces the Stage 1 result (+7.75 vs +8.5 pp). The 5-seed Step C run's +12.13 pp was driven by an anomalously low baseline (20.40%, which with 8 seeds recovers to 23.92%). The high baseline variance across runs (σ ≈ 1.2–4.6 pp per seed mean) is the primary source of crossover-estimate instability.
+
+## 9. Step C — 8-seed rerun (HPC-only vs baseline, `datasets==4.7.0` pinned)
+
+**Motivation:** The 5-seed PGD-50/100 runs (§6/§7) showed HPC-only **+7.33/+7.53 pp** over baseline. Parallel to the AIS-v1 8-seed rerun (§8), this may be inflated by baseline variance under unpinned `datasets`. Re-run with `datasets==4.7.0` pinned.
+
+**Protocol:** Same as §8 — 8 seeds (41–48), 300 samples, batch 32, norm-space, local GPU (RTX 4060). PGD-50 and PGD-100 run as separate passes. Commit `707a83d`.
+
+### 9.1 Aggregated (mean ± std over 8 seeds)
+
+**PGD-50:**
+
+| checkpoint | eps | Acc% | d′ |
+|---|---|---|---|
+| rhan_next_hpc_only | 0.000 | 55.96±2.97 | 1.7474±0.1026 |
+| rhan_next_hpc_only | 0.094 | 27.83±2.32 | 0.7126±0.2790 |
+| trades_large_baseline | 0.000 | 54.54±2.95 | 1.8364±0.2081 |
+| trades_large_baseline | 0.094 | 23.92±4.62 | 0.5942±0.1655 |
+
+**PGD-100:**
+
+| checkpoint | eps | Acc% | d′ |
+|---|---|---|---|
+| rhan_next_hpc_only | 0.094 | 27.46±2.29 | 0.6660±0.2378 |
+| trades_large_baseline | 0.094 | 23.17±4.43 | 0.5344±0.1946 |
+
+Crossover @ eps=0.094 (criterion: diff > 2·σ_comb):
+
+| PGD | HPC-only Acc% | Baseline Acc% | diff (pp) | 2·σ_comb | verdict |
+|---|---|---|---|---|---|
+| PGD-50 | 27.83±2.32 | 23.92±4.62 | **+3.92** | 10.34 | positive but **NOT significant** |
+| PGD-100 | 27.46±2.29 | 23.17±4.43 | **+4.29** | 9.98 | positive but **NOT significant** |
+
+### 9.2 Per-seed (PGD-50)
+
+| checkpoint | seed | Acc% | d′ |
+|---|---|---|---|
+| rhan_next_hpc_only | 41 | 25.00 | 0.3963 |
+| rhan_next_hpc_only | 42 | 28.67 | 0.8947 |
+| rhan_next_hpc_only | 43 | 25.33 | 0.7298 |
+| rhan_next_hpc_only | 44 | 30.33 | 0.7665 |
+| rhan_next_hpc_only | 45 | 26.00 | 0.4422 |
+| rhan_next_hpc_only | 46 | 27.33 | 1.2002 |
+| rhan_next_hpc_only | 47 | 28.67 | 0.4923 |
+| rhan_next_hpc_only | 48 | 31.33 | 0.6568 |
+| trades_large_baseline | 41 | 25.00 | 0.2166 |
+| trades_large_baseline | 42 | 22.00 | 0.6920 |
+| trades_large_baseline | 43 | 18.33 | 0.6258 |
+| trades_large_baseline | 44 | 22.00 | 0.6980 |
+| trades_large_baseline | 45 | 23.00 | 0.6924 |
+| trades_large_baseline | 46 | 20.67 | 0.6245 |
+| trades_large_baseline | 47 | 27.00 | 0.5094 |
+| trades_large_baseline | 48 | 33.33 | 0.6949 |
+
+### 9.3 Per-seed (PGD-100)
+
+| checkpoint | seed | Acc% | d′ |
+|---|---|---|---|
+| rhan_next_hpc_only | 41 | 24.67 | 0.3763 |
+| rhan_next_hpc_only | 42 | 28.67 | 0.8758 |
+| rhan_next_hpc_only | 43 | 25.00 | 1.0093 |
+| rhan_next_hpc_only | 44 | 30.00 | 0.7467 |
+| rhan_next_hpc_only | 45 | 25.67 | 0.4298 |
+| rhan_next_hpc_only | 46 | 26.67 | 0.8951 |
+| rhan_next_hpc_only | 47 | 28.33 | 0.4801 |
+| rhan_next_hpc_only | 48 | 30.67 | 0.6151 |
+| trades_large_baseline | 41 | 24.00 | 0.1433 |
+| trades_large_baseline | 42 | 21.00 | 0.6425 |
+| trades_large_baseline | 43 | 17.67 | 0.6145 |
+| trades_large_baseline | 44 | 21.67 | 0.4024 |
+| trades_large_baseline | 45 | 22.00 | 0.6858 |
+| trades_large_baseline | 46 | 20.33 | 0.6066 |
+| trades_large_baseline | 47 | 26.67 | 0.5183 |
+| trades_large_baseline | 48 | 32.00 | 0.6618 |
+
+### 9.4 Masking check (PGD-50 → PGD-100 gap)
+
+| checkpoint | PGD-50 | PGD-100 | gap (pp) | verdict |
+|---|---|---|---|---|
+| rhan_next_hpc_only | 27.83 | 27.46 | −0.37 | **GENUINE** (no masking) |
+| trades_large_baseline | 23.92 | 23.17 | −0.75 | **GENUINE** (no masking) |
+
+### 9.5 Cross-run comparison (HPC-only vs baseline @ ε=0.094)
+
+| run | seeds | HPC-only Acc% | Baseline Acc% | diff (pp) | 2·σ_comb | verdict |
+|---|---|---|---|---|---|---|
+| Step C PGD-50 three-way (§6) | 41–45 (5) | 27.73±2.28 | 20.40±1.21 | +7.33 | 5.16 | CROSSOVER REAL |
+| Step C PGD-100 three-way (§7) | 41–45 (5) | 27.40±2.22 | 19.87±1.07 | +7.53 | 4.92 | CROSSOVER REAL |
+| **8-seed rerun PGD-50 (§9)** | **41–48 (8)** | **27.83±2.32** | **23.92±4.62** | **+3.92** | **10.34** | **NOT significant** |
+| **8-seed rerun PGD-100 (§9)** | **41–48 (8)** | **27.46±2.29** | **23.17±4.43** | **+4.29** | **9.98** | **NOT significant** |
+
+The 8-seed rerun with pinned `datasets` shrinks the crossover from +7.33/+7.53 pp (5 seeds) to +3.92/+4.29 pp (8 seeds) — both NOT significant. The HPC-only model's robustness is stable across runs (27.40–27.83 pp), but the baseline recovers from 20.40/19.87 (5 seeds) to 23.92/23.17 (8 seeds). The same baseline-variance mechanism inflated both the AIS-v1 (§8) and HPC-only (§9) 5-seed crossovers.
+
+**HPC-only's +3.92/+4.29 pp is NOT significant. The HPC-only variant does not reliably cross over the TRADES baseline under attack.**
+
+## 10. Key observations
 
 - Best test acc **56.81%** (set in the epoch-1–34 segment; epochs 35–60 traded 52.4–56.5% around it — best synced to HF).
 - HPC prediction error converged 0.4432 (e10, prior session) → 0.1506 (e35) → **0.1492 (e60)**; error-map std pinned ≈0.266, max slowly crept 1.48 → 1.87 — no collapse/explosion (trend check PASS).
@@ -244,5 +444,9 @@ Remaining at the cut: A seed 44 (running) + seed 45, then all of B (AIS-v1) and 
 - β_dyn stepped up with the curriculum: 1.57 (ε=0.062) → 1.94–1.96 (ε=0.094, min 1.75/max 3.25) — the precision controller responded to the heavier perturbation.
 - `frac_halted_any: 0.000`, effective steps pinned at the hard cap 4 — expected for the HPC-only variant (entropy-gated halting is AIS-only).
 - Recon MSE kept falling through the 0.094 phase (0.901 → 0.858) — the generative prior keeps improving even under the strongest perturbation.
-- **Three-way eval (PGD-50):** HPC-only (C) has the **best clean accuracy** of the three (55.20±3.67 vs baseline 53.47±2.87, AIS-v1 49.40±3.48) but the **weakest robustness** of the two RHANNext variants at ε=0.094 (27.73±2.28 vs AIS-v1 32.53±1.94). Both variants cross over the TRADES baseline: AIS-v1 **+12.13 pp** (2·σ = 4.57), HPC-only **+7.33 pp** (2·σ = 5.16) — both CROSSOVER REAL.
-- HPC-only's clean-acc edge over AIS-v1 (+5.8 pp) flips to a **−4.8 pp robustness deficit** under attack — the auxiliary HPC signal helps clean generalization but does not add adversarial margin the way the AIS halting/precision machinery does.
+- **Three-way eval (PGD-50, 5 seeds, §6):** HPC-only (C) has the **best clean accuracy** of the three (55.20±3.67 vs baseline 53.47±2.87, AIS-v1 49.40±3.48) but the **weakest robustness** of the two RHANNext variants at ε=0.094 (27.73±2.28 vs AIS-v1 32.53±1.94). Both variants cross over the TRADES baseline: AIS-v1 **+12.13 pp** (2·σ = 4.57), HPC-only **+7.33 pp** (2·σ = 5.16) — both CROSSOVER REAL. **Superseded by 8-seed reruns (§8, §9).**
+- **Three-way eval (PGD-100, 5 seeds, §7):** Results are stable from PGD-50: AIS-v1 **+11.93 pp** (2·σ = 4.40), HPC-only **+7.53 pp** (2·σ = 4.92) — both CROSSOVER REAL. PGD-50→100 gaps are all ≤0.73 pp — **no gradient masking** in any checkpoint. **Superseded by 8-seed reruns (§8, §9).**
+- **8-seed rerun AIS-v1 (§8):** With `datasets==4.7.0` pinned, AIS-v1 **+7.75 pp** (2·σ = 10.93) — **NOT significant**. Closely reproduces Stage 1 official +8.5 pp. **The pre-registered Stage 1 verdict (+8.5 pp, NOT significant) remains the official record.**
+- **8-seed rerun HPC-only (§9):** With `datasets==4.7.0` pinned, HPC-only **+3.92 pp** PGD-50 (2·σ = 10.34) / **+4.29 pp** PGD-100 (2·σ = 9.98) — both **NOT significant**. The 5-seed +7.33/+7.53 pp was inflated by low baseline draws (20.40/19.87% → 23.92/23.17% at 8 seeds). HPC-only's robustness is stable (27.40–27.83%) but **does not reliably cross over the TRADES baseline**.
+- **Both RHANNext variants fail to cross over baseline at 8 seeds.** AIS-v1: +7.75 pp (NOT sig); HPC-only: +3.92/+4.29 pp (NOT sig). The 5-seed numbers were uniformly inflated by baseline variance under unpinned `datasets`. Neither variant provides statistically significant adversarial robustness improvement over the TRADES baseline.
+- HPC-only's clean-acc edge over AIS-v1 (+5.8 pp, ≈56.0 vs ≈50.4) does **not** translate to a robustness advantage under attack (27.5 vs 31.7 pp at ε=0.094) — the auxiliary HPC signal helps clean generalization but does not add adversarial margin the way the AIS halting/precision machinery does.
