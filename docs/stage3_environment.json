@@ -1,0 +1,39 @@
+{
+  "stage": 3,
+  "experiment": "D_ais_plus_hpc",
+  "frozen_date": "2026-08-20",
+  "python": "3.10.12",
+  "pytorch": "2.9.1+cu128",
+  "cuda": "12.8",
+  "gpu": "NVIDIA GeForce RTX 4060",
+  "datasets": "4.7.0",
+  "scipy": "1.15.3",
+  "git_branch": "feature/rhan-next",
+  "attack_config": {
+    "method": "PGD",
+    "steps_primary": 50,
+    "steps_secondary": 100,
+    "epsilon": 0.094,
+    "epsilon_space": "norm-space",
+    "epsilon_application": "applied directly to normalized inputs",
+    "n_samples_per_seed": 300,
+    "batch_size": 32,
+    "seeds": [41, 42, 43, 44, 45, 46, 47, 48]
+  },
+  "significance_criterion": "delta > 2 * sigma_combined",
+  "preregistration": "docs/stage3_preregistration.md",
+  "baseline_checkpoints": {
+    "A_baseline": {
+      "path": "checkpoints/rhan_stl10_large_pseudolabel_best.pth",
+      "sha256": "37a4eee0c37b77adc291cb45cc19310de1249c7cd81b0e779b2ebaea6d466afc"
+    },
+    "B_ais_only": {
+      "path": "checkpoints/rhan_next_ais_v1_halting_only_best.pth",
+      "sha256": "19582ff4b32afdb2a46e88a7089167844a2ac3b24d01d6c34cac79ebbf1118e3"
+    },
+    "C_hpc_only": {
+      "path": "checkpoints/rhan_next_hpc_only_best.pth",
+      "sha256": "5b7dce1e37e9e26d95a742f8a6dc0ec4e1c895766ca42e0316ec78a90f6f55a0"
+    }
+  }
+}

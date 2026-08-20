@@ -87,22 +87,20 @@ ABLATION_MATRIX: Dict[str, Dict[str, Any]] = {
         "config": _hpc_config(ais=False),
         "checkpoint": "checkpoints/rhan_next_hpc_only_best.pth",
         "arch": "next",
-        "status": PENDING,
+        "status": VALIDATED,
         "note": "HPC-only (enable_ais=False, enable_hpc=True, "
-                "hpc_num_levels=1, w_hpc=0.10). Trained 2026-08-16 (60-epoch "
-                "Step B, best 56.81%); PENDING until the 5-seed matched "
-                "verdict is recorded. AIS mechanisms are NOT layered on top "
-                "(per matrix entry C).",
+                "hpc_num_levels=1, w_hpc=0.10). 8-seed pinned rerun "
+                "(+3.92 pp PGD-50, +4.29 pp PGD-100, both NOT significant "
+                "vs baseline). Confirmed: no gradient masking.",
     },
     "D_ais_plus_hpc": {
         "label": "rhan_next_ais_hpc",
         "config": _hpc_config(ais=True),
-        "checkpoint": None,  # TO BE TRAINED — Stage 3, NOT this round
+        "checkpoint": None,  # TO BE TRAINED — Stage 3
         "arch": "next",
-        "status": SCAFFOLDED_NOT_RUN,
+        "status": PENDING,
         "note": "AIS-v1 (halting-only) + HPC. Code-complete + registry-tested; "
-                "dormant until the Stage 2 verdict says HPC is worth combining "
-                "with AIS. Do NOT train this round.",
+                "Stage 2 validated; ready for Stage 3 training.",
     },
 }
 

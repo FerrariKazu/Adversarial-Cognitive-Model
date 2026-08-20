@@ -49,8 +49,8 @@ def test_four_entries_are_distinct():
     assert m.get_entry("D_ais_plus_hpc")["config"].enable_hpc is True
     assert m.get_entry("B_ais_only")["config"].enable_ais is True
     assert m.get_entry("B_ais_only")["config"].enable_hpc is False
-    # D is dormant by registry status, not by a config error.
-    assert m.get_entry("D_ais_plus_hpc")["status"] == m.SCAFFOLDED_NOT_RUN
+    # D is PENDING (Stage 3 target), not by a config error.
+    assert m.get_entry("D_ais_plus_hpc")["status"] == m.PENDING
 
 
 def test_w_hpc_is_the_separate_10_percent_slot():
@@ -65,16 +65,18 @@ def test_w_hpc_is_the_separate_10_percent_slot():
 
 # ── Runner: training commands ────────────────────────────────────────────────
 
-def test_train_command_c_only_and_correct_flags():
-    argv = r.train_command("C_hpc_only")
+def test_train_command_d_correct_flags():
+    """D_ais_plus_hpc (AIS-v1 + HPC) — Stage 3 target."""
+    argv = r.train_command("D_ais_plus_hpc")
     assert "python3" in argv and "phase1_training/train_rhan_next.py" in argv
     assert "--enable-hpc" in argv and "--hpc-num-levels" in argv
-    assert "--enable-ais" not in argv            # HPC-only per matrix entry C
+    assert "--enable-ais" in argv                  # D has AIS enabled
+    assert "--no-ais-precision-recon" in argv      # AIS-v1 halting-only
     assert "--w-hpc" in argv
-    assert argv[argv.index("--ckpt-name") + 1] == "rhan_next_hpc_only"
+    assert argv[argv.index("--ckpt-name") + 1] == "rhan_next_ais_hpc"
 
 
-def test_train_command_extra_args_survive_shell_roundtrip():
+def test_train_command_d_extra_args_survive_shell_roundtrip():
     """Regression: 2026-08-12 Colab bug. The notebook passed space-joined
     extra_args ("--max-epochs 15"); after shlex.join + shell=True they arrived
     as ONE argv token and train_rhan_next.py's parse_known_args() SILENTLY
@@ -82,12 +84,12 @@ def test_train_command_extra_args_survive_shell_roundtrip():
     checkpoint (and wrote no diag-json). train_command must normalize so the
     delivered argv is lossless (asserts the exact notebook construction)."""
     argv = r.train_command(
-        "C_hpc_only", ckpt_name="rhan_next_hpc_only_smoke",
+        "D_ais_plus_hpc", ckpt_name="rhan_next_ais_hpc_smoke",
         extra_args=["--max-epochs 15",
                     "--target-ckpt "
-                    "checkpoints/rhan_next_ais_v1_halting_only_best.pth",
+                    "checkpoints/rhan_next_hpc_only_best.pth",
                     "--batch-size 16 --accum-steps 16",
-                    "--diag-json report/rhan_next_hpc_only_smoke_diag.jsonl",
+                    "--diag-json report/rhan_next_ais_hpc_smoke_diag.jsonl",
                     "--force-single-gpu"])
     roundtrip = shlex.split(shlex.join(argv))
     assert roundtrip == argv, (f"shlex round-trip is lossy — the shell would "
@@ -96,23 +98,23 @@ def test_train_command_extra_args_survive_shell_roundtrip():
     i = argv.index("--max-epochs")
     assert argv[i + 1] == "15"
     j = argv.index("--target-ckpt")
-    assert argv[j + 1] == "checkpoints/rhan_next_ais_v1_halting_only_best.pth"
+    assert argv[j + 1] == "checkpoints/rhan_next_hpc_only_best.pth"
     k = argv.index("--diag-json")
-    assert argv[k + 1] == "report/rhan_next_hpc_only_smoke_diag.jsonl"
+    assert argv[k + 1] == "report/rhan_next_ais_hpc_smoke_diag.jsonl"
     assert "--batch-size" in argv and argv[argv.index("--batch-size") + 1] == "16"
 
 
-def test_train_command_delivered_argv_via_shell_is_lossless():
+def test_train_command_d_delivered_argv_via_shell_is_lossless():
     """Faithful to the failing path (Popen with shell=True on the shlex.join'd
     command): the 2026-08-12 Colab bug delivered '--max-epochs 15' as ONE argv
     token. The runner must now deliver separate tokens through a real shell."""
     argv = r.train_command(
-        "C_hpc_only", ckpt_name="rhan_next_hpc_only_smoke",
+        "D_ais_plus_hpc", ckpt_name="rhan_next_ais_hpc_smoke",
         extra_args=["--max-epochs 15",
                     "--target-ckpt "
-                    "checkpoints/rhan_next_ais_v1_halting_only_best.pth",
+                    "checkpoints/rhan_next_hpc_only_best.pth",
                     "--batch-size 16 --accum-steps 16",
-                    "--diag-json report/rhan_next_hpc_only_smoke_diag.jsonl",
+                    "--diag-json report/rhan_next_ais_hpc_smoke_diag.jsonl",
                     "--force-single-gpu"])
     probe = shlex.join(argv).replace(
         "python3 phase1_training/train_rhan_next.py",
@@ -125,45 +127,46 @@ def test_train_command_delivered_argv_via_shell_is_lossless():
     assert delivered[start:] == argv[2:]           # flags only, in order
 
 
-def test_train_command_d_refuses_to_run():
-    """D is SCAFFOLDED_NOT_RUN — the runner must refuse, not silently run."""
-    with pytest.raises(ValueError, match="SCAFFOLDED_NOT_RUN"):
-        r.train_command("D_ais_plus_hpc")
+def test_train_command_d_allows_run():
+    """D is PENDING — the runner must produce a valid train command."""
+    argv = r.train_command("D_ais_plus_hpc")
+    assert "python3" in argv and "phase1_training/train_rhan_next.py" in argv
+    assert "--enable-hpc" in argv and "--enable-ais" in argv
+    assert argv[argv.index("--ckpt-name") + 1] == "rhan_next_ais_hpc"
+
+
+def test_train_command_baseline_refuses_to_run():
+    """A_baseline is not a RHANNext training target — must refuse."""
     with pytest.raises(ValueError, match="PENDING"):
-        r.train_command("A_baseline")            # not a RHANNext training target
+        r.train_command("A_baseline")
 
 
 # ── Runner: eval eligibility + specs ─────────────────────────────────────────
 
-def test_eval_eligibility_A_and_B_only():
-    # VALIDATED (A, B) always eligible; C (PENDING) only with a checkpoint;
-    # D never.
+def test_eval_eligibility_all():
+    # VALIDATED (A, B, C) always eligible; D (PENDING) only with checkpoint.
     assert m.is_eval_eligible("A_baseline", checkpoint_present=False)
     assert m.is_eval_eligible("B_ais_only", checkpoint_present=False)
-    assert not m.is_eval_eligible("C_hpc_only", checkpoint_present=False)
-    assert m.is_eval_eligible("C_hpc_only", checkpoint_present=True)
-    assert not m.is_eval_eligible("D_ais_plus_hpc", checkpoint_present=True)
+    assert m.is_eval_eligible("C_hpc_only", checkpoint_present=False)
+    # D is PENDING — eligible only once its checkpoint file exists.
+    assert not m.is_eval_eligible("D_ais_plus_hpc", checkpoint_present=False)
+    assert m.is_eval_eligible("D_ais_plus_hpc", checkpoint_present=True)
 
 
 def test_eval_specs_labels_and_archs():
     specs, skipped = r.eval_specs(keys=["A_baseline", "B_ais_only",
-                                        "D_ais_plus_hpc"], require_present=False)
+                                        "C_hpc_only"], require_present=False)
     labels = {s["label"] for s in specs}
-    assert labels == {"trades_large_baseline", "rhan_next_ais_v1_halting_only"}
+    assert labels == {"trades_large_baseline", "rhan_next_ais_v1_halting_only",
+                      "rhan_next_hpc_only"}
     archs = {s["label"]: s["arch"] for s in specs}
     assert archs["trades_large_baseline"] == "large"
     assert archs["rhan_next_ais_v1_halting_only"] == "next"
-    assert any("D_ais_plus_hpc" in why for why in skipped)
-    # C is PENDING with a DECLARED checkpoint path: eligible once the file
-    # exists, skipped with a clear reason while it is absent (env-dependent,
-    # so branch on what is actually on disk).
-    c_specs, c_skipped = r.eval_specs(keys=["C_hpc_only"])
-    if r.checkpoint_exists("C_hpc_only"):
-        assert [s["label"] for s in c_specs] == ["rhan_next_hpc_only"]
-        assert not any("C_hpc_only" in why for why in c_skipped)
-    else:
-        assert not c_specs
-        assert any("C_hpc_only" in why for why in c_skipped)
+    assert archs["rhan_next_hpc_only"] == "next"
+    # D is PENDING with no checkpoint: skipped with a clear reason.
+    d_specs, d_skipped = r.eval_specs(keys=["D_ais_plus_hpc"])
+    assert not d_specs
+    assert any("D_ais_plus_hpc" in why for why in d_skipped)
 
 
 def test_checkpoint_paths_resolve_to_repo():
@@ -240,6 +243,7 @@ def test_ablation_matrix_mutually_exclusive_with_ckpt_specs():
 
 
 def test_ablation_matrix_dormant_entry_cannot_eval():
+    """D is PENDING — the eval flag rejects it (no checkpoint exists)."""
     import eval_rhan
     with _argv('--ablation-matrix', 'D_ais_plus_hpc'):
         with pytest.raises(SystemExit):
