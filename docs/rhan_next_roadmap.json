@@ -124,7 +124,7 @@
       },
       "isolation_verdict": {
         "schema": "stage1_isolation_verdict_v2",
-        "date_utc": "2026-08-18T03:39:19Z",
+        "date_utc": "2026-08-20T22:33:05Z",
         "smoke_pi_d_top2": [
           "car",
           "airplane"
