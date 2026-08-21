@@ -3128,13 +3128,41 @@ if DO_STAGE3 and DO_STEP3_A and not SKIP_STAGE3_TRAINING:
             f"--max-epochs {SMOKE3_EPOCHS} "
             f"--target-ckpt {D_BASE} "
             f"--diag-json {D_SMOKE_DIAG} "
-            f"--batch-size 16 --accum-steps 16"
+            f"--batch-size 16 --accum-steps 16 --force-single-gpu"
         )
         if DRY_RUN:
             print(f"  [DRY-RUN] {_smoke3_cmd}", flush=True)
         else:
             print(f"  Running: {_smoke3_cmd}", flush=True)
-            os.system(_smoke3_cmd)
+            run(_smoke3_cmd)
+
+        # ── Per-epoch telemetry summary ──────────────────────────────────
+        if os.path.exists(smoke_diag3):
+            import json as _json3
+            with open(smoke_diag3) as _f3:
+                _lines3 = [l for l in _f3 if l.strip()]
+            if _lines3:
+                print(f"\n{'─'*70}")
+                print(f"  Stage 3 Smoke — Per-epoch telemetry ({len(_lines3)} epochs)")
+                print(f"{'─'*70}")
+                for _l3 in _lines3:
+                    _r3 = _json3.loads(_l3)
+                    _ep = _r3.get('epoch', '?')
+                    _te = _r3.get('te_acc', _r3.get('val_acc', '?'))
+                    _tr = _r3.get('tr_acc', '?')
+                    _loss = _r3.get('loss', '?')
+                    _hpc = _r3.get('hpc_error_mean', '-')
+                    _gs = _r3.get('gaze_shift_total_mean', '-')
+                    _he = _r3.get('steps_effective_std', '-')
+                    _hf = _r3.get('frac_halted_any', '-')
+                    _pd = _r3.get('pi_d_per_class', {})
+                    _top2 = sorted(_pd.items(), key=lambda x: -x[1])[:2] if _pd else []
+                    _top2s = '/'.join(f"{c}:{v:.3f}" for c, v in _top2)
+                    print(f"  ep {_ep:>3} | ε={_r3.get('eps',0):.3f} | "
+                          f"TrAcc={_tr}% TeAcc={_te}% | loss={_loss} | "
+                          f"hpc_err={_hpc} | gaze={_gs} | "
+                          f"halt_std={_he} frac_halt={_hf} | Π_D=[{_top2s}]")
+                print(f"{'─'*70}")
 
         # ── Health gate: read smoke telemetry ───────────────────────────────
         if os.path.exists(smoke_diag3):
@@ -3276,16 +3304,45 @@ if DO_STAGE3 and DO_STEP3_B and not SKIP_STAGE3_TRAINING:
                 f"--max-epochs 60 "
                 f"--target-ckpt {D_BASE} "
                 f"--diag-json {D_FULL_DIAG} "
-                f"--batch-size 16 --accum-steps 16"
+                f"--batch-size 16 --accum-steps 16 --force-single-gpu"
             )
             print(f"  Training: {_train3_cmd}", flush=True)
-            os.system(_train3_cmd)
+            run(_train3_cmd)
     else:
         print(f"  [SKIP] D checkpoint already exists: {_d_ckpt_path}")
 
     if os.path.exists(_d_ckpt_path):
         print(f"  ✓ D checkpoint present: {_d_ckpt_path} "
               f"({os.path.getsize(_d_ckpt_path)/1e6:.0f} MB)")
+
+    # ── Per-epoch telemetry summary ──────────────────────────────────────
+    _d_diag3 = os.path.join(_REPO_ROOT, D_FULL_DIAG)
+    if os.path.exists(_d_diag3):
+        import json as _json3b
+        with open(_d_diag3) as _f3b:
+            _lines3b = [l for l in _f3b if l.strip()]
+        if _lines3b:
+            print(f"\n{'─'*70}")
+            print(f"  Stage 3 Full — Per-epoch telemetry ({len(_lines3b)} epochs)")
+            print(f"{'─'*70}")
+            for _l3b in _lines3b:
+                _r3b = _json3b.loads(_l3b)
+                _ep = _r3b.get('epoch', '?')
+                _te = _r3b.get('te_acc', _r3b.get('val_acc', '?'))
+                _tr = _r3b.get('tr_acc', '?')
+                _loss = _r3b.get('loss', '?')
+                _hpc = _r3b.get('hpc_error_mean', '-')
+                _gs = _r3b.get('gaze_shift_total_mean', '-')
+                _he = _r3b.get('steps_effective_std', '-')
+                _hf = _r3b.get('frac_halted_any', '-')
+                _pd = _r3b.get('pi_d_per_class', {})
+                _top2 = sorted(_pd.items(), key=lambda x: -x[1])[:2] if _pd else []
+                _top2s = '/'.join(f"{c}:{v:.3f}" for c, v in _top2)
+                print(f"  ep {_ep:>3} | ε={_r3b.get('eps',0):.3f} | "
+                      f"TrAcc={_tr}% TeAcc={_te}% | loss={_loss} | "
+                      f"hpc_err={_hpc} | gaze={_gs} | "
+                      f"halt_std={_he} frac_halt={_hf} | Π_D=[{_top2s}]")
+            print(f"{'─'*70}")
 else:
     if DO_STAGE3 and not SKIP_STAGE3_TRAINING:
         print("  (Stage 3 Step B skipped: DO_STEP3_B=False)", flush=True)
