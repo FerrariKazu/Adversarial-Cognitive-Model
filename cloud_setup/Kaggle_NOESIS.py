@@ -3496,6 +3496,165 @@ else:
         print("  (Stage 3 Step C skipped: DO_STEP3_C=False)", flush=True)
 
 # %% [markdown]
+# ### Stage 3 — STEP C2: PRE-COMMITTED SEED EXTENSION (41–56, if triggered)
+#
+# Per the frozen preregistration (docs/stage3_preregistration.md §4.1), if
+# D's 8-seed Δ vs baseline is in [1.0, 12.0] pp at ε=0.094, extend to 16
+# seeds (41–56). The extension is AUTOMATIC when the trigger fires and
+# FORBIDDEN when it does not.
+
+# %%
+if DO_STAGE3 and DO_STEP3_C:
+    STEP3_C2_SEEDS = list(range(49, 57))  # seeds 49–56
+    STEP3_C2_MAIN  = STEP3_C_MAIN + "_ext"      # PGD-50 extension output
+    STEP3_C2_MAIN100 = STEP3_C2_MAIN + "_pgd100" # PGD-100 extension output
+    STEP3_C2_MERGED = STEP3_C_MAIN + "_merged"   # merged 16-seed output
+
+    # ── Check trigger condition ────────────────────────────────────────────
+    _prov3_base = os.path.join(_REPO_ROOT, STEP3_C_MAIN, "eval_provenance.json")
+    _triggered = False
+    _delta_vs_a = None
+
+    if os.path.exists(_prov3_base):
+        import json as _json3c2
+        with open(_prov3_base) as _f3c2:
+            _prov3_data = _json3c2.load(_f3c2)
+        _rows3c2 = _prov3_data.get("results") or []
+        _rD3c2 = None
+        _rA3c2 = None
+        for _r in _rows3c2:
+            if _r.get("checkpoint") == D_FULL_CKPT and _r.get("eps") == 0.094:
+                _rD3c2 = _r
+            if _r.get("checkpoint") == "trades_large_baseline" and _r.get("eps") == 0.094:
+                _rA3c2 = _r
+        if _rD3c2 and _rA3c2:
+            _delta_vs_a = float(_rD3c2["acc_mean"]) - float(_rA3c2["acc_mean"])
+            print(f"\n  §4.1 Extension check: Δ_DvsA = {_delta_vs_a:+.2f} pp at 8 seeds", flush=True)
+            if 1.0 <= _delta_vs_a <= 12.0:
+                _triggered = True
+                print(f"  → TRIGGER FIRED: {_delta_vs_a:.2f} pp ∈ [1.0, 12.0] — extending to 16 seeds", flush=True)
+            elif _delta_vs_a < 1.0:
+                print(f"  → NO EXTENSION: {_delta_vs_a:.2f} pp < 1.0 — clearly no meaningful effect", flush=True)
+            else:
+                print(f"  → NO EXTENSION: {_delta_vs_a:.2f} pp > 12.0 — clearly large, 8 seeds sufficient", flush=True)
+        else:
+            print("  ⚠ Could not find D vs baseline rows in provenance — skipping extension check.", flush=True)
+    else:
+        print(f"  ⚠ No 8-seed provenance found at {_prov3_base} — cannot check extension trigger.", flush=True)
+
+    # ── Run extension if triggered ──────────────────────────────────────────
+    _ext_done = False
+    _ext_prov = os.path.join(_REPO_ROOT, STEP3_C2_MAIN, "eval_provenance.json")
+    _ext_prov100 = os.path.join(_REPO_ROOT, STEP3_C2_MAIN100, "eval_provenance.json")
+    _merged_prov = os.path.join(_REPO_ROOT, STEP3_C2_MERGED, "eval_provenance.json")
+
+    if os.path.exists(_merged_prov):
+        print(f"  [SKIP] Merged 16-seed provenance already exists: {_merged_prov}", flush=True)
+        _ext_done = True
+    elif _triggered:
+        _ext_specs = [
+            f'trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large',
+            f'rhan_next_ais_v1_halting_only:checkpoints/rhan_next_ais_v1_halting_only_best.pth:next',
+            f'rhan_next_hpc_only:checkpoints/rhan_next_hpc_only_best.pth:next',
+            f'{D_FULL_CKPT}:checkpoints/{D_FULL_CKPT}_best.pth:next',
+        ]
+        _ext_seeds_str = " ".join(str(s) for s in STEP3_C2_SEEDS)
+        _ext_specs_str = " ".join(f'"' + s + '"' for s in _ext_specs)
+
+        # PGD-50 extension
+        _ext_pgd50 = (
+            f"python3 phase2_attacks/eval_rhan.py "
+            f"--ckpt-specs {_ext_specs_str} "
+            f"--seeds {_ext_seeds_str} "
+            f"--eps-list 0.0 0.094 "
+            f"--eps-norm-space "
+            f"--n-samples 300 --pgd-steps 50 --batch-size 32 "
+            f"--output-dir {STEP3_C2_MAIN}"
+        )
+        if DRY_RUN:
+            print(f"  [DRY-RUN] C2 PGD-50: {_ext_pgd50}", flush=True)
+        else:
+            print(f"  Running C2 PGD-50 eval (seeds 49–56 × 4 checkpoints)...", flush=True)
+            os.system(_ext_pgd50)
+
+        # PGD-100 extension
+        _ext_pgd100 = (
+            f"python3 phase2_attacks/eval_rhan.py "
+            f"--ckpt-specs {_ext_specs_str} "
+            f"--seeds {_ext_seeds_str} "
+            f"--eps-list 0.094 "
+            f"--eps-norm-space "
+            f"--n-samples 300 --pgd-steps 100 --batch-size 32 "
+            f"--output-dir {STEP3_C2_MAIN100}"
+        )
+        if DRY_RUN:
+            print(f"  [DRY-RUN] C2 PGD-100: {_ext_pgd100}", flush=True)
+        else:
+            print(f"  Running C2 PGD-100 eval (seeds 49–56 × 4 checkpoints)...", flush=True)
+            os.system(_ext_pgd100)
+
+        # ── Merge 8-seed + extension results ────────────────────────────────
+        if not DRY_RUN:
+            os.makedirs(os.path.join(_REPO_ROOT, STEP3_C2_MERGED), exist_ok=True)
+            import csv as _csv3m, statistics as _stats3m
+            _all_seeds_full = list(range(41, 57))  # 41–56
+            _per_seed_path = os.path.join(STEP3_C_MAIN, "epsilon_sweep_per_seed.csv")
+            _per_seed_ext  = os.path.join(STEP3_C2_MAIN, "epsilon_sweep_per_seed.csv")
+            _per_seed_merged = os.path.join(STEP3_C2_MERGED, "epsilon_sweep_per_seed.csv")
+            # Merge per-seed CSVs
+            if os.path.exists(_per_seed_path) and os.path.exists(_per_seed_ext):
+                with open(_per_seed_path) as _f1, open(_per_seed_ext) as _f2:
+                    _header = _f1.readline().strip()
+                    _lines1 = [l.strip() for l in _f1 if l.strip()]
+                    _f2.readline()  # skip header
+                    _lines2 = [l.strip() for l in _f2 if l.strip()]
+                with open(_per_seed_merged, "w") as _fm:
+                    _fm.write(_header + "\n")
+                    for _l in _lines1 + _lines2:
+                        _fm.write(_l + "\n")
+                print(f"  ✓ Merged per-seed CSV: {len(_lines1) + len(_lines2)} rows", flush=True)
+            # Aggregate merged results
+            _agg_path = os.path.join(STEP3_C2_MERGED, "epsilon_sweep_results.csv")
+            if os.path.exists(_per_seed_merged):
+                _agg = {}
+                with open(_per_seed_merged) as _fm:
+                    for _r in _csv3m.DictReader(_fm):
+                        _ck = _r["checkpoint"]
+                        _ep = float(_r["eps"])
+                        _key = (_ck, _ep)
+                        if _key not in _agg:
+                            _agg[_key] = {"accs": [], "ds": []}
+                        _agg[_key]["accs"].append(float(_r["acc"]))
+                        _agg[_key]["ds"].append(float(_r["d_prime"]))
+                with open(_agg_path, "w", newline="") as _fa:
+                    _w = _csv3m.writer(_fa)
+                    _w.writerow(["checkpoint", "eps", "acc_mean", "acc_std",
+                                 "d_prime_mean", "d_prime_std"])
+                    for (_ck, _ep), _v in sorted(_agg.items()):
+                        _w.writerow([_ck, _ep,
+                                     round(_stats3m.mean(_v["accs"]), 2),
+                                     round(_stats3m.stdev(_v["accs"]), 2),
+                                     round(_stats3m.mean(_v["ds"]), 4),
+                                     round(_stats3m.stdev(_v["ds"]), 4)])
+                print(f"  ✓ Merged aggregated results written", flush=True)
+            # Copy provenance with extended seeds list
+            import shutil as _sh3m
+            if os.path.exists(_prov3_base):
+                _prov3m = json.load(open(_prov3_base))
+                _prov3m["seeds"] = _all_seeds_full
+                _prov3m["seed_extension_triggered"] = True
+                _prov3m["seed_extension_delta_vs_a"] = _delta_vs_a
+                _prov3m["note"] = (
+                    f"Merged 16-seed result. Initial 8 seeds (41–48) + extension "
+                    f"seeds (49–56) triggered by §4.1 rule (Δ={_delta_vs_a:+.2f} pp ∈ [1.0, 12.0]).")
+                with open(_merged_prov, "w") as _fmp:
+                    json.dump(_prov3m, _fmp, indent=2)
+                print(f"  ✓ Merged provenance written: {_merged_prov}", flush=True)
+            _ext_done = True
+    else:
+        print(f"  (Stage 3 Step C2 skipped: extension not triggered)", flush=True)
+
+# %% [markdown]
 # ### Stage 3 — RECORD VERDICT
 
 # %%
@@ -3505,11 +3664,11 @@ if DO_STAGE3 and DO_STEP3_C:
         print("  RECORDING STAGE 3 VERDICT INTO docs/rhan_next_roadmap.json")
         print("="*70)
         prov_path3 = os.path.join(STEP3_C_MAIN, "eval_provenance.json")
-        merged_path3 = os.path.join(STEP3_C_MAIN + "_merged",
-                                     "eval_provenance.json")
-        if os.path.exists(merged_path3):
-            prov_path3 = merged_path3
-            print("  Using MERGED 8-seed provenance.", flush=True)
+        _merged_candidate = os.path.join(STEP3_C_MAIN + "_merged",
+                                          "eval_provenance.json")
+        if os.path.exists(_merged_candidate):
+            prov_path3 = _merged_candidate
+            print("  Using MERGED 16-seed provenance.", flush=True)
         if not os.path.exists(prov_path3):
             print("  No Stage 3 eval_provenance.json found — Step C did not "
                   "complete. Roadmap NOT touched.", flush=True)
@@ -3520,8 +3679,14 @@ if DO_STAGE3 and DO_STEP3_C:
             prov3 = json.load(_fp3)
 
         prov100_path3 = os.path.join(STEP3_C_MAIN100, "eval_provenance.json")
+        prov100_merged = os.path.join(STEP3_C_MAIN + "_merged_pgd100",
+                                       "eval_provenance.json")
         prov100_3 = None
-        if os.path.exists(prov100_path3):
+        if os.path.exists(prov100_merged):
+            with open(prov100_merged) as _fp100m:
+                prov100_3 = json.load(_fp100m)
+            print("  Using MERGED 16-seed PGD-100 provenance.", flush=True)
+        elif os.path.exists(prov100_path3):
             with open(prov100_path3) as _fp100_3:
                 prov100_3 = json.load(_fp100_3)
         else:
@@ -3612,7 +3777,9 @@ if DO_STAGE3 and DO_STEP3_C:
 #   C = HPC-only — +3.92 pp, NOT significant
 #   D = AIS-v1 + HPC — Stage 3 verdict above
 #
-# All evaluation uses the pinned 8-seed protocol (seeds 41–48, datasets==4.7.0).
+# Evaluation protocol: pinned datasets==4.7.0. Initial 8 seeds (41–48);
+# pre-committed extension to 16 seeds (41–56) if Δ_DvsA ∈ [1.0, 12.0] pp
+# per §4.1 of the frozen preregistration (docs/stage3_preregistration.md).
 # SBR and AIS-v2 remain locked for future isolation.
 
 # %%
@@ -3622,6 +3789,7 @@ print("="*70)
 print("  - Stage 1 (validated record): AIS-v1 halting-only — 8-seed, +8.5 pp @ ε=0.094, not significant")
 print("  - Stage 2 (validated record): HPC-only — 8-seed, +3.92 pp @ ε=0.094, not significant")
 print("  - Stage 3 (D = AIS-v1 + HPC): see stages['3'].stage3_verdict in roadmap")
+print("  - Seed extension: §4.1 rule — extended to 16 seeds if triggered")
 print()
 print("  Artifacts:")
 print(f"  - D smoke telemetry : {D_SMOKE_DIAG}")

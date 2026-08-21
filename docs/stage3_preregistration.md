@@ -45,7 +45,7 @@ Determine whether combining AIS-v1 (halting-only variant) with HPC (hierarchical
 All systems share:
 - Same evaluation dataset (STL-10 test split)
 - Same sample-selection protocol (300 samples per seed, `datasets==4.7.0`)
-- Same seeds (41–48)
+- Same seeds (41–48 initially; extension to 41–56 if triggered per §4.1)
 - Same attack implementation (PGD, norm-space)
 - Same epsilon convention (ε=0.094 applied directly to normalized inputs)
 - Same PGD-50 / PGD-100 settings
@@ -59,7 +59,8 @@ All systems share:
 |---|---|
 | **Primary metric** | PGD-50 accuracy |
 | **Primary epsilon** | ε = 0.094 (norm-space) |
-| **Seeds** | 41–48 (8 seeds) |
+| **Seeds (initial)** | 41–48 (8 seeds) |
+| **Seed extension** | Pre-committed (see §4.1) |
 | **Baseline** | trades_large_baseline |
 | **Dataset dependency** | `datasets == 4.7.0` (pinned) |
 | **Primary significance criterion** | Δ > 2 · σ_combined |
@@ -85,6 +86,31 @@ For each comparison (D vs A, D vs B, D vs C):
 | ≤ 1.0 pp | GENUINE (no masking) |
 | 1.0–2.5 pp | BORDERLINE (within documented ~1.5 pp cross-run nondeterminism) |
 | > 2.5 pp | POTENTIAL MASKING |
+
+---
+
+### §4.1 Pre-committed Seed Extension Rule
+
+**Motivation:** The 8-seed rerun of B (AIS-v1) and C (HPC-only) showed that both mechanisms' apparent crossovers shrank below significance when the baseline variance recovered at 8 seeds (baseline σ ≈ 4.6 pp). This establishes that 8 seeds is underpowered for effect sizes in the 4–8 pp range for this baseline. Rather than making a discretionary "one more seed" call after seeing D's results, this extension rule is frozen BEFORE any D training.
+
+**Trigger condition:** After the initial 8-seed (41–48) PGD-50 evaluation, compute Δ_DvsA (D minus TRADES baseline at ε=0.094).
+
+| Δ_DvsA at 8 seeds | Action | Headline |
+|---|---|
+| Δ < 1.0 pp | NO EXTENSION — 8 seeds is sufficient; clearly no meaningful effect | 8-seed result |
+| 1.0 pp ≤ Δ ≤ 12.0 pp | **EXTENSION TRIGGERED** — run additional seeds 49–56 (total 16) | 16-seed result |
+| Δ > 12.0 pp | NO EXTENSION — 8 seeds is sufficient; effect is large enough to be detected at this power | 8-seed result |
+
+**Extension protocol:**
+- Run seeds 49–56 (8 additional seeds) for ALL FOUR checkpoints (A/B/C/D) at PGD-50 ε=0.094 and PGD-100 ε=0.094.
+- Merge with the initial 8-seed results.
+- The 16-seed result is the FINAL headline. No further extensions.
+
+**Stopping rule:** 16 seeds is ABSOLUTELY FINAL. The merged 16-seed result is the official Stage 3 record regardless of outcome. No third extension. No "just a few more seeds."
+
+**Why this range:** Below 1.0 pp, even 8 seeds is clearly sufficient (the effect is negligible). Above 12.0 pp, the effect is large enough relative to baseline σ ≈ 4.6 that 8 seeds can detect it. The 1.0–12.0 pp range is exactly where both B and C's crossovers collapsed at 8 seeds, and where D's interaction effect (AIS × HPC) is most likely to land.
+
+**Historical precedent:** Stage 1 extended from 5 to 8 seeds via a discretionary call after seeing 5-seed results. That extension was appropriate in intent but the mechanism was exactly the one this rule is designed to prevent — a reactive, post-hoc decision. This rule pre-commits the extension budget and trigger BEFORE seeing any D results.
 
 ---
 
@@ -227,6 +253,7 @@ Classify D as one of:
 11. Do not silently change dependencies.
 12. Do not overwrite historical results.
 13. Do not optimize the architecture specifically against the observed test outcome.
+14. Do not invoke the seed extension (§4.1) outside the pre-registered trigger conditions. The extension is AUTOMATIC when the trigger fires and FORBIDDEN when it does not.
 
 If something unexpected happens, stop and investigate it before continuing.
 
