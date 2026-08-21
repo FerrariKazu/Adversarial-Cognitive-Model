@@ -3260,6 +3260,29 @@ if DO_STAGE3 and DO_STEP3_A and not SKIP_STAGE3_TRAINING:
     smoke_diag3 = os.path.join(_REPO_ROOT, D_SMOKE_DIAG)
     smoke_ckpt3 = os.path.join(_REPO_ROOT, f"checkpoints/{D_SMOKE_CKPT}_best.pth")
 
+    # ── Purge stale HF smoke artifacts if commit changed ───────────────────
+    # The trainer refuses to resume a rolling checkpoint written by a
+    # different commit.  If a prior (interrupted) session uploaded
+    # rhan_next_ais_hpc_smoke_rolling.pth under a different commit, it
+    # blocks the cold start.  Delete the stale rolling checkpoint from
+    # HF so each new session begins a genuine cold start.
+    _stale_smoke_rolling3 = f"{D_SMOKE_CKPT}_rolling.pth"
+    try:
+        from huggingface_hub import HfApi
+        HfApi(token=hf_token).delete_file(
+            path_in_repo=_stale_smoke_rolling3,
+            repo_id="FerrariKazu/rhan-checkpoints-rolling",
+            repo_type="dataset", token=hf_token)
+        print(f"  [cleanup] deleted stale {_stale_smoke_rolling3} from HF",
+              flush=True)
+    except Exception:
+        pass  # file may not exist — that's fine
+    _local_rolling3 = os.path.join(_REPO_ROOT, "checkpoints",
+                                   _stale_smoke_rolling3)
+    if os.path.exists(_local_rolling3):
+        os.remove(_local_rolling3)
+        print(f"  [cleanup] deleted local {_local_rolling3}", flush=True)
+
     if os.path.exists(smoke_health3) and os.path.exists(smoke_ckpt3):
         print(f"  [SKIP] Stage 3 smoke already complete: {D_HEALTH_JSON}")
         print(f"         Checkpoint: {smoke_ckpt3}")
