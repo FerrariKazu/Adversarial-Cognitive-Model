@@ -2116,8 +2116,8 @@ DO_STEP2_A       = False   # smoke ALREADY COMPLETE (v4, epoch 15, commit 3eef24
 #                               re-scores the EXISTING v4 telemetry (no retraining)
 #                               and Step B cold-starts from the AIS-v1 base (no
 #                               rhan_next_hpc_only* artifacts on HF → no conflict).
-DO_STEP2_B       = True    # full 60-epoch 3-phase run (gated on the Stage 2 health gate)
-DO_STEP2_C       = True    # THREE-WAY 5-seed matched eval + PGD-100 + verdict recorder
+DO_STEP2_B       = False   # full 60-epoch 3-phase run — COMPLETE (HF epoch 60)
+DO_STEP2_C       = False   # THREE-WAY 5-seed matched eval + PGD-100 — COMPLETE
 SKIP_STAGE2_TRAINING = False  # eval-only mode (needs rhan_next_hpc_only_best.pth)
 SMOKE2_EPOCHS    = 15      # per protocol (10-15); the trend check compares epoch 1 vs SMOKE2_EPOCHS
 
