@@ -3314,6 +3314,26 @@ if DO_STAGE3 and DO_STEP3_B and not SKIP_STAGE3_TRAINING:
     print("  STAGE 3 — STEP B: FULL 60-EPOCH RUN (D = AIS-v1 + HPC)")
     print("="*70)
 
+    # ── Purge stale HF full-training artifacts if commit changed ──────────
+    # Same rationale as Step A cleanup: the trainer refuses to resume a
+    # rolling checkpoint written by a different commit.
+    _stale_full_rolling3 = f"{D_FULL_CKPT}_rolling.pth"
+    try:
+        from huggingface_hub import HfApi
+        HfApi(token=hf_token).delete_file(
+            path_in_repo=_stale_full_rolling3,
+            repo_id="FerrariKazu/rhan-checkpoints-rolling",
+            repo_type="dataset", token=hf_token)
+        print(f"  [cleanup] deleted stale {_stale_full_rolling3} from HF",
+              flush=True)
+    except Exception:
+        pass  # file may not exist — that's fine
+    _local_full_r3 = os.path.join(_REPO_ROOT, "checkpoints",
+                                   _stale_full_rolling3)
+    if os.path.exists(_local_full_r3):
+        os.remove(_local_full_r3)
+        print(f"  [cleanup] deleted local {_local_full_r3}", flush=True)
+
     _d_ckpt_path = os.path.join(_REPO_ROOT, f"checkpoints/{D_FULL_CKPT}_best.pth")
     if not os.path.exists(_d_ckpt_path):
         if DRY_RUN:
