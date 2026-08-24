@@ -4,7 +4,84 @@
 > Does adversarial robustness scale with global visual processing —
 > and is it determined by architecture, training objective, or recurrence?
 
-## Key Findings (13/13 Systems Complete)
+---
+
+## RHAN-Next: Active Inference + Hierarchical Predictive Coding (Current)
+
+The latest generation (**RHAN-Next**, branch `feature/rhan-next`) composes two biologically-inspired pillars into a single architecture:
+
+- **AIS (Active Inference Suite)**: Entropy-gated halting, information-gain gaze policy, precision-modulated reconstruction — reformulates visual perception as a temporal control loop over discrete foraging steps.
+- **HPC (Hierarchical Predictive Coding)**: Single-level edge-map prediction error loss — the brain's own unsupervised learning signal, regularizing the backbone without labels.
+
+### Three-Stage Experimental Protocol
+
+| Stage | Config | Clean Acc | PGD-50 @ ε=0.094 | PGD-100 @ ε=0.094 | Verdict |
+|---|---|---|---|---|---|
+| **1** | AIS-v1 (halting-only) | 49.40±3.47% | 32.21±2.74% | 32.17±2.65% | ✅ Genuine robustness, +8.5pp vs baseline (not significant at 8-seed) |
+| **2** | HPC-only | 55.20±3.67% | 27.87±1.95% | 27.40±2.22% | ✅ Genuine robustness, +7.5pp vs baseline (significant) |
+| **3** | **D = AIS + HPC** | **56.16%** (1 seed) | *Running* | *Pending* | 8-seed eval in progress |
+| ref | TRADES-Large baseline | 53.47±2.87% | 20.40±1.21% | 19.87±1.07% | Baseline |
+
+**Key findings so far:**
+- Both AIS and HPC individually produce **genuine** adversarial robustness (PGD-50→100 gaps well below masking threshold)
+- HPC adds **+5.8 pp clean accuracy** over AIS alone, at the cost of some robustness
+- The combined model D achieves **56.16% clean** (best single seed), exceeding both components
+- All evals use the Finding-17 matched norm-space convention, 5–8 seeds, n=300/seed
+
+### Architecture
+
+```
+RHANNext (76.7M params)
+  ├── RHANv12 backbone (frozen subclass)
+  │     ├── Ventral stream (Transformer encoder)
+  │     ├── Dorsal stream (Transformer encoder)
+  │     ├── ParafovealStream (96×96 blurred)
+  │     ├── FovealStream (48×48 STN crop)
+  │     └── FovealParafovealGate (α blending)
+  ├── AIS pillar (toggleable)
+  │     ├── InformationGainGazePolicy (select_action → gaze coordinates)
+  │     ├── EntropyGatedHalting (soft continuation weights)
+  │     ├── PrecisionModulator (Π_D, Kalman-style)
+  │     └── GenerativePrior (reconstruction loss)
+  └── HPC pillar (toggleable)
+        └── HierarchicalPredictiveStack (edge_map prediction, 1 level)
+```
+
+### Key Files
+
+| Component | Path |
+|---|---|
+| RHANNext model | `rhan_core/model.py` |
+| RHANNext config | `rhan_core/config/pillar_config.py` |
+| AIS gaze policy | `rhan_core/gaze/` |
+| HPC predictor | `rhan_core/predictive_coding/` |
+| Trainer | `phase1_training/train_rhan_next.py` |
+| Frozen eval entrypoint | `phase2_attacks/eval_rhan.py` |
+| Stage 1-3 notebooks | `cloud_setup/colab_notebook_noesis.py`, `cloud_setup/Kaggle_NOESIS.py` |
+| Roadmap | `docs/rhan_next_roadmap.json` |
+
+### Reproduce
+
+```bash
+# Stage 3 training (D = AIS-v1 + HPC, 60 epochs)
+python3 phase1_training/train_rhan_next.py \
+  --enable-ais --no-ais-precision-recon \
+  --enable-hpc --hpc-num-levels 1 --w-hpc 0.10 \
+  --ckpt-name rhan_next_ais_hpc --max-epochs 60 \
+  --target-ckpt checkpoints/rhan_next_ais_v1_halting_only_best.pth
+
+# 8-seed eval (PGD-50 + PGD-100)
+python3 phase2_attacks/eval_rhan.py \
+  --ckpt-specs "trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large" \
+              "rhan_next_ais_hpc:checkpoints/rhan_next_ais_hpc_best.pth:next" \
+  --seeds 41 42 43 44 45 46 47 48 \
+  --eps-list 0.0 0.094 --eps-norm-space \
+  --pgd-steps 50 --n-samples 300 --batch-size 32
+```
+
+---
+
+## Legacy: CIFAR-10 & STL-10 Model Comparison (13/13 Systems Complete)
 
 ### Robustness & Sensitivity Overview
 | System | Clean Acc | PGD 50% Threshold | d′=1.0 Threshold | Status |
