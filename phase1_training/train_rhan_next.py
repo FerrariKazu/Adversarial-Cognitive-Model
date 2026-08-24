@@ -1307,6 +1307,27 @@ def main():
                         'code_commit': code_commit}, best_path)
         sync_to_hf(best_path)
         wait_for_hf_sync()
+
+        # Upload a commit-agnostic training-complete marker so the notebook
+        # knows not to re-launch training across session restarts even when
+        # the commit guard deletes the rolling checkpoint.
+        try:
+            _tc_marker = os.path.join(os.path.dirname(best_path),
+                                      'training_complete.json')
+            import json as _json_tc
+            with open(_tc_marker, 'w') as _ftc:
+                _json.dump({'ckpt_name': args.ckpt_name,
+                            'best_acc': best_acc,
+                            'max_epochs': args.max_epochs,
+                            'last_epoch': last_epoch,
+                            'code_commit': code_commit}, _ftc)
+            sync_to_hf(_tc_marker)
+            wait_for_hf_sync()
+            print(f"  ✓ training_complete.json uploaded to HF", flush=True)
+        except Exception as e:
+            print(f"  WARNING: could not upload training_complete.json ({e})",
+                  flush=True)
+
         print(f"{'═'*60}")
         if best_fallback_used:
             # The artifact is NOT the peak-val model — say so explicitly so no

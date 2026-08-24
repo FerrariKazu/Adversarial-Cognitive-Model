@@ -3396,7 +3396,50 @@ if DO_STAGE3 and DO_STEP3_B and not SKIP_STAGE3_TRAINING:
         print(f"  [cleanup] deleted local {_local_full_r3}", flush=True)
 
     _d_ckpt_path = os.path.join(_REPO_ROOT, f"checkpoints/{D_FULL_CKPT}_best.pth")
-    if not os.path.exists(_d_ckpt_path):
+
+    # Check for training-complete marker on HF (survives commit changes)
+    _tc_marker_local = os.path.join(_REPO_ROOT, "checkpoints",
+                                     "training_complete.json")
+    _tc_marker_hf = False
+    if not os.path.exists(_tc_marker_local):
+        try:
+            from huggingface_hub import hf_hub_download as _tc_dl
+            _tc_dl(repo_id="FerrariKazu/rhan-checkpoints",
+                   repo_type="model", token=hf_token,
+                   filename="training_complete.json",
+                   local_dir=os.path.join(_REPO_ROOT, "checkpoints"))
+            _tc_marker_hf = True
+            print("  [cleanup] downloaded training_complete.json from HF",
+                  flush=True)
+        except Exception:
+            pass
+
+    _tc_done = False
+    if os.path.exists(_tc_marker_local):
+        import json as _json_tc
+        with open(_tc_marker_local) as _ftc:
+            _tc_data = _json_tc.load(_ftc)
+        if _tc_data.get('ckpt_name') == D_FULL_CKPT:
+            _tc_done = True
+            print(f"  [SKIP] Training already complete: "
+                  f"best={_tc_data.get('best_acc', '?')}% "
+                  f"(epoch {_tc_data.get('last_epoch', '?')}/" 
+                  f"{_tc_data.get('max_epochs', '?')})", flush=True)
+
+    if _tc_done and not os.path.exists(_d_ckpt_path):
+        # Training is done but best checkpoint not local — download it
+        try:
+            from huggingface_hub import hf_hub_download as _tc_dl2
+            _tc_dl2(repo_id="FerrariKazu/rhan-checkpoints",
+                    repo_type="model", token=hf_token,
+                    filename=f"{D_FULL_CKPT}_best.pth",
+                    local_dir=os.path.join(_REPO_ROOT, "checkpoints"))
+            print(f"  ✓ D best checkpoint downloaded from HF", flush=True)
+        except Exception as e:
+            print(f"  WARNING: could not download D best checkpoint ({e})",
+                  flush=True)
+
+    if not os.path.exists(_d_ckpt_path) and not _tc_done:
         if DRY_RUN:
             print(f"  [DRY-RUN] would train D from {D_BASE}", flush=True)
         else:
@@ -3412,8 +3455,31 @@ if DO_STAGE3 and DO_STEP3_B and not SKIP_STAGE3_TRAINING:
             )
             print(f"  Training: {_train3_cmd}", flush=True)
             run(_train3_cmd)
-    else:
-        print(f"  [SKIP] D checkpoint already exists: {_d_ckpt_path}")
+
+            # Fallback: upload training_complete.json even if trainer is old code
+            if os.path.exists(_d_ckpt_path) and not _tc_done:
+                try:
+                    import json as _json_fb
+                    _tc_fb = os.path.join(os.path.dirname(_d_ckpt_path),
+                                          'training_complete.json')
+                    with open(_tc_fb, 'w') as _ftc_fb:
+                        _json.dump({'ckpt_name': D_FULL_CKPT,
+                                    'best_acc': 0,
+                                    'max_epochs': 60,
+                                    'last_epoch': 60,
+                                    'code_commit': current_code_commit()},
+                                   _ftc_fb)
+                    from huggingface_hub import HfApi
+                    HfApi(token=hf_token).upload_file(
+                        path_or_fileobj=_tc_fb,
+                        path_in_repo='training_complete.json',
+                        repo_id='FerrariKazu/rhan-checkpoints',
+                        repo_type='model', token=hf_token)
+                    print('  ✓ training_complete.json uploaded (fallback)',
+                          flush=True)
+                except Exception as e:
+                    print(f'  WARNING: fallback marker upload failed ({e})',
+                          flush=True)
 
     if os.path.exists(_d_ckpt_path):
         print(f"  ✓ D checkpoint present: {_d_ckpt_path} "
