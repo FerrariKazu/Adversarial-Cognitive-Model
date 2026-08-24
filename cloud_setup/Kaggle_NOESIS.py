@@ -3601,21 +3601,26 @@ else:
 
 # %% [markdown]
 # ### Stage 3 — STEP C: 8-SEED MATCHED EVAL (A vs B vs C vs D, PGD-50 + PGD-100)
+#
+# PGD-50 and PGD-100 are INDEPENDENT blocks with separate completion
+# checks.  This way, if PGD-50 finishes but the session dies before
+# PGD-100, the next run skips PGD-50 and only runs PGD-100.
 
 # %%
+# --- Stage 3 Step C: PGD-50 eval ---
 if DO_STAGE3 and DO_STEP3_C:
     print("\n" + "="*70)
     print("  STAGE 3 — STEP C: 8-SEED MATCHED EVAL (A/B/C/D)")
     print("="*70)
 
-    _prov3 = os.path.join(_REPO_ROOT, STEP3_C_MAIN, "eval_provenance.json")
-    _prov3_merged = os.path.join(_REPO_ROOT, STEP3_C_MAIN + "_merged",
-                                  "eval_provenance.json")
-    _done3 = os.path.exists(_prov3) or os.path.exists(_prov3_merged)
+    _prov3_p50 = os.path.join(_REPO_ROOT, STEP3_C_MAIN, "eval_provenance.json")
+    _prov3_p50_merged = os.path.join(_REPO_ROOT, STEP3_C_MAIN + "_merged",
+                                      "eval_provenance.json")
+    _done3_p50 = os.path.exists(_prov3_p50) or os.path.exists(_prov3_p50_merged)
 
-    if _done3:
-        _use3 = _prov3_merged if os.path.exists(_prov3_merged) else _prov3
-        print(f"  [SKIP] Stage 3 Step C already complete: {_use3}")
+    if _done3_p50:
+        _use3_p50 = _prov3_p50_merged if os.path.exists(_prov3_p50_merged) else _prov3_p50
+        print(f"  [SKIP] Stage 3 PGD-50 already complete: {_use3_p50}")
     else:
         _all_seeds3 = STEP3_SEEDS + C3_SEEDS_STAGE3
         _ckpt_specs3 = [
@@ -3641,6 +3646,28 @@ if DO_STAGE3 and DO_STEP3_C:
         else:
             print("  Running PGD-50 eval (8 seeds × 4 checkpoints)...", flush=True)
             os.system(_eval3_pgd50)
+else:
+    if DO_STAGE3:
+        print("  (Stage 3 Step C PGD-50 skipped: DO_STEP3_C=False)", flush=True)
+
+# %%
+# --- Stage 3 Step C: PGD-100 eval (independent of PGD-50) ---
+if DO_STAGE3 and DO_STEP3_C:
+    _prov3_p100 = os.path.join(_REPO_ROOT, STEP3_C_MAIN100, "eval_provenance.json")
+    _done3_p100 = os.path.exists(_prov3_p100)
+
+    if _done3_p100:
+        print(f"  [SKIP] Stage 3 PGD-100 already complete: {_prov3_p100}")
+    else:
+        _all_seeds3 = STEP3_SEEDS + C3_SEEDS_STAGE3
+        _ckpt_specs3 = [
+            'trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large',
+            'rhan_next_ais_v1_halting_only:checkpoints/rhan_next_ais_v1_halting_only_best.pth:next',
+            'rhan_next_hpc_only:checkpoints/rhan_next_hpc_only_best.pth:next',
+            f'{D_FULL_CKPT}:checkpoints/{D_FULL_CKPT}_best.pth:next',
+        ]
+        _seeds_str3 = " ".join(str(s) for s in _all_seeds3)
+        _specs_str3 = " ".join(f'"' + s + '"' for s in _ckpt_specs3)
 
         _eval3_pgd100 = (
             f"python3 phase2_attacks/eval_rhan.py "
@@ -3658,7 +3685,7 @@ if DO_STAGE3 and DO_STEP3_C:
             os.system(_eval3_pgd100)
 else:
     if DO_STAGE3:
-        print("  (Stage 3 Step C skipped: DO_STEP3_C=False)", flush=True)
+        print("  (Stage 3 Step C PGD-100 skipped: DO_STEP3_C=False)", flush=True)
 
 # %% [markdown]
 # ### Stage 3 — STEP C2: PRE-COMMITTED SEED EXTENSION (41–56, if triggered)
