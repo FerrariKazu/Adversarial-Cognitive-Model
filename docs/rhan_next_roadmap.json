@@ -124,7 +124,7 @@
       },
       "isolation_verdict": {
         "schema": "stage1_isolation_verdict_v2",
-        "date_utc": "2026-08-20T22:33:05Z",
+        "date_utc": "2026-08-21T16:50:21Z",
         "smoke_pi_d_top2": [
           "car",
           "airplane"
@@ -932,8 +932,39 @@
           "note": "5-seed protocol only (verdict was not borderline \u2014 no extension per the pre-registered rule)"
         },
         "masking_check": {
-          "available": false,
-          "note": "PGD-100 spot-check did not run"
+          "eps": 0.094,
+          "gap_bar_genuine_pp": 1.0,
+          "gap_bar_borderline_pp": 2.5,
+          "nondeterminism_caveat": "cross-run GPU nondeterminism (grid_sample/attention backward) can shift identical configs by ~1.5 pp; PGD-50 vs PGD-100 here are separate invocations, so gaps <= 2.5 pp are NOT conclusive evidence of masking.",
+          "pgd50_provenance": {
+            "git_sha": "3c50d5194e21f12365163722df1765c368ac01ef",
+            "timestamp_utc": "2026-08-18T07:23:39+00:00"
+          },
+          "pgd100_provenance": {
+            "git_sha": "3c50d5194e21f12365163722df1765c368ac01ef",
+            "timestamp_utc": "2026-08-18T14:25:31+00:00"
+          },
+          "trades_large_baseline": {
+            "available": true,
+            "acc_pgd50": 20.4,
+            "acc_pgd100": 19.87,
+            "gap_pp": 0.53,
+            "masking_verdict": "GENUINE robustness (no masking): PGD-50->100 drop +0.53 pp <= 1.0 pp bar (RHANv11 bar)"
+          },
+          "rhan_next_ais_v1_halting_only": {
+            "available": true,
+            "acc_pgd50": 32.53,
+            "acc_pgd100": 31.8,
+            "gap_pp": 0.73,
+            "masking_verdict": "GENUINE robustness (no masking): PGD-50->100 drop +0.73 pp <= 1.0 pp bar (RHANv11 bar)"
+          },
+          "rhan_next_hpc_only": {
+            "available": true,
+            "acc_pgd50": 27.73,
+            "acc_pgd100": 27.4,
+            "gap_pp": 0.33,
+            "masking_verdict": "GENUINE robustness (no masking): PGD-50->100 drop +0.33 pp <= 1.0 pp bar (RHANv11 bar)"
+          }
         },
         "note": "Stage 2 (C_hpc_only) validated via the 5-seed matched protocol, THREE-WAY vs A (static TRADES baseline) and B (AIS-v1 halting-only). A null result is a valid, reportable outcome."
       }

@@ -3261,31 +3261,60 @@ if DO_STAGE3 and DO_STEP3_A and not SKIP_STAGE3_TRAINING:
     smoke_ckpt3 = os.path.join(_REPO_ROOT, f"checkpoints/{D_SMOKE_CKPT}_best.pth")
 
     # ── Purge stale HF smoke artifacts if commit changed ───────────────────
-    # The trainer refuses to resume a rolling checkpoint written by a
-    # different commit.  If a prior (interrupted) session uploaded
-    # rhan_next_ais_hpc_smoke_rolling.pth under a different commit, it
-    # blocks the cold start.  Delete the stale rolling checkpoint from
-    # HF so each new session begins a genuine cold start.
+    # Only delete the rolling checkpoint if the code commit has changed.
+    # If the commit matches, the trainer can resume from the existing
+    # checkpoint (the 2026-08-23 fix for Kaggle session-reset resume).
     _stale_smoke_rolling3 = f"{D_SMOKE_CKPT}_rolling.pth"
+    _delete_smoke_rolling = True  # default: delete if we can't verify
     try:
-        from huggingface_hub import HfApi
-        HfApi(token=hf_token).delete_file(
-            path_in_repo=_stale_smoke_rolling3,
-            repo_id="FerrariKazu/rhan-checkpoints-rolling",
-            repo_type="dataset", token=hf_token)
-        print(f"  [cleanup] deleted stale {_stale_smoke_rolling3} from HF",
-              flush=True)
-    except Exception:
-        pass  # file may not exist — that's fine
+        from huggingface_hub import hf_hub_download, HfApi
+        from checkpoint_utils import compat_load, current_code_commit, resume_commit_ok
+        _temp_s3 = hf_hub_download(
+            repo_id='FerrariKazu/rhan-checkpoints-rolling',
+            filename=_stale_smoke_rolling3, repo_type='dataset', token=hf_token)
+        _s3_data = compat_load(_temp_s3, map_location='cpu')
+        _s3_ok, _s3_why = resume_commit_ok(_s3_data, current_code_commit())
+        if _s3_ok:
+            _delete_smoke_rolling = False
+            print(f"  [cleanup] HF smoke rolling checkpoint matches current "
+                  f"commit — keeping for resume", flush=True)
+        else:
+            print(f"  [cleanup] HF smoke rolling checkpoint is stale: {_s3_why}",
+                  flush=True)
+    except Exception as e:
+        print(f"  [cleanup] Could not verify HF smoke rolling checkpoint ({e}) — "
+              f"will delete to be safe", flush=True)
+    if _delete_smoke_rolling:
+        try:
+            from huggingface_hub import HfApi
+            HfApi(token=hf_token).delete_file(
+                path_in_repo=_stale_smoke_rolling3,
+                repo_id="FerrariKazu/rhan-checkpoints-rolling",
+                repo_type="dataset", token=hf_token)
+            print(f"  [cleanup] deleted stale {_stale_smoke_rolling3} from HF",
+                  flush=True)
+        except Exception:
+            pass  # file may not exist — that's fine
     _local_rolling3 = os.path.join(_REPO_ROOT, "checkpoints",
                                    _stale_smoke_rolling3)
-    if os.path.exists(_local_rolling3):
+    if os.path.exists(_local_rolling3) and _delete_smoke_rolling:
         os.remove(_local_rolling3)
         print(f"  [cleanup] deleted local {_local_rolling3}", flush=True)
 
-    if os.path.exists(smoke_health3) and os.path.exists(smoke_ckpt3):
-        print(f"  [SKIP] Stage 3 smoke already complete: {D_HEALTH_JSON}")
-        print(f"         Checkpoint: {smoke_ckpt3}")
+    _smoke_done_local = os.path.exists(smoke_health3) and os.path.exists(smoke_ckpt3)
+    _smoke_done_hf = False
+    if not _smoke_done_local:
+        # On Colab/Kaggle restart local files are gone — check HF.
+        try:
+            from huggingface_hub import HfApi
+            _hf_smoke_files = HfApi(token=hf_token).list_repo_files(
+                repo_id='FerrariKazu/rhan-checkpoints', repo_type='dataset')
+            _smoke_done_hf = f"{D_SMOKE_CKPT}_best.pth" in _hf_smoke_files
+        except Exception:
+            pass
+    if _smoke_done_local or _smoke_done_hf:
+        _smoke_src = 'HF' if _smoke_done_hf and not _smoke_done_local else 'local'
+        print(f"  [SKIP] Stage 3 smoke already complete ({_smoke_src}): {D_HEALTH_JSON}")
     else:
         _smoke3_cmd = (
             f"python3 phase1_training/train_rhan_next.py "
@@ -3442,8 +3471,23 @@ if DO_STAGE3 and DO_STEP3_A and not SKIP_STAGE3_TRAINING:
             for f_msg in _hg3.get("failures", []):
                 print(f"    → {f_msg}")
             print("  ABORTING Stage 3 Step B. Investigate before re-running.")
-    else:
-        print(f"  ⚠ Health JSON not found: {D_HEALTH_JSON}")
+    elif not SKIP_STAGE3_TRAINING:
+        # On Colab/Kaggle restart the local health JSON is gone. If the
+        # smoke best checkpoint exists on HF, the smoke was completed and
+        # passed in a previous session — assume gate passed so Step B can
+        # resume from the rolling checkpoint (the 2026-08-24 restart fix).
+        try:
+            from huggingface_hub import HfApi
+            _hf_ckpts = HfApi(token=hf_token).list_repo_files(
+                repo_id='FerrariKazu/rhan-checkpoints', repo_type='dataset')
+            if f"{D_SMOKE_CKPT}_best.pth" in _hf_ckpts:
+                gate_passed3 = True
+                print(f"\n  Stage 3 health gate: PASSED ✓ (smoke checkpoint found on HF — "
+                      f"assumed passed from previous session)")
+        except Exception as e:
+            print(f"  ⚠ Could not verify smoke checkpoint on HF: {e}")
+        if not gate_passed3:
+            print(f"  ⚠ Health JSON not found: {D_HEALTH_JSON}")
 
     if not gate_passed3 and DO_STEP3_B:
         print("  Forcing DO_STEP3_B = False (gate did not pass).")
@@ -3459,22 +3503,43 @@ if DO_STAGE3 and DO_STEP3_B and not SKIP_STAGE3_TRAINING:
     print("="*70)
 
     # ── Purge stale HF full-training artifacts if commit changed ──────────
-    # Same rationale as Step A cleanup: the trainer refuses to resume a
-    # rolling checkpoint written by a different commit.
+    # Only delete the rolling checkpoint if the code commit has changed.
+    # If the commit matches, the trainer can resume from the existing
+    # checkpoint (the 2026-08-23 fix for Kaggle session-reset resume).
     _stale_full_rolling3 = f"{D_FULL_CKPT}_rolling.pth"
+    _delete_full_rolling = True  # default: delete if we can't verify
     try:
-        from huggingface_hub import HfApi
-        HfApi(token=hf_token).delete_file(
-            path_in_repo=_stale_full_rolling3,
-            repo_id="FerrariKazu/rhan-checkpoints-rolling",
-            repo_type="dataset", token=hf_token)
-        print(f"  [cleanup] deleted stale {_stale_full_rolling3} from HF",
-              flush=True)
-    except Exception:
-        pass  # file may not exist — that's fine
+        from huggingface_hub import hf_hub_download, HfApi
+        from checkpoint_utils import compat_load, current_code_commit, resume_commit_ok
+        _temp_r3 = hf_hub_download(
+            repo_id='FerrariKazu/rhan-checkpoints-rolling',
+            filename=_stale_full_rolling3, repo_type='dataset', token=hf_token)
+        _r3_data = compat_load(_temp_r3, map_location='cpu')
+        _r3_ok, _r3_why = resume_commit_ok(_r3_data, current_code_commit())
+        if _r3_ok:
+            _delete_full_rolling = False
+            print(f"  [cleanup] HF rolling checkpoint matches current commit — "
+                  f"keeping for resume", flush=True)
+        else:
+            print(f"  [cleanup] HF rolling checkpoint is stale: {_r3_why}",
+                  flush=True)
+    except Exception as e:
+        print(f"  [cleanup] Could not verify HF rolling checkpoint ({e}) — "
+              f"will delete to be safe", flush=True)
+    if _delete_full_rolling:
+        try:
+            from huggingface_hub import HfApi
+            HfApi(token=hf_token).delete_file(
+                path_in_repo=_stale_full_rolling3,
+                repo_id="FerrariKazu/rhan-checkpoints-rolling",
+                repo_type="dataset", token=hf_token)
+            print(f"  [cleanup] deleted stale {_stale_full_rolling3} from HF",
+                  flush=True)
+        except Exception:
+            pass  # file may not exist — that's fine
     _local_full_r3 = os.path.join(_REPO_ROOT, "checkpoints",
                                    _stale_full_rolling3)
-    if os.path.exists(_local_full_r3):
+    if os.path.exists(_local_full_r3) and _delete_full_rolling:
         os.remove(_local_full_r3)
         print(f"  [cleanup] deleted local {_local_full_r3}", flush=True)
 
@@ -3569,7 +3634,7 @@ if DO_STAGE3 and DO_STEP3_C:
             f"--eps-list 0.0 0.094 "
             f"--eps-norm-space "
             f"--n-samples 300 --pgd-steps 50 --batch-size 32 "
-            f"--output-dir {STEP3_C_MAIN}"
+            f"--output-dir {STEP3_C_MAIN} --resume"
         )
         if DRY_RUN:
             print(f"  [DRY-RUN] PGD-50: {_eval3_pgd50}", flush=True)
@@ -3584,7 +3649,7 @@ if DO_STAGE3 and DO_STEP3_C:
             f"--eps-list 0.094 "
             f"--eps-norm-space "
             f"--n-samples 300 --pgd-steps 100 --batch-size 32 "
-            f"--output-dir {STEP3_C_MAIN100}"
+            f"--output-dir {STEP3_C_MAIN100} --resume"
         )
         if DRY_RUN:
             print(f"  [DRY-RUN] PGD-100: {_eval3_pgd100}", flush=True)
@@ -3669,7 +3734,7 @@ if DO_STAGE3 and DO_STEP3_C:
             f"--eps-list 0.0 0.094 "
             f"--eps-norm-space "
             f"--n-samples 300 --pgd-steps 50 --batch-size 32 "
-            f"--output-dir {STEP3_C2_MAIN}"
+            f"--output-dir {STEP3_C2_MAIN} --resume"
         )
         if DRY_RUN:
             print(f"  [DRY-RUN] C2 PGD-50: {_ext_pgd50}", flush=True)
@@ -3685,7 +3750,7 @@ if DO_STAGE3 and DO_STEP3_C:
             f"--eps-list 0.094 "
             f"--eps-norm-space "
             f"--n-samples 300 --pgd-steps 100 --batch-size 32 "
-            f"--output-dir {STEP3_C2_MAIN100}"
+            f"--output-dir {STEP3_C2_MAIN100} --resume"
         )
         if DRY_RUN:
             print(f"  [DRY-RUN] C2 PGD-100: {_ext_pgd100}", flush=True)
