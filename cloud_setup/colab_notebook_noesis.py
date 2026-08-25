@@ -3048,8 +3048,9 @@ if DO_STEP2_C:
 # ── Stage 3 toggles ──────────────────────────────────────────────────────────
 DO_STAGE3         = True
 DO_STEP3_A        = True    # smoke test (15 epochs, catches D interaction bugs)
-DO_STEP3_B        = True    # full 60-epoch 3-phase run (gated on Stage 3 health gate)
+DO_STEP3_B        = False   # full 60-epoch 3-phase run (gated on Stage 3 health gate)
 DO_STEP3_C        = True    # 8-seed matched eval (PGD-50 + PGD-100)
+SKIP_PGD50        = True    # skip PGD-50 (already completed in prior session)
 SKIP_STAGE3_TRAINING = False  # eval-only mode (needs rhan_next_ais_hpc_best.pth)
 SMOKE3_EPOCHS     = 15
 
@@ -3536,9 +3537,12 @@ if DO_STAGE3 and DO_STEP3_C:
                                       "eval_provenance.json")
     _done3_p50 = os.path.exists(_prov3_p50) or os.path.exists(_prov3_p50_merged)
 
-    if _done3_p50:
-        _use3_p50 = _prov3_p50_merged if os.path.exists(_prov3_p50_merged) else _prov3_p50
-        print(f"  [SKIP] Stage 3 PGD-50 already complete: {_use3_p50}")
+    if _done3_p50 or SKIP_PGD50:
+        if SKIP_PGD50 and not _done3_p50:
+            print("  [SKIP] Stage 3 PGD-50 skipped (SKIP_PGD50=True)")
+        else:
+            _use3_p50 = _prov3_p50_merged if os.path.exists(_prov3_p50_merged) else _prov3_p50
+            print(f"  [SKIP] Stage 3 PGD-50 already complete: {_use3_p50}")
     else:
         _all_seeds3 = STEP3_SEEDS + C3_SEEDS_STAGE3
         _ckpt_specs3 = [
