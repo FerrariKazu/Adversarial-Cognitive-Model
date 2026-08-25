@@ -3561,7 +3561,8 @@ if DO_STAGE3 and DO_STEP3_C:
             f"--eps-list 0.0 0.094 "
             f"--eps-norm-space "
             f"--n-samples 300 --pgd-steps 50 --batch-size 32 "
-            f"--output-dir {STEP3_C_MAIN} --resume"
+            f"--output-dir {STEP3_C_MAIN} --resume "
+            f"--hf-sync --hf-eval-subdir {os.path.basename(STEP3_C_MAIN)}"
         )
         if DRY_RUN:
             print(f"  [DRY-RUN] PGD-50: {_eval3_pgd50}", flush=True)
@@ -3598,7 +3599,8 @@ if DO_STAGE3 and DO_STEP3_C:
             f"--eps-list 0.094 "
             f"--eps-norm-space "
             f"--n-samples 300 --pgd-steps 100 --batch-size 32 "
-            f"--output-dir {STEP3_C_MAIN100} --resume"
+            f"--output-dir {STEP3_C_MAIN100} --resume "
+            f"--hf-sync --hf-eval-subdir {os.path.basename(STEP3_C_MAIN100)}"
         )
         if DRY_RUN:
             print(f"  [DRY-RUN] PGD-100: {_eval3_pgd100}", flush=True)
@@ -3683,7 +3685,8 @@ if DO_STAGE3 and DO_STEP3_C:
             f"--eps-list 0.0 0.094 "
             f"--eps-norm-space "
             f"--n-samples 300 --pgd-steps 50 --batch-size 32 "
-            f"--output-dir {STEP3_C2_MAIN} --resume"
+            f"--output-dir {STEP3_C2_MAIN} --resume "
+            f"--hf-sync --hf-eval-subdir {os.path.basename(STEP3_C2_MAIN)}"
         )
         if DRY_RUN:
             print(f"  [DRY-RUN] C2 PGD-50: {_ext_pgd50}", flush=True)
@@ -3699,7 +3702,8 @@ if DO_STAGE3 and DO_STEP3_C:
             f"--eps-list 0.094 "
             f"--eps-norm-space "
             f"--n-samples 300 --pgd-steps 100 --batch-size 32 "
-            f"--output-dir {STEP3_C2_MAIN100} --resume"
+            f"--output-dir {STEP3_C2_MAIN100} --resume "
+            f"--hf-sync --hf-eval-subdir {os.path.basename(STEP3_C2_MAIN100)}"
         )
         if DRY_RUN:
             print(f"  [DRY-RUN] C2 PGD-100: {_ext_pgd100}", flush=True)

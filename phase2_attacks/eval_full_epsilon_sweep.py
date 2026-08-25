@@ -79,6 +79,71 @@ DEFAULT_CHECKPOINTS = [
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+
+def _get_hf_token():
+    """Resolve HF_TOKEN from env, Colab userdata, or Kaggle secrets."""
+    token = os.environ.get('HF_TOKEN')
+    if token:
+        return token
+    try:
+        from google.colab import userdata
+        token = userdata.get('HF_TOKEN')
+        if token:
+            return token
+    except Exception:
+        pass
+    try:
+        from kaggle_secrets import UserSecretsClient
+        token = UserSecretsClient().get_secret('HF_TOKEN')
+        if token:
+            return token
+    except Exception:
+        pass
+    return None
+
+
+def _hf_upload_csv(csv_path, repo_id, path_in_repo, hf_token):
+    """Upload a local CSV to HF dataset repo (best-effort, non-fatal)."""
+    if not os.path.exists(csv_path) or not hf_token:
+        return
+    try:
+        from huggingface_hub import HfApi, create_repo
+        api = HfApi(token=hf_token)
+        create_repo(repo_id=repo_id, repo_type='dataset', private=False,
+                    exist_ok=True, token=hf_token)
+        api.upload_file(
+            path_or_fileobj=csv_path,
+            path_in_repo=path_in_repo,
+            repo_id=repo_id,
+            repo_type='dataset',
+            token=hf_token,
+        )
+        print(f"  [hf-sync] uploaded {os.path.basename(csv_path)} -> {repo_id}/{path_in_repo}",
+              flush=True)
+    except Exception as e:
+        print(f"  [hf-sync] WARNING: upload failed: {e}", flush=True)
+
+
+def _hf_download_csv(csv_path, repo_id, path_in_repo, hf_token):
+    """Download a CSV from HF if local copy is missing. Returns True if downloaded."""
+    if os.path.exists(csv_path) or not hf_token:
+        return False
+    try:
+        from huggingface_hub import hf_hub_download
+        hf_hub_download(
+            repo_id=repo_id,
+            repo_type='dataset',
+            filename=path_in_repo,
+            local_dir=os.path.dirname(csv_path),
+            token=hf_token,
+        )
+        print(f"  [hf-sync] downloaded {path_in_repo} from {repo_id}", flush=True)
+        return True
+    except Exception as e:
+        print(f"  [hf-sync] no CSV on HF ({e}) — starting fresh", flush=True)
+        return False
+
+
 def get_domain_bounds(device):
     stl_min = (torch.zeros(1, 3, 1, 1, device=device) - MEAN.to(device)) / STD.to(device)
     stl_max = (torch.ones(1, 3, 1, 1, device=device) - MEAN.to(device)) / STD.to(device)
@@ -357,6 +422,16 @@ def main():
     parser.add_argument('--freeze-gaze', action='store_true',
                         help='GLOBAL freeze-gaze (all checkpoints). For per-checkpoint control '
                              'use the optional 4th field in --ckpt-specs: label:path:arch:freeze')
+    parser.add_argument('--hf-sync', action='store_true',
+                        help='After each seed, upload the per-seed CSV to a HuggingFace '
+                             'dataset repo so --resume survives Colab/Kaggle restarts. '
+                             'Requires HF_TOKEN in the environment.')
+    parser.add_argument('--hf-dataset-repo', type=str, default=None,
+                        help='HF dataset repo for eval sync (default: auto-detect from '
+                             'HF_TOKEN username: <user>/rhan-eval-sweep)')
+    parser.add_argument('--hf-eval-subdir', type=str, default='',
+                        help='Subdirectory inside the HF repo to store the per-seed CSV '
+                             '(e.g. sweep_stage3_d_ais_hpc_pgd100). Empty = root.')
     parser.add_argument('--ckpt-specs', type=str, nargs='*', default=None,
                         help='label:ckpt_path:arch[:freeze]  (overrides built-in list; the '
                              'optional 4th field freezes gaze for that checkpoint only)')
@@ -427,6 +502,23 @@ def main():
                    'eps_norm_R', 'eps_norm_G', 'eps_norm_B',
                    'acc_pct', 'macro_dprime']
 
+    # ── HF sync setup (--hf-sync) ───────────────────────────────────────────────
+    hf_token = _get_hf_token() if args.hf_sync else None
+    hf_repo = args.hf_dataset_repo
+    hf_subdir = args.hf_eval_subdir
+    if args.hf_sync and not hf_repo:
+        # auto-detect from token
+        try:
+            from huggingface_hub import HfApi
+            _api = HfApi(token=hf_token)
+            _username = _api.whoami()['name']
+            hf_repo = f"{_username}/rhan-eval-sweep"
+        except Exception:
+            hf_repo = 'FerrariKazu/rhan-eval-sweep'
+    if args.hf_sync:
+        hf_csv_path = os.path.join(hf_subdir, 'epsilon_sweep_per_seed.csv') if hf_subdir else 'epsilon_sweep_per_seed.csv'
+        print(f"  [hf-sync] will upload per-seed CSV to {hf_repo}/{hf_csv_path}", flush=True)
+
     agg = {}   # (label, eps) -> {'accs': [...], 'dps': [...]} across seeds
 
     # --resume: a cell key is (label, seed, round(eps,4)). Rows already in the
@@ -435,6 +527,9 @@ def main():
     # aggregated CSV + crossover verdicts still cover previously-computed cells
     # (an idempotent re-run after a partial/timeout session never re-pays PGD).
     done = {}
+    # --resume + --hf-sync: if local CSV is missing (Colab restart), pull from HF
+    if args.resume and not os.path.exists(csv_per_seed) and args.hf_sync:
+        _hf_download_csv(csv_per_seed, hf_repo, hf_csv_path, hf_token)
     if args.resume and os.path.exists(csv_per_seed):
         with open(csv_per_seed, newline='') as f:
             for r in csv.DictReader(f):
@@ -549,6 +644,9 @@ def main():
                     agg[(label, eps)]['dps'].append(dp)
 
                 f_seed.flush()   # partial-run survival after each seed
+                # --hf-sync: upload CSV to HF so --resume survives Colab restarts
+                if args.hf_sync:
+                    _hf_upload_csv(csv_per_seed, hf_repo, hf_csv_path, hf_token)
 
             del model
             torch.cuda.empty_cache()
