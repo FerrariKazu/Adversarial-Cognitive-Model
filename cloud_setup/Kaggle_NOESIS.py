@@ -3716,7 +3716,7 @@ if DO_STAGE3 and DO_STEP3_C:
             print(f"  [DRY-RUN] PGD-50: {_eval3_pgd50}", flush=True)
         else:
             print("  Running PGD-50 eval (8 seeds × 4 checkpoints)...", flush=True)
-            os.system(_eval3_pgd50)
+            run(_eval3_pgd50)
 else:
     if DO_STAGE3:
         print("  (Stage 3 Step C PGD-50 skipped: DO_STEP3_C=False)", flush=True)
@@ -3768,7 +3768,7 @@ if DO_STAGE3 and DO_STEP3_C:
             print(f"  [DRY-RUN] PGD-100: {_eval3_pgd100}", flush=True)
         else:
             print("  Running PGD-100 eval (8 seeds × D only)...", flush=True)
-            os.system(_eval3_pgd100)
+            run(_eval3_pgd100)
 else:
     if DO_STAGE3:
         print("  (Stage 3 Step C PGD-100 skipped: DO_STEP3_C=False)", flush=True)
