@@ -3582,6 +3582,20 @@ if DO_STAGE3 and DO_STEP3_C:
     if _done3_p100:
         print(f"  [SKIP] Stage 3 PGD-100 already complete: {_prov3_p100}")
     else:
+        # Ensure D checkpoint exists locally (may not if Step B was skipped)
+        _d_ckpt3 = os.path.join(_REPO_ROOT, 'checkpoints', f'{D_FULL_CKPT}_best.pth')
+        if not os.path.exists(_d_ckpt3):
+            try:
+                from huggingface_hub import hf_hub_download as _hfdl3
+                os.makedirs(os.path.join(_REPO_ROOT, 'checkpoints'), exist_ok=True)
+                print(f"  Downloading D checkpoint from HF: {D_FULL_CKPT}_best.pth ...", flush=True)
+                _hfdl3(repo_id='FerrariKazu/rhan-checkpoints', repo_type='dataset',
+                       filename=f'{D_FULL_CKPT}_best.pth', local_dir=os.path.join(_REPO_ROOT, 'checkpoints'),
+                       token=hf_token)
+                print(f"  ✓ D checkpoint present: {_d_ckpt3}", flush=True)
+            except Exception as _e3:
+                print(f"  ⚠ Could not download D checkpoint: {_e3}", flush=True)
+
         _all_seeds3 = STEP3_SEEDS + C3_SEEDS_STAGE3
         # D-only PGD-100: A/B/C already have results from prior runs;
         # only D (AIS+HPC) needs fresh PGD-100 for the final table.
