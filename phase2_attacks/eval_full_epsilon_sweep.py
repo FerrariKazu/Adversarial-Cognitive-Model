@@ -130,13 +130,21 @@ def _hf_download_csv(csv_path, repo_id, path_in_repo, hf_token):
         return False
     try:
         from huggingface_hub import hf_hub_download
-        hf_hub_download(
+        # Use local_dir=None so hf_hub_download puts the file in cwd,
+        # and the filename (path_in_repo) already contains the subdir.
+        # Avoids the nested-dir bug: local_dir=dirname + filename=subdir/file
+        # would create subdir/subdir/file.
+        downloaded_path = hf_hub_download(
             repo_id=repo_id,
             repo_type='dataset',
             filename=path_in_repo,
-            local_dir=os.path.dirname(csv_path),
             token=hf_token,
         )
+        # Move to the expected location if different
+        if os.path.abspath(downloaded_path) != os.path.abspath(csv_path):
+            os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+            import shutil
+            shutil.move(downloaded_path, csv_path)
         print(f"  [hf-sync] downloaded {path_in_repo} from {repo_id}", flush=True)
         return True
     except Exception as e:
