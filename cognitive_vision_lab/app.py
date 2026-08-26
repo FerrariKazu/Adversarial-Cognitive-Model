@@ -20,15 +20,18 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st  # noqa: E402
 
-from cognitive_vision_lab.config import APP_SUBTITLE, APP_TITLE, APP_VERSION  # noqa: E402
-from cognitive_vision_lab.utils.theme import inject_css  # noqa: E402
+from cognitive_vision_lab.config import APP_TITLE  # noqa: E402
+from cognitive_vision_lab.utils.theme import brand_header, inject_css  # noqa: E402
 
 st.set_page_config(
-    page_title=f"{APP_TITLE} — {APP_SUBTITLE}",
-    page_icon="🧠",
+    page_title=APP_TITLE,
+    page_icon="🔬",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+inject_css()
+brand_header()
 
 PAGES = [
     st.Page("pages/01_Home.py", title="Home", icon="🏛️", default=True),
@@ -45,21 +48,8 @@ PAGES = [
     st.Page("pages/12_Experiment_Manager.py", title="Experiment Manager", icon="🧪"),
     st.Page("pages/13_Dataset_Explorer.py", title="Dataset Explorer", icon="🗃️"),
     st.Page("pages/14_Report_Generator.py", title="Report Generator", icon="📄"),
+    st.Page("pages/15_Perception_Replay.py", title="Perception Replay", icon="🎬"),
 ]
 
 nav = st.navigation(PAGES)
 nav.run()
-
-# Injected once via the first rendered page's `hero()`; kept here as a fallback
-# so the theme applies even before any page renders.
-inject_css()
-
-st.sidebar.markdown(
-    f"""
-    <div style="text-align:center; padding: 0.25rem 0 0.75rem 0;">
-      <div style="font-size:0.72rem; color:#64748B;">{APP_TITLE} v{APP_VERSION}</div>
-      <div style="font-size:0.62rem; color:#94A3B8;">research platform · not for clinical use</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
