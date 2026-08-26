@@ -78,7 +78,7 @@ def render() -> None:
             col.error(f"{method}: {e}")
 
     section("Educational context")
-    with st.expander("📐 CAM mathematics", expanded=False):
+    with st.expander(" CAM mathematics", expanded=False):
         from cognitive_vision_lab.components.equations import render_equation
 
         render_equation("gradcam")

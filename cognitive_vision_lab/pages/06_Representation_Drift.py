@@ -105,7 +105,7 @@ def render() -> None:
         st.caption("No precomputed drift stats file found — the accuracy curves on the "
                    "Human vs AI page carry the same story at the metric level.")
 
-    with st.expander("📐 Dimensionality reduction mathematics", expanded=False):
+    with st.expander(" Dimensionality reduction mathematics", expanded=False):
         from cognitive_vision_lab.components.equations import render_equation
 
         render_equation("pca")

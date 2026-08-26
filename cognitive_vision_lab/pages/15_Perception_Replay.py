@@ -268,7 +268,7 @@ def render() -> None:
             "rhan_stl10_large_pseudolabel_best.pth", # A: TRADES baseline
         ]
         ckpt_labels = [
-            "D: AIS + HPC ★",
+            "D: AIS + HPC ",
             "B: AIS-v1 halting-only",
             "C: HPC-only",
             "A: TRADES baseline",
@@ -387,7 +387,7 @@ def render() -> None:
     c3.metric("Iterations", f"{result.steps_effective:.1f} / {result.steps_total}")
     if gt_label:
         correct = result.top_class == (st.session_state.get("pr_gt_idx") or -1)
-        c4.metric("Correct?", "✓" if correct else "✗")
+        c4.metric("Correct?", "" if correct else "")
 
     # AIS metrics
     if caps[0].pi_d is not None:
@@ -589,13 +589,13 @@ def render() -> None:
 
             # Halting decision
             if cap.halted:
-                st.error("🛑 HALTED")
+                st.error(" HALTED")
             else:
                 st.success("▶ Continuing")
 
     # ── Explain the Step ─────────────────────────────────────────────────────
     st.markdown("---")
-    with st.expander(f"📖 Explain Step {current_step + 1}", expanded=True):
+    with st.expander(f" Explain Step {current_step + 1}", expanded=True):
         explanation = _render_step_explain(cap, current_step, len(caps))
         st.markdown(explanation)
 
@@ -707,7 +707,7 @@ def render() -> None:
 
     # ── Developer / Debug section ────────────────────────────────────────────
     st.markdown("---")
-    with st.expander("🔧 Raw Step Data (Developer)", expanded=False):
+    with st.expander(" Raw Step Data (Developer)", expanded=False):
         st.markdown(f"**Step {current_step + 1}** — raw tensor information:")
 
         debug_info = {}

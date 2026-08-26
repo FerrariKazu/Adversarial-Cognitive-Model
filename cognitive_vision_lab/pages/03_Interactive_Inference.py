@@ -106,7 +106,7 @@ def render() -> None:
         ).properties(height=220, title="Top-5 classes")
         st.altair_chart(chart, width="stretch")
 
-    with st.expander("📐 Softmax & entropy", expanded=False):
+    with st.expander(" Softmax & entropy", expanded=False):
         render_equation("softmax")
         render_equation("cross_entropy")
         st.markdown(f"**Entropy** — $H = -\\sum_i p_i \\log p_i$")
@@ -130,7 +130,7 @@ def render() -> None:
     if handle.profile:
         st.caption("Profile: " + ", ".join(f"{k}={v}" for k, v in handle.profile.items()))
 
-    with st.expander("⚙ Model internals", expanded=False):
+    with st.expander(" Model internals", expanded=False):
         st.json({
             "model_id": entry["id"], "name": sel, "family": entry["family"],
             "dataset": entry["dataset"], "stl10": entry["stl10"],

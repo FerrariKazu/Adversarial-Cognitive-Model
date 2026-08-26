@@ -18,7 +18,7 @@ def _zoo_table() -> pd.DataFrame:
         p = find_profile(m["id"]) or find_profile(m["name"]) or find_profile(m["checkpoint"])
         rows.append({
             "Model": m["name"], "Family": m["family"], "Dataset": m["dataset"],
-            "Available": "✓" if m["available"] else "✗",
+            "Available": "" if m["available"] else "",
             "Params (M)": p.params_m if p else float("nan"),
             "Clean %": p.clean_acc if p else float("nan"),
             "εthresh": p.ethresh if p and p.ethresh else float("nan"),

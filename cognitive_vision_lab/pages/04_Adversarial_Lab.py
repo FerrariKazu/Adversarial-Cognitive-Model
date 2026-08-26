@@ -66,7 +66,7 @@ def render() -> None:
     labels = class_names(handle)
     y = clean_probs.argmax().unsqueeze(0)
 
-    run_btn = st.button("⚡ Generate attack", type="primary", width="stretch")
+    run_btn = st.button(" Generate attack", type="primary", width="stretch")
     if run_btn:
         t0 = time.perf_counter()
         with st.spinner(f"Running {attack} ({steps} steps)…"):
@@ -84,7 +84,7 @@ def render() -> None:
 
         st.markdown("### Attack result")
         mrow = st.columns(5)
-        mrow[0].metric("Attack success", "✓ fooled" if success else "✗ failed")
+        mrow[0].metric("Attack success", " fooled" if success else " failed")
         mrow[1].metric("Runtime", f"{elapsed:.0f} ms")
         mrow[2].metric("Δ confidence", f"{(clean_probs[clean_idx]-adv_probs[clean_idx]).item()*100:.1f} pp")
         mrow[3].metric("Prediction", labels[adv_idx] if adv_idx < len(labels) else str(adv_idx),
@@ -112,7 +112,7 @@ def render() -> None:
         st.bar_chart(pd.Series(adv_probs.cpu().numpy(), name="p"), height=220)
 
         section("Educational context")
-        with st.expander("📐 Attack mathematics", expanded=False):
+        with st.expander(" Attack mathematics", expanded=False):
             from cognitive_vision_lab.components.equations import render_equation
 
             if attack in ("pgd", "apgd"):
