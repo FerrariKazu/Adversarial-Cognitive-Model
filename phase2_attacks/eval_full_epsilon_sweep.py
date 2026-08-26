@@ -130,21 +130,19 @@ def _hf_download_csv(csv_path, repo_id, path_in_repo, hf_token):
         return False
     try:
         from huggingface_hub import hf_hub_download
-        # Use local_dir=None so hf_hub_download puts the file in cwd,
-        # and the filename (path_in_repo) already contains the subdir.
-        # Avoids the nested-dir bug: local_dir=dirname + filename=subdir/file
-        # would create subdir/subdir/file.
+        import shutil
+        # Ensure local directory exists before writing
+        os.makedirs(os.path.dirname(csv_path) or '.', exist_ok=True)
+        # Download to HF cache (no local_dir avoids nested-dir bug with
+        # filename='subdir/file.csv' + local_dir='subdir/').
         downloaded_path = hf_hub_download(
             repo_id=repo_id,
             repo_type='dataset',
             filename=path_in_repo,
             token=hf_token,
         )
-        # Move to the expected location if different
-        if os.path.abspath(downloaded_path) != os.path.abspath(csv_path):
-            os.makedirs(os.path.dirname(csv_path), exist_ok=True)
-            import shutil
-            shutil.move(downloaded_path, csv_path)
+        # Copy (not move) from cache to the expected local path.
+        shutil.copy2(downloaded_path, csv_path)
         print(f"  [hf-sync] downloaded {path_in_repo} from {repo_id}", flush=True)
         return True
     except Exception as e:
@@ -558,6 +556,7 @@ def main():
 
     # Per-seed CSV is written incrementally (flushed after every seed) so a
     # long run that hits a Kaggle session timeout still keeps partial data.
+    os.makedirs(args.output_dir, exist_ok=True)
     with open(csv_per_seed, 'w', newline='') as f_seed:
         writer_seed = csv.DictWriter(f_seed, fieldnames=seed_fields)
         writer_seed.writeheader()
