@@ -84,12 +84,12 @@ DEFAULT_EPS_GRID = [0.0, 0.031, 0.062, 0.094]
 DEFAULT_PGD_STEPS = 50
 DEFAULT_SEED = 42
 
-# ── Theme ─────────────────────────────────────────────────────────────────────
-PRIMARY_COLOR = "#2563EB"
-ACCENT_COLOR = "#0EA5E9"
-SUCCESS_COLOR = "#16A34A"
-WARNING_COLOR = "#D97706"
-DANGER_COLOR = "#DC2626"
+# ── Theme (black & white) ───────────────────────────────────────────────────
+PRIMARY_COLOR = "#000"
+ACCENT_COLOR = "#000"
+SUCCESS_COLOR = "#000"
+WARNING_COLOR = "#000"
+DANGER_COLOR = "#000"
 
 os.makedirs(CACHE_DIR, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
