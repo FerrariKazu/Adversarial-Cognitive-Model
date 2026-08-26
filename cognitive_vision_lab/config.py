@@ -39,7 +39,7 @@ EXPERIMENTS_FILE = CACHE_DIR / "experiments.json"
 
 # ── App metadata ──────────────────────────────────────────────────────────────
 APP_TITLE = "Cognitive Vision Lab"
-APP_SUBTITLE = "Interactive Benchmarking Platform for Human-Like AI Vision"
+APP_SUBTITLE = "RHAN research workbench"
 APP_VERSION = "2.0.0"
 ORG_NAME = "Adversarial Cognitive Model Project"
 GITHUB_URL = "https://github.com/FerrariKazu/Adversarial-Cognitive-Model"

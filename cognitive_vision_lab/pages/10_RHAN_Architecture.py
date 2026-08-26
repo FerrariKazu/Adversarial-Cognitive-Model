@@ -49,11 +49,8 @@ def render() -> None:
         st.metric("Output", module.output_shape or "—")
 
     if module.math:
-        with st.expander("📐 Mathematics", expanded=True):
-            st.markdown(
-                f'<div class="cvl-equation">$${module.math}$$</div>',
-                unsafe_allow_html=True,
-            )
+        with st.expander("Mathematics", expanded=True):
+            st.latex(module.math)
 
     section("Module graph")
     g = build_graph()

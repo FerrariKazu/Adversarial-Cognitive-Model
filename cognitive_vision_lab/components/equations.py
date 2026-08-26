@@ -7,28 +7,21 @@ from cognitive_vision_lab.utils.math_helpers import EQUATIONS
 
 
 def equation_block(title: str, latex: str, note: str = "") -> None:
-    """Render one equation in a styled container inside an expander."""
-    with st.expander(f"📐 {title}", expanded=False):
-        st.markdown(
-            f"""
-            <div class="cvl-equation">$${latex}$$</div>
-            """,
-            unsafe_allow_html=True,
-        )
+    """Render one equation inside an expander."""
+    with st.expander(title, expanded=False):
+        st.latex(latex)
         if note:
             st.caption(note)
 
 
 def equations_sidebar(keys: list[str]) -> None:
     """Show a curated set of equations in an expandable section."""
-    with st.expander("📐 Mathematical foundations", expanded=False):
+    with st.expander("Equations", expanded=False):
         for k in keys:
             if k in EQUATIONS:
                 title, latex = EQUATIONS[k]
-                st.markdown(
-                    f"<div class='cvl-equation'><b>{title}</b><br>$${latex}$$</div>",
-                    unsafe_allow_html=True,
-                )
+                st.markdown(f"**{title}**")
+                st.latex(latex)
 
 
 def render_equation(key: str) -> None:

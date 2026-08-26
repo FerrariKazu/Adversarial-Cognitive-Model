@@ -15,13 +15,12 @@ def model_profile_card(profile: ModelProfile) -> None:
             st.caption(f"{profile.family} · {profile.dataset}")
         with c2:
             if profile.ethresh and profile.ethresh > 0.05:
-                pill = "🟢 High robustness"
+                label = "High robustness"
             elif profile.ethresh and profile.ethresh > 0.01:
-                pill = "🟡 Moderate"
+                label = "Moderate"
             else:
-                pill = "🔴 Fragile"
-            st.markdown(f"<span class='cvl-pill cvl-pill-info'>{pill}</span>",
-                        unsafe_allow_html=True)
+                label = "Fragile"
+            st.markdown(f"`{label}`")
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Clean %", f"{profile.clean_acc:.1f}")
         m2.metric("εthresh", f"{profile.ethresh:.3f}" if profile.ethresh else "n/a")
@@ -36,9 +35,4 @@ def stat_grid(stats: dict[str, str]) -> None:
 
 
 def status_badge(status: str) -> str:
-    kinds = {
-        "done": "good", "running": "info", "queued": "warn",
-        "failed": "bad", "available": "good", "missing": "bad",
-    }
-    kind = kinds.get(status, "info")
-    return f'<span class="cvl-pill cvl-pill-{kind}">{status}</span>'
+    return f"`{status}`"
