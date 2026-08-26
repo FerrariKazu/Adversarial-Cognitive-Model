@@ -199,10 +199,10 @@ def _render_timeline(caps, current_step: int):
         else:
             marker = "●" if not is_current else "▶"
             label = f"t{i + 1}"
-        style = "font-weight:bold;color:#2563EB;" if is_current else ""
+        style = "font-weight:bold;" if is_current else ""
         parts.append(f'<span style="{style}">{marker} {label}</span>')
         if i < len(caps) - 1:
-            parts.append('<span style="color:#94A3B8;">→</span>')
+            parts.append('<span style="color:#888;">→</span>')
     st.markdown(" ".join(parts), unsafe_allow_html=True)
 
 
@@ -570,7 +570,7 @@ def render() -> None:
             chart = alt.Chart(alt.Data(values=bar_df)).mark_bar().encode(
                 x=alt.X("probability:Q", scale=alt.Scale(domain=[0, 1]), title="Probability"),
                 y=alt.Y("class:N", sort="-x", title=""),
-                color=alt.value("#2563EB"),
+                color=alt.value("#000"),
             ).properties(height=150)
             st.altair_chart(chart, use_container_width=True)
 
