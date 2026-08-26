@@ -25,7 +25,7 @@ from cognitive_vision_lab.utils.theme import brand_header, inject_css  # noqa: E
 
 st.set_page_config(
     page_title=APP_TITLE,
-    page_icon="",
+    page_icon="#",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -34,21 +34,21 @@ inject_css()
 brand_header()
 
 PAGES = [
-    st.Page("pages/01_Home.py", title="Home", icon="", default=True),
-    st.Page("pages/02_Model_Zoo.py", title="Model Zoo", icon=""),
-    st.Page("pages/03_Interactive_Inference.py", title="Interactive Inference", icon=""),
-    st.Page("pages/04_Adversarial_Lab.py", title="Adversarial Lab", icon=""),
-    st.Page("pages/05_Attention_Explorer.py", title="Attention Explorer", icon=""),
-    st.Page("pages/06_Representation_Drift.py", title="Representation Drift", icon=""),
-    st.Page("pages/07_GradCAM_and_Saliency.py", title="GradCAM & Saliency", icon=""),
-    st.Page("pages/08_Human_vs_AI.py", title="Human vs AI", icon=""),
-    st.Page("pages/09_RobustBench_Comparison.py", title="RobustBench", icon=""),
-    st.Page("pages/10_RHAN_Architecture.py", title="RHAN Architecture", icon=""),
-    st.Page("pages/11_Benchmark_Results.py", title="Benchmark Results", icon=""),
-    st.Page("pages/12_Experiment_Manager.py", title="Experiment Manager", icon=""),
-    st.Page("pages/13_Dataset_Explorer.py", title="Dataset Explorer", icon=""),
-    st.Page("pages/14_Report_Generator.py", title="Report Generator", icon=""),
-    st.Page("pages/15_Perception_Replay.py", title="Perception Replay", icon=""),
+    st.Page("pages/01_Home.py", title="Home", default=True),
+    st.Page("pages/02_Model_Zoo.py", title="Model Zoo"),
+    st.Page("pages/03_Interactive_Inference.py", title="Interactive Inference"),
+    st.Page("pages/04_Adversarial_Lab.py", title="Adversarial Lab"),
+    st.Page("pages/05_Attention_Explorer.py", title="Attention Explorer"),
+    st.Page("pages/06_Representation_Drift.py", title="Representation Drift"),
+    st.Page("pages/07_GradCAM_and_Saliency.py", title="GradCAM & Saliency"),
+    st.Page("pages/08_Human_vs_AI.py", title="Human vs AI"),
+    st.Page("pages/09_RobustBench_Comparison.py", title="RobustBench"),
+    st.Page("pages/10_RHAN_Architecture.py", title="RHAN Architecture"),
+    st.Page("pages/11_Benchmark_Results.py", title="Benchmark Results"),
+    st.Page("pages/12_Experiment_Manager.py", title="Experiment Manager"),
+    st.Page("pages/13_Dataset_Explorer.py", title="Dataset Explorer"),
+    st.Page("pages/14_Report_Generator.py", title="Report Generator"),
+    st.Page("pages/15_Perception_Replay.py", title="Perception Replay"),
 ]
 
 nav = st.navigation(PAGES)
