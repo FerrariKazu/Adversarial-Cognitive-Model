@@ -3583,20 +3583,20 @@ if DO_STAGE3 and DO_STEP3_C:
         print(f"  [SKIP] Stage 3 PGD-100 already complete: {_prov3_p100}")
     else:
         _all_seeds3 = STEP3_SEEDS + C3_SEEDS_STAGE3
-        _ckpt_specs3 = [
-            'trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large',
-            'rhan_next_ais_v1_halting_only:checkpoints/rhan_next_ais_v1_halting_only_best.pth:next',
-            'rhan_next_hpc_only:checkpoints/rhan_next_hpc_only_best.pth:next',
+        # D-only PGD-100: A/B/C already have results from prior runs;
+        # only D (AIS+HPC) needs fresh PGD-100 for the final table.
+        _ckpt_specs3_d = [
             f'{D_FULL_CKPT}:checkpoints/{D_FULL_CKPT}_best.pth:next',
         ]
         _seeds_str3 = " ".join(str(s) for s in _all_seeds3)
-        _specs_str3 = " ".join(f'"' + s + '"' for s in _ckpt_specs3)
+        _specs_str3_d = " ".join(f'"' + s + '"' for s in _ckpt_specs3_d)
 
         _eval3_pgd100 = (
             f"python3 phase2_attacks/eval_rhan.py "
-            f"--ckpt-specs {_specs_str3} "
+            f"--ckpt-specs {_specs_str3_d} "
             f"--seeds {_seeds_str3} "
-            f"--eps-list 0.094 "
+            f"--baseline-label trades_large_baseline "
+            f"--eps-list 0.0 0.094 "
             f"--eps-norm-space "
             f"--n-samples 300 --pgd-steps 100 --batch-size 32 "
             f"--output-dir {STEP3_C_MAIN100} --resume "
@@ -3605,7 +3605,7 @@ if DO_STAGE3 and DO_STEP3_C:
         if DRY_RUN:
             print(f"  [DRY-RUN] PGD-100: {_eval3_pgd100}", flush=True)
         else:
-            print("  Running PGD-100 eval (8 seeds × 4 checkpoints)...", flush=True)
+            print("  Running PGD-100 eval (8 seeds × D only)...", flush=True)
             os.system(_eval3_pgd100)
 else:
     if DO_STAGE3:
