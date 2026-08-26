@@ -67,7 +67,7 @@ def render() -> None:
         dp = float(np.interp(eps_choice, c["epsilons"], c["dprime"]))
         snapshot.append({"System": s, "Accuracy %": round(acc, 1),
                          "d′": round(dp, 3),
-                         "Status": "👁 stable" if dp >= 1.0 else "💥 collapsed"})
+                         "Status": " stable" if dp >= 1.0 else " collapsed"})
     st.dataframe(snapshot, width="stretch", hide_index=True)
 
     # ── Full curves ──────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ def render() -> None:
           (metacognitive miscalibration — Finding 5).
         """
     )
-    with st.expander("📐 Sensitivity mathematics", expanded=False):
+    with st.expander(" Sensitivity mathematics", expanded=False):
         from cognitive_vision_lab.components.equations import render_equation
 
         render_equation("dprime")

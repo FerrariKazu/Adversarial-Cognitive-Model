@@ -136,7 +136,7 @@ def render() -> None:
                caption="Overlay", width=300)
 
     section("Educational context")
-    with st.expander("📐 Attention mathematics", expanded=False):
+    with st.expander(" Attention mathematics", expanded=False):
         from cognitive_vision_lab.components.equations import render_equation
 
         render_equation("attention")

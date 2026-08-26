@@ -46,18 +46,18 @@ def render() -> None:
     # ── Export bundle ─────────────────────────────────────────────────────────
     section("Download bundle")
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.download_button("📄 Markdown", to_markdown_bytes(md),
+    c1.download_button(" Markdown", to_markdown_bytes(md),
                        file_name="report.md", mime="text/markdown")
-    c2.download_button("📐 LaTeX", latex_table(df).encode(),
+    c2.download_button(" LaTeX", latex_table(df).encode(),
                        file_name="report_table.tex", mime="application/x-tex")
-    c3.download_button("📊 CSV", to_csv_bytes(df),
+    c3.download_button(" CSV", to_csv_bytes(df),
                        file_name="report.csv", mime="text/csv")
-    c4.download_button("🧾 JSON", to_json_bytes(df),
+    c4.download_button(" JSON", to_json_bytes(df),
                        file_name="report.json", mime="application/json")
-    c5.download_button("📕 PDF", pdf_bytes(df, title=f"{title} — {author}"),
+    c5.download_button(" PDF", pdf_bytes(df, title=f"{title} — {author}"),
                        file_name="report.pdf", mime="application/pdf")
 
-    with st.expander("📐 Underlying equations", expanded=False):
+    with st.expander(" Underlying equations", expanded=False):
         from cognitive_vision_lab.components.equations import render_equation
 
         render_equation("dprime")

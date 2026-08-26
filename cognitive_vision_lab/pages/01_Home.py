@@ -47,7 +47,7 @@ def render() -> None:
               else "n/a", delta=f"{hw.gpu_util_pct:.0f}% util" if hw.cuda_available else None)
     c3.metric("Runtime", f"PyTorch {hw.torch_version}", delta=f"Python {hw.python_version}")
 
-    with st.expander("🔍 Quick links", expanded=True):
+    with st.expander(" Quick links", expanded=True):
         st.markdown(
             "| Page | Purpose |\n"
             "|---|---|\n"

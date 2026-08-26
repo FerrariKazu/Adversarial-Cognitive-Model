@@ -127,7 +127,7 @@ def render() -> None:
     c3.download_button("⬇ PDF table", pdf_bytes(view, title="Cognitive Vision Lab — Benchmark"),
                        file_name="benchmark_results.pdf", mime="application/pdf")
 
-    with st.expander("📐 Methodology", expanded=False):
+    with st.expander(" Methodology", expanded=False):
         st.markdown(
             "All adversarial numbers use **PGD-50, L∞**, with the perturbation clamped "
             "**directly in normalized space** at ε = 0.031 / 0.062 / 0.094 "

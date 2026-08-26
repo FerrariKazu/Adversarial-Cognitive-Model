@@ -57,7 +57,7 @@ def render() -> None:
                                  " ".join(str(e) for e in DEFAULT_EPS_GRID))
         steps = c4.slider("PGD steps", 5, 200, DEFAULT_PGD_STEPS, 5)
         n_samples = c5.slider("Samples per model", 10, 500, 100, 10)
-        submitted = st.form_submit_button("🚀 Launch experiment",
+        submitted = st.form_submit_button(" Launch experiment",
                                           type="primary", width="stretch")
     if submitted:
         try:
@@ -112,10 +112,10 @@ def render() -> None:
                                                                  key=f"la_{run.id}"):
                 experiments.launch(run.id)
                 st.rerun()
-            if run.status == "done" and rc4.button("📈 Show curves", key=f"cur_{run.id}"):
+            if run.status == "done" and rc4.button(" Show curves", key=f"cur_{run.id}"):
                 _render_run_detail(run)
 
-    with st.expander("📐 About measurements", expanded=False):
+    with st.expander(" About measurements", expanded=False):
         st.markdown(
             "Measured runs attack real STL-10 samples (or procedural fallbacks) with "
             "PGD at each ε and report macro accuracy + d′. When a checkpoint is not "
