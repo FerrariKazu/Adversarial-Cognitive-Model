@@ -122,6 +122,10 @@ def _load_model(arch, ckpt_path, device, freeze_gaze=False):
                     if k in state:
                         state = state[k]
                         break
+        else:
+            raise FileNotFoundError(
+                f"Checkpoint not found: {ckpt_path}. "
+                f"Download it from HF before running the eval.")
         model = RHANNext(config=cfg).to(device)
         missing, unexpected = model.load_state_dict(state, strict=False)
         n_loaded = len(state) - len(missing)
