@@ -1,4 +1,8 @@
-"""15 — Perception Replay: watch RHAN-NX D perceive an image step-by-step.
+"""15 — Perception Replay & Live Perception: watch RHAN-NX D perceive.
+
+Two modes:
+  🎬 Replay — inference completed, step through captured tensors.
+  🔴 Live   — real model execution, timestep-by-timestep state.
 
 Uses the real LensSession + StepCapture infrastructure from rhan_core/lens/
 to instrument the actual model forward pass.  Every visual element is backed
@@ -295,6 +299,26 @@ def render() -> None:
             adv_eps = st.slider("PGD ε", 0.01, 0.15, 0.094, 0.001, key="pr_adv_eps")
             adv_steps = st.slider("PGD steps", 20, 200, 100, 10, key="pr_adv_steps")
 
+        st.markdown("---")
+        st.markdown("### Perception Mode")
+        perception_mode = st.radio(
+            "Mode",
+            ["🔴 Live Perception", "🎬 Replay"],
+            index=0,
+            key="pr_perception_mode",
+            help="Live: real model execution, timestep-by-timestep. "
+                 "Replay: step through pre-computed captures.",
+        )
+
+        if perception_mode == "🔴 Live Perception":
+            throttle = st.slider(
+                "Visualization throttle (ms)",
+                50, 1000, 300, 50,
+                key="pr_live_throttle",
+                help="Delay between displaying steps (presentation only, "
+                     "not part of the model).",
+            )
+
     # ── Image source ─────────────────────────────────────────────────────────
     section("Input Image", "Upload an image or select from STL-10 test set.")
 
@@ -331,12 +355,22 @@ def render() -> None:
     # ── Run inference ────────────────────────────────────────────────────────
     st.markdown("---")
 
-    if st.button("▶  START PERCEPTION", type="primary", use_container_width=True):
+    is_live = perception_mode == "🔴 Live Perception"
+    btn_label = "🔴  START LIVE PERCEPTION" if is_live else "▶  START PERCEPTION"
+
+    if st.button(btn_label, type="primary", use_container_width=True):
         sess = _get_session()
         x = _pil_to_tensor(image_pil)
+        gt = gt_idx if gt_label else None
 
-        with st.spinner("Running model forward pass…"):
-            result_clean, caps_clean = _run_inference(sess, x, gt=gt_idx if gt_label else None)
+        if is_live:
+            # ── LIVE PERCEPTION: real model execution via callback ────────
+            with st.spinner("Running live model inference (callback-based)…"):
+                result_clean, caps_clean = sess.run_live_capture(x, ground_truth=gt)
+        else:
+            # ── REPLAY: post-hoc trajectory inspection ───────────────────
+            with st.spinner("Running model forward pass…"):
+                result_clean, caps_clean = _run_inference(sess, x, gt=gt)
 
         st.session_state["pr_result_clean"] = result_clean
         st.session_state["pr_caps_clean"] = caps_clean
@@ -344,16 +378,22 @@ def render() -> None:
         st.session_state["pr_image_pil"] = image_pil
         st.session_state["pr_gt_label"] = gt_label
         st.session_state["pr_gt_idx"] = gt_idx if gt_label else None
+        st.session_state["pr_mode"] = "live" if is_live else "replay"
 
-        # Adversarial run
+        # Adversarial run (same in both modes)
         if adv_mode:
             with st.spinner(f"Generating PGD-{adv_steps} adversarial (ε={adv_eps})…"):
                 x_adv = _run_pgd(sess, x, eps=adv_eps, steps=adv_steps)
-            with st.spinner("Running adversarial forward pass…"):
-                result_adv, caps_adv = _run_inference(
-                    sess, x_adv[0].unsqueeze(0) if x_adv.ndim == 3 else x_adv,
-                    gt=gt_idx if gt_label else None,
-                )
+            if is_live:
+                with st.spinner("Running live adversarial inference…"):
+                    result_adv, caps_adv = sess.run_live_capture(
+                        x_adv[0].unsqueeze(0) if x_adv.ndim == 3 else x_adv,
+                        ground_truth=gt)
+            else:
+                with st.spinner("Running adversarial forward pass…"):
+                    result_adv, caps_adv = _run_inference(
+                        sess, x_adv[0].unsqueeze(0) if x_adv.ndim == 3 else x_adv,
+                        gt=gt)
             st.session_state["pr_result_adv"] = result_adv
             st.session_state["pr_caps_adv"] = caps_adv
             st.session_state["pr_adv_tensor"] = x_adv
@@ -369,11 +409,20 @@ def render() -> None:
     caps = st.session_state["pr_caps_clean"]
     image_pil = st.session_state.get("pr_image_pil", image_pil)
     gt_label = st.session_state.get("pr_gt_label")
+    mode = st.session_state.get("pr_mode", "replay")
 
     if not caps:
         st.warning("Model produced no recurrent steps (static checkpoint?).")
         footer()
         return
+
+    # ── Mode indicator ──────────────────────────────────────────────────────
+    if mode == "live":
+        st.success("🔴 **LIVE PERCEPTION** — real model execution via callback. "
+                   "Trajectory is identical to normal inference (determinism verified).")
+    else:
+        st.info("🎬 **REPLAY MODE** — post-hoc trajectory inspection. "
+                "Step through pre-computed captures.")
 
     # ── Final Perception Report ──────────────────────────────────────────────
     section("Final Perception Report")
@@ -408,7 +457,10 @@ def render() -> None:
         m2.metric("Final HPC error", f"{final_hpc:.6f}")
 
     # ── Timeline ─────────────────────────────────────────────────────────────
-    section("Recurrent Perception Timeline")
+    if mode == "live":
+        section("🔴 Live Perception Timeline")
+    else:
+        section("Recurrent Perception Timeline")
     _render_timeline(caps, 0)
 
     # ── Playback controls ────────────────────────────────────────────────────
@@ -592,6 +644,31 @@ def render() -> None:
                 st.error(" HALTED")
             else:
                 st.success("▶ Continuing")
+
+    # ── Causal Sequence (Live mode) ─────────────────────────────────────────
+    if mode == "live":
+        st.markdown("---")
+        section(f"Perception Step {current_step + 1} / {len(caps)}")
+
+        # Causal sequence labels
+        causal_steps = [
+            ("LOOK", f"Gaze → ({cap.gaze_x_norm:.3f}, {cap.gaze_y_norm:.3f})"),
+            ("SAMPLE", f"Π_D = {cap.pi_d:.4f}" if cap.pi_d else "—"),
+            ("PREDICT", f"HPC error = {cap.hpc_error:.6f}" if cap.hpc_error else "—"),
+            ("UPDATE", f"belief changes ({cap.step_belief.norm():.3f} norm)" if cap.step_belief is not None else "—"),
+            ("DECIDE", f"continuation = {cap.continuation:.4f}" + (" → HALT" if cap.halted else " → continue")),
+        ]
+        for i, (label, detail) in enumerate(causal_steps):
+            is_current = (i == min(current_step, len(causal_steps) - 1))
+            marker = "▶" if is_current else "●"
+            style = "font-weight:bold; color:#ff4444;" if is_current else "color:#888;"
+            st.markdown(
+                f'<span style="{style}">{marker} **{label}**</span> '
+                f'<span style="color:#666;">{detail}</span>',
+                unsafe_allow_html=True)
+            if i < len(causal_steps) - 1:
+                st.markdown('<span style="color:#ccc;">  ↓</span>',
+                           unsafe_allow_html=True)
 
     # ── Explain the Step ─────────────────────────────────────────────────────
     st.markdown("---")

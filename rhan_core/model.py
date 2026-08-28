@@ -139,12 +139,16 @@ class RHANNext(RHANv12):
     # entropy-gated continuation weights, the info-gain gaze update, and the
     # HPC prediction errors.
     # ────────────────────────────────────────────────────────────────────────
-    def _forage(self, x, collect_traj: bool):
+    def _forage(self, x, collect_traj: bool, _step_callback=None):
         """Run the multi-step foraging loop.
 
         Args:
             x: (B, 3, 96, 96)
             collect_traj: build the trajectory dict (diagnostics/losses).
+            _step_callback: optional callable invoked at each step with a dict
+                of the current internal state. Observational only — must not
+                mutate state or affect gradients. When None (default), behavior
+                is identical to the original implementation.
         Returns:
             (final_belief (B, 512), trajectory dict or None)
         """
@@ -206,22 +210,19 @@ class RHANNext(RHANv12):
 
             # HPC prediction errors (Pillar 1, Stage 2) — NOT detached so the
             # error reaches the stack's parameters through the loss. Computed
-            # only when the trajectory is collected (the trainer reads the HPC
-            # loss exclusively from trajectories; inference skips the cost).
-            # hpc_num_levels is exactly 1 in this pass, so the loop is the
-            # single-level HPCLevel1 call; the per-level loop form is kept for
-            # forward-compat with hpc_num_levels=1 only (config.validate()
-            # blocks > 1).
-            if (collect_traj and hasattr(self, 'hpc_level1')):
+            # when trajectory is collected OR when a step callback is set
+            # (live perception needs HPC data at each step).
+            _hpc_pred = _hpc_err = _hpc_err_map = None
+            if hasattr(self, 'hpc_level1') and (collect_traj or _step_callback):
                 pred_hpc, err_hpc, err_map = self.hpc_level1(s, x_foveal)
-                trajectory['hpc_errors'].append(err_hpc)         # (B,), attached
-                # Diagnostics-only error-map summary (detached scalars; the
-                # attached err_hpc above is what reaches the loss).
-                trajectory['hpc_error_maps'].append({
-                    'min': float(err_map.min().detach()),
-                    'max': float(err_map.max().detach()),
-                    'std': float(err_map.std().detach()),
-                })
+                _hpc_pred, _hpc_err, _hpc_err_map = pred_hpc, err_hpc, err_map
+                if collect_traj:
+                    trajectory['hpc_errors'].append(err_hpc)     # (B,), attached
+                    trajectory['hpc_error_maps'].append({
+                        'min': float(err_map.min().detach()),
+                        'max': float(err_map.max().detach()),
+                        'std': float(err_map.std().detach()),
+                    })
 
             # ── Belief wrapper + policies (AIS); v12 fallback otherwise ────
             has_ais = hasattr(self, 'halt_policy') and hasattr(self, 'gaze_policy')
@@ -273,6 +274,40 @@ class RHANNext(RHANv12):
                 trajectory['uncertainties'].append(u.detach())
                 trajectory['continuations'].append(cont.detach())
 
+            # ── Live perception callback (observational only) ─────────────
+            # Fires at each step when _step_callback is set. Receives a
+            # snapshot dict of the current internal state. Must NOT mutate
+            # state or affect gradients. Detached tensors only.
+            if _step_callback is not None:
+                _cb_data = {
+                    'step': t,
+                    'max_steps': self.max_steps,
+                    'gaze_x_norm': float(a[0, 0].detach()),
+                    'gaze_y_norm': float(a[0, 1].detach()),
+                    'foveal_crop': x_foveal[0].detach() if x_foveal is not None else None,
+                    'predicted_crop': predicted_crop[0].detach() if predicted_crop is not None else None,
+                    'pi_d': float(pi_d[0].detach()),
+                    'error_mag': float(error_mag[0].detach()),
+                    'uncertainty': float(u[0].detach()),
+                    'gate_alpha': float(alpha[0].detach()),
+                    'recon_error': float((x_foveal - predicted_crop).pow(2).mean().detach()),
+                    'step_belief': s[0].detach(),
+                }
+                if _hpc_err is not None:
+                    _cb_data['hpc_prediction'] = _hpc_pred[0].detach() if _hpc_pred is not None else None
+                    _cb_data['hpc_error'] = float(_hpc_err[0].detach())
+                    _cb_data['hpc_error_map'] = _hpc_err_map[0].detach() if _hpc_err_map is not None else None
+                if has_ais:
+                    _cb_data['continuation'] = float(cont[0].detach())
+                    _cb_data['halted'] = bool(halt[0].detach()) if halt is not None else False
+                else:
+                    _cb_data['continuation'] = 1.0
+                    _cb_data['halted'] = False
+                try:
+                    _step_callback(_cb_data)
+                except Exception:
+                    pass  # never let a callback error break inference
+
             # Eq. II v12: gaze update (info-gain policy under AIS).
             if not self.freeze_gaze and t < self.max_steps - 1:
                 if hasattr(self, 'gaze_policy'):
@@ -300,11 +335,19 @@ class RHANNext(RHANv12):
     # ────────────────────────────────────────────────────────────────────────
     # Public API — default config delegates EXACTLY to the frozen v12 path.
     # ────────────────────────────────────────────────────────────────────────
-    def forward(self, x, return_trajectory=False):
-        """v12-compatible forward. Default config: byte-for-byte v12."""
+    def forward(self, x, return_trajectory=False, _step_callback=None):
+        """v12-compatible forward. Default config: byte-for-byte v12.
+
+        Args:
+            x: input tensor.
+            return_trajectory: return (logits, trajectory_dict).
+            _step_callback: optional callable for live perception (observational
+                only — receives a snapshot dict at each foraging step).
+        """
         if not self.pillars_active:
             return super().forward(x, return_trajectory=return_trajectory)
-        final_belief, trajectory = self._forage(x, collect_traj=return_trajectory)
+        final_belief, trajectory = self._forage(
+            x, collect_traj=return_trajectory, _step_callback=_step_callback)
         final_768 = self.belief_unproj(final_belief)     # (B, 768)
         logits = self.classifier(final_768)
         if return_trajectory:

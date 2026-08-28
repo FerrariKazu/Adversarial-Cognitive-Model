@@ -76,7 +76,8 @@ def _matrix_arch(path: str) -> Optional[str]:
 def _infer_arch(path: str) -> str:
     """Resolve the eval arch for a checkpoint file.
 
-    Order: matrix registry (exact reuse) -> light state-dict key sniff for
+    Order: matrix registry (exact reuse) -> top-level 'config' key (RHANNext
+    checkpoints store their config dict) -> light state-dict key sniff for
     non-matrix files -> 'next' (RHANNext's default config is v12-identical,
     so a plain v12 checkpoint also loads 1:1 through the 'next' loader).
     Only the split-transformer TRADES baseline needs its own dispatch key
@@ -86,7 +87,18 @@ def _infer_arch(path: str) -> str:
     if arch:
         return arch
     try:
-        state = torch.load(path, map_location="cpu", weights_only=False)
+        raw = torch.load(path, map_location="cpu", weights_only=False)
+        # RHANNext checkpoints store a top-level 'config' dict with pillar
+        # flags (enable_hpc, enable_ais, etc.) — use that for dispatch.
+        if isinstance(raw, dict) and "config" in raw:
+            cfg = raw["config"]
+            if isinstance(cfg, dict) and (
+                cfg.get("enable_hpc") or cfg.get("enable_ais")
+                or cfg.get("enable_sbr") or cfg.get("enable_iwm")
+            ):
+                return "next"
+        # Fall back to state-dict key sniffing.
+        state = raw
         if isinstance(state, dict):
             for k in ("model", "model_state_dict", "state_dict"):
                 if k in state:
@@ -266,6 +278,121 @@ class LensSession:
                 return out
             return out, None
         return self.model(x), None
+
+    # ── run_live: callback-based live perception ────────────────────────────
+    def run_live(
+        self,
+        image_tensor: torch.Tensor,
+        ground_truth: Optional[int] = None,
+    ) -> Iterator[Union[StepCapture, ForwardResult]]:
+        """Run one image with the live perception callback.
+
+        Uses RHANNext's _step_callback mechanism to capture per-step state
+        during actual inference. The model runs ONCE; the callback fires at
+        each foraging step with a snapshot of the internal state. Those
+        snapshots are converted to StepCapture objects and yielded.
+
+        This is the LIVE PERCEPTION mode: real model execution, real
+        timestep-by-timestep state, no simulated animation.
+
+        The produced trajectory is deterministic and identical to run()
+        with return_trajectory=True (validated by test_live_determinism).
+
+        Args:
+            image_tensor: (3, 96, 96) or (1, 3, 96, 96) normalized tensor.
+            ground_truth: optional STL-10 class index.
+
+        Yields:
+            StepCapture for each recurrent step, then ForwardResult.
+        """
+        x = image_tensor.detach()
+        if x.ndim == 3:
+            x = x.unsqueeze(0)
+        x = x.to(self.device)
+
+        # Collect callback snapshots
+        snapshots: List[Dict[str, Any]] = []
+
+        def _capture_step(data: Dict[str, Any]):
+            snapshots.append(data)
+
+        self.model.eval()
+        import inspect
+        try:
+            params = inspect.signature(self.model.forward).parameters
+        except (TypeError, ValueError):
+            params = {}
+
+        with torch.no_grad():
+            if "_step_callback" in params:
+                out = self.model(
+                    x, return_trajectory=True, _step_callback=_capture_step)
+            else:
+                # Fallback: model doesn't support _step_callback yet
+                out = self.model(x, return_trajectory=True)
+
+        # Build StepCapture objects from snapshots
+        from rhan_core.lens.capture import StepCapture as SC
+
+        _GAZE_PX = 48  # (action + 1) * 48 on 96x96
+        beta_base = self.beta_base
+
+        captures: List[SC] = []
+        for snap in snapshots:
+            gx, gy = snap['gaze_x_norm'], snap['gaze_y_norm']
+            gx_px = (gx + 1.0) * _GAZE_PX
+            gy_px = (gy + 1.0) * _GAZE_PX
+            pi_d = snap.get('pi_d')
+            cap = SC(
+                step=snap['step'],
+                gaze_x_norm=gx,
+                gaze_y_norm=gy,
+                gaze_x_px=gx_px,
+                gaze_y_px=gy_px,
+                foveal_crop=snap.get('foveal_crop'),
+                predicted_crop=snap.get('predicted_crop'),
+                pi_d=pi_d,
+                error_mag=snap.get('error_mag'),
+                beta_dynamic=(beta_base * (0.5 + pi_d)) if pi_d is not None else None,
+                gate_alpha=snap.get('gate_alpha'),
+                uncertainty=snap.get('uncertainty'),
+                continuation=snap.get('continuation'),
+                halted=snap.get('halted', False),
+                recon_error=snap.get('recon_error'),
+                hpc_error=snap.get('hpc_error'),
+                hpc_error_map=snap.get('hpc_error_map'),
+                hpc_prediction=snap.get('hpc_prediction'),
+                step_belief=snap.get('step_belief'),
+            )
+            captures.append(cap)
+
+        # Build ForwardResult from the model output
+        result = build_forward_result(self.model, out, self,
+                                      ground_truth=ground_truth)
+
+        for cap in captures:
+            yield cap
+        yield result
+
+    def run_live_capture(
+        self,
+        image_tensor: torch.Tensor,
+        ground_truth: Optional[int] = None,
+    ) -> Tuple[ForwardResult, List[StepCapture]]:
+        """Run live perception and return all captures at once.
+
+        Convenience method for Streamlit: runs the model once with the
+        callback, collects all StepCaptures, returns (result, captures).
+        """
+        caps: List[StepCapture] = []
+        result: Optional[ForwardResult] = None
+        for item in self.run_live(image_tensor, ground_truth=ground_truth):
+            if isinstance(item, StepCapture):
+                caps.append(item)
+            else:
+                result = item
+        assert result is not None
+        return result, caps
 
 
 # ── Batch belief-drift analysis ────────────────────────────────────────────
