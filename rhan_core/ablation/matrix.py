@@ -62,6 +62,26 @@ def _hpc_config(*, ais: bool) -> RHANNextConfig:
     return RHANNextConfig(**kwargs)
 
 
+def _e1_config() -> RHANNextConfig:
+    """E1 = AIS-v1 + HPC + recon-mod ON. Only difference from D is
+    ais_precision_recon_enabled=True (D has it False)."""
+    return RHANNextConfig(
+        enable_ais=True, ais_halt_enabled=True,
+        ais_precision_recon_enabled=True,   # ← THE CHANGE from D
+        enable_hpc=True, hpc_num_levels=1,
+        hpc_error_weight=W_HPC)
+
+
+def base_checkpoint_key(key: str) -> str:
+    """Return the matrix key of the base checkpoint to resume from, or None.
+
+    Stage 4-E1 starts from D's checkpoint with recon-mod re-enabled.
+    """
+    return {
+        "E1_ais_hpc_recon": "D_ais_plus_hpc",
+    }.get(key)
+
+
 ABLATION_MATRIX: Dict[str, Dict[str, Any]] = {
     "A_baseline": {
         "label": "trades_large_baseline",
@@ -96,11 +116,23 @@ ABLATION_MATRIX: Dict[str, Dict[str, Any]] = {
     "D_ais_plus_hpc": {
         "label": "rhan_next_ais_hpc",
         "config": _hpc_config(ais=True),
-        "checkpoint": None,  # TO BE TRAINED — Stage 3
+        "checkpoint": "checkpoints/rhan_next_ais_hpc_best.pth",
+        "arch": "next",
+        "status": VALIDATED,
+        "note": "AIS-v1 (halting-only) + HPC. Stage 3 validated: "
+                "PGD-100=34.38±1.94%, Δ=+11.54pp vs A, p≈2×10⁻⁵."
+                " (8 seeds, 2026-08-26).",
+    },
+    "E1_ais_hpc_recon": {
+        "label": "rhan_next_ais_hpc_recon",
+        "config": _e1_config(),
+        "checkpoint": None,  # TO BE TRAINED — Stage 4-E1
         "arch": "next",
         "status": PENDING,
-        "note": "AIS-v1 (halting-only) + HPC. Code-complete + registry-tested; "
-                "Stage 2 validated; ready for Stage 3 training.",
+        "note": "AIS-v1 (halting-only) + HPC + recon-mod. Only config change "
+                "from D: ais_precision_recon_enabled=True. Base: D's checkpoint "
+                "(loads cleanly — D's state_dict already contains "
+                "precision_modulator.gain). Stage 4-E1, 16 seeds (41-56).",
     },
 }
 

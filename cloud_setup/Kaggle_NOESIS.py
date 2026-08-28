@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
 """
-Kaggle Notebook — RHAN-Next Stages 1-3 Execution
+Kaggle Notebook — RHAN-Next Stage 4-E1 Execution
 =================================================
-ACTIVE protocol: Stage 3 (D = AIS-v1 + HPC, matrix entry D_ais_plus_hpc) —
-smoke → health gate → 60-epoch run → 8-seed eval → verdict.
+ACTIVE protocol: Stage 4-E1 (E1 = AIS-v1 + HPC + recon-mod, matrix E1_ais_hpc_recon)
+smoke → health gate → 60-epoch train → 16-seed co-eval with D → verdict.
 
-Stage 1 (AIS-v1 halting-only) and Stage 2 (HPC-only) are COMPLETE and FINAL
-(2026-08-09/2026-08-18, 8 seeds each, datasets==4.7.0 pinned).
-  Stage 1: AIS-v1 +8.5 pp @ ε=0.094 — positive but NOT significant.
-  Stage 2: HPC-only +3.92 pp @ ε=0.094 — positive but NOT significant.
+Toggles (current defaults for E1-only run):
+  DO_STEP4_A = True   smoke test (15 epochs, epsilon=0.031)
+  DO_STEP4_B = True   full 60-epoch 3-phase training (smoke-gated)
+  DO_STEP4_C = False  16-seed eval — SET TRUE ONLY AFTER STEP B COMPLETES
+  All Stage 1/2/3 toggles = False
 
-The Stage 1 blocks below (Steps 5-7c)
-are the executable validated record and DEFAULT OFF (Step 4 toggles) — flip
-one only to deliberately re-run that step; re-runs are resume-gated and
-skip-if-complete protected, never a restart.
-This is the Kaggle-native twin of cloud_setup/colab_notebook_noesis.py
-(2026-08-07): identical protocol, gate logic, NEVER-RESTART guarantees, and
-artifact names — adapted for a Kaggle Notebook runtime.
+Stages 1–3 are COMPLETE and FINAL:
+  Stage 1: AIS-v1 halting-only, +8.5 pp @ ε=0.094 — NOT significant.
+  Stage 2: HPC-only, +3.92 pp @ ε=0.094 — NOT significant.
+  Stage 3: D = AIS-v1 + HPC, +11.54 pp @ ε=0.094, p≈2×10⁻⁵ — VALIDATED.
+
+Stage 4-E1 is the ONLY active stage in this notebook.
+All Stage 1/2/3 toggles are disabled (DO_STAGE2/DO_STAGE3 = False).
+Re-enable a prior stage toggle only to deliberately re-run that step.
+This is the Kaggle-native twin of cloud_setup/colab_notebook_noesis.py:
+identical protocol, gate logic, NEVER-RESTART guarantees, and artifact
+names — adapted for a Kaggle Notebook runtime.
 
 KAGGLE ADAPTATIONS (vs the Colab twin):
   - Working dir : /kaggle/working/{REPO_NAME} (Kaggle wipes it between
@@ -216,10 +221,11 @@ validated checkbox is checked.
 Usage: paste cells into a Kaggle Notebook (or run the whole file).
 Set HF_TOKEN in Kaggle Secrets (Add-ons > Secrets > "HF_TOKEN").
 Select accelerator GPU T4 x2 (recommended) or T4 x1. Internet: ON.
-Toggles: the ACTIVE Stage 2 protocol is DO_STAGE2 / DO_STEP2_A/B/C (and
-SKIP_STAGE2_TRAINING for eval-only). The Stage 1 toggles (DO_STEP_A/B/C,
-DO_ISOLATION, DO_RESUME_SELFTEST, SEED_STEP_B_FROM_ISOB, DO_STEP_C2) DEFAULT
-OFF — Stage 1 is final; flip one only to deliberately re-run that step.
+Toggles: the ACTIVE protocol is DO_STAGE4_E1 / DO_STEP4_A/B/C.
+  DO_STEP4_B = True  → full 60-epoch E1 training (runs immediately after smoke gate)
+  DO_STEP4_C = False → eval is DISABLED; set True only after Step B completes
+  Stage 1/2/3 toggles (DO_STEP_A/B/C, DO_ISOLATION, DO_STAGE2, DO_STAGE3, etc.)
+  all DEFAULT OFF — those stages are final.
 FORCE_STEP_B_OVERRIDE is a debug escape — do not use for publishable numbers.
 
 GATE-CLEAR PATH (2026-08-07): PROCEED_STEP_B = smoke healthy OR (isolation
@@ -2108,7 +2114,7 @@ for _p in (_REPO_ROOT, os.path.join(_REPO_ROOT, "phase1_training")):
         sys.path.insert(0, _p)
 
 # ── Stage 2 toggles (mirror the Stage 1 toggles above) ──────────────────────
-DO_STAGE2        = True
+DO_STAGE2        = False  # COMPLETE — do not re-run; only Stage 4-E1 is active
 DO_STEP2_A       = False   # smoke ALREADY COMPLETE (v4, epoch 15, commit 3eef245). The
 #                               HF v4 rolling artifact predates the 14c9b75 gate
 #                               amendment, so the code-identity guard would refuse
@@ -2919,7 +2925,7 @@ def _needs_extension(prov_path):
     return False
 
 
-DO_STEP2_C2 = True
+DO_STEP2_C2 = False  # Stage 2 COMPLETE — do not re-run
 if DO_STEP2_C2 and (PROCEED_STEP2_B or SKIP_STAGE2_TRAINING):
     _prov5 = os.path.join(STEP2_C_MAIN, "eval_provenance.json")
     if not os.path.exists(_prov5):
@@ -3190,12 +3196,12 @@ if DO_STEP2_C:
 
 # %%
 # ── Stage 3 toggles ──────────────────────────────────────────────────────────
-DO_STAGE3         = True
-DO_STEP3_A        = True    # smoke test (15 epochs, catches D interaction bugs)
-DO_STEP3_B        = False   # full 60-epoch 3-phase run (gated on Stage 3 health gate)
-DO_STEP3_C        = True    # 8-seed matched eval (PGD-50 + PGD-100)
-SKIP_PGD50        = True    # skip PGD-50 (already completed in prior session)
-SKIP_STAGE3_TRAINING = False  # eval-only mode (needs rhan_next_ais_hpc_best.pth)
+DO_STAGE3         = False  # COMPLETE — do not re-run; only Stage 4-E1 is active
+DO_STEP3_A        = False  # smoke test — Stage 3 complete
+DO_STEP3_B        = False  # full 60-epoch run — Stage 3 complete
+DO_STEP3_C        = False  # 8-seed matched eval — Stage 3 complete
+SKIP_PGD50        = True   # skip PGD-50 (already completed in prior session)
+SKIP_STAGE3_TRAINING = True  # Stage 3 complete — no training needed
 SMOKE3_EPOCHS     = 15
 
 # Artifact names (matrix D label).
@@ -4080,4 +4086,404 @@ print(f"  - D PGD-100         : {STEP3_C_MAIN100}/")
 print(f"  - Verdict recorded  : docs/rhan_next_roadmap.json (stages.3)")
 print()
 print("  Next: Lens belief-drift analysis (A/B/C/D) + mechanistic classification")
+print("="*70)
+
+# ═══════════════════════════════════════════════════════════════════════
+# STAGE 4 — E1 = AIS-v1 + HPC + Recon-Mod (Pillar 1+2 integration + recon-mod)
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 4-E1 trains and evaluates E1 = D with recon-mod re-enabled.
+# The ONLY config change from D: ais_precision_recon_enabled=True.
+#
+# E1 config: RHANNext(enable_ais=True, enable_hpc=True, hpc_num_levels=1,
+#           w_hpc=0.10, ais_precision_recon_enabled=True)
+# E1 base: rhan_next_ais_hpc_best.pth (D's validated checkpoint)
+# E1 label: rhan_next_ais_hpc_recon
+#
+# Pre-registered hypotheses (report/stage4_E1/preregistration.md):
+#   H1a: Recon-mod improves PGD-100 robustness beyond D
+#   H1b: E1 reproduces car/airplane Π_D top-2 (truck displaced)
+#   H1c: Belief drift measured for D and E1 together
+#
+# E2 gate: LOCKED until E1 verdict recorded.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# %% [markdown]
+# ## Stage 4-E1 — AIS-v1 + HPC + Recon-Mod: Smoke → Full train → 16-seed eval → Verdict
+
+# %%
+# ── Stage 4-E1 toggles ─────────────────────────────────────────────────────
+DO_STAGE4_E1      = True
+DO_STEP4_A        = True    # smoke test (15 epochs, recon-mod interaction check)
+DO_STEP4_B        = True    # full 60-epoch 3-phase run (gated on Stage 4 health gate)
+DO_STEP4_C        = False   # 16-seed matched eval — DISABLED until Step B completes
+SKIP_STAGE4_TRAINING = False  # eval-only mode
+SMOKE4_EPOCHS     = 15
+E1_SEEDS          = list(range(41, 57))  # 16 seeds: 41-56
+
+# Artifact names (matrix E1 label).
+E1_SMOKE_CKPT   = "rhan_next_ais_hpc_recon_smoke"
+E1_FULL_CKPT    = "rhan_next_ais_hpc_recon"
+E1_SMOKE_DIAG   = "report/rhan_next_ais_hpc_recon_smoke_diag.jsonl"
+E1_FULL_DIAG    = "report/rhan_next_ais_hpc_recon_diag.jsonl"
+E1_HEALTH_JSON  = "report/rhan_next_ais_hpc_recon_smoke_health.json"
+
+STEP4_C_MAIN    = "report/sweep_stage4_e1_d_e1"
+STEP4_C_MAIN100 = STEP4_C_MAIN + "_pgd100"
+
+# E1 base = D's validated checkpoint (Stage 3).
+E1_BASE = "checkpoints/rhan_next_ais_hpc_best.pth"
+if not os.path.exists(E1_BASE):
+    if DRY_RUN:
+        print(f"  [DRY-RUN] would download base checkpoint {E1_BASE} from HF")
+    else:
+        ensure_ckpt(os.path.basename(E1_BASE))
+if os.path.exists(E1_BASE):
+    print(f"  ✓ Stage 4-E1 base checkpoint present: {E1_BASE} "
+          f"({os.path.getsize(E1_BASE)/1e6:.0f} MB)")
+
+# ── Health-gate constants (Stage 4-E1) ─────────────────────────────────────
+E1_HPC_TREND_MIN_DECREASE = 0.10
+
+# ── Matrix consistency guard ─────────────────────────────────────────────────
+# E1 is derived from the ablation matrix runner, NOT hardcoded.
+# This ensures --enable-ais-precision-recon is always present when
+# precision_recon is ON, and --no-ais-precision-recon when OFF.
+try:
+    from rhan_core.ablation.runner import train_command as _tc4
+    _E1_CMD = " ".join(_tc4("E1_ais_hpc_recon"))
+    print(f"  ✓ Stage 4-E1 matrix command derived from runner.", flush=True)
+except Exception as _e4:
+    # Fallback: construct manually if runner import fails.
+    print(f"  ⚠ Runner unavailable ({_e4}), using manual E1 command.", flush=True)
+    _E1_CMD = " ".join([
+        "python3", "phase1_training/train_rhan_next.py",
+        "--enable-ais", "--enable-ais-precision-recon",
+        "--enable-hpc", "--hpc-num-levels", "1", "--w-hpc", "0.1",
+        "--ckpt-name", E1_FULL_CKPT,
+    ])
+
+# %% [markdown]
+# ### Stage 4-E1 — STEP A: SMOKE TEST (15 epochs, E1 = D + recon-mod)
+
+# %%
+if DO_STAGE4_E1 and DO_STEP4_A and not SKIP_STAGE4_TRAINING:
+    print("\n" + "="*70)
+    print("  STAGE 4-E1 — STEP A: SMOKE TEST (E1 = D + recon-mod, 15 epochs)")
+    print("="*70)
+    smoke_health4 = os.path.join(_REPO_ROOT, E1_HEALTH_JSON)
+    smoke_diag4 = os.path.join(_REPO_ROOT, E1_SMOKE_DIAG)
+    smoke_ckpt4 = os.path.join(_REPO_ROOT, f"checkpoints/{E1_SMOKE_CKPT}_best.pth")
+
+    _smoke_done4 = os.path.exists(smoke_health4) and os.path.exists(smoke_ckpt4)
+    if not _smoke_done4:
+        try:
+            from huggingface_hub import HfApi
+            _hf_smoke4 = HfApi(token=hf_token).list_repo_files(
+                repo_id='FerrariKazu/rhan-checkpoints', repo_type='dataset')
+            _smoke_done4 = f"{E1_SMOKE_CKPT}_best.pth" in _hf_smoke4
+        except Exception:
+            pass
+    if _smoke_done4:
+        print(f"  [SKIP] Stage 4-E1 smoke already complete")
+    else:
+        # Derive smoke command from the runner-derived _E1_CMD
+        # by adding smoke-specific args (different ckpt-name, max-epochs, etc.)
+        _smoke4_cmd = (
+            _E1_CMD
+            .replace(f"--ckpt-name {E1_FULL_CKPT}", f"--ckpt-name {E1_SMOKE_CKPT}")
+            + f" --max-epochs {SMOKE4_EPOCHS}"
+            + f" --target-ckpt {E1_BASE}"
+            + f" --force-restart"
+            + f" --diag-json {E1_SMOKE_DIAG}"
+            + f" --batch-size 16 --accum-steps 16 --force-single-gpu"
+        )
+        if DRY_RUN:
+            print(f"  [DRY-RUN] {_smoke4_cmd}")
+        else:
+            print(f"  Running: {_smoke4_cmd}")
+            run(_smoke4_cmd)
+
+        # ── Per-epoch telemetry ────────────────────────────────────────
+        if os.path.exists(smoke_diag4):
+            import json as _json4
+            with open(smoke_diag4) as _f4:
+                _lines4 = [l for l in _f4 if l.strip()]
+            if _lines4:
+                print(f"\n{'─'*70}")
+                print(f"  Stage 4-E1 Smoke — Per-epoch telemetry ({len(_lines4)} epochs)")
+                print(f"{'─'*70}")
+                for _l4 in _lines4:
+                    _r4 = _json4.loads(_l4)
+                    _ep = _r4.get('epoch', '?')
+                    _te = _r4.get('te_acc', '?')
+                    _tr = _r4.get('tr_acc', '?')
+                    _hpc = _r4.get('hpc_error_mean', '-')
+                    _gs = _r4.get('gaze_shift_total_mean', '-')
+                    _pd = _r4.get('pi_d_per_class', {})
+                    _top2 = sorted(_pd.items(), key=lambda x: -x[1])[:2] if _pd else []
+                    _top2s = '/'.join(f"{c}:{v:.3f}" for c, v in _top2)
+                    print(f"  ep {_ep:>3} | TrAcc={_tr}% TeAcc={_te}% | "
+                          f"hpc_err={_hpc} | gaze={_gs} | Π_D=[{_top2s}]")
+                print(f"{'─'*70}")
+
+        # ── Health gate ────────────────────────────────────────────────
+        if os.path.exists(smoke_diag4):
+            import json as _json4h
+            with open(smoke_diag4) as _f4h:
+                lines4 = [l for l in _f4h if l.strip()]
+            if lines4:
+                last4 = _json4h.loads(lines4[-1])
+                health4 = {"checks": {}, "passed": True, "failures": []}
+
+                gs = last4.get("gaze_shift_total_mean", 0)
+                health4["checks"]["gaze_shift"] = {
+                    "value": gs, "threshold": 0.05,
+                    "passed": gs >= 0.05
+                }
+                if gs < 0.05:
+                    health4["passed"] = False
+                    health4["failures"].append(f"gaze_shift={gs:.4f} < 0.05")
+
+                if len(lines4) >= 2:
+                    first4 = _json4h.loads(lines4[0])
+                    hpc_first = first4.get("hpc_error_mean", 0)
+                    hpc_last = last4.get("hpc_error_mean", 0)
+                    if hpc_first > 0:
+                        hpc_decrease = 1.0 - (hpc_last / hpc_first)
+                        health4["checks"]["hpc_error_trend"] = {
+                            "decrease_pct": round(hpc_decrease * 100, 1),
+                            "passed": hpc_decrease >= E1_HPC_TREND_MIN_DECREASE
+                        }
+                        if hpc_decrease < E1_HPC_TREND_MIN_DECREASE:
+                            health4["passed"] = False
+                            health4["failures"].append(
+                                f"hpc_error decrease {hpc_decrease*100:.1f}% < 10%")
+
+                with open(smoke_health4, "w") as _fh4:
+                    _json4h.dump(health4, _fh4, indent=2)
+                print(f"  Health gate: {'PASSED' if health4['passed'] else 'FAILED'}")
+                if health4["failures"]:
+                    for f_msg in health4["failures"]:
+                        print(f"    FAIL: {f_msg}")
+else:
+    if DO_STAGE4_E1 and not SKIP_STAGE4_TRAINING:
+        print("  (Stage 4-E1 Step A skipped: DO_STEP4_A=False)")
+
+# %% [markdown]
+# ### Stage 4-E1 — HEALTH GATE
+
+# %%
+if DO_STAGE4_E1 and DO_STEP4_A and not SKIP_STAGE4_TRAINING:
+    import json as _json4g
+    smoke_health4g = os.path.join(_REPO_ROOT, E1_HEALTH_JSON)
+    gate_passed4 = False
+    if os.path.exists(smoke_health4g):
+        with open(smoke_health4g) as _fg4:
+            _hg4 = _json4g.load(_fg4)
+        gate_passed4 = _hg4.get("passed", False)
+        print(f"\n  Stage 4-E1 health gate: {'PASSED ✓' if gate_passed4 else 'FAILED ✗'}")
+    elif not SKIP_STAGE4_TRAINING:
+        try:
+            from huggingface_hub import HfApi
+            _hf_ckpts4 = HfApi(token=hf_token).list_repo_files(
+                repo_id='FerrariKazu/rhan-checkpoints', repo_type='dataset')
+            if f"{E1_SMOKE_CKPT}_best.pth" in _hf_ckpts4:
+                gate_passed4 = True
+                print(f"\n  Stage 4-E1 health gate: PASSED ✓ (smoke ckpt on HF)")
+        except Exception as e:
+            print(f"  ⚠ Could not verify smoke checkpoint on HF: {e}")
+
+    if not gate_passed4 and DO_STEP4_B:
+        print("  Forcing DO_STEP4_B = False (gate did not pass).")
+        DO_STEP4_B = False
+
+# %% [markdown]
+# ### Stage 4-E1 — STEP B: FULL 60-EPOCH RUN (E1 = D + recon-mod)
+
+# %%
+if DO_STAGE4_E1 and DO_STEP4_B and not SKIP_STAGE4_TRAINING:
+    print("\n" + "="*70)
+    print("  STAGE 4-E1 — STEP B: FULL 60-EPOCH RUN (E1 = D + recon-mod)")
+    print("="*70)
+
+    _e1_ckpt_path = os.path.join(_REPO_ROOT, f"checkpoints/{E1_FULL_CKPT}_best.pth")
+
+    _tc4_done = False
+    _tc4_marker = os.path.join(_REPO_ROOT, "checkpoints", "training_complete.json")
+    if os.path.exists(_tc4_marker):
+        import json as _json4tc
+        with open(_tc4_marker) as _ftc4:
+            _tc_data4 = _json4tc.load(_ftc4)
+        if _tc_data4.get('ckpt_name') == E1_FULL_CKPT:
+            _tc4_done = True
+            print(f"  [SKIP] E1 training already complete")
+
+    if not os.path.exists(_e1_ckpt_path) and not _tc4_done:
+        _train4_cmd = (
+            f"python3 phase1_training/train_rhan_next.py "
+            f"--enable-ais --enable-ais-precision-recon "
+            f"--enable-hpc --hpc-num-levels 1 --w-hpc 0.10 "
+            f"--ckpt-name {E1_FULL_CKPT} "
+            f"--max-epochs 60 "
+            f"--target-ckpt {E1_BASE} "
+            f"--force-restart "
+            f"--diag-json {E1_FULL_DIAG} "
+            f"--batch-size 16 --accum-steps 16 --force-single-gpu"
+        )
+        if DRY_RUN:
+            print(f"  [DRY-RUN] {_train4_cmd}")
+        else:
+            print(f"  Training: {_train4_cmd}")
+            run(_train4_cmd)
+    else:
+        if _tc4_done and not os.path.exists(_e1_ckpt_path):
+            try:
+                from huggingface_hub import hf_hub_download as _tc_dl4
+                _tc_dl4(repo_id="FerrariKazu/rhan-checkpoints",
+                        repo_type="model", token=hf_token,
+                        filename=f"{E1_FULL_CKPT}_best.pth",
+                        local_dir=os.path.join(_REPO_ROOT, "checkpoints"))
+                print(f"  ✓ E1 best checkpoint downloaded from HF")
+            except Exception as e:
+                print(f"  WARNING: could not download E1 checkpoint ({e})")
+
+    if os.path.exists(_e1_ckpt_path):
+        print(f"  ✓ E1 checkpoint present: {_e1_ckpt_path}")
+else:
+    if DO_STAGE4_E1 and not SKIP_STAGE4_TRAINING:
+        print("  (Stage 4-E1 Step B skipped: DO_STEP4_B=False)")
+
+# %% [markdown]
+# ### Stage 4-E1 — STEP C: 16-SEED MATCHED EVAL (D + E1, PGD-100)
+
+# %%
+if DO_STAGE4_E1 and DO_STEP4_C:
+    print("\n" + "="*70)
+    print("  STAGE 4-E1 — STEP C: 16-SEED MATCHED EVAL (D + E1)")
+    print("="*70)
+
+    _prov4_p100 = os.path.join(_REPO_ROOT, STEP4_C_MAIN100, "eval_provenance.json")
+    _done4_p100 = os.path.exists(_prov4_p100)
+
+    if _done4_p100:
+        print(f"  [SKIP] Stage 4-E1 PGD-100 already complete: {_prov4_p100}")
+    else:
+        for _ckpt_name, _ckpt_path in [
+            ("D", os.path.join(_REPO_ROOT, "checkpoints", "rhan_next_ais_hpc_best.pth")),
+            ("E1", os.path.join(_REPO_ROOT, "checkpoints", "rhan_next_ais_hpc_recon_best.pth"))]:
+            if not os.path.exists(_ckpt_path):
+                try:
+                    from huggingface_hub import hf_hub_download as _hdl4
+                    os.makedirs(os.path.join(_REPO_ROOT, "checkpoints"), exist_ok=True)
+                    _hdl4(repo_id='FerrariKazu/rhan-checkpoints', repo_type='dataset',
+                          filename=os.path.basename(_ckpt_path),
+                          local_dir=os.path.join(_REPO_ROOT, 'checkpoints'),
+                          token=hf_token)
+                    print(f"  ✓ {_ckpt_name} checkpoint downloaded from HF")
+                except Exception as _e4c:
+                    print(f"  ⚠ Could not download {_ckpt_name}: {_e4c}")
+
+        _ckpt_specs4 = [
+            'trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large',
+            'rhan_next_ais_hpc:checkpoints/rhan_next_ais_hpc_best.pth:next',
+            'rhan_next_ais_hpc_recon:checkpoints/rhan_next_ais_hpc_recon_best.pth:next',
+        ]
+        _seeds_str4 = " ".join(str(s) for s in E1_SEEDS)
+        _specs_str4 = " ".join(f'"' + s + '"' for s in _ckpt_specs4)
+
+        _eval4_pgd100 = (
+            f"python3 phase2_attacks/eval_rhan.py "
+            f"--ckpt-specs {_specs_str4} "
+            f"--seeds {_seeds_str4} "
+            f"--baseline-label trades_large_baseline "
+            f"--eps-list 0.0 0.094 "
+            f"--eps-norm-space "
+            f"--n-samples 300 --pgd-steps 100 --batch-size 32 "
+            f"--output-dir {STEP4_C_MAIN100} --resume "
+            f"--hf-sync --hf-eval-subdir {os.path.basename(STEP4_C_MAIN100)}"
+        )
+        if DRY_RUN:
+            print(f"  [DRY-RUN] PGD-100: {_eval4_pgd100}")
+        else:
+            print("  Running PGD-100 eval (16 seeds × D + E1)...")
+            run(_eval4_pgd100)
+else:
+    if DO_STAGE4_E1:
+        print("  (Stage 4-E1 Step C skipped: DO_STEP4_C=False)")
+
+# %% [markdown]
+# ### Stage 4-E1 — RECORD VERDICT
+
+# %%
+if DO_STAGE4_E1 and DO_STEP4_C:
+    def record_verdict_stage4():
+        print("\n" + "="*70)
+        print("  RECORDING STAGE 4-E1 VERDICT")
+        print("="*70)
+        prov_path4 = os.path.join(STEP4_C_MAIN100, "eval_provenance.json")
+        if not os.path.exists(prov_path4):
+            print("  No Stage 4-E1 eval_provenance.json found — skipping.")
+            return
+
+        sync_roadmap_down()
+        with open(prov_path4) as _fp4:
+            prov4 = json.load(_fp4)
+
+        rows4 = prov4.get("results") or []
+
+        def _row4(label, eps):
+            return _results_row(rows4, label, eps)
+
+        rD4 = _row4("rhan_next_ais_hpc", 0.094)
+        rE1_4 = _row4("rhan_next_ais_hpc_recon", 0.094)
+
+        stage4_e1 = {
+            "validated": True,
+            "validated_date": prov4.get("timestamp_utc", "unknown")[:10],
+            "git_sha": prov4.get("git_sha"),
+            "run_label": "E1_ais_hpc_recon (AIS-v1 + HPC + recon-mod)",
+            "config_change_from_D": "ais_precision_recon_enabled=True",
+            "checkpoints": prov4.get("checkpoints"),
+            "seeds": prov4.get("seeds"),
+            "results": rows4,
+            "note": "Stage 4-E1: D vs E1 co-evaluated, 16 seeds.",
+        }
+
+        roadmap = json.load(open(ROADMAP_LOCAL))
+        roadmap["stages"]["4"] = roadmap.get("stages", {}).get("4", {})
+        roadmap["stages"]["4"]["validated"] = True
+        roadmap["stages"]["4"]["e1_verdict"] = stage4_e1
+        with open(ROADMAP_LOCAL, "w") as _fw4:
+            json.dump(roadmap, _fw4, indent=2, sort_keys=False)
+        print("  ✓ docs/rhan_next_roadmap.json updated: stages['4'].e1_verdict")
+        sync_roadmap_up()
+
+        if rD4 and rE1_4:
+            delta4 = float(rE1_4["acc_mean"]) - float(rD4["acc_mean"])
+            print(f"  E1 vs D: {delta4:+.2f} pp")
+
+    record_verdict_stage4()
+
+# %% [markdown]
+# ## Done — Stage 4-E1 Complete
+
+# %%
+print("\n" + "="*70)
+print("  STAGE 4-E1 EXECUTION COMPLETE")
+print("="*70)
+print("  - E1 = AIS-v1 + HPC + recon-mod (ONLY config change from D)")
+print("  - D base: rhan_next_ais_hpc_best.pth (Stage 3 validated)")
+print("  - E1 label: rhan_next_ais_hpc_recon")
+print("  - Seeds: 16 (41-56)")
+print("  - Protocol: datasets==4.7.0, PGD-100 @ ε=0.094")
+print()
+print("  Artifacts:")
+print(f"  - E1 smoke telemetry : {E1_SMOKE_DIAG}")
+print(f"  - E1 health verdict  : {E1_HEALTH_JSON}")
+print(f"  - E1 full run        : checkpoints/{E1_FULL_CKPT}_{{best,rolling}}.pth")
+print(f"  - D+E1 eval          : {STEP4_C_MAIN100}/")
+print(f"  - Preregistration    : report/stage4_E1/preregistration.md")
+print(f"  - Integrity check    : bash report/stage4_E1/verify_experiment.sh")
+print()
+print("  E2 gate: LOCKED until E1 verdict reviewed.")
 print("="*70)

@@ -97,6 +97,38 @@ from train_rhan_stl10_tdv import get_stl10_dataloaders
 load_dotenv_fallback()
 
 
+def _atomic_torch_save(target_path: str, obj) -> str:
+    """Save a torch object atomically: .tmp → fsync → rename.
+
+    Prevents partial/corrupted checkpoints from being the only artifact
+    on disk after a runtime crash. Returns the target path on success.
+    """
+    import tempfile as _tmpfile
+    target_dir = os.path.dirname(target_path)
+    if target_dir:
+        os.makedirs(target_dir, exist_ok=True)
+    fd, tmp_path = _tmpfile.mkstemp(dir=target_dir or '.', suffix='.tmp')
+    try:
+        torch.save(obj, tmp_path)
+        with open(tmp_path, 'rb') as f:
+            os.fsync(f.fileno())
+        os.close(fd)
+        fd = -1
+        os.rename(tmp_path, target_path)
+    except Exception:
+        if fd >= 0:
+            try:
+                os.close(fd)
+            except Exception:
+                pass
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        raise
+    return target_path
+
+
 class RHANNextEpochDiagnostics(EpochDiagnostics):
     """EpochDiagnostics + RHANNext AIS telemetry.
 
@@ -587,7 +619,9 @@ def build_config(args) -> RHANNextConfig:
         ais_halt_threshold=args.ais_halt_threshold,
         ais_continuation_softness=args.ais_continuation_softness,
         ais_halt_enabled=not args.no_ais_halting,
-        ais_precision_recon_enabled=not args.no_ais_precision_recon,
+        ais_precision_recon_enabled=(
+            not args.no_ais_precision_recon or args.enable_ais_precision_recon
+        ),
         hpc_error_weight=args.w_hpc,
     )
     cfg.validate()
@@ -653,6 +687,10 @@ def main():
     parser.add_argument('--no-ais-halting', action='store_true',
                         help='ISOLATION A: force the entropy gate open (cont=1, '
                              'v12 fixed-T belief accumulation); gaze unchanged')
+    parser.add_argument('--enable-ais-precision-recon', action='store_true',
+                        help='EXPLICIT: enable precision-modulated recon weight '
+                             '(AIS sub-mechanism). This is the DEFAULT behavior '
+                             'but the flag makes it visible on the command line.')
     parser.add_argument('--no-ais-precision-recon', action='store_true',
                         help='ISOLATION B: keep w_recon FLAT (v12 recon '
                              'weighting); precision modulator no longer scales '
@@ -1233,10 +1271,11 @@ def main():
             best_acc = val_acc
             marker = ' ★'
             if rank == 0:
-                torch.save({'model': raw_model.state_dict(),
-                            'config': cfg.to_dict(),
-                            'arch': 'rhan_next',
-                            'code_commit': code_commit}, best_path)
+                _atomic_torch_save(best_path, {
+                    'model': raw_model.state_dict(),
+                    'config': cfg.to_dict(),
+                    'arch': 'rhan_next',
+                    'code_commit': code_commit})
                 sync_to_hf(best_path)
 
         if rank == 0:
@@ -1269,7 +1308,8 @@ def main():
                     print(f"  WARNING: could not write --diag-json: {e}",
                           flush=True)
 
-            torch.save({'epoch': epoch,
+            _atomic_torch_save(rolling_path, {
+                        'epoch': epoch,
                         'model': raw_model.state_dict(),
                         'optimizer': optimizer.state_dict(),
                         'scheduler': scheduler.state_dict(),
@@ -1278,7 +1318,7 @@ def main():
                         'config': cfg.to_dict(),
                         'arch': 'rhan_next',
                         'first_epoch_diag': first_epoch_diag,
-                        'code_commit': code_commit}, rolling_path)
+                        'code_commit': code_commit})
             sync_to_hf(rolling_path)
             gc.collect()
             torch.cuda.empty_cache()
@@ -1301,10 +1341,11 @@ def main():
                   f"no epoch beat the restored best ({best_acc:.2f}%) and no "
                   f"HF best was available. Writing the FINAL-EPOCH model "
                   f"(epoch {last_epoch}) as the best artifact.", flush=True)
-            torch.save({'model': raw_model.state_dict(),
+            _atomic_torch_save(best_path, {
+                        'model': raw_model.state_dict(),
                         'config': cfg.to_dict(),
                         'arch': 'rhan_next',
-                        'code_commit': code_commit}, best_path)
+                        'code_commit': code_commit})
         sync_to_hf(best_path)
         wait_for_hf_sync()
 

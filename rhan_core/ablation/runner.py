@@ -59,16 +59,21 @@ def checkpoint_exists(key: str) -> bool:
 
 
 def train_command(key: str, extra_args: Optional[List[str]] = None,
-                  ckpt_name: Optional[str] = None) -> List[str]:
+                  ckpt_name: Optional[str] = None,
+                  force_restart: bool = False) -> List[str]:
     """Build the train_rhan_next.py argv for a trainable entry.
 
-    Only entries with status PENDING may train (C this round; D is
-    SCAFFOLDED_NOT_RUN and raises). The AIS-v1 halting-only variant is
-    expressed with --no-ais-precision-recon (never --enable-ais alone).
+    Only entries with status PENDING may train. The AIS-v1 halting-only
+    variant is expressed with --no-ais-precision-recon (never --enable-ais
+    alone). When a base_checkpoint is registered for `key`, it is passed
+    via --target-ckpt so the trainer loads those weights first (strict=False
+    allows new params like the precision_modulator gain).
 
     `ckpt_name` overrides the --ckpt-name (the smoke protocol runs the SAME
-    matrix config under a _smoke artifact name). Returns argv WITHOUT shell
-    quoting — join with shlex.join() for display.
+    matrix config under a _smoke artifact name).
+    `force_restart` passes --force-restart (mandatory when resuming from a
+    different code commit; Stage 4-E1 starts fresh from D's checkpoint).
+    Returns argv WITHOUT shell quoting — join with shlex.join() for display.
     """
     entry = _matrix.get_entry(key)
     if entry["status"] not in _matrix.TRAINABLE_STATUSES:
@@ -84,7 +89,9 @@ def train_command(key: str, extra_args: Optional[List[str]] = None,
     argv = ["python3", "phase1_training/train_rhan_next.py"]
     if cfg.enable_ais:
         argv.append("--enable-ais")
-        if not cfg.ais_precision_recon_enabled:
+        if cfg.ais_precision_recon_enabled:
+            argv.append("--enable-ais-precision-recon")  # E1: explicit ON
+        else:
             argv.append("--no-ais-precision-recon")   # AIS-v1 halting-only
         if not cfg.ais_halt_enabled:
             argv.append("--no-ais-halting")
@@ -92,6 +99,21 @@ def train_command(key: str, extra_args: Optional[List[str]] = None,
         argv += ["--enable-hpc", "--hpc-num-levels", str(cfg.hpc_num_levels),
                  "--w-hpc", str(cfg.hpc_error_weight)]
     argv += ["--ckpt-name", ckpt_name or entry["label"]]
+
+    # Base checkpoint for continuation: E1 resumes from D's checkpoint.
+    base_key = _matrix.base_checkpoint_key(key)
+    if base_key:
+        base_path = resolve_checkpoint_path(base_key)
+        if base_path and os.path.exists(base_path):
+            argv += ["--target-ckpt", base_path]
+        else:
+            print(f"  WARNING: base checkpoint for {key} (from {base_key}) "
+                  f"not found at {base_path} — trainer will fall back to "
+                  f"the default TRADES baseline.", flush=True)
+
+    if force_restart:
+        argv.append("--force-restart")
+
     # Legacy-compat shim: callers historically passed space-joined strings
     # ("--max-epochs 15") which, after the notebook's shlex.join + shell=True
     # round-trip, arrived as ONE argv token and were SILENTLY dropped by
