@@ -45,6 +45,7 @@ from model_rhan_v12 import RHANv12                      # frozen backbone
 from model_rhan_v10 import foveal_sample                # frozen helper
 
 from rhan_core.beliefs.vector_belief import VectorBeliefState
+from rhan_core.beliefs.structured_belief import StructuredBeliefState
 from rhan_core.config.pillar_config import RHANNextConfig
 from rhan_core.gaze.info_gain_policy import InformationGainGazePolicy
 from rhan_core.precision.global_precision import GlobalPrecisionModulator
@@ -74,6 +75,16 @@ class RHANNext(RHANv12):
         # Pillar 4 (IWM): always present as a safe no-op (zero params/buffers,
         # so the default state dict stays identical to RHANv12's).
         self.world_model = NullWorldModel()
+
+        # ── Pillar 3 (SBR) — Stage 4-E2 ───────────────────────────────────────
+        if self.config.enable_sbr:
+            self.structured_belief = StructuredBeliefState(
+                num_slots=self.config.sbr_num_slots,
+                slot_dim=self.config.sbr_slot_dim,
+                iters=self.config.sbr_slot_iters,
+                max_steps=self.config.max_foraging_steps,
+                num_heads=self.config.sbr_num_heads,
+            )
 
         # ── Pillar 2 (AIS) — Stage 1 ─────────────────────────────────────────
         if self.config.enable_ais:
@@ -131,7 +142,8 @@ class RHANNext(RHANv12):
     def pillars_active(self) -> bool:
         """True when any implemented pillar is enabled (non-default path)."""
         return self.config.enable_ais or (
-            self.config.enable_hpc and self.config.hpc_num_levels >= 1)
+            self.config.enable_hpc and self.config.hpc_num_levels >= 1) or \
+            self.config.enable_sbr
 
     # ────────────────────────────────────────────────────────────────────────
     # Shared foraging loop (AIS/HPC-aware). Mirrors v12's loop exactly when
@@ -184,6 +196,9 @@ class RHANNext(RHANv12):
 
         history: list = []
 
+        # SBR temporal state: slots carry forward between foraging steps
+        sbr_state = None
+
         for t in range(self.max_steps):
             # Eq. II: sample foveal crop at gaze position.
             x_foveal = foveal_sample(x, a, fovea_size=self.fovea_size)
@@ -207,6 +222,19 @@ class RHANNext(RHANv12):
             # Precision-weighted belief integration (v12 semantics).
             pi_d_unsq = pi_d.unsqueeze(-1)               # (B, 1)
             s = (1 - pi_d_unsq) * s + pi_d_unsq * combined_feat
+
+            # SBR: slot attention on combined features → structured belief
+            if hasattr(self, 'structured_belief'):
+                # Slot attention expects (B, N, D) — treat features as N=1 spatial position
+                feat_for_slots = combined_feat.unsqueeze(1)  # (B, 1, 512)
+                sbr_out = self.structured_belief(feat_for_slots, sbr_state)
+                sbr_state = {'slots': sbr_out['prev_slots'].detach(),
+                             'pooled': sbr_out['pooled'].detach()}
+                # Use pooled slots as belief — same (B, D) shape as vector belief
+                s = sbr_out['pooled']
+                if collect_traj:
+                    trajectory['sbr_entropy'] = trajectory.get('sbr_entropy', [])
+                    trajectory['sbr_entropy'].append(sbr_out['entropy'].detach())
 
             # HPC prediction errors (Pillar 1, Stage 2) — NOT detached so the
             # error reaches the stack's parameters through the loss. Computed

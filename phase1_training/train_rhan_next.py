@@ -623,6 +623,10 @@ def build_config(args) -> RHANNextConfig:
             not args.no_ais_precision_recon or args.enable_ais_precision_recon
         ),
         hpc_error_weight=args.w_hpc,
+        enable_sbr=args.enable_sbr,
+        sbr_num_slots=args.sbr_num_slots,
+        sbr_slot_dim=args.sbr_slot_dim,
+        sbr_slot_iters=args.sbr_slot_iters,
     )
     cfg.validate()
     return cfg
@@ -699,6 +703,16 @@ def main():
                         help='Append one JSON line per epoch with machine-readable '
                              'AIS telemetry (gaze shift, effective steps, Pi_D per '
                              'class) — consumed by the notebook health gate.')
+    # ── RHAN-Next Pillar 3 (SBR) flags ──────────────────────────────────────
+    parser.add_argument('--enable-sbr', action='store_true',
+                        help='Pillar 3: structured belief representation (slot '
+                             'attention replaces flat belief vector).')
+    parser.add_argument('--sbr-num-slots', type=int, default=16,
+                        help='Number of object slots (default: 16)')
+    parser.add_argument('--sbr-slot-dim', type=int, default=512,
+                        help='Dimension per slot (default: 512, matches proj_dim)')
+    parser.add_argument('--sbr-slot-iters', type=int, default=3,
+                        help='Slot attention refinement iterations (default: 3)')
     args, _unknown = parser.parse_known_args()
     if _unknown:
         # parse_known_args() SILENTLY drops unrecognized tokens — the

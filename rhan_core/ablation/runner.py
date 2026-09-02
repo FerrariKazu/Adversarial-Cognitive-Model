@@ -98,6 +98,13 @@ def train_command(key: str, extra_args: Optional[List[str]] = None,
     if cfg.enable_hpc:
         argv += ["--enable-hpc", "--hpc-num-levels", str(cfg.hpc_num_levels),
                  "--w-hpc", str(cfg.hpc_error_weight)]
+    if cfg.enable_sbr:
+        argv += ["--enable-sbr",
+                 "--sbr-num-slots", str(cfg.sbr_num_slots),
+                 "--sbr-slot-dim", str(cfg.sbr_slot_dim),
+                 "--sbr-slot-iters", str(cfg.sbr_slot_iters)]
+    if cfg.max_foraging_steps != 4:  # default is 4
+        argv += ["--max-foraging-steps", str(cfg.max_foraging_steps)]
     argv += ["--ckpt-name", ckpt_name or entry["label"]]
 
     # Base checkpoint for continuation: E1 resumes from D's checkpoint.
