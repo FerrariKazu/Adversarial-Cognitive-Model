@@ -79,8 +79,17 @@ def test_forward_shapes_across_configs():
 
 
 def test_config_validation_gates():
-    with pytest.raises(ValueError, match="enable_sbr"):
-        RHANNextConfig(enable_sbr=True)
+    # SBR is now un-gated (Pillar 3 implemented for Stage 4-E2)
+    # Valid: SBR enabled with default params
+    RHANNextConfig(enable_sbr=True)
+    # Invalid: SBR with bad params
+    with pytest.raises(ValueError, match="sbr_num_slots"):
+        RHANNextConfig(enable_sbr=True, sbr_num_slots=0)
+    with pytest.raises(ValueError, match="sbr_slot_dim"):
+        RHANNextConfig(enable_sbr=True, sbr_slot_dim=-1)
+    with pytest.raises(ValueError, match="sbr_slot_iters"):
+        RHANNextConfig(enable_sbr=True, sbr_slot_iters=0)
+    # IWM still gated
     with pytest.raises(ValueError, match="enable_iwm"):
         RHANNextConfig(enable_iwm=True)
     with pytest.raises(ValueError, match="hpc_num_levels"):
@@ -96,9 +105,12 @@ def test_config_roundtrip():
     assert cfg2 == cfg
     with pytest.raises(ValueError, match="Unknown"):
         RHANNextConfig.from_dict({"enable_hpc": True, "not_a_field": 1})
-    # from_dict must also reject scaffold pillars.
-    with pytest.raises(ValueError, match="enable_sbr"):
-        RHANNextConfig.from_dict({"enable_sbr": True})
+    # from_dict must accept SBR (now un-gated) but reject IWM
+    cfg_sbr = RHANNextConfig.from_dict({"enable_sbr": True})
+    assert cfg_sbr.enable_sbr is True
+    # IWM still rejected via from_dict
+    with pytest.raises(ValueError, match="enable_iwm"):
+        RHANNextConfig.from_dict({"enable_iwm": True})
 
 
 def test_v12_kwargs_subset():

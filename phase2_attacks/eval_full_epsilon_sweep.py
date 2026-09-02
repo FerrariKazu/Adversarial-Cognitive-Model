@@ -691,6 +691,50 @@ def main():
               f"{row['acc_mean']:>7.2f}+-{row['acc_std']:<5.2f} "
               f"{row['macro_dprime_mean']:>8.4f}+-{row['macro_dprime_std']:<6.4f}", flush=True)
 
+    # ── Structural safeguard: verify agg_rows against per-seed CSV groupby ──────
+    # This catches silent divergence between the in-memory summary and the CSV
+    # source (cf. Stage 3 mixed-A-value table bug, E1 audit per-seed bug).
+    try:
+        import pandas as _pd
+        _df_check = _pd.read_csv(csv_per_seed)
+        _grouped = _df_check.groupby(['ckpt_label', 'eps_pixel']).agg(
+            csv_acc_mean=('acc_pct', 'mean'),
+            csv_acc_std=('acc_pct', 'std'),
+            csv_dp_mean=('macro_dprime', 'mean'),
+            csv_dp_std=('macro_dprime', 'std'),
+        ).reset_index()
+        _assertion_failures = []
+        for row in agg_rows:
+            _mask = (
+                (_grouped['ckpt_label'] == row['ckpt_label']) &
+                (_grouped['eps_pixel'] == row['eps_pixel'])
+            )
+            _csv_row = _grouped[_mask]
+            if _csv_row.empty:
+                _assertion_failures.append(
+                    f"{row['ckpt_label']} eps={row['eps_pixel']}: MISSING from CSV groupby")
+                continue
+            _csv_row = _csv_row.iloc[0]
+            for field, csv_field in [('acc_mean', 'csv_acc_mean'), ('acc_std', 'csv_acc_std'),
+                                     ('macro_dprime_mean', 'csv_dp_mean'), ('macro_dprime_std', 'csv_dp_std')]:
+                if abs(row[field] - _csv_row[csv_field]) > 0.01:
+                    _assertion_failures.append(
+                        f"{row['ckpt_label']} eps={row['eps_pixel']} {field}: "
+                        f"agg={row[field]:.4f} vs csv={_csv_row[csv_field]:.4f}")
+        if _assertion_failures:
+            print("\n  ❌ STRUCTURAL ASSERTION FAILED — summary table diverges from per-seed CSV:", flush=True)
+            for f in _assertion_failures:
+                print(f"    {f}", flush=True)
+            print("  This is a known bug pattern (Stage 3 mixed-A, E1 per-seed). ABORTING.", flush=True)
+            sys.exit(1)
+        else:
+            n_checked = len(agg_rows)
+            print(f"\n  ✅ STRUCTURAL ASSERTION PASSED — all {n_checked} summary cells verified against CSV groupby", flush=True)
+    except ImportError:
+        print("\n  ⚠️  pandas not available — skipping structural assertion", flush=True)
+    except Exception as _e:
+        print(f"\n  ⚠️  structural assertion error: {_e}", flush=True)
+
     # ── Crossover significance ─────────────────────────────────────────────────
     print("\n  CROSSOVER SIGNIFICANCE - RHAN vs baseline (criterion: d > 2*sig_combined)", flush=True)
     labels = [l for l, _, _, _ in checkpoints]

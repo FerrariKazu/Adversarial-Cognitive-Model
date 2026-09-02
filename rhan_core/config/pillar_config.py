@@ -24,7 +24,7 @@ class RHANNextConfig:
     hpc_num_levels: int = 0       # add levels one at a time, never jump; 0 = off,
                                   # 1 = the single implemented level (edge_map)
     enable_ais: bool = False      # Pillar 2 — off by default until Stage 1 lands
-    enable_sbr: bool = False      # Pillar 3 — MUST remain False; scaffold only
+    enable_sbr: bool = False      # Pillar 3 — structured belief representation
     enable_iwm: bool = False      # Pillar 4 — MUST remain False; scaffold only
 
     # ── v12 hyperparameters (carried over unchanged) ─────────────────────────
@@ -41,6 +41,12 @@ class RHANNextConfig:
     metabolic_cost: float = 0.05  # retained for checkpoint compat only
     precision_tau: float = 0.1
     gaze_lambda: float = 0.5      # recon-guided gaze blend (Eq. II v12)
+
+    # ── Pillar 3 (SBR) knobs ──────────────────────────────────────────────
+    sbr_num_slots: int = 16       # number of object slots
+    sbr_slot_dim: int = 512       # dimension per slot (must match proj_dim)
+    sbr_slot_iters: int = 3       # slot attention refinement iterations
+    sbr_num_heads: int = 4        # attention heads in slot attention
 
     # ── Pillar 2 (AIS) knobs ─────────────────────────────────────────────────
     ais_halt_threshold: float = 0.35   # halt when belief uncertainty < this
@@ -81,10 +87,12 @@ class RHANNextConfig:
     def validate(self) -> None:
         """Raise ValueError on configs that break the stage discipline."""
         if self.enable_sbr:
-            raise ValueError(
-                "enable_sbr (Pillar 3) is scaffold-only in this refactor and "
-                "MUST remain False. StructuredBeliefState raises "
-                "NotImplementedError on use.")
+            if self.sbr_num_slots < 1:
+                raise ValueError(f"sbr_num_slots must be >= 1, got {self.sbr_num_slots}")
+            if self.sbr_slot_dim < 1:
+                raise ValueError(f"sbr_slot_dim must be >= 1, got {self.sbr_slot_dim}")
+            if self.sbr_slot_iters < 1:
+                raise ValueError(f"sbr_slot_iters must be >= 1, got {self.sbr_slot_iters}")
         if self.enable_iwm:
             raise ValueError(
                 "enable_iwm (Pillar 4) is scaffold-only in this refactor and "

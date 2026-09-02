@@ -72,13 +72,38 @@ def _e1_config() -> RHANNextConfig:
         hpc_error_weight=W_HPC)
 
 
+def _e3_config() -> RHANNextConfig:
+    """E3 = AIS-v1 + HPC + T=6 foraging steps. Only difference from D is
+    max_foraging_steps=6 (D has it 4)."""
+    return RHANNextConfig(
+        enable_ais=True, ais_halt_enabled=True,
+        ais_precision_recon_enabled=False,
+        enable_hpc=True, hpc_num_levels=1,
+        hpc_error_weight=W_HPC,
+        max_foraging_steps=6)
+
+
+def _e2_config() -> RHANNextConfig:
+    """E2 = AIS-v1 + HPC + SBR. Only difference from D is enable_sbr=True."""
+    return RHANNextConfig(
+        enable_ais=True, ais_halt_enabled=True,
+        ais_precision_recon_enabled=False,
+        enable_hpc=True, hpc_num_levels=1,
+        hpc_error_weight=W_HPC,
+        enable_sbr=True)
+
+
 def base_checkpoint_key(key: str) -> str:
     """Return the matrix key of the base checkpoint to resume from, or None.
 
-    Stage 4-E1 starts from D's checkpoint with recon-mod re-enabled.
+    Stage 4-E1 resumes from D's checkpoint with recon-mod re-enabled.
+    Stage 4-E2 resumes from D's checkpoint with SBR enabled.
+    Stage 4-E3 resumes from D's checkpoint with T=6.
     """
     return {
         "E1_ais_hpc_recon": "D_ais_plus_hpc",
+        "E2_ais_hpc_sbr": "D_ais_plus_hpc",
+        "E3_ais_hpc_t6": "D_ais_plus_hpc",
     }.get(key)
 
 
@@ -133,6 +158,27 @@ ABLATION_MATRIX: Dict[str, Dict[str, Any]] = {
                 "from D: ais_precision_recon_enabled=True. Base: D's checkpoint "
                 "(loads cleanly — D's state_dict already contains "
                 "precision_modulator.gain). Stage 4-E1, 16 seeds (41-56).",
+    },
+    "E2_ais_hpc_sbr": {
+        "label": "rhan_next_ais_hpc_sbr",
+        "config": _e2_config(),
+        "checkpoint": None,  # TO BE TRAINED — Stage 4-E2
+        "arch": "next",
+        "status": PENDING,
+        "note": "AIS-v1 (halting-only) + HPC + SBR. Only config change "
+                "from D: enable_sbr=True. Base: D's checkpoint (new slot "
+                "parameters appear as missing keys, freshly initialized). "
+                "Stage 4-E2, 16 seeds (41-56).",
+    },
+    "E3_ais_hpc_t6": {
+        "label": "rhan_next_ais_hpc_t6",
+        "config": _e3_config(),
+        "checkpoint": None,  # TO BE TRAINED — Stage 4-E3
+        "arch": "next",
+        "status": PENDING,
+        "note": "AIS-v1 (halting-only) + HPC + T=6 foraging steps. Only "
+                "config change from D: max_foraging_steps=6 (D=4). Base: D's "
+                "checkpoint. Stage 4-E3, 16 seeds (41-56).",
     },
 }
 
