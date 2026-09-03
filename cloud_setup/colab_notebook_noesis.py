@@ -1,24 +1,33 @@
 #!/usr/bin/env python3
 """
-Colab Notebook — RHAN-Next Stage 4-E1 Execution
+Colab Notebook — RHAN-Next Stage 4 (E1/E2/E3) Execution
 =================================================
-ACTIVE protocol: Stage 4-E1 (E1 = AIS-v1 + HPC + recon-mod, matrix E1_ais_hpc_recon)
-smoke → health gate → 60-epoch train → 16-seed co-eval with D → verdict.
-
-Toggles (current defaults for E1-only run):
-  DO_STEP4_A = True   smoke test (15 epochs, epsilon=0.031)
-  DO_STEP4_B = True   full 60-epoch 3-phase training (smoke-gated)
-  DO_STEP4_C = False  16-seed eval — SET TRUE ONLY AFTER STEP B COMPLETES
-  All Stage 1/2/3 toggles = False
-
 Stages 1–3 are COMPLETE and FINAL:
   Stage 1: AIS-v1 halting-only, +8.5 pp @ ε=0.094 — NOT significant.
   Stage 2: HPC-only, +3.92 pp @ ε=0.094 — NOT significant.
   Stage 3: D = AIS-v1 + HPC, +11.54 pp @ ε=0.094, p≈2×10⁻⁵ — VALIDATED.
 
-Stage 4-E1 is the ONLY active stage in this notebook.
-All Stage 1/2/3 toggles are disabled (DO_STAGE2/DO_STAGE3 = False).
-Re-enable a prior stage toggle only to deliberately re-run that step.
+Stage 4 tests three INDEPENDENT extensions of D (each trained from D's
+validated checkpoint, co-evaluated vs D: 16 seeds 41–56, PGD-100,
+norm-space eps, n=300):
+
+  E1 = D + recon-mod — COMPLETE (verdict recorded 2026-08-31):
+      +3.10 pp clean (16/16 seeds), -0.90 pp @ ε=0.094 (D wins 10/16),
+      d' flat (1.06 vs 1.08) → null on robustness. recon-mod DEFERRED —
+      not part of the headline config. E1 blocks below are INERT:
+      training complete + eval cached on HF, so resume is a no-op.
+  E3 = D + T=6 foraging (max_foraging_steps=6) — Step B (60-epoch)
+      COMPLETE on HF (best 57.35%). CURRENT ACTION: Step C 16-seed eval.
+      D + baseline rows are REUSED from the E1 sweep via
+      seed_sweep_comparators.py (REUSE_COMPARATOR_EVAL = True), so the
+      eval computes ONLY the 32 new rhan_next_ais_hpc_t6 cells.
+  E2 = D + SBR (enable_sbr=True) — NOT YET TRAINED. Runs AFTER the E3
+      verdict: Gate 0 (clean SBR convergence) → smoke → 60-epoch →
+      16-seed eval (D + baseline seeded the same way). Requires origin
+      >= df870e9 — --enable-sbr exists only from that commit.
+
+All Stage 1/2/3 toggles stay disabled (DO_STAGE2/DO_STAGE3 = False);
+re-enable a prior stage toggle only to deliberately re-run that step.
 
 Pre-registered STAGE 1 protocol record — what the Stage 1 blocks below
 execute when re-enabled — for RHANNext(enable_ais=True, enable_hpc=False):
@@ -188,9 +197,14 @@ only exists on the branch, and it must not be merged to main until Stage 3's
 validated checkbox is checked.
 
 Usage: paste cells into a Colab GPU runtime, set HF_TOKEN in Secrets.
-Toggles: the ACTIVE protocol is DO_STAGE4_E1 / DO_STEP4_A/B/C.
-  DO_STEP4_B = True  → full 60-epoch E1 training (runs immediately after smoke gate)
-  DO_STEP4_C = False → eval is DISABLED; set True only after Step B completes
+Toggles: Stage-4 blocks execute top-to-bottom as E1 → E3 → E2:
+  DO_STAGE4_E1 / DO_STEP4_A/B/C — E1 (recon-mod): COMPLETE & INERT
+      (resume no-op + cached eval; DO_STEP4_C stays True, harmless).
+  DO_STAGE4_E3 / DO_STEP4E3_A/B/C — E3 (T=6): smoke + Step B already
+      complete on HF; DO_STEP4E3_C runs the CURRENT eval (D + baseline
+      seeded from the E1 sweep — only the 32 t6 cells are computed).
+  DO_STAGE4_E2 / DO_STEP4E2_GATE0/A/B/C — E2 (SBR): NOT YET TRAINED;
+      Gate 0 → smoke → 60-epoch → eval all run AFTER the E3 verdict.
   Stage 1/2/3 toggles (DO_STEP_A/B/C, DO_ISOLATION, DO_STAGE2, DO_STAGE3, etc.)
   all DEFAULT OFF — those stages are final.
 FORCE_STEP_B_OVERRIDE is a debug escape — do not use for publishable numbers.
@@ -3957,7 +3971,9 @@ print("="*70)
 #   H1b: E1 reproduces car/airplane Π_D top-2 (truck displaced)
 #   H1c: Belief drift measured for D and E1 together
 #
-# E2 gate: LOCKED until E1 verdict recorded.
+# STATUS: E1 verdict RECORDED (2026-08-31) → null on robustness, recon-mod
+# DEFERRED. E2 gate now UNLOCKED — but E2 (SBR) has NOT been trained yet:
+# E3 (below) evaluates first, then E2 runs as the final Stage-4 variant.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # %% [markdown]
@@ -4355,6 +4371,9 @@ print(f"  - Preregistration    : report/stage4_E1/preregistration.md")
 print(f"  - Integrity check    : bash report/stage4_E1/verify_experiment.sh")
 print()
 print("  E2 gate: UNLOCKED (E1 verdict recorded).")
+print("  PLAN: E3 (T=6) Step C eval is next (D + baseline seeded from this")
+print("        E1 sweep — only the t6 cells are computed), then E2 (SBR),")
+print("        which has NOT been trained yet, runs after the E3 verdict.")
 print("="*70)
 
 # %% [markdown]
@@ -4364,6 +4383,11 @@ print("="*70)
 # Pre-registered comparison: E3 vs D
 # Config change: max_foraging_steps=6 (D=4)
 # Protocol: smoke → gate → 60-epoch → 16-seed eval → Lens
+#
+# STATUS (2026-09-04): smoke PASSED and Step B (60-epoch) COMPLETE on HF
+# (best 57.35%). Step C is the CURRENT action. REUSE_COMPARATOR_EVAL
+# seeds the D + baseline rows from the E1 sweep, so the eval computes
+# only the 32 new t6 cells; the E3 verdict is recorded from that result.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # %%
@@ -4554,6 +4578,12 @@ else:
 #
 # Pre-registered comparison: E2 vs D
 # Config change: enable_sbr=True (D has it False)
+#
+# STATUS (2026-09-04): NOT YET TRAINED — E2 is the final Stage-4 variant.
+# It runs AFTER the E3 verdict (the E3 blocks above execute first in this
+# notebook): Gate 0 → smoke → 60-epoch → eval. The eval seeds D +
+# baseline rows from the E1 sweep (REUSE_COMPARATOR_EVAL), so only the
+# 32 new rhan_next_ais_hpc_sbr cells are computed.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # %%
@@ -4752,4 +4782,15 @@ else:
     print("  (Stage 4-E2 Step C skipped: DO_STEP4E2_C=False)")
 
 # %% [markdown]
-# ## Done — Stages 4-E1/E2/E3 Complete
+# ## End of notebook — Stage 4 status
+#
+# E1 (recon-mod): COMPLETE — verdict recorded 2026-08-31; null on
+# robustness (+3.10 clean, -0.90 @ eps=0.094), recon-mod deferred.
+#
+# E3 (T=6): Step B COMPLETE (best 57.35%). Its Step C eval above is the
+# current run; once it finishes, record the E3 verdict vs D (comparator
+# rows reused from the E1 sweep).
+#
+# E2 (SBR): the remaining Stage-4 variant. If its blocks ran this
+# session it has now trained (Gate 0 → smoke → 60-epoch) and evaluated;
+# otherwise it is still NOT TRAINED and runs next, after the E3 verdict.
