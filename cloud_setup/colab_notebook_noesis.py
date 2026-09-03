@@ -3471,7 +3471,7 @@ if DO_STAGE3 and DO_STEP3_B and not SKIP_STAGE3_TRAINING:
                     _tc_fb = os.path.join(os.path.dirname(_d_ckpt_path),
                                           'training_complete.json')
                     with open(_tc_fb, 'w') as _ftc_fb:
-                        _json.dump({'ckpt_name': D_FULL_CKPT,
+                        _json_fb.dump({'ckpt_name': D_FULL_CKPT,
                                     'best_acc': 0,
                                     'max_epochs': 60,
                                     'last_epoch': 60,
@@ -4372,6 +4372,7 @@ DO_STAGE4_E3      = True
 DO_STEP4E3_A      = True    # smoke test (15 epochs)
 DO_STEP4E3_B      = True    # full 60-epoch run
 DO_STEP4E3_C      = True    # 16-seed matched eval
+REUSE_COMPARATOR_EVAL = True  # seed baseline+D cells from the E1 sweep -> only the new model is evaluated
 SKIP_STAGE4E3_TRAINING = False
 SMOKE4E3_EPOCHS   = 15
 E3_SEEDS          = list(range(41, 57))  # 16 seeds: 41-56
@@ -4510,6 +4511,14 @@ if DO_STAGE4_E3 and DO_STEP4E3_C:
                 print(f"  ✓ {_name} checkpoint downloaded from HF")
             except Exception as _e3vc:
                 print(f"  ⚠ Could not download {_name} checkpoint: {_e3vc}")
+    if REUSE_COMPARATOR_EVAL:
+        print("  [reuse] seeding baseline + D cells from the E1 sweep — "
+              f"only {E3_FULL_CKPT} cells will be computed...")
+        run(f"python3 phase2_attacks/seed_sweep_comparators.py "
+            f"--output-dir {os.path.join(_REPO_ROOT, STEP4E3_C_MAIN100)} "
+            f"--target-subdir {os.path.basename(STEP4E3_C_MAIN100)} "
+            f"--donor-subdir {os.path.basename(STEP4_C_MAIN100)}",
+            check=False)
     _e3_specs = [
         f'rhan_next_ais_hpc:{_e3_d_path}:next',
         f'rhan_next_ais_hpc_t6:{_e3_ckpt_path}:next',
@@ -4554,6 +4563,7 @@ DO_STEP4E2_GATE0  = True    # SBR clean-convergence check (BLOCKING)
 DO_STEP4E2_A      = True    # smoke test (15 epochs)
 DO_STEP4E2_B      = True    # full 60-epoch run
 DO_STEP4E2_C      = True    # 16-seed matched eval
+REUSE_COMPARATOR_EVAL = True  # seed baseline+D cells from the E1 sweep -> only the new model is evaluated
 SKIP_STAGE4E2_TRAINING = False
 SMOKE4E2_EPOCHS   = 15
 E2_SEEDS          = list(range(41, 57))  # 16 seeds: 41-56
@@ -4709,6 +4719,14 @@ if DO_STAGE4_E2 and DO_STEP4E2_C:
                 print(f"  ✓ {_name} checkpoint downloaded from HF")
             except Exception as _e2vc:
                 print(f"  ⚠ Could not download {_name} checkpoint: {_e2vc}")
+    if REUSE_COMPARATOR_EVAL:
+        print("  [reuse] seeding baseline + D cells from the E1 sweep — "
+              f"only {E2_FULL_CKPT} cells will be computed...")
+        run(f"python3 phase2_attacks/seed_sweep_comparators.py "
+            f"--output-dir {os.path.join(_REPO_ROOT, STEP4E2_C_MAIN100)} "
+            f"--target-subdir {os.path.basename(STEP4E2_C_MAIN100)} "
+            f"--donor-subdir {os.path.basename(STEP4_C_MAIN100)}",
+            check=False)
     _e2_specs = [
         f'rhan_next_ais_hpc:{_e2_d_path}:next',
         f'rhan_next_ais_hpc_sbr:{_e2_ckpt_path}:next',
