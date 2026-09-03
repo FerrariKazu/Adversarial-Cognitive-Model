@@ -1371,7 +1371,7 @@ def main():
                                       'training_complete.json')
             import json as _json_tc
             with open(_tc_marker, 'w') as _ftc:
-                _json.dump({'ckpt_name': args.ckpt_name,
+                _json_tc.dump({'ckpt_name': args.ckpt_name,
                             'best_acc': best_acc,
                             'max_epochs': args.max_epochs,
                             'last_epoch': last_epoch,
