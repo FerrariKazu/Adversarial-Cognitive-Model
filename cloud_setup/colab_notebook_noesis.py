@@ -4031,6 +4031,107 @@ except Exception as _e4:
         "--ckpt-name", E1_FULL_CKPT,
     ])
 
+# %%
+# ── Stage 4 completion-marker helpers (commit-agnostic) ────────────────────
+# The trainer uploads ONE shared training_complete.json (last run wins). The
+# E1/E3/E2 blocks ALSO maintain a PER-CKPT marker ({ckpt}_training_complete.json)
+# so a completed earlier variant is never masked by a later variant's shared
+# marker. Reads: local first, then the HF dataset repo (the trainer's sync
+# target — the 'model' repo does not exist, so legacy model-repo reads 404
+# silently and are not retried).
+
+def _stage4_read_marker_json(ckpt_name):
+    """Completion-marker dict naming ckpt_name (per-ckpt then shared), or None."""
+    cand = []
+    for _f in (f"{ckpt_name}_training_complete.json", "training_complete.json"):
+        _p = os.path.join(_REPO_ROOT, "checkpoints", _f)
+        if os.path.exists(_p):
+            try:
+                with open(_p) as _fh:
+                    cand.append(json.load(_fh))
+            except Exception:
+                pass
+    for _f in (f"{ckpt_name}_training_complete.json", "training_complete.json"):
+        try:
+            from huggingface_hub import hf_hub_download as _dl_m
+            _tmp = _dl_m(repo_id="FerrariKazu/rhan-checkpoints",
+                         filename=_f, repo_type="dataset", token=hf_token)
+            with open(_tmp) as _fh:
+                cand.append(json.load(_fh))
+        except Exception:
+            pass
+    for _m in cand:
+        if isinstance(_m, dict) and _m.get("ckpt_name") == ckpt_name:
+            return _m
+    return None
+
+
+def _stage4_hf_has(filename):
+    try:
+        from huggingface_hub import HfApi
+        return filename in HfApi(token=hf_token).list_repo_files(
+            repo_id="FerrariKazu/rhan-checkpoints", repo_type="dataset")
+    except Exception:
+        return False
+
+
+def _stage4_rolling_epoch(ckpt_name):
+    """Final logged epoch of ckpt_name's HF rolling checkpoint (-1 if n/a)."""
+    try:
+        from huggingface_hub import hf_hub_download as _dl_r
+        from checkpoint_utils import compat_load
+        _tmp = _dl_r(repo_id="FerrariKazu/rhan-checkpoints-rolling",
+                     filename=f"{ckpt_name}_rolling.pth", repo_type="dataset",
+                     token=hf_token)
+        return int(compat_load(_tmp, map_location="cpu").get("epoch", -1))
+    except Exception:
+        return -1
+
+
+def _stage4_upload_marker(ckpt_name, max_epochs, last_epoch, best_acc):
+    try:
+        from checkpoint_utils import current_code_commit
+        _mk = {"ckpt_name": ckpt_name, "best_acc": float(best_acc or 0),
+               "max_epochs": max_epochs, "last_epoch": last_epoch,
+               "code_commit": current_code_commit()}
+        os.makedirs(os.path.join(_REPO_ROOT, "checkpoints"), exist_ok=True)
+        _p = os.path.join(_REPO_ROOT, "checkpoints",
+                          f"{ckpt_name}_training_complete.json")
+        with open(_p, "w") as _fh:
+            json.dump(_mk, _fh)
+        from huggingface_hub import HfApi
+        HfApi(token=hf_token).upload_file(
+            path_or_fileobj=_p,
+            path_in_repo=f"{ckpt_name}_training_complete.json",
+            repo_id="FerrariKazu/rhan-checkpoints", repo_type="dataset",
+            token=hf_token)
+        print(f"  ✓ per-ckpt completion marker uploaded ({ckpt_name})",
+              flush=True)
+    except Exception as _e_u:
+        print(f"  ⚠ completion-marker upload failed ({_e_u})", flush=True)
+
+
+def _stage4_training_done(ckpt_name, max_epochs, tag="", best_acc_hint=None):
+    """True if ckpt_name's training is already complete:
+      1) a completion marker names it (local or HF, per-ckpt or shared), or
+      2) its HF rolling checkpoint logged the final epoch (marker upload may
+         have failed — self-heal by writing the per-ckpt marker).
+    Never launches, deletes, or restarts anything."""
+    _m = _stage4_read_marker_json(ckpt_name)
+    if _m is not None:
+        print(f"  [SKIP] {tag}{ckpt_name} training already complete "
+              f"(best={_m.get('best_acc', '?')}%)", flush=True)
+        return True
+    if _stage4_hf_has(f"{ckpt_name}_best.pth"):
+        _ep = _stage4_rolling_epoch(ckpt_name)
+        if _ep >= int(max_epochs):
+            print(f"  [SKIP] {tag}{ckpt_name} complete (rolling epoch "
+                  f"{_ep}/{max_epochs}, no marker) — self-healing marker",
+                  flush=True)
+            _stage4_upload_marker(ckpt_name, max_epochs, _ep, best_acc_hint)
+            return True
+    return False
+
 # %% [markdown]
 # ### Stage 4-E1 — STEP A: SMOKE TEST (15 epochs, E1 = D + recon-mod)
 
@@ -4189,17 +4290,12 @@ if DO_STAGE4_E1 and DO_STEP4_B and not SKIP_STAGE4_TRAINING:
 
     _e1_ckpt_path = os.path.join(_REPO_ROOT, f"checkpoints/{E1_FULL_CKPT}_best.pth")
 
-    # Check training-complete marker
-    _tc4_done = False
-    _tc4_marker = os.path.join(_REPO_ROOT, "checkpoints", "training_complete.json")
-    if os.path.exists(_tc4_marker):
-        import json as _json4tc
-        with open(_tc4_marker) as _ftc4:
-            _tc_data4 = _json4tc.load(_ftc4)
-        if _tc_data4.get('ckpt_name') == E1_FULL_CKPT:
-            _tc4_done = True
-            print(f"  [SKIP] E1 training already complete: "
-                  f"best={_tc_data4.get('best_acc', '?')}%")
+    # Training-complete check: per-ckpt/shared marker, local + HF dataset
+    # repo (the trainer's sync target). A fresh session has NO local marker,
+    # so the old local-only read re-launched completed runs and died on the
+    # resume commit guard once the code moved past the run's commit (2026-09-04).
+    _tc4_done = _stage4_training_done(E1_FULL_CKPT, 60, "E1 ",
+                                      best_acc_hint=57.96)
 
     if not os.path.exists(_e1_ckpt_path) and not _tc4_done:
         _train4_cmd = (
@@ -4470,18 +4566,22 @@ if DO_STAGE4_E3 and DO_STEP4E3_A and not SKIP_STAGE4E3_TRAINING and _vram_ok_e3:
             f"--target-ckpt {_e3_base} "
             f"--diag-json {E3_SMOKE_DIAG} "
             f"--batch-size 16 --accum-steps 16 --force-single-gpu")
-        print(f"\n  [RUN]: {_e3_smoke_cmd}")
-        if DRY_RUN:
-            print("  [DRY-RUN] skipping")
+        if _stage4_training_done(E3_SMOKE_CKPT, SMOKE4E3_EPOCHS, "E3-smoke ",
+                                 best_acc_hint=56.67):
+            pass  # smoke already complete — trainer is not relaunched
         else:
-            run(_e3_smoke_cmd)
-            # Write health verdict
-            import json as _json_e3h
-            _e3_health = {"passed": True, "reasons": [], "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
-            os.makedirs(os.path.dirname(E3_HEALTH_JSON) or '.', exist_ok=True)
-            with open(E3_HEALTH_JSON, 'w') as _f:
-                _json_e3h.dump(_e3_health, _f, indent=2)
-            print(f"  ✓ E3 smoke health verdict written")
+            print(f"\n  [RUN]: {_e3_smoke_cmd}")
+            if DRY_RUN:
+                print("  [DRY-RUN] skipping")
+            else:
+                run(_e3_smoke_cmd)
+                # Write health verdict
+                import json as _json_e3h
+                _e3_health = {"passed": True, "reasons": [], "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
+                os.makedirs(os.path.dirname(E3_HEALTH_JSON) or '.', exist_ok=True)
+                with open(E3_HEALTH_JSON, 'w') as _f:
+                    _json_e3h.dump(_e3_health, _f, indent=2)
+                print(f"  ✓ E3 smoke health verdict written")
     else:
         print("  ⚠ E3 base checkpoint not found — smoke skipped")
 else:
@@ -4505,11 +4605,14 @@ if DO_STAGE4_E3 and DO_STEP4E3_B and not SKIP_STAGE4E3_TRAINING:
             f"--target-ckpt {_e3_base} "
             f"--diag-json {E3_FULL_DIAG} "
             f"--batch-size 16 --accum-steps 16 --force-single-gpu")
-        print(f"  Training: {_e3_full_cmd}")
-        if DRY_RUN:
-            print("  [DRY-RUN] skipping")
+        if _stage4_training_done(E3_FULL_CKPT, 60, "E3 ", best_acc_hint=57.35):
+            pass  # full training already complete — Step C uses the HF best
         else:
-            run(_e3_full_cmd)
+            print(f"  Training: {_e3_full_cmd}")
+            if DRY_RUN:
+                print("  [DRY-RUN] skipping")
+            else:
+                run(_e3_full_cmd)
     else:
         print("  ⚠ E3 base checkpoint not found — training skipped")
 else:
@@ -4643,24 +4746,27 @@ if DO_STAGE4_E2 and DO_STEP4E2_GATE0:
             f"--target-ckpt {_e2_base} "
             f"--diag-json {E2_SMOKE_DIAG}_gate0 "
             f"--batch-size 16 --accum-steps 16 --force-single-gpu")
-        print(f"  [RUN]: {_e2_gate0_cmd}")
-        if DRY_RUN:
-            print("  [DRY-RUN] skipping")
+        if _stage4_training_done(f"{E2_SMOKE_CKPT}_gate0", 20, "E2-Gate0 "):
+            pass  # Gate 0 already complete — not relaunched
         else:
-            run(_e2_gate0_cmd)
-            # Write Gate 0 verdict
-            import json as _json_e2g
-            _gate0 = {
-                "passed": True,
-                "criterion": "slot attention trained on clean STL-10 (20 epochs)",
-                "check": "visual + quantitative diversity (see report)",
-                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
-            }
-            os.makedirs(os.path.dirname(E2_GATE0_JSON) or '.', exist_ok=True)
-            with open(E2_GATE0_JSON, 'w') as _f:
-                _json_e2g.dump(_gate0, _f, indent=2)
-            print(f"  ✓ E2 Gate 0 verdict written")
-            print("  → Proceeding to Step 1 (SBR integration, already in code)")
+            print(f"  [RUN]: {_e2_gate0_cmd}")
+            if DRY_RUN:
+                print("  [DRY-RUN] skipping")
+            else:
+                run(_e2_gate0_cmd)
+                # Write Gate 0 verdict
+                import json as _json_e2g
+                _gate0 = {
+                    "passed": True,
+                    "criterion": "slot attention trained on clean STL-10 (20 epochs)",
+                    "check": "visual + quantitative diversity (see report)",
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                }
+                os.makedirs(os.path.dirname(E2_GATE0_JSON) or '.', exist_ok=True)
+                with open(E2_GATE0_JSON, 'w') as _f:
+                    _json_e2g.dump(_gate0, _f, indent=2)
+                print(f"  ✓ E2 Gate 0 verdict written")
+                print("  → Proceeding to Step 1 (SBR integration, already in code)")
     else:
         print("  ⚠ E2 base checkpoint not found — Gate 0 skipped")
 else:
@@ -4684,18 +4790,21 @@ if DO_STAGE4_E2 and DO_STEP4E2_A and not SKIP_STAGE4E2_TRAINING:
             f"--target-ckpt {_e2_base} "
             f"--diag-json {E2_SMOKE_DIAG} "
             f"--batch-size 16 --accum-steps 16 --force-single-gpu")
-        print(f"\n  [RUN]: {_e2_smoke_cmd}")
-        if DRY_RUN:
-            print("  [DRY-RUN] skipping")
+        if _stage4_training_done(E2_SMOKE_CKPT, SMOKE4E2_EPOCHS, "E2-smoke "):
+            pass  # smoke already complete — trainer is not relaunched
         else:
-            run(_e2_smoke_cmd)
-            # Write health verdict
-            import json as _json_e2h
-            _e2_health = {"passed": True, "reasons": [], "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
-            os.makedirs(os.path.dirname(E2_HEALTH_JSON) or '.', exist_ok=True)
-            with open(E2_HEALTH_JSON, 'w') as _f:
-                _json_e2h.dump(_e2_health, _f, indent=2)
-            print(f"  ✓ E2 smoke health verdict written")
+            print(f"\n  [RUN]: {_e2_smoke_cmd}")
+            if DRY_RUN:
+                print("  [DRY-RUN] skipping")
+            else:
+                run(_e2_smoke_cmd)
+                # Write health verdict
+                import json as _json_e2h
+                _e2_health = {"passed": True, "reasons": [], "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
+                os.makedirs(os.path.dirname(E2_HEALTH_JSON) or '.', exist_ok=True)
+                with open(E2_HEALTH_JSON, 'w') as _f:
+                    _json_e2h.dump(_e2_health, _f, indent=2)
+                print(f"  ✓ E2 smoke health verdict written")
     else:
         print("  ⚠ E2 base checkpoint not found — smoke skipped")
 else:
@@ -4719,11 +4828,14 @@ if DO_STAGE4_E2 and DO_STEP4E2_B and not SKIP_STAGE4E2_TRAINING:
             f"--target-ckpt {_e2_base} "
             f"--diag-json {E2_FULL_DIAG} "
             f"--batch-size 16 --accum-steps 16 --force-single-gpu")
-        print(f"  Training: {_e2_full_cmd}")
-        if DRY_RUN:
-            print("  [DRY-RUN] skipping")
+        if _stage4_training_done(E2_FULL_CKPT, 60, "E2 "):
+            pass  # full training already complete — Step C uses the HF best
         else:
-            run(_e2_full_cmd)
+            print(f"  Training: {_e2_full_cmd}")
+            if DRY_RUN:
+                print("  [DRY-RUN] skipping")
+            else:
+                run(_e2_full_cmd)
     else:
         print("  ⚠ E2 base checkpoint not found — training skipped")
 else:
