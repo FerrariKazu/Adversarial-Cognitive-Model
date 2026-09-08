@@ -163,12 +163,14 @@ def get_next_action(roadmap: Optional[Dict[str, Any]] = None) -> Action:
         if status == "gate_pending":
             return Action(stage, "gate")
         if status == "gate_passed":
-            # Gate passed -> next step: eval for eval-stages, done otherwise
-            # (the gate_passed -> eval_pending transition is applied by
-            # advance(); a bare gate_passed with no pending eval means the
-            # stage's work is complete).
-            return Action(stage, "eval") if stage in EVAL_STAGES \
-                else Action(stage, "done")
+            # Gate passed -> next step: eval for eval-stages; for gate-only
+            # stages (e.g. gen0) gate_passed means the stage is complete —
+            # continue to the next stage rather than returning Action(stage,
+            # "done"), which the single-step dispatch has no handler for and
+            # would cause it to stop prematurely.
+            if stage in EVAL_STAGES:
+                return Action(stage, "eval")
+            continue  # treat gate_passed (non-eval) as done; find next stage
         if status == "gate_failed":
             return Action(stage, "gate_failed")     # STOP, report honestly
         if status == "eval_pending":
