@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 """
-Colab Notebook — RHAN-Next Stage 4 (E1/E2/E3) Execution
-=================================================
+Colab Notebook — RHAN-Next: Stages 1–5 Execution Pipeline
+==========================================================
+
+CURRENT ACTIVE PROTOCOL: Stage 5 (RHAN-NX Generation 0)
+  The SBR-0..4 ladder + D2 (AIS-v2 swap) + D3 (belief-HPC swap),
+  orchestrated by the multi-session stage-state machine (roadmap key
+  "rhan_nx", scripts/stage_state_machine.py). The cell executes EXACTLY
+  ONE (stage, substep) branch per run, each ending with advance() + HF
+  sync, so a session dying at any point resumes by re-running the cell.
+
 Stages 1–3 are COMPLETE and FINAL:
   Stage 1: AIS-v1 halting-only, +8.5 pp @ ε=0.094 — NOT significant.
   Stage 2: HPC-only, +3.92 pp @ ε=0.094 — NOT significant.
@@ -16,20 +24,68 @@ norm-space eps, n=300):
       d' flat (1.06 vs 1.08) → null on robustness. recon-mod DEFERRED —
       not part of the headline config. E1 blocks below are INERT:
       training complete + eval cached on HF, so resume is a no-op.
-  E3 = D + T=6 foraging (max_foraging_steps=6) — Step B (60-epoch)
-      COMPLETE on HF (best 57.35%). CURRENT ACTION: Step C 16-seed eval.
+  E3 = D + T=6 foraging (max_foraging_steps=6) — COMPLETE:
+      Step B on HF (best 57.35%), Step C 16-seed eval on HF.
       D + baseline rows are REUSED from the E1 sweep via
-      seed_sweep_comparators.py (REUSE_COMPARATOR_EVAL = True), so the
-      eval computes ONLY the 32 new rhan_next_ais_hpc_t6 cells.
-  E2 = D + SBR (enable_sbr=True) — TRAINED, EVAL PENDING.
+      seed_sweep_comparators.py (REUSE_COMPARATOR_EVAL = True).
+  E2 = D + SBR (enable_sbr=True) — TRAINED, EVAL PENDING:
       Checkpoint rhan_next_ais_hpc_sbr_best.pth (epoch 60, best_val_acc 45.24%)
-      is on HF (FerrariKazu/rhan-checkpoints). The eval (Step C below) seeds D
-      + baseline rows from the E1 sweep (REUSE_COMPARATOR_EVAL), so only the
-      32 new rhan_next_ais_hpc_sbr cells are computed. Requires origin
-      >= df870e9 — --enable-sbr exists only from that commit.
+      is on HF (FerrariKazu/rhan-checkpoints). Gate 0 + smoke + 60-epoch
+      training all complete. Eval (Step C below) seeds D + baseline rows
+      from the E1 sweep (REUSE_COMPARATOR_EVAL).
 
 All Stage 1/2/3 toggles stay disabled (DO_STAGE2/DO_STAGE3 = False);
 re-enable a prior stage toggle only to deliberately re-run that step.
+
+──────────────────────────────────────────────────────────────────────────────
+STAGE 5 — RHAN-NX GENERATION 0 (the ACTIVE protocol)
+──────────────────────────────────────────────────────────────────────────────
+
+The RHAN-NX ladder (SBR-0..4, AIS-v2, belief-HPC) is orchestrated entirely
+by the multi-session stage-state machine. The top-level dispatch cell reads
+get_next_action() and executes exactly one branch per cell run; every branch
+ends with advance() (immediately persisted + synced to HF), so a session
+dying at ANY point resumes by re-running the cell.
+
+Ladder (each stage pre-registered in docs/rhan_next_roadmap.json -> rhan_nx):
+  gen0      -> multi-group optimizer tests + SBR slot |dW| pre-flight (GATE)
+  sbr0      -> frozen-backbone clean-only structural gate (4 criteria, GATE)
+  sbr1      -> joint clean fine-tune within 3pp of D's 54.96 (GATE)
+  sbr2      -> standard 3-phase 60-epoch curriculum + belief-drift + eval
+  sbr3      -> + relational evidence heads (fine-tune @ eps=0.094) + eval
+  sbr4      -> + uncertainty decomposition (fine-tune) + eval (final SBR ckpt)
+  ais_v2    -> D2: genuine info-gain gaze swap test (INDEPENDENT of SBR)
+  hpc_belief -> D3: belief-space HPC swap test (INDEPENDENT of SBR/D2)
+
+Bases (AMENDMENT 2026-09-08):
+  D2/D3 initialize from rhan_next_ais_v1_halting_only_best.pth — the
+  immediate validated checkpoint from which D's final training trajectory
+  proceeds — NOT rhan_stl10_large_pseudolabel_best.pth, so each
+  intervention differs from D primarily by its mechanism, not by additional
+  backbone training history.
+  SBR-0 starts from D (rhan_next_ais_hpc_best.pth) with backbone FROZEN.
+
+Comparators (D, baseline, B, C) are NEVER re-evaluated: donor rows come
+from scripts/comparator_registry.py (byte-verified) and the E1-sweep
+seeding (seed_sweep_comparators.py). Every Summary Table is asserted
+against its own CSV before writing (rule 1c, scripts/consistency_assert.py).
+
+Non-negotiable rules carried forward from Stages 0-4:
+  1a. Gradient isolation: every new component gets its own optimizer group
+      via OptimizerGroupRegistry (generalises Stage 2's HPC starvation fix).
+  1b. Never re-run eval on an already-validated checkpoint.
+  1c. Structural consistency assertion on every report.
+  1d. Gate discipline: blocking gates stop; failures are reported honestly.
+  1e. Multi-session resume: HF rolling checkpoint, never --force-restart.
+  1f. Masking check: PGD-50 AND PGD-100 at eps=0.094, gap <= 1.0pp.
+──────────────────────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────────────────────
+HISTORICAL PROTOCOL RECORD (Stages 1–4)
+──────────────────────────────────────────────────────────────────────────────
+These sections are the executable validated record. Toggles below default
+OFF — flip a toggle only to deliberately re-run that step.
+──────────────────────────────────────────────────────────────────────────────
 
 Pre-registered STAGE 1 protocol record — what the Stage 1 blocks below
 execute when re-enabled — for RHANNext(enable_ais=True, enable_hpc=False):
@@ -202,23 +258,16 @@ Usage: paste cells into a Colab GPU runtime, set HF_TOKEN in Secrets.
 Toggles: Stage-4 blocks execute top-to-bottom as E1 → E3 → E2:
   DO_STAGE4_E1 / DO_STEP4_A/B/C — E1 (recon-mod): COMPLETE & INERT
       (resume no-op + cached eval; DO_STEP4_C stays True, harmless).
-  DO_STAGE4_E3 / DO_STEP4E3_A/B/C — E3 (T=6): smoke + Step B already
-      complete on HF; DO_STEP4E3_C runs the CURRENT eval (D + baseline
-      seeded from the E1 sweep — only the 32 t6 cells are computed).
+  DO_STAGE4_E3 / DO_STEP4E3_A/B/C — E3 (T=6): COMPLETE on HF.
+      DO_STEP4E3_C is a no-op (eval already cached).
   DO_STAGE4_E2 / DO_STEP4E2_GATE0/A/B/C — E2 (SBR): TRAINED on HF
       (Gate 0 + smoke + 60-epoch all complete). DO_STEP4E2_C runs the eval;
       DO_STEP4E2_GATE0/A/B are no-ops if the HF checkpoints are present.
       Runs AFTER the E3 verdict.
-  Stage 5 (RHAN-NX Generation 0) — the ACTIVE protocol: the SBR-0..4
-      ladder + D2 (AIS-v2 swap) + D3 (belief-HPC swap), orchestrated by
-      the multi-session stage-state machine (roadmap key "rhan_nx",
-      scripts/stage_state_machine.py): the cell executes EXACTLY ONE
-      (stage, substep) branch per run, each ending with advance() + HF sync,
-      so a session dying at any point resumes by re-running the cell.
-      Toggles: DO_RHAN_NX (master). Bases per the 2026-09-08 amendment:
-      D2/D3 from rhan_next_ais_v1_halting_only_best.pth; SBR-0 from D
-      (frozen backbone). Comparators are NEVER re-evaluated (donor rows via
-      scripts/comparator_registry.py; rule 1b).
+  DO_RHAN_NX — Stage 5 (RHAN-NX Generation 0): the ACTIVE protocol.
+      Master toggle for the SBR-0..4 ladder + D2 (AIS-v2 swap) + D3
+      (belief-HPC swap). Orchestrated by the multi-session stage-state
+      machine; each cell run executes exactly one (stage, substep) branch.
   Stage 1/2/3 toggles (DO_STEP_A/B/C, DO_ISOLATION, DO_STAGE2, DO_STAGE3, etc.)
   all DEFAULT OFF — those stages are final.
 FORCE_STEP_B_OVERRIDE is a debug escape — do not use for publishable numbers.
@@ -235,7 +284,7 @@ exercise the full gate/isolation/verdict logic against LIVE HF state without
 launching training or touching git/HF. Verify the exact Step B launch config
 before spending the compute window.
 
-STAGE 2 BLOCK (the ACTIVE protocol below): same protocol shape as Stage 1,
+STAGE 2 BLOCK (COMPLETE — do not re-run): same protocol shape as Stage 1,
 matrix entry C_hpc_only (HPC-only — AIS mechanisms OFF, per
 rhan_core/ablation/matrix.py). Step A smoke (15 ep, ε=0.031) → Stage 2 health
 gate (4 checks: HPC gradient flow, error trend >= 10% decrease / never >10x,
@@ -251,12 +300,15 @@ to deliberately re-run that step.
 """
 
 # %% [markdown]
-# # RHAN-Next Stage 2: HPC (Pillar 1, matrix C) — Smoke → Health gate → 60-epoch → 3-way Eval → Verdict
+# # RHAN-Next Notebook — Stages 1–5 Execution Pipeline
 # #
-# # The Stage 1 blocks below (Steps 5-7c) are the COMPLETED validated record
-# # (AIS-v1 halting-only, 8-seed, +8.5 pp @ ε=0.094, not significant,
-# # masking-free) and DEFAULT OFF — flip the Stage 1 toggles in Step 4 only
-# # to re-run a Stage 1 step. This run trains config C (HPC-only) per Stage 2.
+# # Active protocol: Stage 5 (RHAN-NX Generation 0) — the SBR-0..4 ladder,
+# # D2 (AIS-v2 swap), D3 (belief-HPC swap), orchestrated by the multi-session
+# # stage-state machine (scripts/stage_state_machine.py).
+# #
+# # Historical: Stages 1–4 are COMPLETE (toggles default OFF). The Stage 1
+# # blocks below (Steps 5-7c) are the COMPLETED validated record and DEFAULT OFF.
+# # Stage 2 (HPC) and Stage 4 (E1/E2/E3) blocks execute only if toggled on.
 
 # %% [markdown]
 # ## Step 1: Install Dependencies
@@ -1999,7 +2051,7 @@ for _p in (_REPO_ROOT, os.path.join(_REPO_ROOT, "phase1_training")):
         sys.path.insert(0, _p)
 
 # ── Stage 2 toggles (mirror the Stage 1 toggles above) ──────────────────────
-DO_STAGE2        = False  # COMPLETE — do not re-run; only Stage 4-E1 is active
+DO_STAGE2        = False  # COMPLETE — do not re-run; Stage 5 (RHAN-NX) is the active protocol
 DO_STEP2_A       = False   # smoke ALREADY COMPLETE (v4, epoch 15, commit 3eef245). The
 #                               HF v4 rolling artifact predates the 14c9b75 gate
 #                               amendment, so the code-identity guard would refuse
@@ -3081,7 +3133,7 @@ if DO_STEP2_C:
 
 # %%
 # ── Stage 3 toggles ──────────────────────────────────────────────────────────
-DO_STAGE3         = False  # COMPLETE — do not re-run; only Stage 4-E1 is active
+DO_STAGE3         = False  # COMPLETE — do not re-run; Stage 5 (RHAN-NX) is the active protocol
 DO_STEP3_A        = False  # smoke test — Stage 3 complete
 DO_STEP3_B        = False  # full 60-epoch run — Stage 3 complete
 DO_STEP3_C        = False  # 8-seed matched eval — Stage 3 complete
@@ -3966,7 +4018,7 @@ print(f"  - D eval (PGD-50)   : {STEP3_C_MAIN}/")
 print(f"  - D PGD-100         : {STEP3_C_MAIN100}/")
 print(f"  - Verdict recorded  : docs/rhan_next_roadmap.json (stages.3)")
 print()
-print("  Next: Lens belief-drift analysis (A/B/C/D) + mechanistic classification")
+print("  Next: Stage 4 (E1/E2/E3) → Stage 5 (RHAN-NX Generation 0)")
 print("="*70)
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -3986,8 +4038,8 @@ print("="*70)
 #   H1c: Belief drift measured for D and E1 together
 #
 # STATUS: E1 verdict RECORDED (2026-08-31) → null on robustness, recon-mod
-# DEFERRED. E2 gate now UNLOCKED — but E2 (SBR) has NOT been trained yet:
-# E3 (below) evaluates first, then E2 runs as the final Stage-4 variant.
+# DEFERRED. All Stage 4 blocks (E1, E2, E3) are now COMPLETE or INERT.
+# Stage 5 (RHAN-NX Generation 0) is the active protocol.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # %% [markdown]
@@ -4703,6 +4755,12 @@ else:
 # rows from the E1 sweep (REUSE_COMPARATOR_EVAL), so only the 32 new
 # rhan_next_ais_hpc_sbr cells are computed. NOT yet evaluated — Step C
 # below runs the PGD-100 16-seed matched eval.
+#
+# NOTE: Stage 5 (RHAN-NX Generation 0) supersedes E2's single-config SBR
+# with the full SBR-0..4 ladder + AIS-v2 + belief-HPC swap experiments.
+# E2's legacy checkpoint remains on HF as a reference; the RHAN-NX ladder
+# produces independently attributable SBR results via the multi-session
+# stage-state machine (DO_RHAN_NX toggle).
 # ─────────────────────────────────────────────────────────────────────────────
 
 # %%
@@ -4940,6 +4998,19 @@ else:
 # from scripts/comparator_registry.py (byte-verified) and the E1-sweep
 # seeding (seed_sweep_comparators.py). Every Summary Table is asserted
 # against its own CSV before writing (rule 1c, scripts/consistency_assert.py).
+#
+# Generation 0 infrastructure (built 2026-09-08, verified locally):
+#   rhan_core/optim/multi_group_optimizer.py — N-group optimizer registry
+#   scripts/stage_state_machine.py — get_next_action() / advance()
+#   scripts/measure_group_dw.py — pre-flight |dW| for new optimizer groups
+#   scripts/sbr0_gate.py — SBR-0 four-criterion gate evaluation
+#   scripts/eval_ais_v2_gate.py — AIS-v2 candidate-preference gate
+#   scripts/comparator_registry.py — validated donor row loading
+#   scripts/consistency_assert.py — structural consistency assertion
+#   scripts/build_rhan_nx_report.py — consolidated report builder
+#
+# Local verification (2026-09-08): 202 tests pass, gen0 pre-flight passes,
+# SBR-0 1-epoch smoke completes, state machine dispatch verified.
 
 # %% [markdown]
 # ### Stage 5 toggles + state-machine dispatch
@@ -5375,17 +5446,25 @@ elif DO_RHAN_NX:
     _nx_build_report()
 
 # %% [markdown]
-# ## End of notebook — Stage 4 status
+# ## End of notebook — Status summary
 #
-# E1 (recon-mod): COMPLETE — verdict recorded 2026-08-31; null on
-# robustness (+3.10 clean, -0.90 @ eps=0.094), recon-mod deferred.
+# Stage 1 (AIS-v1 halting-only): COMPLETE & FINAL — 8-seed, +8.5 pp @ ε=0.094,
+# NOT significant, masking-free. Verdict in roadmap.stages['1'].
 #
-# E3 (T=6): Step B COMPLETE (best 57.35%). Its Step C eval above is the
-# current run; once it finishes, record the E3 verdict vs D (comparator
-# rows reused from the E1 sweep).
+# Stage 2 (HPC-only): COMPLETE & FINAL — 8-seed, +3.92 pp @ ε=0.094,
+# NOT significant, masking-free. Verdict in roadmap.stages['2'].
 #
-# E2 (SBR): TRAINED (Gate 0 → smoke → 60-epoch all complete on HF).
-# rhan_next_ais_hpc_sbr_best.pth is on HF (epoch 60, best_val_acc 45.24%).
-# NOT yet evaluated — the Step C eval above runs the PGD-100 16-seed
-# matched eval (D + baseline seeded from the E1 sweep, only the 32 E2 cells
-# computed). After the eval finishes, record the E2 verdict vs D.
+# Stage 3 (D = AIS-v1 + HPC): COMPLETE & FINAL — 16-seed, +11.54 pp @ ε=0.094,
+# p≈2×10⁻⁵ — VALIDATED. Verdict in roadmap.stages['3'].
+#
+# Stage 4-E1 (D + recon-mod): COMPLETE — null on robustness, recon-mod deferred.
+# Stage 4-E3 (D + T=6 foraging): COMPLETE — best 57.35%, 16-seed eval on HF.
+# Stage 4-E2 (D + SBR): TRAINED on HF (epoch 60, best_val_acc 45.24%).
+# Eval pending — DO_STEP4E2_C runs the PGD-100 16-seed matched eval.
+#
+# Stage 5 (RHAN-NX Generation 0): ACTIVE — the SBR-0..4 ladder + D2
+# (AIS-v2 swap) + D3 (belief-HPC swap), orchestrated by the multi-session
+# stage-state machine (DO_RHAN_NX). First cell run dispatches gen0 → start.
+#
+# Consolidated report: report/rhan_nx_generation1_report.md
+# (built incrementally as each stage completes via scripts/build_rhan_nx_report.py).
