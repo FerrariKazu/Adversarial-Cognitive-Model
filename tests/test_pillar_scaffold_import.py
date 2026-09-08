@@ -44,12 +44,22 @@ def test_structured_belief_instantiates_and_works():
     # update_slots delegates to forward
     out2 = sb.update_slots(torch.zeros(2, 3, 512))
     assert 'slots' in out2
-    # message_passing is not yet implemented (interface only)
+    # message_passing was PROMOTED from the Stage-0 NotImplementedError
+    # scaffold to a real trainable module (RHAN-NX SBR-3): without a
+    # relational layer built (legacy/E2 wiring) it raises a clear RuntimeError
+    # naming the missing layer — never a silent no-op.
     try:
         sb.message_passing()
-        raise AssertionError("message_passing should raise")
-    except NotImplementedError:
-        pass
+        raise AssertionError("message_passing should raise without a relational layer")
+    except RuntimeError as e:
+        assert "no relational layer" in str(e)
+    # And it WORKS when the relational layer is built (SBR-3 wiring):
+    sb_rel = StructuredBeliefState(num_slots=8, slot_dim=512, iters=3,
+                                   use_relational=True, use_evidence=True)
+    out = sb_rel(torch.randn(2, 4, 512))
+    assert 'relation_attn' in out and 'evidence' in out
+    slots, rel_attn = sb_rel.message_passing(steps=1)
+    assert slots.shape == (2, 8, 512) and rel_attn.shape == (2, 8, 8)
 
 
 def test_null_world_model_safe_passthrough():

@@ -21,9 +21,11 @@ norm-space eps, n=300):
       D + baseline rows are REUSED from the E1 sweep via
       seed_sweep_comparators.py (REUSE_COMPARATOR_EVAL = True), so the
       eval computes ONLY the 32 new rhan_next_ais_hpc_t6 cells.
-  E2 = D + SBR (enable_sbr=True) — NOT YET TRAINED. Runs AFTER the E3
-      verdict: Gate 0 (clean SBR convergence) → smoke → 60-epoch →
-      16-seed eval (D + baseline seeded the same way). Requires origin
+  E2 = D + SBR (enable_sbr=True) — TRAINED, EVAL PENDING.
+      Checkpoint rhan_next_ais_hpc_sbr_best.pth (epoch 60, best_val_acc 45.24%)
+      is on HF (FerrariKazu/rhan-checkpoints). The eval (Step C below) seeds D
+      + baseline rows from the E1 sweep (REUSE_COMPARATOR_EVAL), so only the
+      32 new rhan_next_ais_hpc_sbr cells are computed. Requires origin
       >= df870e9 — --enable-sbr exists only from that commit.
 
 All Stage 1/2/3 toggles stay disabled (DO_STAGE2/DO_STAGE3 = False);
@@ -203,8 +205,20 @@ Toggles: Stage-4 blocks execute top-to-bottom as E1 → E3 → E2:
   DO_STAGE4_E3 / DO_STEP4E3_A/B/C — E3 (T=6): smoke + Step B already
       complete on HF; DO_STEP4E3_C runs the CURRENT eval (D + baseline
       seeded from the E1 sweep — only the 32 t6 cells are computed).
-  DO_STAGE4_E2 / DO_STEP4E2_GATE0/A/B/C — E2 (SBR): NOT YET TRAINED;
-      Gate 0 → smoke → 60-epoch → eval all run AFTER the E3 verdict.
+  DO_STAGE4_E2 / DO_STEP4E2_GATE0/A/B/C — E2 (SBR): TRAINED on HF
+      (Gate 0 + smoke + 60-epoch all complete). DO_STEP4E2_C runs the eval;
+      DO_STEP4E2_GATE0/A/B are no-ops if the HF checkpoints are present.
+      Runs AFTER the E3 verdict.
+  Stage 5 (RHAN-NX Generation 0) — the ACTIVE protocol: the SBR-0..4
+      ladder + D2 (AIS-v2 swap) + D3 (belief-HPC swap), orchestrated by
+      the multi-session stage-state machine (roadmap key "rhan_nx",
+      scripts/stage_state_machine.py): the cell executes EXACTLY ONE
+      (stage, substep) branch per run, each ending with advance() + HF sync,
+      so a session dying at any point resumes by re-running the cell.
+      Toggles: DO_RHAN_NX (master). Bases per the 2026-09-08 amendment:
+      D2/D3 from rhan_next_ais_v1_halting_only_best.pth; SBR-0 from D
+      (frozen backbone). Comparators are NEVER re-evaluated (donor rows via
+      scripts/comparator_registry.py; rule 1b).
   Stage 1/2/3 toggles (DO_STEP_A/B/C, DO_ISOLATION, DO_STAGE2, DO_STAGE3, etc.)
   all DEFAULT OFF — those stages are final.
 FORCE_STEP_B_OVERRIDE is a debug escape — do not use for publishable numbers.
@@ -4682,11 +4696,13 @@ else:
 # Pre-registered comparison: E2 vs D
 # Config change: enable_sbr=True (D has it False)
 #
-# STATUS (2026-09-04): NOT YET TRAINED — E2 is the final Stage-4 variant.
-# It runs AFTER the E3 verdict (the E3 blocks above execute first in this
-# notebook): Gate 0 → smoke → 60-epoch → eval. The eval seeds D +
-# baseline rows from the E1 sweep (REUSE_COMPARATOR_EVAL), so only the
-# 32 new rhan_next_ais_hpc_sbr cells are computed.
+# STATUS (2026-09-06): TRAINED — E2 (D + SBR) checkpoint is on HF.
+# rhan_next_ais_hpc_sbr_best.pth (epoch 60, best_val_acc 45.24%) and the
+# rolling checkpoint are on FerrariKazu/rhan-checkpoints. Gate 0 + smoke +
+# 60-epoch training all complete. The eval below (Step C) seeds D + baseline
+# rows from the E1 sweep (REUSE_COMPARATOR_EVAL), so only the 32 new
+# rhan_next_ais_hpc_sbr cells are computed. NOT yet evaluated — Step C
+# below runs the PGD-100 16-seed matched eval.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # %%
@@ -4893,6 +4909,471 @@ if DO_STAGE4_E2 and DO_STEP4E2_C:
 else:
     print("  (Stage 4-E2 Step C skipped: DO_STEP4E2_C=False)")
 
+# ═══════════════════════════════════════════════════════════════════════
+# STAGE 5 — RHAN-NX GENERATION 0 (SBR-0..4 LADDER, D2/AIS-v2, D3/BELIEF-HPC)
+# ═══════════════════════════════════════════════════════════════════════
+# Orchestrated ENTIRELY by the multi-session stage-state machine
+# (scripts/stage_state_machine.py, roadmap key "rhan_nx"). The top-level
+# dispatch below reads get_next_action() and executes EXACTLY ONE branch per
+# cell run; every branch ends with advance() (immediately persisted + synced
+# to HF), so a session dying at ANY point resumes by re-running the cell —
+# the single source of truth, never the developer's memory.
+#
+# Ladder (each stage pre-registered in docs/rhan_next_roadmap.json -> rhan_nx):
+#   gen0  -> multi-group optimizer tests + SBR slot |dW| pre-flight (GATE)
+#   sbr0  -> frozen-backbone clean-only structural gate (4 criteria, GATE)
+#   sbr1  -> joint clean fine-tune within 3pp of D's 54.96 (GATE)
+#   sbr2  -> standard 3-phase 60-epoch curriculum + belief-drift + eval
+#   sbr3  -> + relational evidence heads (fine-tune @ eps=0.094) + eval
+#   sbr4  -> + uncertainty decomposition (fine-tune) + eval (final SBR ckpt)
+#   ais_v2   -> D2: genuine info-gain gaze swap test (INDEPENDENT of SBR)
+#   hpc_belief -> D3: belief-space HPC swap test (INDEPENDENT of SBR/D2)
+#
+# Bases (AMENDMENT 2026-09-08): D2 and D3 initialize from
+# rhan_next_ais_v1_halting_only_best.pth — the immediate validated
+# checkpoint from which D's final training trajectory proceeds — NOT
+# rhan_stl10_large_pseudolabel_best.pth, so each intervention differs from D
+# primarily by its mechanism, not by additional backbone training history.
+# SBR-0 starts from D (rhan_next_ais_hpc_best.pth) with the backbone FROZEN.
+#
+# Comparators (D, baseline, B, C) are NEVER re-evaluated: donor rows come
+# from scripts/comparator_registry.py (byte-verified) and the E1-sweep
+# seeding (seed_sweep_comparators.py). Every Summary Table is asserted
+# against its own CSV before writing (rule 1c, scripts/consistency_assert.py).
+
+# %% [markdown]
+# ### Stage 5 toggles + state-machine dispatch
+
+# %%
+DO_RHAN_NX = True   # master toggle for the RHAN-NX Generation-0 ladder
+
+# RHAN-NX artifact names (per-stage).
+RHANNX = {
+    "sbr0": {"ckpt": "rhan_nx_sbr0", "base": "rhan_next_ais_hpc_best.pth",
+             "ceiling_lo": 15, "ceiling_hi": 40, "step": 5},
+    "sbr1": {"ckpt": "rhan_nx_sbr1", "base": "rhan_nx_sbr0_best.pth",
+              "ceiling_lo": 15, "ceiling_hi": 40, "step": 5},
+    "sbr2": {"ckpt": "rhan_nx_sbr2", "base": "rhan_nx_sbr1_best.pth"},
+    "sbr3": {"ckpt": "rhan_nx_sbr3", "base": "rhan_nx_sbr2_best.pth"},
+    "sbr4": {"ckpt": "rhan_nx_sbr4", "base": "rhan_nx_sbr3_best.pth"},
+    "ais_v2": {"ckpt": "rhan_nx_ais_v2",
+                "smoke_ckpt": "rhan_nx_ais_v2_smoke",
+                "base": "rhan_next_ais_v1_halting_only_best.pth"},
+    "hpc_belief": {"ckpt": "rhan_nx_hpc_belief",
+                    "smoke_ckpt": "rhan_nx_hpc_belief_smoke",
+                    "base": "rhan_next_ais_v1_halting_only_best.pth"},
+}
+RHANNX_D_CLEAN = 54.96   # D's clean accuracy, frozen record (SBR-1 gate ref)
+RHANNX_SEEDS = list(range(41, 57))   # 16 seeds, matched to D
+
+if DO_RHAN_NX:
+    sys.path.insert(0, os.path.join(_REPO_ROOT, "scripts"))
+    import stage_state_machine as ssm
+    from stage_state_machine import (
+        get_next_action, advance, ensure_rhan_nx_state, report_state)
+    # Restore the HF-synced roadmap BEFORE reading — a fresh session must
+    # never clobber runtime verdicts written by prior sessions.
+    sync_roadmap_down()
+    _roadmap = json.load(open(ROADMAP_LOCAL))
+    ensure_rhan_nx_state(_roadmap)
+    _action = get_next_action(_roadmap)
+    print(report_state(_roadmap), flush=True)
+    print(f"\n  NEXT ACTION: {_action}\n", flush=True)
+
+    def _nx_ckpt_path(name):
+        return os.path.join(_REPO_ROOT, "checkpoints", f"{name}_best.pth")
+
+    def _nx_ensure_ckpt(name):
+        """Download a checkpoint from HF if not present locally."""
+        _p = _nx_ckpt_path(name)
+        if not os.path.exists(_p):
+            try:
+                from huggingface_hub import hf_hub_download as _dlx
+                os.makedirs(os.path.dirname(_p), exist_ok=True)
+                _dlx(repo_id="FerrariKazu/rhan-checkpoints",
+                     repo_type="dataset", filename=f"{name}_best.pth",
+                     local_dir=os.path.join(_REPO_ROOT, "checkpoints"),
+                     token=hf_token)
+                print(f"  ✓ {name}_best.pth downloaded from HF")
+            except Exception as _ex:
+                print(f"  ⚠ could not download {name}: {_ex}")
+        return _p
+
+    def _nx_trainer(ckpt_name, max_epochs, extra, base, tag):
+        """One resume-safe trainer invocation (NEVER --force-restart)."""
+        _cmd = (
+            f"python3 phase1_training/train_rhan_next.py "
+            f"--enable-ais --no-ais-precision-recon "
+            f"--enable-hpc --hpc-num-levels 1 --w-hpc 0.10 "
+            f"--enable-sbr --sbr-num-slots 16 --sbr-slot-dim 512 "
+            f"--sbr-slot-iters 3 "
+            f"{extra} "
+            f"--ckpt-name {ckpt_name} --max-epochs {max_epochs} "
+            f"--target-ckpt {_nx_ensure_ckpt(base)} "
+            f"--batch-size 16 --accum-steps 16 --force-single-gpu "
+            f"--diag-json report/{ckpt_name}_diag.jsonl")
+        print(f"  [{tag}] {_cmd}")
+        if not DRY_RUN:
+            run(_cmd)
+
+    def _nx_diag_last(diag_path):
+        """Last (most recent) row of a --diag-json jsonl file."""
+        if not os.path.exists(diag_path):
+            return None
+        rows = []
+        with open(diag_path) as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if _line:
+                    try:
+                        rows.append(json.loads(_line))
+                    except Exception:
+                        pass
+        return rows[-1] if rows else None
+
+    def _nx_16seed_eval(ckpt_label, ckpt_path, sweep100, sweep50):
+        """Fresh 16-seed PGD-100 (+ PGD-50 masking leg) on the NEW checkpoint;
+        comparators seeded as donor rows from the E1 sweep."""
+        _seeds = " ".join(str(s) for s in RHANNX_SEEDS)
+        _spec = f'"{ckpt_label}:{ckpt_path}:next"'
+        # Seed the D + baseline donor cells (rule 1b — never re-evaluate).
+        run(f"python3 phase2_attacks/seed_sweep_comparators.py "
+            f"--output-dir {sweep100} "
+            f"--target-subdir {os.path.basename(sweep100)} "
+            f"--donor-subdir sweep_stage4_e1_d_e1_pgd100", check=False)
+        _pgd100 = (
+            f"python3 phase2_attacks/eval_rhan.py "
+            f"--ckpt-specs {_spec} "
+            f"--seeds {_seeds} "
+            f"--baseline-label trades_large_baseline "
+            f"--eps-list 0.0 0.094 "
+            f"--eps-norm-space "
+            f"--n-samples 300 --pgd-steps 100 --batch-size 32 "
+            f"--output-dir {sweep100} --resume "
+            f"--hf-sync --hf-eval-subdir {os.path.basename(sweep100)}")
+        _pgd50 = (
+            f"python3 phase2_attacks/eval_rhan.py "
+            f"--ckpt-specs {_spec} "
+            f"--seeds {_seeds} "
+            f"--baseline-label trades_large_baseline "
+            f"--eps-list 0.094 "
+            f"--eps-norm-space "
+            f"--n-samples 300 --pgd-steps 50 --batch-size 32 "
+            f"--output-dir {sweep50} --resume "
+            f"--hf-sync --hf-eval-subdir {os.path.basename(sweep50)}")
+        if DRY_RUN:
+            print(f"  [DRY-RUN] PGD-100: {_pgd100}")
+            print(f"  [DRY-RUN] PGD-50 : {_pgd50}")
+        else:
+            run(_pgd100)
+            run(_pgd50)
+
+    def _nx_build_report():
+        """(Re)build the consolidated report with structural-consistency
+        assertions; PENDING stages appear as pending (incremental)."""
+        _sweeps = json.dumps({
+            "sbr2": {"pgd100": "report/sweep_rhan_nx_sbr2_pgd100",
+                      "pgd50": "report/sweep_rhan_nx_sbr2_pgd50"},
+            "sbr3": {"pgd100": "report/sweep_rhan_nx_sbr3_pgd100",
+                      "pgd50": "report/sweep_rhan_nx_sbr3_pgd50"},
+            "sbr4": {"pgd100": "report/sweep_rhan_nx_sbr4_pgd100",
+                      "pgd50": "report/sweep_rhan_nx_sbr4_pgd50"},
+            "ais_v2": {"pgd100": "report/sweep_rhan_nx_ais_v2_pgd100",
+                        "pgd50": "report/sweep_rhan_nx_ais_v2_pgd50"},
+            "hpc_belief": {"pgd100": "report/sweep_rhan_nx_hpc_belief_pgd100",
+                            "pgd50": "report/sweep_rhan_nx_hpc_belief_pgd50"},
+        })
+        run(f"python3 scripts/build_rhan_nx_report.py --sweeps '{_sweeps}'",
+            check=False)
+
+    if _action.stage is not None:
+        _st = _roadmap["rhan_nx"]["stages"][_action.stage]
+
+    # ── gen0: Generation-0 optimizer infrastructure ──────────────────────
+    if _action.stage is not None and _action.stage == "gen0":
+        if _action.substep == "start":
+            print("  gen0: multi-group optimizer + tests + SBR slot |dW| "
+                  "pre-flight (the blocking Phase-1 gate)")
+            advance("gen0", "build", roadmap_path=ROADMAP_LOCAL)
+        elif _action.substep == "build":
+            _rc = run(
+                "python3 -m pytest tests/test_multi_group_optimizer.py "
+                "tests/test_sbr0_gate_criteria.py "
+                "tests/test_ais_v2_gradient_flow.py "
+                "tests/test_hpc_belief_gradient_flow.py "
+                "tests/test_comparator_reuse_integrity.py "
+                "tests/test_sbr_gradient_flow.py -q", check=False)
+            if _rc == 0:
+                advance("gen0", "gate_pending", roadmap_path=ROADMAP_LOCAL)
+            else:
+                advance("gen0", "gate_failed",
+                        reason="Generation-0 test suite failed",
+                        roadmap_path=ROADMAP_LOCAL)
+        elif _action.substep == "gate":
+            _rc = run(
+                "python3 scripts/measure_group_dw.py --group-name sbr "
+                "--ckpt checkpoints/rhan_next_ais_hpc_best.pth "
+                "--sbr-stage gate_only --steps 24 --accum 8 --micro-b 8",
+                check=False)
+            if _rc == 0:
+                advance("gen0", "gate_passed",
+                        note="test_multi_group_optimizer.py passes + SBR slot "
+                             "|dW| pre-flight in the learnable regime",
+                        roadmap_path=ROADMAP_LOCAL)
+            else:
+                advance("gen0", "gate_failed",
+                        reason="SBR slot |dW| pre-flight not in the learnable "
+                               "regime", roadmap_path=ROADMAP_LOCAL)
+        elif _action.substep == "gate_failed":
+            print("  ✗ gen0 GATE FAILED — STOP. Write the failure honestly; "
+                  "no SBR work proceeds until Generation 0 is fixed.")
+
+    # ── sbr0 / sbr1: convergence-gated clean stages ──────────────────────
+    elif _action.stage in ("sbr0", "sbr1"):
+        _info = RHANNX[_action.stage]
+        _ckpt = _info["ckpt"]
+        if _action.substep == "start":
+            advance(_action.stage, "training", ceiling=_info["ceiling_lo"],
+                    roadmap_path=ROADMAP_LOCAL)
+        elif _action.substep == "training":
+            _ceiling = int(_st.get("ceiling", _info["ceiling_lo"]))
+            _frozen = " --freeze-backbone-for-sbr0" \
+                if _action.stage == "sbr0" else ""
+            _sbr_stage_name = ("gate_only" if _action.stage == "sbr0"
+                               else "clean_classifier")
+            _extra = (f"--sbr-stage {_sbr_stage_name} {_frozen} --clean-only")
+            if not _stage4_training_done(_ckpt, _ceiling, f"{_action.stage} "):
+                _nx_trainer(_ckpt, _ceiling, _extra, _info["base"],
+                            f"{_action.stage} train->{_ceiling}")
+            if DRY_RUN or _stage4_training_done(_ckpt, _ceiling,
+                                                f"{_action.stage} "):
+                # Milestone reached -> run the stage gate.
+                if _action.stage == "sbr0":
+                    _series = os.path.join(
+                        _REPO_ROOT, "report", "rhan_nx_sbr0_cosine_series.json")
+                    _rc = run(
+                        "python3 scripts/sbr0_gate.py "
+                        f"--ckpt {_nx_ckpt_path(_ckpt)} "
+                        f"--series-out {_series} "
+                        f"--cosine-series {_series} "
+                        f"--samples 512 --batch-size 32 "
+                        f"--out report/sbr0_gate_verdict.json", check=False)
+                    _verdict = None
+                    try:
+                        _verdict = json.load(open(
+                            os.path.join(_REPO_ROOT, "report",
+                                         "sbr0_gate_verdict.json")))
+                    except Exception:
+                        pass
+                    _passed = (_rc == 0) and bool(
+                        _verdict and _verdict.get("passed"))
+                else:  # sbr1: clean accuracy within 3pp of D's frozen record
+                    _row = _nx_diag_last(
+                        os.path.join(_REPO_ROOT, "report",
+                                     f"{_ckpt}_diag.jsonl"))
+                    _te = float(_row["te_acc"]) if _row else -1.0
+                    _passed = abs(_te - RHANNX_D_CLEAN) <= 3.0
+                    _verdict = {"sbr1_clean_acc": _te,
+                                "d_reference": RHANNX_D_CLEAN,
+                                "within_3pp": _passed}
+                    with open(os.path.join(_REPO_ROOT, "report",
+                                           "sbr1_gate_verdict.json"),
+                              "w") as _f:
+                        json.dump(_verdict, _f, indent=2)
+                if _passed:
+                    print(f"  ✓ {_action.stage} GATE PASSED at ceiling "
+                          f"{_ceiling} — advance to the next stage")
+                    advance(_action.stage, "gate_passed",
+                            ceiling=_ceiling, verdict=_verdict,
+                            roadmap_path=ROADMAP_LOCAL)
+                elif _ceiling >= _info["ceiling_hi"]:
+                    print(f"  ✗ {_action.stage} gate NOT passed by ceiling "
+                          f"{_ceiling} ({_info['ceiling_hi']} = ceiling) — "
+                          f"FAIL, reported honestly, ladder stops.")
+                    advance(_action.stage, "gate_failed", ceiling=_ceiling,
+                            verdict=_verdict, roadmap_path=ROADMAP_LOCAL)
+                else:
+                    _next = min(_ceiling + _info["step"], _info["ceiling_hi"])
+                    print(f"  gate not passed at {_ceiling}; resume training "
+                          f"to ceiling {_next}")
+                    advance(_action.stage, "training", ceiling=_next,
+                            roadmap_path=ROADMAP_LOCAL)
+        elif _action.substep == "gate_failed":
+            print(f"  ✗ {_action.stage} GATE FAILED — STOP. Diagnose "
+                  f"slot-count/dim/freeze before any further SBR work.")
+
+    # ── sbr2/3/4: adversarial ramp + relational + uncertainty ────────────
+    elif _action.stage in ("sbr2", "sbr3", "sbr4"):
+        _info = RHANNX[_action.stage]
+        _ckpt = _info["ckpt"]
+        _sweep100 = os.path.join(_REPO_ROOT, "report",
+                                 f"sweep_rhan_nx_{_action.stage}_pgd100")
+        _sweep50 = os.path.join(_REPO_ROOT, "report",
+                                f"sweep_rhan_nx_{_action.stage}_pgd50")
+        if _action.substep == "start":
+            advance(_action.stage, "training", roadmap_path=ROADMAP_LOCAL)
+        elif _action.substep == "training":
+            if _action.stage == "sbr2":
+                _extra = "--sbr-stage adversarial_ramp --belief-drift-every 10"
+                _maxep = 60
+            else:
+                # SBR-3/4: targeted fine-tune at SBR-2's final eps (0.094),
+                # only the NEW params need integration time.
+                _sbr_stage_name = ("relational" if _action.stage == "sbr3"
+                                   else "uncertainty")
+                _extra = (f"--sbr-stage {_sbr_stage_name} --fixed-eps 0.094")
+                _maxep = 20
+            if not _stage4_training_done(_ckpt, _maxep, f"{_action.stage} "):
+                _nx_trainer(_ckpt, _maxep, _extra, _info["base"],
+                            f"{_action.stage} train->{_maxep}")
+            if DRY_RUN or _stage4_training_done(_ckpt, _maxep,
+                                                f"{_action.stage} "):
+                print(f"  ✓ {_action.stage} training complete "
+                      f"({_maxep} epochs) — eval pending")
+                advance(_action.stage, "eval_pending",
+                        roadmap_path=ROADMAP_LOCAL)
+        elif _action.substep == "eval":
+            _nx_16seed_eval(_ckpt, _nx_ckpt_path(_ckpt), _sweep100, _sweep50)
+            if DRY_RUN:
+                advance(_action.stage, "eval_complete",
+                        roadmap_path=ROADMAP_LOCAL)
+            else:
+                _csv100 = os.path.join(_sweep100, "epsilon_sweep_per_seed.csv")
+                if os.path.exists(_csv100):
+                    advance(_action.stage, "eval_complete",
+                            sweep=_sweep100, roadmap_path=ROADMAP_LOCAL)
+                else:
+                    print("  ⚠ eval CSV not found after run — re-run the "
+                          "eval cell (resume-safe)")
+        elif _action.substep == "verdict":
+            _nx_build_report()
+            advance(_action.stage, "done", roadmap_path=ROADMAP_LOCAL)
+
+    # ── ais_v2 (D2) / hpc_belief (D3): swap tests ────────────────────────
+    elif _action.stage in ("ais_v2", "hpc_belief"):
+        _info = RHANNX[_action.stage]
+        _ckpt = _info["ckpt"]
+        _smoke = _info["smoke_ckpt"]
+        _sweep100 = os.path.join(_REPO_ROOT, "report",
+                                 f"sweep_rhan_nx_{_action.stage}_pgd100")
+        _sweep50 = os.path.join(_REPO_ROOT, "report",
+                                f"sweep_rhan_nx_{_action.stage}_pgd50")
+        _smoke_extra = (f"--ais-variant info_gain_v2"
+                        if _action.stage == "ais_v2" else
+                        f"--hpc-target belief")
+        if _action.substep == "start":
+            advance(_action.stage, "training", phase="smoke",
+                    roadmap_path=ROADMAP_LOCAL)
+        elif _action.substep == "training" and _st.get("phase") == "smoke":
+            # Smoke (15 epochs) -> gate.
+            if not _stage4_training_done(_smoke, 15, f"{_action.stage}-smoke "):
+                _nx_trainer(_smoke, 15, _smoke_extra, _info["base"],
+                            f"{_action.stage} smoke")
+            if DRY_RUN or _stage4_training_done(_smoke, 15,
+                                                f"{_action.stage}-smoke "):
+                advance(_action.stage, "gate_pending",
+                        roadmap_path=ROADMAP_LOCAL)
+        elif _action.substep == "training" and _st.get("phase") == "full":
+            if not _stage4_training_done(_ckpt, 60, f"{_action.stage} "):
+                _nx_trainer(_ckpt, 60, _smoke_extra, _info["base"],
+                            f"{_action.stage} full")
+            if DRY_RUN or _stage4_training_done(_ckpt, 60,
+                                                f"{_action.stage} "):
+                print(f"  ✓ {_action.stage} 60-epoch run complete — eval "
+                      f"pending")
+                advance(_action.stage, "eval_pending",
+                        roadmap_path=ROADMAP_LOCAL)
+        elif _action.substep == "gate":
+            _ok = True
+            _rc = run(
+                "python3 -m pytest "
+                + ("tests/test_ais_v2_gradient_flow.py -q"
+                   if _action.stage == "ais_v2" else
+                   "tests/test_hpc_belief_gradient_flow.py "
+                   "tests/test_hpc_disable_backward_compat.py -q"),
+                check=False)
+            _ok = _ok and (_rc == 0 or DRY_RUN)
+            if _action.stage == "ais_v2":
+                # Candidate-preference + gaze-shift gate (the genuinely new
+                # check: predicted vs observed surprise correlation > 0).
+                _rc2 = run(
+                    "python3 scripts/eval_ais_v2_gate.py "
+                    f"--ckpt {_nx_ckpt_path(_smoke)} "
+                    f"--samples 512 --batch-size 32 "
+                    f"--out report/rhan_nx_ais_v2_smoke_gate.json",
+                    check=False)
+                _ok = _ok and (_rc2 == 0 or DRY_RUN)
+            else:
+                # Belief-HPC smoke gate: error trend >= 10% decline + Pi_D
+                # reference envelope (car #1) with truck-rank WATCH
+                # non-blocking (the Stage 2 gate amendment applies).
+                _rows = []
+                _diag = os.path.join(_REPO_ROOT, "report",
+                                     f"{_smoke}_diag.jsonl")
+                if os.path.exists(_diag):
+                    with open(_diag) as _f:
+                        for _line in _f:
+                            _line = _line.strip()
+                            if _line:
+                                try:
+                                    _rows.append(json.loads(_line))
+                                except Exception:
+                                    pass
+                if len(_rows) >= 2:
+                    _e0 = float(_rows[0]["hpc_error_mean"])
+                    _eN = float(_rows[-1]["hpc_error_mean"])
+                    _trend_ok = _eN <= 0.9 * _e0
+                    _pd = _rows[-1].get("pi_d_per_class", {})
+                    _car_first = (max(_pd, key=_pd.get) == "car")
+                    _ok = _ok and _trend_ok and _car_first
+                    print(f"  belief-HPC smoke: hpc_error {_e0:.4f} -> "
+                          f"{_eN:.4f} (trend_ok={_trend_ok}), "
+                          f"car #1={_car_first}", flush=True)
+                else:
+                    print("  ⚠ belief-HPC smoke diag incomplete — gate "
+                          "cannot pass", flush=True)
+                    _ok = False
+            if _ok:
+                print(f"  ✓ {_action.stage} SMOKE GATE PASSED — proceed to "
+                      f"the 60-epoch run")
+                advance(_action.stage, "training", phase="full",
+                        roadmap_path=ROADMAP_LOCAL)
+            else:
+                print(f"  ✗ {_action.stage} SMOKE GATE FAILED — STOP; "
+                      f"diagnose before the full run")
+                advance(_action.stage, "gate_failed",
+                        roadmap_path=ROADMAP_LOCAL)
+        elif _action.substep == "eval":
+            _nx_16seed_eval(_ckpt, _nx_ckpt_path(_ckpt), _sweep100, _sweep50)
+            if DRY_RUN:
+                advance(_action.stage, "eval_complete",
+                        roadmap_path=ROADMAP_LOCAL)
+            else:
+                _csv100 = os.path.join(_sweep100, "epsilon_sweep_per_seed.csv")
+                if os.path.exists(_csv100):
+                    advance(_action.stage, "eval_complete",
+                            sweep=_sweep100, roadmap_path=ROADMAP_LOCAL)
+                else:
+                    print("  ⚠ eval CSV not found after run — re-run the "
+                          "eval cell (resume-safe)")
+        elif _action.substep == "verdict":
+            _nx_build_report()
+            advance(_action.stage, "done", roadmap_path=ROADMAP_LOCAL)
+        elif _action.substep == "gate_failed":
+            print(f"  ✗ {_action.stage} GATE FAILED — STOP. Write the honest "
+                  f"failure verdict; no downstream comparison is built on it.")
+    else:
+        print(f"  unknown action {_action}", flush=True)
+
+    # advance() already persisted every decision to the roadmap the moment it
+    # was made (never batched — a session dying right after a decision cannot
+    # lose it); push the HF copy so a restarted session resumes from here.
+    sync_roadmap_up()
+elif DO_RHAN_NX:
+    print("\n  ✅ RHAN-NX ladder COMPLETE — all stages reported.")
+    print("  Consolidated report: report/rhan_nx_generation1_report.md")
+    _nx_build_report()
+
 # %% [markdown]
 # ## End of notebook — Stage 4 status
 #
@@ -4903,6 +5384,8 @@ else:
 # current run; once it finishes, record the E3 verdict vs D (comparator
 # rows reused from the E1 sweep).
 #
-# E2 (SBR): the remaining Stage-4 variant. If its blocks ran this
-# session it has now trained (Gate 0 → smoke → 60-epoch) and evaluated;
-# otherwise it is still NOT TRAINED and runs next, after the E3 verdict.
+# E2 (SBR): TRAINED (Gate 0 → smoke → 60-epoch all complete on HF).
+# rhan_next_ais_hpc_sbr_best.pth is on HF (epoch 60, best_val_acc 45.24%).
+# NOT yet evaluated — the Step C eval above runs the PGD-100 16-seed
+# matched eval (D + baseline seeded from the E1 sweep, only the 32 E2 cells
+# computed). After the eval finishes, record the E2 verdict vs D.

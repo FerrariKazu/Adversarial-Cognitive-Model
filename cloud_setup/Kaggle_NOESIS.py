@@ -1,24 +1,33 @@
 #!/usr/bin/env python3
 """
-Kaggle Notebook — RHAN-Next Stage 4-E1 Execution
+Kaggle Notebook — RHAN-Next Stage 4 (E1/E2/E3) Execution
 =================================================
-ACTIVE protocol: Stage 4-E1 (E1 = AIS-v1 + HPC + recon-mod, matrix E1_ais_hpc_recon)
-smoke → health gate → 60-epoch train → 16-seed co-eval with D → verdict.
-
-Toggles (current defaults for E1-only run):
-  DO_STEP4_A = True   smoke test (15 epochs, epsilon=0.031)
-  DO_STEP4_B = True   full 60-epoch 3-phase training (smoke-gated)
-  DO_STEP4_C = False  16-seed eval — SET TRUE ONLY AFTER STEP B COMPLETES
-  All Stage 1/2/3 toggles = False
-
 Stages 1–3 are COMPLETE and FINAL:
   Stage 1: AIS-v1 halting-only, +8.5 pp @ ε=0.094 — NOT significant.
   Stage 2: HPC-only, +3.92 pp @ ε=0.094 — NOT significant.
   Stage 3: D = AIS-v1 + HPC, +11.54 pp @ ε=0.094, p≈2×10⁻⁵ — VALIDATED.
 
-Stage 4-E1 is the ONLY active stage in this notebook.
-All Stage 1/2/3 toggles are disabled (DO_STAGE2/DO_STAGE3 = False).
-Re-enable a prior stage toggle only to deliberately re-run that step.
+Stage 4 tests three INDEPENDENT extensions of D (each trained from D's
+validated checkpoint, co-evaluated vs D: 16 seeds 41–56, PGD-100,
+norm-space eps, n=300):
+
+  E1 = D + recon-mod — COMPLETE (verdict recorded 2026-08-31):
+      +3.10 pp clean (16/16 seeds), -0.90 pp @ ε=0.094 (D wins 10/16),
+      d' flat (1.06 vs 1.08) → null on robustness. recon-mod DEFERRED —
+      not part of the headline config. E1 blocks below are INERT:
+      training complete + eval cached on HF, so resume is a no-op.
+  E3 = D + T=6 foraging (max_foraging_steps=6) — Step B (60-epoch)
+      COMPLETE on HF (best 57.35%). CURRENT ACTION: Step C 16-seed eval.
+      D + baseline rows are REUSED from the E1 sweep via
+      seed_sweep_comparators.py (REUSE_COMPARATOR_EVAL = True), so the
+      eval computes ONLY the 32 new rhan_next_ais_hpc_t6 cells.
+  E2 = D + SBR (enable_sbr=True) — NOT YET TRAINED. Runs AFTER the E3
+      verdict: Gate 0 (clean SBR convergence) → smoke → 60-epoch →
+      16-seed eval (D + baseline seeded the same way). Requires origin
+      >= df870e9 — --enable-sbr exists only from that commit.
+
+All Stage 1/2/3 toggles stay disabled (DO_STAGE2/DO_STAGE3 = False);
+re-enable a prior stage toggle only to deliberately re-run that step.
 This is the Kaggle-native twin of cloud_setup/colab_notebook_noesis.py:
 identical protocol, gate logic, NEVER-RESTART guarantees, and artifact
 names — adapted for a Kaggle Notebook runtime.
@@ -34,23 +43,24 @@ KAGGLE ADAPTATIONS (vs the Colab twin):
                   this notebook only installs what is MISSING (it never
                   upgrades pip/setuptools on the managed env — avoids the
                   Colab setuptools-83-vs-torch<82 conflict).
-  - Accelerator : select "GPU T4 x2" (or T4 x1 fallback). TRAINING (Steps A/B)
-                  always uses --force-single-gpu (no DDP — Turing sm_75
-                  DataParallel crash avoidance, repo convention), so T4x2 does
-                  NOT speed up training (~2.7 ep/hr on one T4). STEP C detects
-                  2 GPUs and runs the PGD-50 grid + PGD-100 spot-check
-                  CONCURRENTLY on separate GPUs (CUDA_VISIBLE_DEVICES pinning,
-                  the shard_2gpu.py pattern). The two legs are only
-                  APPROXIMATELY balanced today (GPU0: 2 ckpts x 5 seeds x 2 eps
-                  at PGD-50; GPU1: 2 x 5 x 1 eps at PGD-100, ~2x cost) — wall-
-                  clock savings are rough, not exact; changing either leg's
-                  budget silently changes the parallel run's balance.
+  - Accelerator : select "GPU T4 x2" (or T4 x1 fallback). TRAINING always
+                  uses --force-single-gpu (no DDP — Turing sm_75 DataParallel
+                  crash avoidance, repo convention), so T4x2 does NOT speed
+                  up training (~2.7 ep/hr on one T4). The Stage 1/2 Step C
+                  evals detect 2 GPUs and run the PGD-50 grid + PGD-100
+                  spot-check CONCURRENTLY on separate GPUs via
+                  CUDA_VISIBLE_DEVICES pinning (run_eval_legs, the
+                  shard_2gpu.py pattern — independent single-GPU processes);
+                  the Stage 4 Step C evals run their single PGD-100 leg on
+                  whichever GPU is free. On 1 GPU everything runs
+                  sequentially.
   - Session     : Kaggle GPU sessions cap at ~9 h (up to 12 h on some tiers).
                   Step B (60 epochs ≈ 21 h on a T4) therefore spans 3-4
                   sessions; the mandatory HF rolling-resume gate +
                   verify_no_restart make that safe — NEVER --force-restart.
                   Run DO_RESUME_SELFTEST on the FIRST session only (proves the
                   resume path once), then set it False on later sessions.
+
 Pre-registered STAGE 1 protocol record — what the Stage 1 blocks below
 execute when re-enabled — for RHANNext(enable_ais=True, enable_hpc=False):
 
@@ -221,9 +231,14 @@ validated checkbox is checked.
 Usage: paste cells into a Kaggle Notebook (or run the whole file).
 Set HF_TOKEN in Kaggle Secrets (Add-ons > Secrets > "HF_TOKEN").
 Select accelerator GPU T4 x2 (recommended) or T4 x1. Internet: ON.
-Toggles: the ACTIVE protocol is DO_STAGE4_E1 / DO_STEP4_A/B/C.
-  DO_STEP4_B = True  → full 60-epoch E1 training (runs immediately after smoke gate)
-  DO_STEP4_C = False → eval is DISABLED; set True only after Step B completes
+Toggles: Stage-4 blocks execute top-to-bottom as E1 → E3 → E2:
+  DO_STAGE4_E1 / DO_STEP4_A/B/C — E1 (recon-mod): COMPLETE & INERT
+      (resume no-op + cached eval; DO_STEP4_C stays True, harmless).
+  DO_STAGE4_E3 / DO_STEP4E3_A/B/C — E3 (T=6): smoke + Step B already
+      complete on HF; DO_STEP4E3_C runs the CURRENT eval (D + baseline
+      seeded from the E1 sweep — only the 32 t6 cells are computed).
+  DO_STAGE4_E2 / DO_STEP4E2_GATE0/A/B/C — E2 (SBR): NOT YET TRAINED;
+      Gate 0 → smoke → 60-epoch → eval all run AFTER the E3 verdict.
   Stage 1/2/3 toggles (DO_STEP_A/B/C, DO_ISOLATION, DO_STAGE2, DO_STAGE3, etc.)
   all DEFAULT OFF — those stages are final.
 FORCE_STEP_B_OVERRIDE is a debug escape — do not use for publishable numbers.
@@ -456,8 +471,7 @@ if os.path.exists(BASE):
     print(f"✓ base checkpoint present: {BASE} ({os.path.getsize(BASE)/1e6:.0f} MB)", flush=True)
 
 # ── Resume-gate helpers (NEVER-RESTART GUARANTEE, v12-parity) ─────────────
-# Kaggle wipes /kaggle/working between sessions, so local checkpoints +
-# telemetry
+# Kaggle wipes /kaggle/working between sessions, so local checkpoints + telemetry
 # survive only within a session. The HF rolling repo is the SINGLE source of
 # truth for training progress. These helpers make the NOTEBOOK itself
 # resume-aware so a restarted session can never force-restart and never
@@ -807,8 +821,7 @@ for r in rows:
 
 # ── Resume-aware gate ─────────────────────────────────────────────────────
 # If this session ran Step A, rows holds fresh telemetry -> normal path. If
-# rows is empty, /kaggle/working was wiped (session restart): decide from HF
-# state
+# rows is empty, /kaggle/working was wiped (session restart): decide from HF state
 # so a restart can NEVER force-restart and NEVER blocks the auto-resume.
 verdict = None
 if rows:
@@ -1285,8 +1298,7 @@ print("="*70)
 # end at epoch 2 and fail the assertion). ~1.5h on a T4.
 if DRY_RUN and DO_RESUME_SELFTEST and not SKIP_TRAINING and PROCEED_STEP_B:
     print("\n  [DRY-RUN] RESUME SELF-TEST would run: rhan_next_resume_selftest "
-          "(2 epochs -> simulated /kaggle/working wipe -> resume to 3, ~1.5h "
-          "on a "
+          "(2 epochs -> simulated /kaggle/working wipe -> resume to 3, ~1.5h on a "
           "T4) — not executed in pre-flight.", flush=True)
 
 if DO_RESUME_SELFTEST and not SKIP_TRAINING and PROCEED_STEP_B and not DRY_RUN:
@@ -1303,8 +1315,7 @@ if DO_RESUME_SELFTEST and not SKIP_TRAINING and PROCEED_STEP_B and not DRY_RUN:
     if ep1 != 2:
         raise RuntimeError(
             f"[resume-selftest] session-1 rolling epoch {ep1} != 2 — aborting.")
-    # Simulate a /kaggle/working wipe: delete the LOCAL rolling checkpoint so
-    # the
+    # Simulate a /kaggle/working wipe: delete the LOCAL rolling checkpoint so the
     # second launch is forced to restore from HF (the real multi-session path).
     for p in (f"checkpoints/rhan_next_resume_selftest_rolling.pth",
               f"checkpoints/rhan_next_resume_selftest_best.pth"):
@@ -1501,6 +1512,46 @@ def ensure_ckpt(name):
             pass
     raise RuntimeError(f"No checkpoint found for {name} (local or HF). Train Step B first.")
 
+print("\n" + "="*70)
+print("  STEP C: 5-SEED MATCHED EVAL — rhan_next_ais_v1_halting_only vs TRADES Large baseline")
+print("="*70)
+
+# Skip-if-complete guard (2026-08-09): a same-session re-run or a wiped
+# session with HF-synced CSVs must NOT re-burn ~5 GPU-h on the 5-seed eval
+# that already completed. Restores the per-seed CSV from HF when missing;
+# the eval runs only when the CSV is genuinely absent everywhere.
+import csv as _csvc
+
+STEP_C_MAIN = "report/sweep_stage1_ais_v1_halting_only"
+STEP_C_MAIN100 = STEP_C_MAIN + "_pgd100"
+STEP_C_SEEDS = [41, 42, 43, 44, 45]
+
+
+def _stepC_done(main_dir, seeds, eps_list):
+    """True when the 5-seed per-seed CSV covers every (ckpt, eps) combo AND
+    the provenance JSON exists — i.e. Step C already completed here or in a
+    prior session (restored from HF)."""
+    _csv_p = os.path.join(main_dir, "epsilon_sweep_per_seed.csv")
+    _prov_p = os.path.join(main_dir, "eval_provenance.json")
+    if not os.path.exists(_csv_p):
+        download_hf_file(os.path.basename(main_dir) + "_epsilon_sweep_per_seed.csv",
+                         _csv_p)
+    if not os.path.exists(_prov_p):
+        download_hf_file(os.path.basename(main_dir) + "_eval_provenance.json",
+                         _prov_p)
+    if not os.path.exists(_csv_p) or not os.path.exists(_prov_p):
+        return False
+    got = {}
+    with open(_csv_p, newline='') as f:
+        for _r in _csvc.DictReader(f):
+            got.setdefault((_r['ckpt_label'],
+                            round(float(_r['eps_pixel']), 4)),
+                           set()).add(int(_r['seed']))
+    return all(set(seeds) <= got.get((lab, eps), set())
+               for lab in ("rhan_next_ais_v1_halting_only",
+                           "trades_large_baseline")
+               for eps in eps_list)
+
 
 def run_eval_legs(cmd50, cmd100):
     """Run the two independent eval legs (PGD-50 grid, PGD-100 spot-check).
@@ -1558,46 +1609,6 @@ def run_eval_legs(cmd50, cmd100):
         raise subprocess.CalledProcessError(rcs, "parallel eval legs (T4x2)")
     print("\n  ✓ both eval legs completed in parallel (T4x2)", flush=True)
 
-print("\n" + "="*70)
-print("  STEP C: 5-SEED MATCHED EVAL — rhan_next_ais_v1_halting_only vs TRADES Large baseline")
-print("="*70)
-
-# Skip-if-complete guard (2026-08-09): a same-session re-run or a wiped
-# session with HF-synced CSVs must NOT re-burn ~5 GPU-h on the 5-seed eval
-# that already completed. Restores the per-seed CSV from HF when missing;
-# the eval runs only when the CSV is genuinely absent everywhere.
-import csv as _csvc
-
-STEP_C_MAIN = "report/sweep_stage1_ais_v1_halting_only"
-STEP_C_MAIN100 = STEP_C_MAIN + "_pgd100"
-STEP_C_SEEDS = [41, 42, 43, 44, 45]
-
-
-def _stepC_done(main_dir, seeds, eps_list):
-    """True when the 5-seed per-seed CSV covers every (ckpt, eps) combo AND
-    the provenance JSON exists — i.e. Step C already completed here or in a
-    prior session (restored from HF)."""
-    _csv_p = os.path.join(main_dir, "epsilon_sweep_per_seed.csv")
-    _prov_p = os.path.join(main_dir, "eval_provenance.json")
-    if not os.path.exists(_csv_p):
-        download_hf_file(os.path.basename(main_dir) + "_epsilon_sweep_per_seed.csv",
-                         _csv_p)
-    if not os.path.exists(_prov_p):
-        download_hf_file(os.path.basename(main_dir) + "_eval_provenance.json",
-                         _prov_p)
-    if not os.path.exists(_csv_p) or not os.path.exists(_prov_p):
-        return False
-    got = {}
-    with open(_csv_p, newline='') as f:
-        for _r in _csvc.DictReader(f):
-            got.setdefault((_r['ckpt_label'],
-                            round(float(_r['eps_pixel']), 4)),
-                           set()).add(int(_r['seed']))
-    return all(set(seeds) <= got.get((lab, eps), set())
-               for lab in ("rhan_next_ais_v1_halting_only",
-                           "trades_large_baseline")
-               for eps in eps_list)
-
 
 def _eval_cmds(rhan_ckpt, bsl_ckpt):
     """Return (cmd50, cmd100) — the two independent eval legs."""
@@ -1648,12 +1659,6 @@ if DO_STEP_C and (PROCEED_STEP_B or SKIP_TRAINING):
             "checkpoints/rhan_stl10_large_pseudolabel_best.pth")
         run_eval_legs(cmd50, cmd100)
     else:
-        # Self-test the eval entrypoint first (structural, against checked-in ref).
-        run("python3 phase2_attacks/eval_rhan.py --self-test")
-
-        rhan_ckpt = ensure_ckpt("rhan_next_ais_v1_halting_only_best.pth")
-        bsl_ckpt  = ensure_ckpt("rhan_stl10_large_pseudolabel_best.pth")
-
         if _stepC_done(STEP_C_MAIN, STEP_C_SEEDS, (0.000, 0.094)) and \
            _stepC_done(STEP_C_MAIN100, STEP_C_SEEDS, (0.094,)):
             print("\n  [C] Step C already complete (5-seed per-seed CSVs + "
@@ -3618,7 +3623,7 @@ if DO_STAGE3 and DO_STEP3_B and not SKIP_STAGE3_TRAINING:
                     _tc_fb = os.path.join(os.path.dirname(_d_ckpt_path),
                                           'training_complete.json')
                     with open(_tc_fb, 'w') as _ftc_fb:
-                        _json.dump({'ckpt_name': D_FULL_CKPT,
+                        _json_fb.dump({'ckpt_name': D_FULL_CKPT,
                                     'best_acc': 0,
                                     'max_epochs': 60,
                                     'last_epoch': 60,
@@ -4104,7 +4109,9 @@ print("="*70)
 #   H1b: E1 reproduces car/airplane Π_D top-2 (truck displaced)
 #   H1c: Belief drift measured for D and E1 together
 #
-# E2 gate: LOCKED until E1 verdict recorded.
+# STATUS: E1 verdict RECORDED (2026-08-31) → null on robustness, recon-mod
+# DEFERRED. E2 gate now UNLOCKED — but E2 (SBR) has NOT been trained yet:
+# E3 (below) evaluates first, then E2 runs as the final Stage-4 variant.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # %% [markdown]
@@ -4115,7 +4122,7 @@ print("="*70)
 DO_STAGE4_E1      = True
 DO_STEP4_A        = True    # smoke test (15 epochs, recon-mod interaction check)
 DO_STEP4_B        = True    # full 60-epoch 3-phase run (gated on Stage 4 health gate)
-DO_STEP4_C        = False   # 16-seed matched eval — DISABLED until Step B completes
+DO_STEP4_C        = True   # 16-seed matched eval — DISABLED until Step B completes
 SKIP_STAGE4_TRAINING = False  # eval-only mode
 SMOKE4_EPOCHS     = 15
 E1_SEEDS          = list(range(41, 57))  # 16 seeds: 41-56
@@ -4161,6 +4168,107 @@ except Exception as _e4:
         "--enable-hpc", "--hpc-num-levels", "1", "--w-hpc", "0.1",
         "--ckpt-name", E1_FULL_CKPT,
     ])
+
+# %%
+# ── Stage 4 completion-marker helpers (commit-agnostic) ────────────────────
+# The trainer uploads ONE shared training_complete.json (last run wins). The
+# E1/E3/E2 blocks ALSO maintain a PER-CKPT marker ({ckpt}_training_complete.json)
+# so a completed earlier variant is never masked by a later variant's shared
+# marker. Reads: local first, then the HF dataset repo (the trainer's sync
+# target — the 'model' repo does not exist, so legacy model-repo reads 404
+# silently and are not retried).
+
+def _stage4_read_marker_json(ckpt_name):
+    """Completion-marker dict naming ckpt_name (per-ckpt then shared), or None."""
+    cand = []
+    for _f in (f"{ckpt_name}_training_complete.json", "training_complete.json"):
+        _p = os.path.join(_REPO_ROOT, "checkpoints", _f)
+        if os.path.exists(_p):
+            try:
+                with open(_p) as _fh:
+                    cand.append(json.load(_fh))
+            except Exception:
+                pass
+    for _f in (f"{ckpt_name}_training_complete.json", "training_complete.json"):
+        try:
+            from huggingface_hub import hf_hub_download as _dl_m
+            _tmp = _dl_m(repo_id="FerrariKazu/rhan-checkpoints",
+                         filename=_f, repo_type="dataset", token=hf_token)
+            with open(_tmp) as _fh:
+                cand.append(json.load(_fh))
+        except Exception:
+            pass
+    for _m in cand:
+        if isinstance(_m, dict) and _m.get("ckpt_name") == ckpt_name:
+            return _m
+    return None
+
+
+def _stage4_hf_has(filename):
+    try:
+        from huggingface_hub import HfApi
+        return filename in HfApi(token=hf_token).list_repo_files(
+            repo_id="FerrariKazu/rhan-checkpoints", repo_type="dataset")
+    except Exception:
+        return False
+
+
+def _stage4_rolling_epoch(ckpt_name):
+    """Final logged epoch of ckpt_name's HF rolling checkpoint (-1 if n/a)."""
+    try:
+        from huggingface_hub import hf_hub_download as _dl_r
+        from checkpoint_utils import compat_load
+        _tmp = _dl_r(repo_id="FerrariKazu/rhan-checkpoints-rolling",
+                     filename=f"{ckpt_name}_rolling.pth", repo_type="dataset",
+                     token=hf_token)
+        return int(compat_load(_tmp, map_location="cpu").get("epoch", -1))
+    except Exception:
+        return -1
+
+
+def _stage4_upload_marker(ckpt_name, max_epochs, last_epoch, best_acc):
+    try:
+        from checkpoint_utils import current_code_commit
+        _mk = {"ckpt_name": ckpt_name, "best_acc": float(best_acc or 0),
+               "max_epochs": max_epochs, "last_epoch": last_epoch,
+               "code_commit": current_code_commit()}
+        os.makedirs(os.path.join(_REPO_ROOT, "checkpoints"), exist_ok=True)
+        _p = os.path.join(_REPO_ROOT, "checkpoints",
+                          f"{ckpt_name}_training_complete.json")
+        with open(_p, "w") as _fh:
+            json.dump(_mk, _fh)
+        from huggingface_hub import HfApi
+        HfApi(token=hf_token).upload_file(
+            path_or_fileobj=_p,
+            path_in_repo=f"{ckpt_name}_training_complete.json",
+            repo_id="FerrariKazu/rhan-checkpoints", repo_type="dataset",
+            token=hf_token)
+        print(f"  ✓ per-ckpt completion marker uploaded ({ckpt_name})",
+              flush=True)
+    except Exception as _e_u:
+        print(f"  ⚠ completion-marker upload failed ({_e_u})", flush=True)
+
+
+def _stage4_training_done(ckpt_name, max_epochs, tag="", best_acc_hint=None):
+    """True if ckpt_name's training is already complete:
+      1) a completion marker names it (local or HF, per-ckpt or shared), or
+      2) its HF rolling checkpoint logged the final epoch (marker upload may
+         have failed — self-heal by writing the per-ckpt marker).
+    Never launches, deletes, or restarts anything."""
+    _m = _stage4_read_marker_json(ckpt_name)
+    if _m is not None:
+        print(f"  [SKIP] {tag}{ckpt_name} training already complete "
+              f"(best={_m.get('best_acc', '?')}%)", flush=True)
+        return True
+    if _stage4_hf_has(f"{ckpt_name}_best.pth"):
+        _ep = _stage4_rolling_epoch(ckpt_name)
+        if _ep >= int(max_epochs):
+            print(f"  [SKIP] {tag}{ckpt_name} complete (rolling epoch "
+                  f"{_ep}/{max_epochs}, no marker) — self-healing marker",
+                  flush=True)
+            _stage4_upload_marker(ckpt_name, max_epochs, _ep, best_acc_hint)
+            return True
+    return False
 
 # %% [markdown]
 # ### Stage 4-E1 — STEP A: SMOKE TEST (15 epochs, E1 = D + recon-mod)
@@ -4234,6 +4342,7 @@ if DO_STAGE4_E1 and DO_STEP4_A and not SKIP_STAGE4_TRAINING:
                 last4 = _json4h.loads(lines4[-1])
                 health4 = {"checks": {}, "passed": True, "failures": []}
 
+                # Check 1: gaze shift
                 gs = last4.get("gaze_shift_total_mean", 0)
                 health4["checks"]["gaze_shift"] = {
                     "value": gs, "threshold": 0.05,
@@ -4243,6 +4352,7 @@ if DO_STAGE4_E1 and DO_STEP4_A and not SKIP_STAGE4_TRAINING:
                     health4["passed"] = False
                     health4["failures"].append(f"gaze_shift={gs:.4f} < 0.05")
 
+                # Check 2: HPC error trend
                 if len(lines4) >= 2:
                     first4 = _json4h.loads(lines4[0])
                     hpc_first = first4.get("hpc_error_mean", 0)
@@ -4257,6 +4367,17 @@ if DO_STAGE4_E1 and DO_STEP4_A and not SKIP_STAGE4_TRAINING:
                             health4["passed"] = False
                             health4["failures"].append(
                                 f"hpc_error decrease {hpc_decrease*100:.1f}% < 10%")
+
+                # Check 3: recon-mod gradient flow (non-blocking)
+                # If recon error is NaN or zero, the re-enabled path may be broken
+                recon_err = last4.get("recon_mse", 0)
+                if isinstance(recon_err, float) and (math.isnan(recon_err) or recon_err == 0):
+                    health4["checks"]["recon_flow"] = {
+                        "recon_mse": recon_err, "passed": False}
+                    health4["failures"].append(f"recon_mse={recon_err} (NaN or zero)")
+                else:
+                    health4["checks"]["recon_flow"] = {
+                        "recon_mse": recon_err, "passed": True}
 
                 with open(smoke_health4, "w") as _fh4:
                     _json4h.dump(health4, _fh4, indent=2)
@@ -4307,15 +4428,12 @@ if DO_STAGE4_E1 and DO_STEP4_B and not SKIP_STAGE4_TRAINING:
 
     _e1_ckpt_path = os.path.join(_REPO_ROOT, f"checkpoints/{E1_FULL_CKPT}_best.pth")
 
-    _tc4_done = False
-    _tc4_marker = os.path.join(_REPO_ROOT, "checkpoints", "training_complete.json")
-    if os.path.exists(_tc4_marker):
-        import json as _json4tc
-        with open(_tc4_marker) as _ftc4:
-            _tc_data4 = _json4tc.load(_ftc4)
-        if _tc_data4.get('ckpt_name') == E1_FULL_CKPT:
-            _tc4_done = True
-            print(f"  [SKIP] E1 training already complete")
+    # Training-complete check: per-ckpt/shared marker, local + HF dataset
+    # repo (the trainer's sync target). A fresh session has NO local marker,
+    # so the old local-only read re-launched completed runs and died on the
+    # resume commit guard once the code moved past the run's commit (2026-09-04).
+    _tc4_done = _stage4_training_done(E1_FULL_CKPT, 60, "E1 ",
+                                      best_acc_hint=57.96)
 
     if not os.path.exists(_e1_ckpt_path) and not _tc4_done:
         _train4_cmd = (
@@ -4335,6 +4453,7 @@ if DO_STAGE4_E1 and DO_STEP4_B and not SKIP_STAGE4_TRAINING:
             run(_train4_cmd)
     else:
         if _tc4_done and not os.path.exists(_e1_ckpt_path):
+            # Download from HF
             try:
                 from huggingface_hub import hf_hub_download as _tc_dl4
                 _tc_dl4(repo_id="FerrariKazu/rhan-checkpoints",
@@ -4346,7 +4465,8 @@ if DO_STAGE4_E1 and DO_STEP4_B and not SKIP_STAGE4_TRAINING:
                 print(f"  WARNING: could not download E1 checkpoint ({e})")
 
     if os.path.exists(_e1_ckpt_path):
-        print(f"  ✓ E1 checkpoint present: {_e1_ckpt_path}")
+        print(f"  ✓ E1 checkpoint present: {_e1_ckpt_path} "
+              f"({os.path.getsize(_e1_ckpt_path)/1e6:.0f} MB)")
 else:
     if DO_STAGE4_E1 and not SKIP_STAGE4_TRAINING:
         print("  (Stage 4-E1 Step B skipped: DO_STEP4_B=False)")
@@ -4366,6 +4486,7 @@ if DO_STAGE4_E1 and DO_STEP4_C:
     if _done4_p100:
         print(f"  [SKIP] Stage 4-E1 PGD-100 already complete: {_prov4_p100}")
     else:
+        # Ensure both checkpoints exist locally
         for _ckpt_name, _ckpt_path in [
             ("D", os.path.join(_REPO_ROOT, "checkpoints", "rhan_next_ais_hpc_best.pth")),
             ("E1", os.path.join(_REPO_ROOT, "checkpoints", "rhan_next_ais_hpc_recon_best.pth"))]:
@@ -4379,10 +4500,9 @@ if DO_STAGE4_E1 and DO_STEP4_C:
                           token=hf_token)
                     print(f"  ✓ {_ckpt_name} checkpoint downloaded from HF")
                 except Exception as _e4c:
-                    print(f"  ⚠ Could not download {_ckpt_name}: {_e4c}")
+                    print(f"  ⚠ Could not download {_ckpt_name} checkpoint: {_e4c}")
 
         _ckpt_specs4 = [
-            'trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large',
             'rhan_next_ais_hpc:checkpoints/rhan_next_ais_hpc_best.pth:next',
             'rhan_next_ais_hpc_recon:checkpoints/rhan_next_ais_hpc_recon_best.pth:next',
         ]
@@ -4403,7 +4523,7 @@ if DO_STAGE4_E1 and DO_STEP4_C:
         if DRY_RUN:
             print(f"  [DRY-RUN] PGD-100: {_eval4_pgd100}")
         else:
-            print("  Running PGD-100 eval (16 seeds × D + E1)...")
+            print("  Running PGD-100 eval (16 seeds × D + E1, TRADES skipped)...")
             run(_eval4_pgd100)
 else:
     if DO_STAGE4_E1:
@@ -4416,7 +4536,7 @@ else:
 if DO_STAGE4_E1 and DO_STEP4_C:
     def record_verdict_stage4():
         print("\n" + "="*70)
-        print("  RECORDING STAGE 4-E1 VERDICT")
+        print("  RECORDING STAGE 4-E1 VERDICT INTO docs/rhan_next_roadmap.json")
         print("="*70)
         prov_path4 = os.path.join(STEP4_C_MAIN100, "eval_provenance.json")
         if not os.path.exists(prov_path4):
@@ -4434,6 +4554,7 @@ if DO_STAGE4_E1 and DO_STEP4_C:
 
         rD4 = _row4("rhan_next_ais_hpc", 0.094)
         rE1_4 = _row4("rhan_next_ais_hpc_recon", 0.094)
+        rA4 = _row4("trades_large_baseline", 0.094)
 
         stage4_e1 = {
             "validated": True,
@@ -4484,6 +4605,9 @@ print(f"  - Preregistration    : report/stage4_E1/preregistration.md")
 print(f"  - Integrity check    : bash report/stage4_E1/verify_experiment.sh")
 print()
 print("  E2 gate: UNLOCKED (E1 verdict recorded).")
+print("  PLAN: E3 (T=6) Step C eval is next (D + baseline seeded from this")
+print("        E1 sweep — only the t6 cells are computed), then E2 (SBR),")
+print("        which has NOT been trained yet, runs after the E3 verdict.")
 print("="*70)
 
 # %% [markdown]
@@ -4493,18 +4617,25 @@ print("="*70)
 # Pre-registered comparison: E3 vs D
 # Config change: max_foraging_steps=6 (D=4)
 # Protocol: smoke → gate → 60-epoch → 16-seed eval → Lens
+#
+# STATUS (2026-09-04): smoke PASSED and Step B (60-epoch) COMPLETE on HF
+# (best 57.35%). Step C is the CURRENT action. REUSE_COMPARATOR_EVAL
+# seeds the D + baseline rows from the E1 sweep, so the eval computes
+# only the 32 new t6 cells; the E3 verdict is recorded from that result.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # %%
-# ── Stage 4-E3 toggles (Kaggle) ────────────────────────────────────────────
+# ── Stage 4-E3 toggles ─────────────────────────────────────────────────────
 DO_STAGE4_E3      = True
 DO_STEP4E3_A      = True    # smoke test (15 epochs)
 DO_STEP4E3_B      = True    # full 60-epoch run
 DO_STEP4E3_C      = True    # 16-seed matched eval
+REUSE_COMPARATOR_EVAL = True  # seed baseline+D cells from the E1 sweep -> only the new model is evaluated
 SKIP_STAGE4E3_TRAINING = False
 SMOKE4E3_EPOCHS   = 15
 E3_SEEDS          = list(range(41, 57))  # 16 seeds: 41-56
 
+# Artifact names (matrix E3 label).
 E3_SMOKE_CKPT   = "rhan_next_ais_hpc_t6_smoke"
 E3_FULL_CKPT    = "rhan_next_ais_hpc_t6"
 E3_SMOKE_DIAG   = "report/rhan_next_ais_hpc_t6_smoke_diag.jsonl"
@@ -4518,7 +4649,35 @@ STEP4E3_C_MAIN100 = STEP4E3_C_MAIN + "_pgd100"
 # ## Stage 4-E3 — D + T=6: Smoke → Full train → 16-seed eval → Verdict
 
 # %%
-if DO_STAGE4_E3 and DO_STEP4E3_A and not SKIP_STAGE4E3_TRAINING:
+# --- E3 Gate 0: VRAM headroom check ---
+print("\n" + "="*70)
+print("  STAGE 4-E3 — GATE 0: VRAM HEADROOM CHECK (T=6, batch=32)")
+print("="*70)
+
+# T=6 uses 1.5x more recurrent unrolling than T=4. Verify it fits on T4.
+import torch as _torch_vram
+def _check_vram_e3():
+    if not _torch_vram.cuda.is_available():
+        print("  [SKIP] No GPU — VRAM check deferred to training.")
+        return True
+    device = _torch_vram.device('cuda')
+    free, total = _torch_vram.cuda.mem_get_info(device)
+    free_gb = free / 1e9
+    total_gb = total / 1e9
+    print(f"  GPU: {_torch_vram.cuda.get_device_name(device)}")
+    print(f"  VRAM: {free_gb:.1f} / {total_gb:.1f} GB free")
+    # T=6 needs ~2.5GB extra for batch_size=32 (vs T=4). If >3GB free, OK.
+    if free_gb < 2.5:
+        print(f"  ⚠ VRAM {free_gb:.1f}GB < 2.5GB threshold — reduce batch-size")
+        return False
+    print(f"  ✓ VRAM headroom OK for T=6")
+    return True
+
+_vram_ok_e3 = _check_vram_e3()
+
+# %%
+# --- E3 Smoke test ---
+if DO_STAGE4_E3 and DO_STEP4E3_A and not SKIP_STAGE4E3_TRAINING and _vram_ok_e3:
     print("\n" + "="*70)
     print(f"  STAGE 4-E3 — STEP A: SMOKE TEST (D + T=6, {SMOKE4E3_EPOCHS} epochs)")
     print("="*70)
@@ -4545,23 +4704,29 @@ if DO_STAGE4_E3 and DO_STEP4E3_A and not SKIP_STAGE4E3_TRAINING:
             f"--target-ckpt {_e3_base} "
             f"--diag-json {E3_SMOKE_DIAG} "
             f"--batch-size 16 --accum-steps 16 --force-single-gpu")
-        print(f"\n  [RUN]: {_e3_smoke_cmd}")
-        if DRY_RUN:
-            print("  [DRY-RUN] skipping")
+        if _stage4_training_done(E3_SMOKE_CKPT, SMOKE4E3_EPOCHS, "E3-smoke ",
+                                 best_acc_hint=56.67):
+            pass  # smoke already complete — trainer is not relaunched
         else:
-            run(_e3_smoke_cmd)
-            import json as _json_e3h
-            _e3_health = {"passed": True, "reasons": [], "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
-            os.makedirs(os.path.dirname(E3_HEALTH_JSON) or '.', exist_ok=True)
-            with open(E3_HEALTH_JSON, 'w') as _f:
-                _json_e3h.dump(_e3_health, _f, indent=2)
-            print(f"  ✓ E3 smoke health verdict written")
+            print(f"\n  [RUN]: {_e3_smoke_cmd}")
+            if DRY_RUN:
+                print("  [DRY-RUN] skipping")
+            else:
+                run(_e3_smoke_cmd)
+                # Write health verdict
+                import json as _json_e3h
+                _e3_health = {"passed": True, "reasons": [], "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
+                os.makedirs(os.path.dirname(E3_HEALTH_JSON) or '.', exist_ok=True)
+                with open(E3_HEALTH_JSON, 'w') as _f:
+                    _json_e3h.dump(_e3_health, _f, indent=2)
+                print(f"  ✓ E3 smoke health verdict written")
     else:
         print("  ⚠ E3 base checkpoint not found — smoke skipped")
 else:
     print("  (Stage 4-E3 Step A skipped: DO_STEP4E3_A=False or SKIP)")
 
 # %%
+# --- E3 Full training ---
 if DO_STAGE4_E3 and DO_STEP4E3_B and not SKIP_STAGE4E3_TRAINING:
     print("\n" + "="*70)
     print(f"  STAGE 4-E3 — STEP B: FULL 60-EPOCH RUN (D + T=6)")
@@ -4578,17 +4743,21 @@ if DO_STAGE4_E3 and DO_STEP4E3_B and not SKIP_STAGE4E3_TRAINING:
             f"--target-ckpt {_e3_base} "
             f"--diag-json {E3_FULL_DIAG} "
             f"--batch-size 16 --accum-steps 16 --force-single-gpu")
-        print(f"  Training: {_e3_full_cmd}")
-        if DRY_RUN:
-            print("  [DRY-RUN] skipping")
+        if _stage4_training_done(E3_FULL_CKPT, 60, "E3 ", best_acc_hint=57.35):
+            pass  # full training already complete — Step C uses the HF best
         else:
-            run(_e3_full_cmd)
+            print(f"  Training: {_e3_full_cmd}")
+            if DRY_RUN:
+                print("  [DRY-RUN] skipping")
+            else:
+                run(_e3_full_cmd)
     else:
         print("  ⚠ E3 base checkpoint not found — training skipped")
 else:
     print("  (Stage 4-E3 Step B skipped: DO_STEP4E3_B=False or SKIP)")
 
 # %%
+# --- E3 Eval ---
 if DO_STAGE4_E3 and DO_STEP4E3_C:
     print("\n" + "="*70)
     print(f"  STAGE 4-E3 — STEP C: 16-SEED MATCHED EVAL (D + E3)")
@@ -4607,6 +4776,14 @@ if DO_STAGE4_E3 and DO_STEP4E3_C:
                 print(f"  ✓ {_name} checkpoint downloaded from HF")
             except Exception as _e3vc:
                 print(f"  ⚠ Could not download {_name} checkpoint: {_e3vc}")
+    if REUSE_COMPARATOR_EVAL:
+        print("  [reuse] seeding baseline + D cells from the E1 sweep — "
+              f"only {E3_FULL_CKPT} cells will be computed...")
+        run(f"python3 phase2_attacks/seed_sweep_comparators.py "
+            f"--output-dir {os.path.join(_REPO_ROOT, STEP4E3_C_MAIN100)} "
+            f"--target-subdir {os.path.basename(STEP4E3_C_MAIN100)} "
+            f"--donor-subdir {os.path.basename(STEP4_C_MAIN100)}",
+            check=False)
     _e3_specs = [
         f'rhan_next_ais_hpc:{_e3_d_path}:next',
         f'rhan_next_ais_hpc_t6:{_e3_ckpt_path}:next',
@@ -4638,23 +4815,31 @@ else:
 # Gate 0: SBR clean-convergence check (BLOCKING)
 # Step 1: SBR integration (already done in code)
 # Step 2: Unit tests (already done)
-# Step 3: smoke → health gate → full training → eval → Lens
+# Step 3: Smoke → health gate → full training → eval → Lens
 #
 # Pre-registered comparison: E2 vs D
 # Config change: enable_sbr=True (D has it False)
+#
+# STATUS (2026-09-04): NOT YET TRAINED — E2 is the final Stage-4 variant.
+# It runs AFTER the E3 verdict (the E3 blocks above execute first in this
+# notebook): Gate 0 → smoke → 60-epoch → eval. The eval seeds D +
+# baseline rows from the E1 sweep (REUSE_COMPARATOR_EVAL), so only the
+# 32 new rhan_next_ais_hpc_sbr cells are computed.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # %%
-# ── Stage 4-E2 toggles (Kaggle) ────────────────────────────────────────────
+# ── Stage 4-E2 toggles ─────────────────────────────────────────────────────
 DO_STAGE4_E2      = True
 DO_STEP4E2_GATE0  = True    # SBR clean-convergence check (BLOCKING)
 DO_STEP4E2_A      = True    # smoke test (15 epochs)
 DO_STEP4E2_B      = True    # full 60-epoch run
 DO_STEP4E2_C      = True    # 16-seed matched eval
+REUSE_COMPARATOR_EVAL = True  # seed baseline+D cells from the E1 sweep -> only the new model is evaluated
 SKIP_STAGE4E2_TRAINING = False
 SMOKE4E2_EPOCHS   = 15
 E2_SEEDS          = list(range(41, 57))  # 16 seeds: 41-56
 
+# Artifact names (matrix E2 label).
 E2_SMOKE_CKPT   = "rhan_next_ais_hpc_sbr_smoke"
 E2_FULL_CKPT    = "rhan_next_ais_hpc_sbr"
 E2_SMOKE_DIAG   = "report/rhan_next_ais_hpc_sbr_smoke_diag.jsonl"
@@ -4669,6 +4854,7 @@ STEP4E2_C_MAIN100 = STEP4E2_C_MAIN + "_pgd100"
 # ## Stage 4-E2 — D + SBR: Gate 0 → Smoke → Full train → 16-seed eval → Verdict
 
 # %%
+# --- E2 Gate 0: SBR clean-convergence check ---
 if DO_STAGE4_E2 and DO_STEP4E2_GATE0:
     print("\n" + "="*70)
     print("  STAGE 4-E2 — GATE 0: SBR CLEAN-CONVERGENCE CHECK")
@@ -4687,6 +4873,7 @@ if DO_STAGE4_E2 and DO_STEP4E2_GATE0:
         except Exception as _e2gc:
             print(f"  ⚠ Could not download E2 base checkpoint: {_e2gc}")
     if os.path.exists(_e2_base):
+        # Gate 0: train ONLY slot attention on clean STL-10 (frozen backbone)
         _e2_gate0_cmd = (
             f"python3 phase1_training/train_rhan_next.py "
             f"--enable-ais --no-ais-precision-recon "
@@ -4697,29 +4884,34 @@ if DO_STAGE4_E2 and DO_STEP4E2_GATE0:
             f"--target-ckpt {_e2_base} "
             f"--diag-json {E2_SMOKE_DIAG}_gate0 "
             f"--batch-size 16 --accum-steps 16 --force-single-gpu")
-        print(f"  [RUN]: {_e2_gate0_cmd}")
-        if DRY_RUN:
-            print("  [DRY-RUN] skipping")
+        if _stage4_training_done(f"{E2_SMOKE_CKPT}_gate0", 20, "E2-Gate0 "):
+            pass  # Gate 0 already complete — not relaunched
         else:
-            run(_e2_gate0_cmd)
-            import json as _json_e2g
-            _gate0 = {
-                "passed": True,
-                "criterion": "slot attention trained on clean STL-10 (20 epochs)",
-                "check": "visual + quantitative diversity (see report)",
-                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
-            }
-            os.makedirs(os.path.dirname(E2_GATE0_JSON) or '.', exist_ok=True)
-            with open(E2_GATE0_JSON, 'w') as _f:
-                _json_e2g.dump(_gate0, _f, indent=2)
-            print(f"  ✓ E2 Gate 0 verdict written")
-            print("  → Proceeding to Step 1 (SBR integration, already in code)")
+            print(f"  [RUN]: {_e2_gate0_cmd}")
+            if DRY_RUN:
+                print("  [DRY-RUN] skipping")
+            else:
+                run(_e2_gate0_cmd)
+                # Write Gate 0 verdict
+                import json as _json_e2g
+                _gate0 = {
+                    "passed": True,
+                    "criterion": "slot attention trained on clean STL-10 (20 epochs)",
+                    "check": "visual + quantitative diversity (see report)",
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                }
+                os.makedirs(os.path.dirname(E2_GATE0_JSON) or '.', exist_ok=True)
+                with open(E2_GATE0_JSON, 'w') as _f:
+                    _json_e2g.dump(_gate0, _f, indent=2)
+                print(f"  ✓ E2 Gate 0 verdict written")
+                print("  → Proceeding to Step 1 (SBR integration, already in code)")
     else:
         print("  ⚠ E2 base checkpoint not found — Gate 0 skipped")
 else:
     print("  (Stage 4-E2 Gate 0 skipped: DO_STEP4E2_GATE0=False)")
 
 # %%
+# --- E2 Smoke test ---
 if DO_STAGE4_E2 and DO_STEP4E2_A and not SKIP_STAGE4E2_TRAINING:
     print("\n" + "="*70)
     print(f"  STAGE 4-E2 — STEP A: SMOKE TEST (D + SBR, {SMOKE4E2_EPOCHS} epochs)")
@@ -4736,23 +4928,28 @@ if DO_STAGE4_E2 and DO_STEP4E2_A and not SKIP_STAGE4E2_TRAINING:
             f"--target-ckpt {_e2_base} "
             f"--diag-json {E2_SMOKE_DIAG} "
             f"--batch-size 16 --accum-steps 16 --force-single-gpu")
-        print(f"\n  [RUN]: {_e2_smoke_cmd}")
-        if DRY_RUN:
-            print("  [DRY-RUN] skipping")
+        if _stage4_training_done(E2_SMOKE_CKPT, SMOKE4E2_EPOCHS, "E2-smoke "):
+            pass  # smoke already complete — trainer is not relaunched
         else:
-            run(_e2_smoke_cmd)
-            import json as _json_e2h
-            _e2_health = {"passed": True, "reasons": [], "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
-            os.makedirs(os.path.dirname(E2_HEALTH_JSON) or '.', exist_ok=True)
-            with open(E2_HEALTH_JSON, 'w') as _f:
-                _json_e2h.dump(_e2_health, _f, indent=2)
-            print(f"  ✓ E2 smoke health verdict written")
+            print(f"\n  [RUN]: {_e2_smoke_cmd}")
+            if DRY_RUN:
+                print("  [DRY-RUN] skipping")
+            else:
+                run(_e2_smoke_cmd)
+                # Write health verdict
+                import json as _json_e2h
+                _e2_health = {"passed": True, "reasons": [], "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
+                os.makedirs(os.path.dirname(E2_HEALTH_JSON) or '.', exist_ok=True)
+                with open(E2_HEALTH_JSON, 'w') as _f:
+                    _json_e2h.dump(_e2_health, _f, indent=2)
+                print(f"  ✓ E2 smoke health verdict written")
     else:
         print("  ⚠ E2 base checkpoint not found — smoke skipped")
 else:
     print("  (Stage 4-E2 Step A skipped: DO_STEP4E2_A=False or SKIP)")
 
 # %%
+# --- E2 Full training ---
 if DO_STAGE4_E2 and DO_STEP4E2_B and not SKIP_STAGE4E2_TRAINING:
     print("\n" + "="*70)
     print(f"  STAGE 4-E2 — STEP B: FULL 60-EPOCH RUN (D + SBR)")
@@ -4769,17 +4966,21 @@ if DO_STAGE4_E2 and DO_STEP4E2_B and not SKIP_STAGE4E2_TRAINING:
             f"--target-ckpt {_e2_base} "
             f"--diag-json {E2_FULL_DIAG} "
             f"--batch-size 16 --accum-steps 16 --force-single-gpu")
-        print(f"  Training: {_e2_full_cmd}")
-        if DRY_RUN:
-            print("  [DRY-RUN] skipping")
+        if _stage4_training_done(E2_FULL_CKPT, 60, "E2 "):
+            pass  # full training already complete — Step C uses the HF best
         else:
-            run(_e2_full_cmd)
+            print(f"  Training: {_e2_full_cmd}")
+            if DRY_RUN:
+                print("  [DRY-RUN] skipping")
+            else:
+                run(_e2_full_cmd)
     else:
         print("  ⚠ E2 base checkpoint not found — training skipped")
 else:
     print("  (Stage 4-E2 Step B skipped: DO_STEP4E2_B=False or SKIP)")
 
 # %%
+# --- E2 Eval ---
 if DO_STAGE4_E2 and DO_STEP4E2_C:
     print("\n" + "="*70)
     print(f"  STAGE 4-E2 — STEP C: 16-SEED MATCHED EVAL (D + E2)")
@@ -4798,6 +4999,14 @@ if DO_STAGE4_E2 and DO_STEP4E2_C:
                 print(f"  ✓ {_name} checkpoint downloaded from HF")
             except Exception as _e2vc:
                 print(f"  ⚠ Could not download {_name} checkpoint: {_e2vc}")
+    if REUSE_COMPARATOR_EVAL:
+        print("  [reuse] seeding baseline + D cells from the E1 sweep — "
+              f"only {E2_FULL_CKPT} cells will be computed...")
+        run(f"python3 phase2_attacks/seed_sweep_comparators.py "
+            f"--output-dir {os.path.join(_REPO_ROOT, STEP4E2_C_MAIN100)} "
+            f"--target-subdir {os.path.basename(STEP4E2_C_MAIN100)} "
+            f"--donor-subdir {os.path.basename(STEP4_C_MAIN100)}",
+            check=False)
     _e2_specs = [
         f'rhan_next_ais_hpc:{_e2_d_path}:next',
         f'rhan_next_ais_hpc_sbr:{_e2_ckpt_path}:next',
@@ -4823,4 +5032,15 @@ else:
     print("  (Stage 4-E2 Step C skipped: DO_STEP4E2_C=False)")
 
 # %% [markdown]
-# ## Done — Stages 4-E1/E2/E3 Complete
+# ## End of notebook — Stage 4 status
+#
+# E1 (recon-mod): COMPLETE — verdict recorded 2026-08-31; null on
+# robustness (+3.10 clean, -0.90 @ eps=0.094), recon-mod deferred.
+#
+# E3 (T=6): Step B COMPLETE (best 57.35%). Its Step C eval above is the
+# current run; once it finishes, record the E3 verdict vs D (comparator
+# rows reused from the E1 sweep).
+#
+# E2 (SBR): the remaining Stage-4 variant. If its blocks ran this
+# session it has now trained (Gate 0 → smoke → 60-epoch) and evaluated;
+# otherwise it is still NOT TRAINED and runs next, after the E3 verdict.

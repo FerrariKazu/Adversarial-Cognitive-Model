@@ -169,6 +169,10 @@ class RHANNextEpochDiagnostics(EpochDiagnostics):
         self.hpc_err_means = []     # float per batch (epoch-mean -> trend)
         self.hpc_emap = {'min': [], 'max': [], 'std': []}
         self.hpc_err_per_class = {c: [] for c in range(10)}
+        # RHAN-NX SBR-2 diagnostic: D(B_clean, B_adv) computed on the fixed
+        # held-out probe subset every --belief-drift-every epochs (None = not
+        # measured this epoch).
+        self.belief_drift = None
 
     def update(self, beta_dyn, traj_c, labels):
         super().update(beta_dyn, traj_c, labels)
@@ -321,6 +325,11 @@ class RHANNextEpochDiagnostics(EpochDiagnostics):
             if self.precisions_per_class[c]:
                 d['pi_d_per_class'][self.CLASSES[c]] = round(
                     float(torch.cat(self.precisions_per_class[c]).mean()), 4)
+        # RHAN-NX SBR-2: belief drift D(B_clean, B_adv) on the held-out probe
+        # (1 - mean cosine of final 512-dim beliefs). Present whenever the
+        # epoch performed a probe (None -> omitted).
+        if self.belief_drift is not None:
+            d['belief_drift'] = round(float(self.belief_drift), 6)
         # Truck-rank WATCH (gate AMENDMENT 2026-08-16): truck's rank among
         # the top-3 Π_D classes + its margin vs the #2 slot, per epoch —
         # NON-BLOCKING, logged so the 60-epoch run's watch series can be
@@ -343,6 +352,11 @@ _WARMUP_FROZEN_FRAGMENTS = [
     'foveal_stream', 'precision_ctrl', 'action_init', 'parafoveal_stream',
     'foveal_gate', 'generative_prior', 'image_precision',
     'gaze_policy', 'precision_modulator', 'hpc_stack', 'hpc_level1',
+    # RHAN-NX Generation-0 components follow the same warmup schedule: new
+    # modules are frozen for the first WARMUP_EPOCHS so the generative prior
+    # alone warms the backbone path, then join training (except SBR-0, where
+    # the model-level freeze overrides this entirely).
+    'structured_belief', 'gaze_policy_v2', 'hpc_belief',
 ]
 
 
@@ -356,36 +370,31 @@ def set_new_component_training(model, trainable):
 
 
 def build_next_optimizer(model, phase_lr, hpc_lr_mult=6.67, weight_decay=1e-4):
-    """Two-group SGD: backbone at phase_lr, HPC predictor at phase_lr*hpc_lr_mult.
+    """Generation-0 multi-group SGD via OptimizerGroupRegistry.
 
-    2026-08-13 (Stage 2 smoke #3, cold start on the fixed head): the HPC
-    predictor's output conv stayed EXACTLY at its ±0.01 init draw after 15
-    epochs (abs-mean 0.00516), and hpc_error_mean froze at the predict-zero
-    baseline (~0.69 = mean(target^2)) for all 10 main-phase epochs. Root
-    cause: optimizer starvation, not wiring — the isolated learnability test
-    (lr=0.05, no w_hpc cut, no clip) proved the head learns 28%/10 steps, but
-    the real loop attenuated that update ~1000x (w_hpc=0.1 loss weight x
-    shared backbone lr 0.003 x the global clip_grad_norm_(...1.0) whose norm
-    the 76M-param backbone's TRADES gradient dominates). Measured: raw
-    last-conv grad through the real loss path ~0.004 (vs 0.54 isolated),
-    per-step |dW| ~1.4e-5 on |W|~0.005 — invisible.
-
-    Fix: the head gets its own param group at lr*hpc_lr_mult (6.67x -> 0.02
-    in phase 1, matching the proven isolated recipe) and per-group grad
-    clipping (clip_grad_per_group) so the backbone's norm can never dilute
-    it. Loss budget (w_hpc) and the pre-registered health-gate criteria are
-    UNCHANGED.
+    Generalizes the 2026-08-13 two-group fix (backbone lr=phase_lr, HPC
+    predictor at phase_lr*hpc_lr_mult, per-group grad clip) to N groups —
+    that fix was NOT a one-off HPC repair, it is now a standing
+    architectural rule (rhan_core/optim/multi_group_optimizer.py): every new
+    trainable component (SBR slot params, AIS-v2 candidate head, relational /
+    evidence heads, belief-HPC predictor) gets its OWN named optimizer group
+    at the same proven 6.67x multiplier, so a shared global clip can never
+    starve it the way it starved the HPC head (per-step |dW| ~1.4e-5,
+    invisible). The group spec is derived from the model itself
+    (default_group_spec), so a config without a given module never creates
+    its group — numerically identical to the pre-migration two-group builder
+    for the Stage 2 setup (asserted by
+    tests/test_multi_group_optimizer.py::test_hpc_migration_preserves_stage2_numbers).
     """
-    backbone_params, hpc_params = [], []
-    for name, p in model.named_parameters():
-        if 'hpc' in name:          # hpc_level1.stack.* (the hpc_stack alias
-            hpc_params.append(p)   # never appears in named_parameters)
-        else:
-            backbone_params.append(p)
-    return optim.SGD([
-        {'params': backbone_params, 'lr': phase_lr},
-        {'params': hpc_params, 'lr': phase_lr * hpc_lr_mult},
-    ], momentum=0.9, weight_decay=weight_decay, foreach=True)
+    from rhan_core.optim.multi_group_optimizer import default_group_spec
+    registry = default_group_spec(model, hpc_lr_mult=hpc_lr_mult)
+    optimizer = registry.build_optimizer(base_lr=phase_lr,
+                                         momentum=0.9,
+                                         weight_decay=weight_decay)
+    # Attach the registry for the resume guard (restore_optimizer_from_checkpoint
+    # checks group count + lr-ratio pattern through it).
+    optimizer._generation0_registry = registry
+    return optimizer
 
 
 def clip_grad_per_group(optimizer, max_norm=1.0):
@@ -461,8 +470,23 @@ def restore_optimizer_from_checkpoint(optimizer, scheduler, checkpoint_data,
     the state was restored, False when the fresh-optimizer fallback ran.
     """
     _saved_opt = checkpoint_data.get('optimizer')
-    if optimizer_restore_compatible(_saved_opt, optimizer,
-                                    checkpoint_data.get('scheduler')):
+    # Generation 0: when the optimizer was built through OptimizerGroupRegistry
+    # (build_next_optimizer attaches it as `_generation0_registry`), the
+    # registry's resume_guard is the authority — it verifies group count AND
+    # group NAMES (catches a parameter reordering that keeps the count
+    # identical but silently misassigns momentum by position) AND the
+    # lr-ratio pattern against the scheduler's base_lrs. The legacy
+    # optimizer_restore_compatible remains the fallback for non-registry
+    # optimizers.
+    _registry = getattr(optimizer, '_generation0_registry', None)
+    if _registry is not None:
+        _compatible = _registry.resume_guard(
+            _saved_opt, saved_scheduler=checkpoint_data.get('scheduler'))
+    else:
+        _compatible = optimizer_restore_compatible(
+            _saved_opt, optimizer,
+            checkpoint_data.get('scheduler'))
+    if _compatible:
         optimizer.load_state_dict(_saved_opt)
         scheduler.load_state_dict(checkpoint_data['scheduler'])
         if rank == 0:
@@ -596,6 +620,63 @@ def dynamic_trades_loss_next(model, imgs, labels, weights, x_adv,
             l_recon, l_hpc, w_recon_eff)
 
 
+def eig_loss_from_trajectory(traj, device) -> torch.Tensor:
+    """AIS-v2 one-step TD loss: mean MSE(predicted, observed) over steps.
+
+    `traj['eig_pairs']` holds (predicted_surprise, observed_surprise) pairs —
+    the predicted side ATTACHED (the head's output at the candidate chosen
+    last step), the observed side DETACHED (this step's actual surprise at
+    the fixation the policy moved to). This is the ONLY gradient path into
+    the candidate-evaluation head (candidate features are detached by
+    design), so without this term AIS-v2's gaze is untrainable.
+    Returns a zero scalar when no pairs were collected (AIS-v2 off, or the
+    forward never ran a select_action).
+    """
+    pairs = traj.get('eig_pairs') or []
+    if not pairs:
+        return torch.zeros((), device=device)
+    total = torch.zeros((), device=device)
+    for p, o in pairs:
+        total = total + (p - o).pow(2).mean()
+    return total / len(pairs)
+
+
+def compute_belief_drift(model, probe_imgs, eps, steps, stl_min, stl_max,
+                         device) -> float:
+    """D(B_clean, B_adv) — belief drift under attack on a FIXED probe subset.
+
+    The final 512-dim belief is extracted from each trajectory's last step
+    (step_beliefs[-1]); drift = 1 - mean cosine(B_clean, B_adv) over the
+    probe batch. Adversarial version: the same 4-step PGD used in training,
+    KL-divergence surrogate against the clean logits. Cheap by design — a
+    few hundred images, every --belief-drift-every epochs (SBR-2's belief-
+    drift monitoring requirement; the full Lens analysis runs in eval).
+    """
+    model.eval()
+    with torch.no_grad():
+        logits_c, traj_c = model(probe_imgs, return_trajectory=True)
+        b_clean = traj_c['step_beliefs'][-1]
+    x_adv = probe_imgs.clone().detach() + 0.001 * torch.randn_like(probe_imgs)
+    x_adv = torch.clamp(x_adv, stl_min, stl_max)
+    probs_c = torch.softmax(logits_c.detach(), dim=1)
+    for _ in range(steps):
+        x_adv.requires_grad_(True)
+        with torch.enable_grad():
+            logits_a_pgd = model(x_adv)
+            loss_adv = F.kl_div(F.log_softmax(logits_a_pgd, dim=1),
+                                probs_c, reduction='batchmean')
+        grad = torch.autograd.grad(loss_adv, x_adv)[0]
+        x_adv = x_adv.detach() + (eps / steps) * grad.sign()
+        x_adv = torch.clamp(probe_imgs + torch.clamp(x_adv - probe_imgs,
+                                                     -eps, eps),
+                            stl_min, stl_max).detach()
+    with torch.no_grad():
+        _, traj_a = model(x_adv, return_trajectory=True)
+        b_adv = traj_a['step_beliefs'][-1]
+    cos = F.cosine_similarity(b_clean, b_adv, dim=-1)
+    return float((1.0 - cos).mean())
+
+
 # ────────────────────────────────────────────────────────────────────────────
 # Curriculum + data prep (identical to v12)
 # ────────────────────────────────────────────────────────────────────────────
@@ -627,6 +708,10 @@ def build_config(args) -> RHANNextConfig:
         sbr_num_slots=args.sbr_num_slots,
         sbr_slot_dim=args.sbr_slot_dim,
         sbr_slot_iters=args.sbr_slot_iters,
+        sbr_stage=args.sbr_stage,
+        freeze_backbone_for_sbr0=args.freeze_backbone_for_sbr0,
+        ais_variant=args.ais_variant,
+        hpc_target=args.hpc_target,
     )
     cfg.validate()
     return cfg
@@ -713,6 +798,42 @@ def main():
                         help='Dimension per slot (default: 512, matches proj_dim)')
     parser.add_argument('--sbr-slot-iters', type=int, default=3,
                         help='Slot attention refinement iterations (default: 3)')
+    # ── RHAN-NX Generation-0 / ladder flags ────────────────────────────────
+    parser.add_argument('--sbr-stage', type=str, default='legacy',
+                        help='SBR sub-stage: legacy (E2-equivalent N=1 wiring) | '
+                             'gate_only (SBR-0, frozen backbone, spatial stem '
+                             'binding) | clean_classifier (SBR-1) | '
+                             'adversarial_ramp (SBR-2) | relational (SBR-3) | '
+                             'uncertainty (SBR-4)')
+    parser.add_argument('--freeze-backbone-for-sbr0', action='store_true',
+                        help='SBR-0 ONLY: freeze the entire D backbone; only '
+                             'the slot-attention parameters are trainable (the '
+                             'narrow unlocked validate() path — model-level '
+                             'enforced).')
+    parser.add_argument('--ais-variant', type=str, default='halting_only',
+                        help='AIS gaze mechanism: halting_only (AIS-v1, every '
+                             'pre-RHAN-NX checkpoint) | info_gain_v2 (AIS-v2, '
+                             'genuine one-step-lookahead EIG).')
+    parser.add_argument('--hpc-target', type=str, default='pixel',
+                        help='HPC predictive target: pixel (edge-map target, D) '
+                             '| belief (belief-space target, RHAN-NX D3).')
+    parser.add_argument('--clean-only', action='store_true',
+                        help='SBR-0/1: no adversarial term at all (eps=0.000, '
+                             'pure clean-data training; the PGD loop and TRADES '
+                             'KL term are skipped entirely).')
+    parser.add_argument('--fixed-eps', type=float, default=-1.0,
+                        help='Override the curriculum eps with a FIXED value '
+                             '(>= 0.0) for every epoch — SBR-3/4 fine-tune at '
+                             'the converged phase-3 eps (0.094). Negative = '
+                             'use the standard 3-phase curriculum.')
+    parser.add_argument('--w-eig', type=float, default=0.05,
+                        help='AIS-v2 (info_gain_v2) one-step TD loss weight — '
+                             'the ONLY gradient path into the candidate-eval '
+                             'head (predicted vs observed surprise MSE).')
+    parser.add_argument('--belief-drift-every', type=int, default=0,
+                        help='SBR-2 diagnostic: every N epochs, compute '
+                             'D(B_clean, B_adv) on a fixed held-out probe '
+                             'subset and log it to --diag-json. 0 = off.')
     args, _unknown = parser.parse_known_args()
     if _unknown:
         # parse_known_args() SILENTLY drops unrecognized tokens — the
@@ -1108,6 +1229,29 @@ def main():
     WARMUP_EPOCHS = 5
     diagnostics = RHANNextEpochDiagnostics(max_steps=cfg.max_foraging_steps)
 
+    # SBR-2 belief-drift probe: FIXED held-out subset (first N test images),
+    # identical across epochs and sessions, so the drift series is comparable
+    # (the task requires D(B_clean, B_adv) at the CURRENT epoch's checkpoint
+    # every 10 epochs on a fixed subset — the checkpoint is the rolling one,
+    # i.e. this epoch's weights by construction).
+    probe_imgs = None
+    if args.belief_drift_every > 0:
+        _probe = []
+        with torch.no_grad():
+            for v_imgs, _ in testloader:
+                _probe.append(v_imgs)
+                if sum(p.size(0) for p in _probe) >= 128:
+                    break
+        if _probe:
+            probe_imgs = torch.cat(_probe)[:128].to(device)
+            if rank == 0:
+                print(f"Belief-drift probe: {probe_imgs.shape[0]} fixed test "
+                      f"images, checked every {args.belief_drift_every} epochs",
+                      flush=True)
+
+    clean_only = args.clean_only
+    eps_override = args.fixed_eps if args.fixed_eps >= 0.0 else None
+
     last_epoch = start_epoch - 1  # honest label for the finalize fallback
     for epoch in range(start_epoch, args.max_epochs + 1):
         last_epoch = epoch
@@ -1143,7 +1287,15 @@ def main():
                 break
         eps, beta, steps = phase_params
 
-        if epoch <= WARMUP_EPOCHS:
+        if cfg.freeze_backbone_for_sbr0:
+            # SBR-0: the MODEL-level freeze (enforced in RHANNext.__init__)
+            # already locked every non-structured_belief parameter. The warmup
+            # unfreeze below must NEVER run here — it would silently unlock
+            # the D backbone and defeat the structural gate's entire premise.
+            if rank == 0 and epoch == start_epoch:
+                print("SBR-0: backbone frozen — only structured_belief.* "
+                      "parameters trainable (model-level freeze).", flush=True)
+        elif epoch <= WARMUP_EPOCHS:
             if rank == 0:
                 print("Warmup: freezing active-inference + pillar components, "
                       "training generative prior.", flush=True)
@@ -1178,14 +1330,20 @@ def main():
                 lbls = lbls.to(device, non_blocking=True)
                 weights = weights.to(device, non_blocking=True)
 
-                if epoch <= WARMUP_EPOCHS:
+                if epoch <= WARMUP_EPOCHS or clean_only:
+                    # Warmup OR RHAN-NX clean-only (SBR-0/1): NO adversarial
+                    # term at all (eps=0.000). SBR-0 is pure representation
+                    # learning; SBR-1 establishes SBR's OWN clean accuracy
+                    # before any adversarial pressure exists.
                     with autocast('cuda'):
                         logits, traj_c = model(imgs, return_trajectory=True)
                         l_trades = nn.CrossEntropyLoss()(logits, lbls)
                         l_recon = raw_model.get_reconstruction_loss(imgs, (logits, traj_c))
                         l_hpc = raw_model.get_hpc_loss(imgs, (logits, traj_c))
+                        l_eig = eig_loss_from_trajectory(traj_c, imgs.device)
                         loss = (l_trades + args.w_recon * l_recon
-                                + args.w_hpc * l_hpc) / args.accum_steps
+                                + args.w_hpc * l_hpc
+                                + args.w_eig * l_eig) / args.accum_steps
                         beta_dyn = (beta * (0.5 + traj_c['precisions'][-1])
                                     if len(traj_c['precisions']) > 0
                                     else torch.full((imgs.shape[0],), beta, device=device))
@@ -1193,6 +1351,7 @@ def main():
                     diagnostics.update(beta_dyn, traj_c, lbls)
                 else:
                     # ── PGD adversarial examples (identical to v12) ─────────
+                    eps_pgd = eps_override if eps_override is not None else eps
                     raw_model.eval()
                     with torch.no_grad():
                         with autocast('cuda'):
@@ -1209,9 +1368,9 @@ def main():
                                     F.log_softmax(logits_a_pgd.float(), dim=1),
                                     probs_c, reduction='batchmean')
                         grad = torch.autograd.grad(loss_adv, x_adv)[0]
-                        x_adv = x_adv.detach() + (eps / steps) * grad.sign()
+                        x_adv = x_adv.detach() + (eps_pgd / steps) * grad.sign()
                         x_adv = torch.clamp(
-                            imgs + torch.clamp(x_adv - imgs, -eps, eps),
+                            imgs + torch.clamp(x_adv - imgs, -eps_pgd, eps_pgd),
                             stl_min, stl_max).detach()
                     model.train()
 
@@ -1222,9 +1381,13 @@ def main():
                             raw_model, imgs, lbls, weights, x_adv, beta,
                             args.w_recon, args.w_hpc,
                             precision_recon_enabled=cfg.ais_precision_recon_enabled)
+                        l_eig = 0.5 * (
+                            eig_loss_from_trajectory(traj_c, imgs.device)
+                            + eig_loss_from_trajectory(traj_a, imgs.device))
                         loss = (args.w_trades * l_trades
                                 + w_recon_eff * l_recon
-                                + args.w_hpc * l_hpc) / args.accum_steps
+                                + args.w_hpc * l_hpc
+                                + args.w_eig * l_eig) / args.accum_steps
                     scaler.scale(loss).backward()
                     diagnostics.update(beta_dyn, traj_c, lbls)
 
@@ -1273,6 +1436,25 @@ def main():
                     val_correct += logits.argmax(1).eq(v_lbls).sum().item()
                     val_total += v_lbls.size(0)
             val_acc = 100.0 * val_correct / val_total
+
+        # ── RHAN-NX SBR-2 belief-drift probe (every --belief-drift-every) ──
+        # D(B_clean, B_adv) at the CURRENT epoch's (rolling) checkpoint, on
+        # the FIXED probe subset — the checkpoint IS this epoch's weights by
+        # construction, so the series tracks drift across the curriculum.
+        if (rank == 0 and not args.dry_run and probe_imgs is not None
+                and epoch >= WARMUP_EPOCHS + 1
+                and args.belief_drift_every > 0
+                and (epoch % args.belief_drift_every == 0
+                     or epoch == args.max_epochs)):
+            eps_probe = eps_override if eps_override is not None else eps
+            try:
+                drift = compute_belief_drift(raw_model, probe_imgs, eps_probe,
+                                             steps, stl_min, stl_max, device)
+                diagnostics.belief_drift = drift
+                print(f"  Belief drift D(B_clean,B_adv) @ epoch {epoch}: "
+                      f"{drift:.5f}", flush=True)
+            except Exception as e:
+                print(f"  WARNING: belief-drift probe failed: {e}", flush=True)
 
         if is_ddp:
             import torch.distributed as dist
