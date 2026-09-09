@@ -5020,7 +5020,7 @@ DO_RHAN_NX = True   # master toggle for the RHAN-NX Generation-0 ladder
 
 # RHAN-NX artifact names (per-stage).
 RHANNX = {
-    "sbr0": {"ckpt": "rhan_nx_sbr0", "base": "rhan_next_ais_hpc_best.pth",
+    "sbr0": {"ckpt": "rhan_nx_sbr0", "base": "rhan_next_ais_hpc",
              "ceiling_lo": 15, "ceiling_hi": 40, "step": 5},
     "sbr1": {"ckpt": "rhan_nx_sbr1", "base": "rhan_nx_sbr0_best.pth",
               "ceiling_lo": 15, "ceiling_hi": 40, "step": 5},
@@ -5037,9 +5037,14 @@ RHANNX = {
 RHANNX_D_CLEAN = 54.96   # D's clean accuracy, frozen record (SBR-1 gate ref)
 RHANNX_SEEDS = list(range(41, 57))   # 16 seeds, matched to D
 
+DO_RHAN_NX_LADDER_RUN = os.environ.get("NOESIS_RHAN_NX_LADDER", "1") == "1"
+DO_RHAN_NX_SINGLE_STEP = not DO_RHAN_NX_LADDER_RUN
+
 if DO_RHAN_NX:
     sys.path.insert(0, os.path.join(_REPO_ROOT, "scripts"))
+    import importlib
     import stage_state_machine as ssm
+    ssm = importlib.reload(ssm)
     from stage_state_machine import (
         get_next_action, advance, ensure_rhan_nx_state, report_state)
     # Restore the HF-synced roadmap BEFORE reading — a fresh session must
@@ -5198,12 +5203,15 @@ if DO_RHAN_NX:
         elif _action.substep == "gate_failed":
             print("  ✗ gen0 GATE FAILED — STOP. Write the failure honestly; "
                   "no SBR work proceeds until Generation 0 is fixed.")
+        elif _action.substep == "done":
+            print("  gen0 already done — no-op (ladder can proceed).")
 
     # ── sbr0 / sbr1: convergence-gated clean stages ──────────────────────
     elif _action.stage in ("sbr0", "sbr1"):
         _info = RHANNX[_action.stage]
         _ckpt = _info["ckpt"]
         if _action.substep == "start":
+            print(f"  {_action.stage}: advancing to training (ceiling={_info['ceiling_lo']})")
             advance(_action.stage, "training", ceiling=_info["ceiling_lo"],
                     roadmap_path=ROADMAP_LOCAL)
         elif _action.substep == "training":
@@ -5213,62 +5221,68 @@ if DO_RHAN_NX:
             _sbr_stage_name = ("gate_only" if _action.stage == "sbr0"
                                else "clean_classifier")
             _extra = (f"--sbr-stage {_sbr_stage_name} {_frozen} --clean-only")
-            if not _stage4_training_done(_ckpt, _ceiling, f"{_action.stage} "):
-                _nx_trainer(_ckpt, _ceiling, _extra, _info["base"],
-                            f"{_action.stage} train->{_ceiling}")
-            if DRY_RUN or _stage4_training_done(_ckpt, _ceiling,
-                                                f"{_action.stage} "):
-                # Milestone reached -> run the stage gate.
-                if _action.stage == "sbr0":
-                    _series = os.path.join(
-                        _REPO_ROOT, "report", "rhan_nx_sbr0_cosine_series.json")
-                    _rc = run(
-                        "python3 scripts/sbr0_gate.py "
-                        f"--ckpt {_nx_ckpt_path(_ckpt)} "
-                        f"--series-out {_series} "
-                        f"--cosine-series {_series} "
-                        f"--samples 512 --batch-size 32 "
-                        f"--out report/sbr0_gate_verdict.json", check=False)
-                    _verdict = None
-                    try:
-                        _verdict = json.load(open(
-                            os.path.join(_REPO_ROOT, "report",
-                                         "sbr0_gate_verdict.json")))
-                    except Exception:
-                        pass
-                    _passed = (_rc == 0) and bool(
-                        _verdict and _verdict.get("passed"))
-                else:  # sbr1: clean accuracy within 3pp of D's frozen record
-                    _row = _nx_diag_last(
+            _nx_trainer(_ckpt, _ceiling, _extra, _info["base"],
+                        f"{_action.stage} train->{_ceiling}")
+            # Milestone reached -> run the stage gate.
+            if _action.stage == "sbr0":
+                _series = os.path.join(
+                    _REPO_ROOT, "report", "rhan_nx_sbr0_cosine_series.json")
+                if not os.path.exists(_series):
+                    with open(_series, "w") as f:
+                        json.dump([], f)
+                _diag = _nx_diag_last(
+                    os.path.join(_REPO_ROOT, "report",
+                                 f"{_ckpt}_diag.jsonl"))
+                _epoch_now = int(_diag.get("epoch", _ceiling)) \
+                    if _diag else _ceiling
+                _rc = run(
+                    "python3 scripts/sbr0_gate.py "
+                    f"--ckpt {_nx_ckpt_path(_ckpt)} "
+                    f"--series-out {_series} "
+                    f"--cosine-series {_series} "
+                    f"--epoch {_epoch_now} "
+                    f"--samples 512 --batch-size 32 "
+                    f"--out report/sbr0_gate_verdict.json", check=False)
+                _verdict = None
+                try:
+                    _verdict = json.load(open(
                         os.path.join(_REPO_ROOT, "report",
-                                     f"{_ckpt}_diag.jsonl"))
-                    _te = float(_row["te_acc"]) if _row else -1.0
-                    _passed = abs(_te - RHANNX_D_CLEAN) <= 3.0
-                    _verdict = {"sbr1_clean_acc": _te,
-                                "d_reference": RHANNX_D_CLEAN,
-                                "within_3pp": _passed}
-                    with open(os.path.join(_REPO_ROOT, "report",
-                                           "sbr1_gate_verdict.json"),
-                              "w") as _f:
-                        json.dump(_verdict, _f, indent=2)
-                if _passed:
-                    print(f"  ✓ {_action.stage} GATE PASSED at ceiling "
-                          f"{_ceiling} — advance to the next stage")
-                    advance(_action.stage, "gate_passed",
-                            ceiling=_ceiling, verdict=_verdict,
-                            roadmap_path=ROADMAP_LOCAL)
-                elif _ceiling >= _info["ceiling_hi"]:
-                    print(f"  ✗ {_action.stage} gate NOT passed by ceiling "
-                          f"{_ceiling} ({_info['ceiling_hi']} = ceiling) — "
-                          f"FAIL, reported honestly, ladder stops.")
-                    advance(_action.stage, "gate_failed", ceiling=_ceiling,
-                            verdict=_verdict, roadmap_path=ROADMAP_LOCAL)
-                else:
-                    _next = min(_ceiling + _info["step"], _info["ceiling_hi"])
-                    print(f"  gate not passed at {_ceiling}; resume training "
-                          f"to ceiling {_next}")
-                    advance(_action.stage, "training", ceiling=_next,
-                            roadmap_path=ROADMAP_LOCAL)
+                                     "sbr0_gate_verdict.json")))
+                except Exception:
+                    pass
+                _passed = (_rc == 0) and bool(
+                    _verdict and _verdict.get("passed"))
+            else:  # sbr1: clean accuracy within 3pp of D's frozen record
+                _row = _nx_diag_last(
+                    os.path.join(_REPO_ROOT, "report",
+                                 f"{_ckpt}_diag.jsonl"))
+                _te = float(_row["te_acc"]) if _row else -1.0
+                _passed = abs(_te - RHANNX_D_CLEAN) <= 3.0
+                _verdict = {"sbr1_clean_acc": _te,
+                            "d_reference": RHANNX_D_CLEAN,
+                            "within_3pp": _passed}
+                with open(os.path.join(_REPO_ROOT, "report",
+                                       "sbr1_gate_verdict.json"),
+                          "w") as _f:
+                    json.dump(_verdict, _f, indent=2)
+            if _passed:
+                print(f"  ✓ {_action.stage} GATE PASSED at ceiling "
+                      f"{_ceiling} — advance to the next stage")
+                advance(_action.stage, "gate_passed",
+                        ceiling=_ceiling, verdict=_verdict,
+                        roadmap_path=ROADMAP_LOCAL)
+            elif _ceiling >= _info["ceiling_hi"]:
+                print(f"  ✗ {_action.stage} gate NOT passed by ceiling "
+                      f"{_ceiling} ({_info['ceiling_hi']} = ceiling) — "
+                      f"FAIL, reported honestly, ladder stops.")
+                advance(_action.stage, "gate_failed", ceiling=_ceiling,
+                        verdict=_verdict, roadmap_path=ROADMAP_LOCAL)
+            else:
+                _next = min(_ceiling + _info["step"], _info["ceiling_hi"])
+                print(f"  gate not passed at {_ceiling}; resume training "
+                      f"to ceiling {_next}")
+                advance(_action.stage, "training", ceiling=_next,
+                        roadmap_path=ROADMAP_LOCAL)
         elif _action.substep == "gate_failed":
             print(f"  ✗ {_action.stage} GATE FAILED — STOP. Diagnose "
                   f"slot-count/dim/freeze before any further SBR work.")
@@ -5444,6 +5458,389 @@ elif DO_RHAN_NX:
     print("\n  ✅ RHAN-NX ladder COMPLETE — all stages reported.")
     print("  Consolidated report: report/rhan_nx_generation1_report.md")
     _nx_build_report()
+
+
+# ============================================================================
+# RHAN-NX ladder runner (opt-in, inside the same cell)
+# ============================================================================
+#
+# When DO_RHAN_NX_LADDER_RUN is True, the notebook keeps dispatching a SINGLE
+# stage-substep per loop iteration (via get_next_action()/advance()) until the
+# state machine reports Action(None, "done"). Each iteration re-reads the
+# roadmap fresh, so a session CTL-C / timeout / preempt always resumes from
+# the recorded substep on the next run — exactly the same resume contract as
+# the single-step mode, just without having to re-execute the cell manually.
+#
+# HF sync cadence (Option A, as requested): every advance() already writes the
+# local roadmap immediately; this loop additionally pushes to HF after every
+# stage-level status transition that matters for a restarted session (the same
+# HF syncs the single-step path already does). Training-progress markers
+# (rolling epochs / *done checks) are persisted locally by _stage4_training_*
+# and the trainer; they are not the source of truth for "what to run next".
+#
+# Force-restart policy: NONE of the paths below invoke --force-restart. The
+# only way a stage is reset is the manual escape hatch
+#   scripts/stage_state_machine.py: reset_stage('<stage>')
+# followed by a manual HF sync — that is an explicit human decision, never
+# triggered by this loop.
+#
+# IMPORTANT: this is the ONLY place in the notebook where a stage's status
+# transitions are executed as a loop. Everything else (existing Stage-1/2/3/4
+# cells) still uses the original per-cell / per-step logic. The state machine
+# is still the single source of truth for RHAN-NX WHAT-TO-RUN-NEXT.
+# ============================================================================
+if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
+    print("\n" + "="*70)
+    print("  RHAN-NX LADDER RUNNER — run-to-done mode (single-cell, resume-safe)")
+    print("="*70)
+    _nx_ladder_done = False
+    while not _nx_ladder_done:
+        sync_roadmap_down()
+        _roadmap = json.load(open(ROADMAP_LOCAL))
+        ensure_rhan_nx_state(_roadmap)
+        _action = get_next_action(_roadmap)
+        print(report_state(_roadmap), flush=True)
+        print(f"\n  NEXT ACTION: {_action}\n", flush=True)
+
+        if _action.stage is None:
+            _nx_ladder_done = True
+            print("\n  ✅ RHAN-NX ladder COMPLETE — all stages reported.")
+            print("  Consolidated report: report/rhan_nx_generation1_report.md")
+            _nx_build_report()
+            break
+
+        # ── dispatch exactly ONE substep for the chosen stage ──────────
+        _st = _roadmap["rhan_nx"]["stages"][_action.stage]
+
+        # ── gen0: Generation-0 optimizer infrastructure ──────────────
+        if _action.stage == "gen0":
+            if _action.substep == "start":
+                print("  gen0: multi-group optimizer + tests + SBR slot |dW| "
+                      "pre-flight (the blocking Phase-1 gate)")
+                advance("gen0", "build", roadmap_path=ROADMAP_LOCAL)
+                sync_roadmap_up()
+            elif _action.substep == "build":
+                _rc = run(
+                    "python3 -m pytest tests/test_multi_group_optimizer.py "
+                    "tests/test_sbr0_gate_criteria.py "
+                    "tests/test_ais_v2_gradient_flow.py "
+                    "tests/test_hpc_belief_gradient_flow.py "
+                    "tests/test_comparator_reuse_integrity.py "
+                    "tests/test_sbr_gradient_flow.py -q", check=False)
+                if _rc == 0:
+                    advance("gen0", "gate_pending",
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+                else:
+                    advance("gen0", "gate_failed",
+                            reason="Generation-0 test suite failed",
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+                    print("  ✗ gen0 GATE FAILED — ladder stopped.")
+                    _nx_ladder_done = True
+            elif _action.substep == "gate":
+                _rc = run(
+                    "python3 scripts/measure_group_dw.py --group-name sbr "
+                    "--ckpt checkpoints/rhan_next_ais_hpc_best.pth "
+                    "--sbr-stage gate_only --steps 24 --accum 8 --micro-b 8",
+                    check=False)
+                if _rc == 0:
+                    advance("gen0", "gate_passed",
+                            note="test_multi_group_optimizer.py passes + SBR slot "
+                                 "|dW| pre-flight in the learnable regime",
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+                else:
+                    advance("gen0", "gate_failed",
+                            reason="SBR slot |dW| pre-flight not in the learnable "
+                                   "regime", roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+                    print("  ✗ gen0 GATE FAILED — ladder stopped.")
+                    _nx_ladder_done = True
+            elif _action.substep == "gate_failed":
+                print("  ✗ gen0 GATE FAILED — STOP. Write the failure honestly; "
+                      "no SBR work proceeds until Generation 0 is fixed.")
+                _nx_ladder_done = True
+            elif _action.substep == "done":
+                print("  gen0 already done — no-op (ladder can proceed).")
+
+        # ── sbr0 / sbr1: convergence-gated clean stages ──────────────
+        elif _action.stage in ("sbr0", "sbr1"):
+            _info = RHANNX[_action.stage]
+            _ckpt = _info["ckpt"]
+            if _action.substep == "start":
+                print(f"  {_action.stage}: advancing to training (ceiling={_info['ceiling_lo']})")
+                advance(_action.stage, "training", ceiling=_info["ceiling_lo"],
+                        roadmap_path=ROADMAP_LOCAL)
+                sync_roadmap_up()
+            elif _action.substep == "training":
+                _ceiling = int(_st.get("ceiling", _info["ceiling_lo"]))
+                _frozen = " --freeze-backbone-for-sbr0" \
+                    if _action.stage == "sbr0" else ""
+                _sbr_stage_name = ("gate_only" if _action.stage == "sbr0"
+                                   else "clean_classifier")
+
+                _extra = (f"--sbr-stage {_sbr_stage_name} {_frozen} --clean-only")
+                _nx_trainer(_ckpt, _ceiling, _extra, _info["base"],
+                            f"{_action.stage} train->{_ceiling}")
+                # Milestone reached -> run the stage gate.
+                if _action.stage == "sbr0":
+                    _series = os.path.join(
+                        _REPO_ROOT, "report",
+                        "rhan_nx_sbr0_cosine_series.json")
+                    if not os.path.exists(_series):
+                        with open(_series, "w") as _f:
+                            json.dump([], _f)
+                    _diag = _nx_diag_last(
+                        os.path.join(_REPO_ROOT, "report",
+                                     f"{_ckpt}_diag.jsonl"))
+                    _epoch_now = int(_diag.get("epoch", _ceiling)) \
+                        if _diag else _ceiling
+                    _rc = run(
+                        "python3 scripts/sbr0_gate.py "
+                        f"--ckpt {_nx_ckpt_path(_ckpt)} "
+                        f"--series-out {_series} "
+                        f"--cosine-series {_series} "
+                        f"--epoch {_epoch_now} "
+                        f"--samples 512 --batch-size 32 "
+                        f"--out report/sbr0_gate_verdict.json",
+                        check=False)
+                    _verdict = None
+                    try:
+                        _verdict = json.load(open(
+                            os.path.join(_REPO_ROOT, "report",
+                                         "sbr0_gate_verdict.json")))
+                    except Exception:
+                        pass
+                    _passed = (_rc == 0) and bool(
+                        _verdict and _verdict.get("passed"))
+                else:  # sbr1: clean accuracy within 3pp of D's frozen record
+                    _row = _nx_diag_last(
+                        os.path.join(_REPO_ROOT, "report",
+                                     f"{_ckpt}_diag.jsonl"))
+                    _te = float(_row["te_acc"]) if _row else -1.0
+                    _passed = abs(_te - RHANNX_D_CLEAN) <= 3.0
+                    _verdict = {"sbr1_clean_acc": _te,
+                                "d_reference": RHANNX_D_CLEAN,
+                                "within_3pp": _passed}
+                    with open(os.path.join(_REPO_ROOT, "report",
+                                           "sbr1_gate_verdict.json"), "w") as _f:
+                        json.dump(_verdict, _f, indent=2)
+                if _passed:
+                    print(f"  ✓ {_action.stage} GATE PASSED at ceiling "
+                          f"{_ceiling} — advance to the next stage")
+                    advance(_action.stage, "gate_passed",
+                            ceiling=_ceiling, verdict=_verdict,
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+                elif _ceiling >= _info["ceiling_hi"]:
+                    print(f"  ✗ {_action.stage} gate NOT passed by ceiling "
+                          f"{_ceiling} ({_info['ceiling_hi']} = ceiling) — "
+                          f"FAIL, reported honestly, ladder stops.")
+                    advance(_action.stage, "gate_failed",
+                            ceiling=_ceiling,
+                            verdict=_verdict,
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+                    _nx_ladder_done = True
+                else:
+                    _next = min(_ceiling + _info["step"],
+                                _info["ceiling_hi"])
+                    print(f"  gate not passed at {_ceiling}; resume training "
+                          f"to ceiling {_next}")
+                    advance(_action.stage, "training", ceiling=_next,
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+            elif _action.substep == "gate_failed":
+                print(f"  ✗ {_action.stage} GATE FAILED — STOP. Diagnose "
+                      f"slot-count/dim/freeze before any further SBR work.")
+                _nx_ladder_done = True
+
+        # ── sbr2/3/4: adversarial ramp + relational + uncertainty ────
+        elif _action.stage in ("sbr2", "sbr3", "sbr4"):
+            _info = RHANNX[_action.stage]
+            _ckpt = _info["ckpt"]
+            _sweep100 = os.path.join(_REPO_ROOT, "report",
+                                     f"sweep_rhan_nx_{_action.stage}_pgd100")
+            _sweep50 = os.path.join(_REPO_ROOT, "report",
+                                    f"sweep_rhan_nx_{_action.stage}_pgd50")
+            if _action.substep == "start":
+                advance(_action.stage, "training", roadmap_path=ROADMAP_LOCAL)
+                sync_roadmap_up()
+            elif _action.substep == "training":
+                if _action.stage == "sbr2":
+                    _extra = "--sbr-stage adversarial_ramp --belief-drift-every 10"
+                    _maxep = 60
+                else:
+                    _sbr_stage_name = ("relational" if _action.stage == "sbr3"
+                                       else "uncertainty")
+                    _extra = (f"--sbr-stage {_sbr_stage_name} "
+                              f"--fixed-eps 0.094")
+                    _maxep = 20
+                if not _stage4_training_done(_ckpt, _maxep,
+                                             f"{_action.stage} "):
+                    _nx_trainer(_ckpt, _maxep, _extra, _info["base"],
+                                f"{_action.stage} train->{_maxep}")
+                if DRY_RUN or _stage4_training_done(_ckpt, _maxep,
+                                                    f"{_action.stage} "):
+                    print(f"  ✓ {_action.stage} training complete "
+                          f"({_maxep} epochs) — eval pending")
+                    advance(_action.stage, "eval_pending",
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+            elif _action.substep == "eval":
+                _nx_16seed_eval(_ckpt, _nx_ckpt_path(_ckpt),
+                                _sweep100, _sweep50)
+                if DRY_RUN:
+                    advance(_action.stage, "eval_complete",
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+                else:
+                    _csv100 = os.path.join(_sweep100,
+                                           "epsilon_sweep_per_seed.csv")
+                    if os.path.exists(_csv100):
+                        advance(_action.stage, "eval_complete",
+                                sweep=_sweep100,
+                                roadmap_path=ROADMAP_LOCAL)
+                        sync_roadmap_up()
+                    else:
+                        print("  ⚠ eval CSV not found after run — re-running "
+                              "the eval cell (resume-safe)")
+            elif _action.substep == "verdict":
+                _nx_build_report()
+                advance(_action.stage, "done", roadmap_path=ROADMAP_LOCAL)
+                sync_roadmap_up()
+
+        # ── ais_v2 (D2) / hpc_belief (D3): swap tests ────────────────
+        elif _action.stage in ("ais_v2", "hpc_belief"):
+            _info = RHANNX[_action.stage]
+            _ckpt = _info["ckpt"]
+            _smoke = _info["smoke_ckpt"]
+            _sweep100 = os.path.join(_REPO_ROOT, "report",
+                                     f"sweep_rhan_nx_{_action.stage}_pgd100")
+            _sweep50 = os.path.join(_REPO_ROOT, "report",
+                                    f"sweep_rhan_nx_{_action.stage}_pgd50")
+            _smoke_extra = (f"--ais-variant info_gain_v2"
+                            if _action.stage == "ais_v2" else
+                            f"--hpc-target belief")
+            if _action.substep == "start":
+                advance(_action.stage, "training", phase="smoke",
+                        roadmap_path=ROADMAP_LOCAL)
+                sync_roadmap_up()
+            elif _action.substep == "training" and _st.get("phase") == "smoke":
+                if not _stage4_training_done(_smoke, 15,
+                                             f"{_action.stage}-smoke "):
+                    _nx_trainer(_smoke, 15, _smoke_extra, _info["base"],
+                                f"{_action.stage} smoke")
+                if DRY_RUN or _stage4_training_done(_smoke, 15,
+                                                    f"{_action.stage}-smoke "):
+                    advance(_action.stage, "gate_pending",
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+            elif _action.substep == "training" and _st.get("phase") == "full":
+                if not _stage4_training_done(_ckpt, 60,
+                                             f"{_action.stage} "):
+                    _nx_trainer(_ckpt, 60, _smoke_extra, _info["base"],
+                                f"{_action.stage} full")
+                if DRY_RUN or _stage4_training_done(_ckpt, 60,
+                                                    f"{_action.stage} "):
+                    print(f"  ✓ {_action.stage} 60-epoch run complete — eval "
+                          f"pending")
+                    advance(_action.stage, "eval_pending",
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+            elif _action.substep == "gate":
+                _ok = True
+                _rc = run(
+                    "python3 -m pytest "
+                    + ("tests/test_ais_v2_gradient_flow.py -q"
+                       if _action.stage == "ais_v2" else
+                       "tests/test_hpc_belief_gradient_flow.py "
+                       "tests/test_hpc_disable_backward_compat.py -q"),
+                    check=False)
+                _ok = _ok and (_rc == 0 or DRY_RUN)
+                if _action.stage == "ais_v2":
+                    _rc2 = run(
+                        "python3 scripts/eval_ais_v2_gate.py "
+                        f"--ckpt {_nx_ckpt_path(_smoke)} "
+                        f"--samples 512 --batch-size 32 "
+                        f"--out report/rhan_nx_ais_v2_smoke_gate.json",
+                        check=False)
+                    _ok = _ok and (_rc2 == 0 or DRY_RUN)
+                else:
+                    _rows = []
+                    _diag = os.path.join(_REPO_ROOT, "report",
+                                         f"{_smoke}_diag.jsonl")
+                    if os.path.exists(_diag):
+                        with open(_diag) as _f:
+                            for _line in _f:
+                                _line = _line.strip()
+                                if _line:
+                                    try:
+                                        _rows.append(json.loads(_line))
+                                    except Exception:
+                                        pass
+                    if len(_rows) >= 2:
+                        _e0 = float(_rows[0]["hpc_error_mean"])
+                        _eN = float(_rows[-1]["hpc_error_mean"])
+                        _trend_ok = _eN <= 0.9 * _e0
+                        _pd = _rows[-1].get("pi_d_per_class", {})
+                        _car_first = (max(_pd, key=_pd.get) == "car")
+                        _ok = _ok and _trend_ok and _car_first
+                        print(f"  belief-HPC smoke: hpc_error {_e0:.4f} -> "
+                              f"{_eN:.4f} (trend_ok={_trend_ok}), "
+                              f"car #1={_car_first}", flush=True)
+                    else:
+                        print("  ⚠ belief-HPC smoke diag incomplete — gate "
+                              "cannot pass", flush=True)
+                        _ok = False
+                if _ok:
+                    print(f"  ✓ {_action.stage} SMOKE GATE PASSED — proceed to "
+                          f"the 60-epoch run")
+                    advance(_action.stage, "training", phase="full",
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+                else:
+                    print(f"  ✗ {_action.stage} SMOKE GATE FAILED — STOP; "
+                          f"diagnose before the full run")
+                    advance(_action.stage, "gate_failed",
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+                    _nx_ladder_done = True
+            elif _action.substep == "eval":
+                _nx_16seed_eval(_ckpt, _nx_ckpt_path(_ckpt),
+                                _sweep100, _sweep50)
+                if DRY_RUN:
+                    advance(_action.stage, "eval_complete",
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+                else:
+                    _csv100 = os.path.join(_sweep100,
+                                           "epsilon_sweep_per_seed.csv")
+                    if os.path.exists(_csv100):
+                        advance(_action.stage, "eval_complete",
+                                sweep=_sweep100,
+                                roadmap_path=ROADMAP_LOCAL)
+                        sync_roadmap_up()
+                    else:
+                        print("  ⚠ eval CSV not found after run — re-running "
+                              "the eval cell (resume-safe)")
+            elif _action.substep == "verdict":
+                _nx_build_report()
+                advance(_action.stage, "done", roadmap_path=ROADMAP_LOCAL)
+                sync_roadmap_up()
+            elif _action.substep == "gate_failed":
+                print(f"  ✗ {_action.stage} GATE FAILED — STOP. Write the honest "
+                      f"failure verdict; no downstream comparison is built on it.")
+                _nx_ladder_done = True
+        else:
+            print(f"  unknown action {_action}", flush=True)
+            _nx_ladder_done = True
+
+    # When the while-loop ends (either all stages done, or a gate_failed stop),
+    # make sure the final roadmap state is on HF.
+    sync_roadmap_up()
+
 
 # %% [markdown]
 # ## End of notebook — Status summary
