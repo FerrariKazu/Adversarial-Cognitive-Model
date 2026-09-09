@@ -5652,9 +5652,21 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
                             roadmap_path=ROADMAP_LOCAL)
                     sync_roadmap_up()
             elif _action.substep == "gate_failed":
-                print(f"  ✗ {_action.stage} GATE FAILED — STOP. Diagnose "
-                      f"slot-count/dim/freeze before any further SBR work.")
-                _nx_ladder_done = True
+                _info = RHANNX[_action.stage]
+                _ceiling = _info["ceiling"]
+                if _ceiling < _info["ceiling_hi"]:
+                    _next = min(_ceiling + _info["step"],
+                                _info["ceiling_hi"])
+                    print(f"  sbr0 gate_failed at ceiling {_ceiling}; "
+                          f"advancing to ceiling {_next}")
+                    advance(_action.stage, "training", ceiling=_next,
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+                else:
+                    print(f"  ✗ {_action.stage} GATE FAILED — STOP. "
+                          f"Diagnose slot-count/dim/freeze before any "
+                          f"further SBR work.")
+                    _nx_ladder_done = True
 
         # ── sbr2/3/4: adversarial ramp + relational + uncertainty ────
         elif _action.stage in ("sbr2", "sbr3", "sbr4"):
