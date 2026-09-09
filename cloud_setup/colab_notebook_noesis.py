@@ -5653,7 +5653,7 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
                     sync_roadmap_up()
             elif _action.substep == "gate_failed":
                 _info = RHANNX[_action.stage]
-                _ceiling = _info["ceiling"]
+                _ceiling = int(_st.get("ceiling", _info["ceiling_lo"]))
                 if _ceiling < _info["ceiling_hi"]:
                     _next = min(_ceiling + _info["step"],
                                 _info["ceiling_hi"])
