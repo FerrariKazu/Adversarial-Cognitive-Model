@@ -373,6 +373,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                          "cosine] pair to (the notebook maintains the series "
                          "across the 5-epoch milestones); the updated series "
                          "is then used for criterion 2.")
+    ap.add_argument("--epoch", type=int, default=None,
+                    help="Current epoch number (required for series-out to "
+                         "produce unique entries across gate runs).")
     ap.add_argument("--out", default=VERDICT_PATH)
     ap.add_argument("--samples", type=int, default=512)
     ap.add_argument("--batch-size", type=int, default=32)
@@ -422,7 +425,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     # Maintain the criterion-2 series: append THIS checkpoint's pairwise
     # attention-map cosine (measured every 5 epochs per the pre-registered
     # gate) so the trend spans the whole run, then re-evaluate with it.
-    epoch_now = int(state.get("epoch", 0))
+    epoch_now = args.epoch if args.epoch is not None else int(state.get("epoch", 0))
     if args.series_out:
         series = list(cosine_series or [])
         cos_now = attention_pairwise_cosine(attn.to(device))
