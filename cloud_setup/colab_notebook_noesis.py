@@ -5021,7 +5021,7 @@ DO_RHAN_NX = True   # master toggle for the RHAN-NX Generation-0 ladder
 # RHAN-NX artifact names (per-stage).
 RHANNX = {
     "sbr0": {"ckpt": "rhan_nx_sbr0", "base": "rhan_next_ais_hpc",
-             "ceiling_lo": 15, "ceiling_hi": 40, "step": 5},
+             "ceiling_lo": 15, "ceiling_hi": 60, "step": 5},
     "sbr1": {"ckpt": "rhan_nx_sbr1", "base": "rhan_nx_sbr0_best.pth",
               "ceiling_lo": 15, "ceiling_hi": 40, "step": 5},
     "sbr2": {"ckpt": "rhan_nx_sbr2", "base": "rhan_nx_sbr1_best.pth"},
