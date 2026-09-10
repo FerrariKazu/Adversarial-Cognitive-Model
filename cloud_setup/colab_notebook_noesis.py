@@ -5077,6 +5077,16 @@ if DO_RHAN_NX:
 
     def _nx_trainer(ckpt_name, max_epochs, extra, base, tag):
         """One resume-safe trainer invocation (NEVER --force-restart)."""
+        # 2026-09-10: a hand-edited cell glued '--force-restart--diag-json'
+        # into this command; the trainer's unknown-arg FATAL guard refused it
+        # only after torch/CUDA startup (~2 min lost). Fail fast here instead,
+        # and keep this funnel resume-safe by protocol.
+        _all = f"{extra} --ckpt-name {ckpt_name} --max-epochs {max_epochs}"
+        assert "--force-restart" not in _all, (
+            "_nx_trainer is resume-safe: NEVER pass --force-restart (glued "
+            "tokens like '--force-restart--diag-json' also fail this check). "
+            "A fresh Colab session already starts from epoch 1 because the "
+            "stale HF rolling checkpoints are deleted before training.")
         _cmd = (
             f"python3 phase1_training/train_rhan_next.py "
             f"--enable-ais --no-ais-precision-recon "
@@ -5088,6 +5098,9 @@ if DO_RHAN_NX:
             f"--target-ckpt {_nx_ensure_ckpt(base)} "
             f"--batch-size 16 --accum-steps 16 --force-single-gpu "
             f"--diag-json report/{ckpt_name}_diag.jsonl")
+        assert not _cmd.replace("--force-single-gpu", "").strip().endswith(
+            "--force-restart"), \
+            "glued/misplaced --force-restart detected in _nx_trainer command"
         print(f"  [{tag}] {_cmd}")
         if not DRY_RUN:
             run(_cmd)
@@ -5241,6 +5254,13 @@ if DO_RHAN_NX:
                 if not os.path.exists(_series):
                     with open(_series, "w") as f:
                         json.dump([], f)
+                # Amendment 2026-09-10: the milestone series only began at
+                # epoch 45, after slot specialization saturated. The gate
+                # itself anchors the trend at the epoch-0 baseline
+                # (scripts/sbr0_gate.py::_ensure_t0_point, value from the
+                # git-tracked report/rhan_nx_sbr0_cosine_t0.json), so the
+                # fitted slope measures the full 0->45 descent. Nothing to
+                # do here — next gate check is at ceiling 60.
                 _diag = _nx_diag_last(
                     os.path.join(_REPO_ROOT, "report",
                                  f"{_ckpt}_diag.jsonl"))

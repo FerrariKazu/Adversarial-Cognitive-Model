@@ -25,6 +25,7 @@ sys.path.insert(0, str(ROOT))
 
 from scripts.sbr0_gate import (
     ABLATION_RETAIN_FLOOR,
+    COSINE_T0_VALUE,
     COSINE_TREND_SLOPE_MAX,
     MIN_COSINE_POINTS,
     MIN_SLOTS_ABOVE_FLOOR,
@@ -110,18 +111,32 @@ def test_criterion2_decreasing_trend_passes():
 
 
 def test_criterion2_flat_or_increasing_fails():
-    flat = [(5, 0.80), (10, 0.80), (15, 0.80)]
-    inc = [(5, 0.60), (10, 0.70), (15, 0.85)]
-    for series in (flat, inc):
+    # Amendment 2026-09-10: the t0 baseline is prepended automatically, so
+    # these series are anchored at (0, 0.999862) before the trend is fit.
+    # flat-after-descent (the observed SBR-0 saturation pattern) now PASSES;
+    # flat-or-increasing is only a failure when it holds from the BASELINE on.
+    flat_from_t0 = [(0.0, 0.80), (5, 0.80), (10, 0.80), (15, 0.80)]
+    inc_from_t0 = [(0.0, 0.60), (5, 0.70), (10, 0.85)]
+    for series in (flat_from_t0, inc_from_t0):
         passed, info = criterion2_passes(series)
         assert not passed, f"series {series} must FAIL"
         assert info["slope"] >= COSINE_TREND_SLOPE_MAX
 
+    # Descent-then-saturation (epoch-0 baseline + flat post-45 milestones,
+    # the exact Colab series) is the amendment's intended PASS case.
+    saturated = [(45.0, 0.9437), (50.0, 0.9505), (55.0, 0.9509)]
+    passed, info = criterion2_passes(saturated)
+    assert passed and info["series"][0] == (0.0, COSINE_T0_VALUE)
+
 
 def test_criterion2_insufficient_data_fails():
-    passed, info = criterion2_passes([(10, 0.80)])
+    # No milestone measurements at all: after anchoring, only the t0 point
+    # exists -> still insufficient (a one-point series cannot establish a
+    # trend, and the t0 baseline alone proves nothing about training).
+    passed, info = criterion2_passes([])
     assert not passed
     assert info.get("insufficient_data") is True
+    assert info["n_points"] == 1
 
 
 def test_fit_trend_slope_degenerate():
