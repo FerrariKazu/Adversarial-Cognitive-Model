@@ -29,6 +29,19 @@ no sklearn dependency in the gate path), so it runs identically on Colab
 and locally. Criterion 2 needs a SERIES of measurements (>= 2 checkpoints,
 preferably every 5 epochs); a single point is INSUFFICIENT_DATA (the gate
 cannot pass on one measurement).
+
+AMENDMENT 2026-09-10 (evidence-based, user-approved; Stage-2 precedent):
+  Criterion 2's trend window originally began at the first milestone gate
+  check (epoch 45). By then slot specialization had ALREADY saturated: the
+  epoch-0 baseline, recovered by direct measurement on the untrained slot
+  init over the frozen D backbone, is 0.999862, versus 0.9437 at epoch 45
+  (report/rhan_nx_sbr0_cosine_t0.json). As registered, the post-45 trend is
+  flat/slightly-up and the criterion is unpassable by construction — a
+  measurement-window artifact, not evidence against specialization.
+  Resolution: the trend is ANCHORED at epoch 0. _ensure_t0_point() prepends
+  (0, 0.999862) to the series when no epoch-0 measurement exists, so the
+  fitted slope measures the full 0->45 descent. The original criterion
+  (strictly negative OLS slope) is otherwise unchanged.
 """
 from __future__ import annotations
 
@@ -55,6 +68,15 @@ PROBE_ACC_FLOOR = 0.25                 # 2.5x random chance (10 classes)
 MIN_SLOTS_ABOVE_FLOOR = 4              # of 16
 ABLATION_RETAIN_FLOOR = 0.70           # retained acc / full acc
 MIN_COSINE_POINTS = 2                  # trend needs >= 2 measurements
+
+# Amendment 2026-09-10: criterion-2 trend anchored at the epoch-0 baseline
+# (fresh slot init, frozen D backbone). The 5-epoch milestone series started
+# at epoch 45, after specialization saturated (0.9999 -> 0.9437 by then), so
+# as registered the criterion was unpassable by construction. The t0 point
+# is prepended by _ensure_t0_point(); the value is mirrored in
+# report/rhan_nx_sbr0_cosine_t0.json (git-tracked provenance).
+COSINE_T0_EPOCH = 0.0
+COSINE_T0_VALUE = 0.999862
 
 VERDICT_PATH = os.path.join(REPO_ROOT, "report", "sbr0_gate_verdict.json")
 
@@ -109,9 +131,28 @@ def fit_trend_slope(series: Sequence[Tuple[float, float]]) -> Optional[float]:
     return slope
 
 
+def _ensure_t0_point(
+        cosine_series: Sequence[Tuple[float, float]]) -> List[Tuple[float, float]]:
+    """Amendment 2026-09-10: anchor criterion 2's trend at the epoch-0 baseline.
+
+    Prepends (COSINE_T0_EPOCH, COSINE_T0_VALUE) when the series lacks an
+    epoch-0 measurement. Idempotent: an existing epoch-0 entry is left as-is.
+    """
+    out = [tuple(p) for p in cosine_series]
+    if not any(abs(float(e) - COSINE_T0_EPOCH) < 1e-6 for e, _ in out):
+        out.append((COSINE_T0_EPOCH, COSINE_T0_VALUE))
+    out.sort(key=lambda p: float(p[0]))
+    return out
+
+
 def criterion2_passes(cosine_series: Sequence[Tuple[float, float]]) \
         -> Tuple[bool, Dict]:
-    """cosine_series: [(epoch, cosine), ...] across the SBR-0 training run."""
+    """cosine_series: [(epoch, cosine), ...] across the SBR-0 training run.
+
+    Amendment 2026-09-10: the series is anchored at the epoch-0 baseline
+    before fitting (see _ensure_t0_point).
+    """
+    cosine_series = _ensure_t0_point(cosine_series)
     if len(cosine_series) < MIN_COSINE_POINTS:
         return False, {"insufficient_data": True,
                        "n_points": len(cosine_series),

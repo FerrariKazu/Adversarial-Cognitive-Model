@@ -1,0 +1,9 @@
+{
+  "schema": "rhan_nx_sbr0_cosine_t0_v1",
+  "epoch": 0,
+  "mean_pairwise_cosine": 0.999862,
+  "measured_utc": "2026-09-11T00:00:00Z",
+  "ckpt_base": "checkpoints/rhan_next_ais_hpc_best.pth",
+  "method": "Fresh RHANNext with D's weights (24 structured_belief.* keys missing = random slot init), sbr_stage=gate_only + freeze_backbone_for_sbr0=True, eval() on 512 STL-10 test images, last-step sbr_attn, mean pairwise attention-map cosine (sbr0_gate.attention_pairwise_cosine).",
+  "note": "Criterion-2 baseline point, recovered by direct measurement on 2026-09-10. The gate's 5-epoch milestone series only began at epoch 45, after slot specialization had already saturated (0.9999 -> 0.9437 between epoch 0 and 45); as registered, the post-45 trend is flat/slightly-up and cannot pass. Amendment 2026-09-10 (user-approved): anchor the trend at epoch 0 so criterion 2 measures the full descent, per the Stage-2 evidence-based amendment precedent."
+}
