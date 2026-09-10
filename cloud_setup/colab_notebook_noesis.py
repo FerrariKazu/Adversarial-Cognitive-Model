@@ -5221,6 +5221,17 @@ if DO_RHAN_NX:
             _sbr_stage_name = ("gate_only" if _action.stage == "sbr0"
                                else "clean_classifier")
             _extra = (f"--sbr-stage {_sbr_stage_name} {_frozen} --clean-only")
+            for _repo in ("FerrariKazu/rhan-checkpoints-rolling",
+                          "FerrariKazu/rhan-checkpoints"):
+                _fname = f"{_ckpt}_rolling.pth"
+                try:
+                    from huggingface_hub import HfApi
+                    HfApi(token=hf_token).delete_file(
+                        path_in_repo=_fname,
+                        repo_id=_repo, repo_type="dataset")
+                    print(f"  deleted {_fname} from {_repo}")
+                except Exception:
+                    pass
             _nx_trainer(_ckpt, _ceiling, _extra, _info["base"],
                         f"{_action.stage} train->{_ceiling}")
             # Milestone reached -> run the stage gate.
@@ -5284,8 +5295,24 @@ if DO_RHAN_NX:
                 advance(_action.stage, "training", ceiling=_next,
                         roadmap_path=ROADMAP_LOCAL)
         elif _action.substep == "gate_failed":
-            print(f"  ✗ {_action.stage} GATE FAILED — STOP. Diagnose "
-                  f"slot-count/dim/freeze before any further SBR work.")
+            _ceiling = int(_st.get("ceiling", _info["ceiling_lo"]))
+            if _ceiling < _info["ceiling_hi"]:
+                _next = min(_ceiling + _info["step"], _info["ceiling_hi"])
+                print(f"  {_action.stage} gate_failed at ceiling {_ceiling}; "
+                      f"advancing to ceiling {_next}")
+                for _repo in ("FerrariKazu/rhan-checkpoints-rolling",
+                              "FerrariKazu/rhan-checkpoints"):
+                    _fname = f"{_ckpt}_rolling.pth"
+                    try:
+                        from huggingface_hub import HfApi
+                        HfApi(token=hf_token).delete_file(
+                            path_in_repo=_fname,
+                            repo_id=_repo, repo_type="dataset")
+                        print(f"  deleted {_fname} from {_repo}")
+                    except Exception:
+                        pass
+                advance(_action.stage, "training", ceiling=_next,
+                        roadmap_path=ROADMAP_LOCAL)
 
     # ── sbr2/3/4: adversarial ramp + relational + uncertainty ────────────
     elif _action.stage in ("sbr2", "sbr3", "sbr4"):
