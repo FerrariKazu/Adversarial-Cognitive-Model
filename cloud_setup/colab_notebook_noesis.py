@@ -5659,6 +5659,17 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
                                 _info["ceiling_hi"])
                     print(f"  sbr0 gate_failed at ceiling {_ceiling}; "
                           f"advancing to ceiling {_next}")
+                    for _repo in ("FerrariKazu/rhan-checkpoints-rolling",
+                                  "FerrariKazu/rhan-checkpoints"):
+                        _fname = f"{_info['ckpt']}_rolling.pth"
+                        try:
+                            from huggingface_hub import HfApi
+                            HfApi(token=hf_token).delete_file(
+                                path_in_repo=_fname,
+                                repo_id=_repo, repo_type="dataset")
+                            print(f"  deleted {_fname} from {_repo}")
+                        except Exception:
+                            pass
                     advance(_action.stage, "training", ceiling=_next,
                             roadmap_path=ROADMAP_LOCAL)
                     sync_roadmap_up()
