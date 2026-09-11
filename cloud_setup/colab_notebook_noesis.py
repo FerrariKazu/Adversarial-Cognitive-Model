@@ -5046,7 +5046,8 @@ if DO_RHAN_NX:
     import stage_state_machine as ssm
     ssm = importlib.reload(ssm)
     from stage_state_machine import (
-        get_next_action, advance, ensure_rhan_nx_state, report_state)
+        get_next_action, advance, ensure_rhan_nx_state, report_state,
+        gate_failed_re_evaluable)
     # Restore the HF-synced roadmap BEFORE reading — a fresh session must
     # never clobber runtime verdicts written by prior sessions.
     sync_roadmap_down()
@@ -5233,27 +5234,73 @@ if DO_RHAN_NX:
                 if _action.stage == "sbr0" else ""
             _sbr_stage_name = ("gate_only" if _action.stage == "sbr0"
                                else "clean_classifier")
+            _series = os.path.join(
+                _REPO_ROOT, "report", "rhan_nx_sbr0_cosine_series.json")
             _extra = (f"--sbr-stage {_sbr_stage_name} {_frozen} --clean-only")
-            for _repo in ("FerrariKazu/rhan-checkpoints-rolling",
-                          "FerrariKazu/rhan-checkpoints"):
-                _fname = f"{_ckpt}_rolling.pth"
-                try:
-                    from huggingface_hub import HfApi
-                    HfApi(token=hf_token).delete_file(
-                        path_in_repo=_fname,
-                        repo_id=_repo, repo_type="dataset")
-                    print(f"  deleted {_fname} from {_repo}")
-                except Exception:
-                    pass
-            _nx_trainer(_ckpt, _ceiling, _extra, _info["base"],
-                        f"{_action.stage} train->{_ceiling}")
+            # Repair-safety (amendment 2026-09-11): when training is already
+            # complete (marker or rolling epoch >= ceiling), do NOT delete
+            # the HF rolling checkpoint and do NOT retrain — proceed straight
+            # to the gate (re)evaluation below. This is what makes the
+            # insufficient_data repair path safe: the trained checkpoint is
+            # never touched, only the gate re-runs.
+            if not _stage4_training_done(_ckpt, _ceiling,
+                                         f"{_action.stage} "):
+                for _repo in ("FerrariKazu/rhan-checkpoints-rolling",
+                              "FerrariKazu/rhan-checkpoints"):
+                    _fname = f"{_ckpt}_rolling.pth"
+                    try:
+                        from huggingface_hub import HfApi
+                        HfApi(token=hf_token).delete_file(
+                            path_in_repo=_fname,
+                            repo_id=_repo, repo_type="dataset")
+                        print(f"  deleted {_fname} from {_repo}")
+                    except Exception:
+                        pass
+                _nx_trainer(_ckpt, _ceiling, _extra, _info["base"],
+                            f"{_action.stage} train->{_ceiling}")
             # Milestone reached -> run the stage gate.
             if _action.stage == "sbr0":
-                _series = os.path.join(
-                    _REPO_ROOT, "report", "rhan_nx_sbr0_cosine_series.json")
                 if not os.path.exists(_series):
                     with open(_series, "w") as f:
                         json.dump([], f)
+                # Fresh-session repair safety: materialize the checkpoint
+                # from HF before the gate CLI runs (see ladder path).
+                if not os.path.exists(_nx_ckpt_path(_ckpt)):
+                    print(f"  [repair] materializing {_ckpt}_best.pth "
+                          f"from HF for gate re-evaluation", flush=True)
+                    _nx_ensure_ckpt(_ckpt)
+                _series_name = os.path.basename(_series)
+                _series_rows = []
+                try:
+                    _series_rows = [tuple(p) for p in
+                                    json.load(open(_series))]
+                except Exception:
+                    pass
+                if not _series_rows:
+                    # 2026-09-11 durability fix: restore the series from HF
+                    # BEFORE the gate runs — never upload an empty local file
+                    # over the good copy (that would recreate the 2026-09-10
+                    # wipe). The updated series is uploaded after the gate
+                    # appends this epoch's point.
+                    try:
+                        from huggingface_hub import hf_hub_download as _sdl
+                        _sp = _sdl(repo_id="FerrariKazu/rhan-checkpoints",
+                                   repo_type="dataset",
+                                   filename=_series_name, token=hf_token)
+                        _merged = {float(e): c for e, c in
+                                   (tuple(p) for p in json.load(open(_sp)))}
+                        _merged.update({float(e): c
+                                        for e, c in _series_rows})
+                        _series_rows = sorted(_merged.items())
+                        with open(_series, "w") as _f2:
+                            json.dump(_series_rows, _f2)
+                        print(f"  [series] restored {len(_series_rows)} "
+                              f"point(s) from HF after session wipe",
+                              flush=True)
+                    except Exception as _ex:
+                        print(f"  [series] WARNING: no series on HF and local "
+                              f"copy empty ({_ex}) — criterion 2 will rely on "
+                              f"the t0 anchor alone", flush=True)
                 # Amendment 2026-09-10: the milestone series only began at
                 # epoch 45, after slot specialization saturated. The gate
                 # itself anchors the trend at the epoch-0 baseline
@@ -5279,6 +5326,15 @@ if DO_RHAN_NX:
                     _verdict = json.load(open(
                         os.path.join(_REPO_ROOT, "report",
                                      "sbr0_gate_verdict.json")))
+                except Exception:
+                    pass
+                # 2026-09-11 durability fix: persist the updated series (the
+                # gate appended this epoch's point) so a session wipe can
+                # never again reduce criterion 2 to insufficient_data.
+                try:
+                    if upload_hf_file(_series, _series_name):
+                        print(f"  ✓ {_series_name} synced to HF "
+                              f"(survives session restarts)", flush=True)
                 except Exception:
                     pass
                 _passed = (_rc == 0) and bool(
@@ -5315,24 +5371,39 @@ if DO_RHAN_NX:
                 advance(_action.stage, "training", ceiling=_next,
                         roadmap_path=ROADMAP_LOCAL)
         elif _action.substep == "gate_failed":
-            _ceiling = int(_st.get("ceiling", _info["ceiling_lo"]))
-            if _ceiling < _info["ceiling_hi"]:
-                _next = min(_ceiling + _info["step"], _info["ceiling_hi"])
-                print(f"  {_action.stage} gate_failed at ceiling {_ceiling}; "
-                      f"advancing to ceiling {_next}")
-                for _repo in ("FerrariKazu/rhan-checkpoints-rolling",
-                              "FerrariKazu/rhan-checkpoints"):
-                    _fname = f"{_ckpt}_rolling.pth"
-                    try:
-                        from huggingface_hub import HfApi
-                        HfApi(token=hf_token).delete_file(
-                            path_in_repo=_fname,
-                            repo_id=_repo, repo_type="dataset")
-                        print(f"  deleted {_fname} from {_repo}")
-                    except Exception:
-                        pass
-                advance(_action.stage, "training", ceiling=_next,
+            if gate_failed_re_evaluable(_st):
+                # Amendment 2026-09-11: an insufficient_data verdict is a
+                # measurement artifact (lost session-local series), not a
+                # criteria outcome. Re-enter training at the final ceiling:
+                # the trainer no-ops (already complete), the gate re-runs
+                # under the t0-anchored amendment, and the branch advances
+                # normally. Substantive fails keep terminal semantics.
+                print(f"  REPAIR (amendment 2026-09-11): {_action.stage} "
+                      f"gate_failed verdict is insufficient_data only — "
+                      f"re-evaluating the gate (checkpoint untouched; "
+                      f"training already complete).")
+                advance(_action.stage, "training",
+                        ceiling=int(_info["ceiling_hi"]),
                         roadmap_path=ROADMAP_LOCAL)
+            else:
+                _ceiling = int(_st.get("ceiling", _info["ceiling_lo"]))
+                if _ceiling < _info["ceiling_hi"]:
+                    _next = min(_ceiling + _info["step"], _info["ceiling_hi"])
+                    print(f"  {_action.stage} gate_failed at ceiling {_ceiling}; "
+                          f"advancing to ceiling {_next}")
+                    for _repo in ("FerrariKazu/rhan-checkpoints-rolling",
+                                  "FerrariKazu/rhan-checkpoints"):
+                        _fname = f"{_ckpt}_rolling.pth"
+                        try:
+                            from huggingface_hub import HfApi
+                            HfApi(token=hf_token).delete_file(
+                                path_in_repo=_fname,
+                                repo_id=_repo, repo_type="dataset")
+                            print(f"  deleted {_fname} from {_repo}")
+                        except Exception:
+                            pass
+                    advance(_action.stage, "training", ceiling=_next,
+                            roadmap_path=ROADMAP_LOCAL)
 
     # ── sbr2/3/4: adversarial ramp + relational + uncertainty ────────────
     elif _action.stage in ("sbr2", "sbr3", "sbr4"):
@@ -5541,6 +5612,7 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
     print("  RHAN-NX LADDER RUNNER — run-to-done mode (single-cell, resume-safe)")
     print("="*70)
     _nx_ladder_done = False
+    _nx_repair_count = 0  # amendment 2026-09-11: bound insufficient_data repairs
     while not _nx_ladder_done:
         sync_roadmap_down()
         _roadmap = json.load(open(ROADMAP_LOCAL))
@@ -5627,17 +5699,73 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
                 _sbr_stage_name = ("gate_only" if _action.stage == "sbr0"
                                    else "clean_classifier")
 
+                _series = os.path.join(
+                    _REPO_ROOT, "report",
+                    "rhan_nx_sbr0_cosine_series.json")
                 _extra = (f"--sbr-stage {_sbr_stage_name} {_frozen} --clean-only")
-                _nx_trainer(_ckpt, _ceiling, _extra, _info["base"],
-                            f"{_action.stage} train->{_ceiling}")
+                # Repair-safety (amendment 2026-09-11): when training is
+                # already complete, do NOT delete the HF rolling checkpoint
+                # and do NOT retrain — go straight to the gate (re)evaluation.
+                if not _stage4_training_done(_ckpt, _ceiling,
+                                             f"{_action.stage} "):
+                    for _repo in ("FerrariKazu/rhan-checkpoints-rolling",
+                                  "FerrariKazu/rhan-checkpoints"):
+                        _fname = f"{_ckpt}_rolling.pth"
+                        try:
+                            from huggingface_hub import HfApi
+                            HfApi(token=hf_token).delete_file(
+                                path_in_repo=_fname,
+                                repo_id=_repo, repo_type="dataset")
+                            print(f"  deleted {_fname} from {_repo}")
+                        except Exception:
+                            pass
+                    _nx_trainer(_ckpt, _ceiling, _extra, _info["base"],
+                                f"{_action.stage} train->{_ceiling}")
                 # Milestone reached -> run the stage gate.
                 if _action.stage == "sbr0":
-                    _series = os.path.join(
-                        _REPO_ROOT, "report",
-                        "rhan_nx_sbr0_cosine_series.json")
                     if not os.path.exists(_series):
                         with open(_series, "w") as _f:
                             json.dump([], _f)
+                    _series_name = os.path.basename(_series)
+                    # Fresh-session repair safety: if the trainer no-oped
+                    # (training already complete) nothing downloaded the
+                    # checkpoint this session — the gate CLI needs a local
+                    # file, so materialize it from HF before evaluating.
+                    if not os.path.exists(_nx_ckpt_path(_ckpt)):
+                        print(f"  [repair] materializing {_ckpt}_best.pth "
+                              f"from HF for gate re-evaluation", flush=True)
+                        _nx_ensure_ckpt(_ckpt)
+                    _series_rows = []
+                    try:
+                        _series_rows = [tuple(p) for p in
+                                        json.load(open(_series))]
+                    except Exception:
+                        pass
+                    if not _series_rows:
+                        # 2026-09-11 durability fix (see single-step path):
+                        # restore from HF BEFORE the gate; upload after.
+                        # NEVER upload an empty local file over the good copy
+                        # — that would recreate the 2026-09-10 wipe.
+                        try:
+                            from huggingface_hub import hf_hub_download as _sdl
+                            _sp = _sdl(repo_id="FerrariKazu/rhan-checkpoints",
+                                       repo_type="dataset",
+                                       filename=_series_name, token=hf_token)
+                            _merged = {float(e): c for e, c in
+                                       (tuple(p) for p in json.load(open(_sp)))}
+                            _merged.update({float(e): c
+                                            for e, c in _series_rows})
+                            _series_rows = sorted(_merged.items())
+                            with open(_series, "w") as _f2:
+                                json.dump(_series_rows, _f2)
+                            print(f"  [series] restored {len(_series_rows)} "
+                                  f"point(s) from HF after session wipe",
+                                  flush=True)
+                        except Exception as _ex:
+                            print(f"  [series] WARNING: no series on HF and "
+                                  f"local copy empty ({_ex}) — criterion 2 "
+                                  f"will rely on the t0 anchor alone",
+                                  flush=True)
                     _diag = _nx_diag_last(
                         os.path.join(_REPO_ROOT, "report",
                                      f"{_ckpt}_diag.jsonl"))
@@ -5657,6 +5785,14 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
                         _verdict = json.load(open(
                             os.path.join(_REPO_ROOT, "report",
                                          "sbr0_gate_verdict.json")))
+                    except Exception:
+                        pass
+                    # 2026-09-11 durability fix: persist the updated series
+                    # (the gate appended this epoch's point) after the gate.
+                    try:
+                        if upload_hf_file(_series, _series_name):
+                            print(f"  ✓ {_series_name} synced to HF "
+                                  f"(survives session restarts)", flush=True)
                     except Exception:
                         pass
                     _passed = (_rc == 0) and bool(
@@ -5699,32 +5835,53 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
                             roadmap_path=ROADMAP_LOCAL)
                     sync_roadmap_up()
             elif _action.substep == "gate_failed":
-                _info = RHANNX[_action.stage]
-                _ceiling = int(_st.get("ceiling", _info["ceiling_lo"]))
-                if _ceiling < _info["ceiling_hi"]:
-                    _next = min(_ceiling + _info["step"],
-                                _info["ceiling_hi"])
-                    print(f"  sbr0 gate_failed at ceiling {_ceiling}; "
-                          f"advancing to ceiling {_next}")
-                    for _repo in ("FerrariKazu/rhan-checkpoints-rolling",
-                                  "FerrariKazu/rhan-checkpoints"):
-                        _fname = f"{_info['ckpt']}_rolling.pth"
-                        try:
-                            from huggingface_hub import HfApi
-                            HfApi(token=hf_token).delete_file(
-                                path_in_repo=_fname,
-                                repo_id=_repo, repo_type="dataset")
-                            print(f"  deleted {_fname} from {_repo}")
-                        except Exception:
-                            pass
-                    advance(_action.stage, "training", ceiling=_next,
-                            roadmap_path=ROADMAP_LOCAL)
-                    sync_roadmap_up()
+                if gate_failed_re_evaluable(_st):
+                    # Amendment 2026-09-11 (see single-step path): an
+                    # insufficient_data verdict is a measurement artifact,
+                    # not a criteria outcome — re-evaluate the gate.
+                    _nx_repair_count += 1
+                    if _nx_repair_count > 2:
+                        print(f"  ✗ {_action.stage}: insufficient_data repair "
+                              f"re-tried {_nx_repair_count - 1}x and the gate "
+                              f"still cannot evaluate — STOP (likely a broken "
+                              f"checkpoint or gate environment; diagnose "
+                              f"manually).")
+                        _nx_ladder_done = True
+                    else:
+                        print(f"  REPAIR (amendment 2026-09-11): {_action.stage} "
+                              f"gate_failed verdict is insufficient_data only — "
+                              f"re-evaluating the gate (checkpoint untouched; "
+                              f"training already complete).")
+                        advance(_action.stage, "training",
+                                ceiling=int(_info["ceiling_hi"]),
+                                roadmap_path=ROADMAP_LOCAL)
+                        sync_roadmap_up()
                 else:
-                    print(f"  ✗ {_action.stage} GATE FAILED — STOP. "
-                          f"Diagnose slot-count/dim/freeze before any "
-                          f"further SBR work.")
-                    _nx_ladder_done = True
+                    _ceiling = int(_st.get("ceiling", _info["ceiling_lo"]))
+                    if _ceiling < _info["ceiling_hi"]:
+                        _next = min(_ceiling + _info["step"],
+                                    _info["ceiling_hi"])
+                        print(f"  sbr0 gate_failed at ceiling {_ceiling}; "
+                              f"advancing to ceiling {_next}")
+                        for _repo in ("FerrariKazu/rhan-checkpoints-rolling",
+                                      "FerrariKazu/rhan-checkpoints"):
+                            _fname = f"{_info['ckpt']}_rolling.pth"
+                            try:
+                                from huggingface_hub import HfApi
+                                HfApi(token=hf_token).delete_file(
+                                    path_in_repo=_fname,
+                                    repo_id=_repo, repo_type="dataset")
+                                print(f"  deleted {_fname} from {_repo}")
+                            except Exception:
+                                pass
+                        advance(_action.stage, "training", ceiling=_next,
+                                roadmap_path=ROADMAP_LOCAL)
+                        sync_roadmap_up()
+                    else:
+                        print(f"  ✗ {_action.stage} GATE FAILED — STOP. "
+                              f"Diagnose slot-count/dim/freeze before any "
+                              f"further SBR work.")
+                        _nx_ladder_done = True
 
         # ── sbr2/3/4: adversarial ramp + relational + uncertainty ────
         elif _action.stage in ("sbr2", "sbr3", "sbr4"):

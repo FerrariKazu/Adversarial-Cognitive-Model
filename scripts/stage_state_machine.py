@@ -36,6 +36,9 @@ substep returned by get_next_action() is derived from status:
   gate_pending  -> (stage, "gate")      — evaluate the pre-registered gate
   gate_passed   -> next stage's start   — or eval_pending for eval stages
   gate_failed   -> (stage, "gate_failed") — STOP; write honest failure verdict
+                    (EXCEPT insufficient_data verdicts — see
+                    gate_failed_re_evaluable, amendment 2026-09-11: those
+                    re-enter training so the gate is re-evaluated)
   eval_pending  -> (stage, "eval")      — fresh 16-seed PGD eval on NEW ckpt
   eval_complete -> (stage, "verdict")   — write verdict + masking + advance
   verdict_done  -> (stage, "done")
@@ -222,6 +225,35 @@ def advance(stage: str, new_status: str, roadmap_path: str = ROADMAP_LOCAL,
 def reset_stage(stage: str, roadmap_path: str = ROADMAP_LOCAL) -> None:
     """Force a stage back to not_started (debug/recapture escape only)."""
     advance(stage, "not_started", roadmap_path=roadmap_path)
+
+
+# ── repair rule (amendment 2026-09-11) ─────────────────────────────────────
+
+def gate_failed_re_evaluable(stage_state: Dict[str, Any]) -> bool:
+    """True when a gate_failed verdict is a measurement artifact, not a
+    criteria outcome — the gate may be RE-RUN (advance to gate_pending)
+    instead of stopping the ladder.
+
+    Amendment 2026-09-11 (evidence-based; user-approved repair of the
+    sbr0/gate_failed state recorded 2026-09-10T19:43:00Z): that session ran
+    PRE-amendment code (84abd6b) on a wiped session-local cosine series, so
+    criterion 2 recorded insufficient_data (n_points=1) and the ladder
+    stopped. The amended gate (acbb143) anchors the trend at the epoch-0
+    baseline and was never given the chance to evaluate that checkpoint.
+
+    Scope is deliberately NARROW: only insufficient_data verdicts qualify.
+    A verdict whose criteria were actually EVALUATED and failed (e.g. a flat
+    or rising cosine trend, entropy collapse) is a substantive FAIL and
+    keeps the terminal gate_failed semantics — that outcome must be written
+    up honestly, never re-rolled.
+    """
+    v = stage_state.get("verdict")
+    if not isinstance(v, dict):
+        return False
+    c2 = v.get("criteria", {}).get("2_pairwise_cosine_trend")
+    if not isinstance(c2, dict):
+        return False
+    return bool(c2.get("insufficient_data"))
 
 
 def report_state(roadmap: Optional[Dict[str, Any]] = None) -> str:
