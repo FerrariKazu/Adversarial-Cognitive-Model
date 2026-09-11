@@ -58,7 +58,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, NamedTuple, Optional
+from typing import Any, Dict, NamedTuple, Optional, Tuple
 
 ROADMAP_LOCAL = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "docs",
@@ -250,10 +250,88 @@ def gate_failed_re_evaluable(stage_state: Dict[str, Any]) -> bool:
     v = stage_state.get("verdict")
     if not isinstance(v, dict):
         return False
+    # (a) sbr0-style: criterion 2 could not be measured (lost series).
     c2 = v.get("criteria", {}).get("2_pairwise_cosine_trend")
-    if not isinstance(c2, dict):
+    if isinstance(c2, dict) and c2.get("insufficient_data"):
+        return True
+    # (b) sbr1-style, amendment 2026-09-11: a failed verdict that records the
+    # checkpoint BEATING its reference is a gate-FORMULA artifact, not a
+    # criteria outcome. The original symmetric band abs(clean - D) <= 3pp
+    # rejected the real SBR-1 run (62.49% clean vs D's 54.96%) for
+    # over-performing the reference by +7.5pp. The one-sided collapse gate
+    # (sbr1_gate_decision below) passes that checkpoint; the recorded FAIL
+    # is re-evaluable.
+    acc = v.get("sbr1_clean_acc")
+    ref = v.get("d_reference")
+    if isinstance(acc, (int, float)) and isinstance(ref, (int, float)):
+        if acc >= ref:
+            return True
+        if acc < 0:
+            # Negative accuracy is impossible — the old code's missing-telemetry
+            # sentinel (-1.0). Another measurement artifact, re-evaluable.
+            return True
+    # (c) any verdict that could not measure anything at all.
+    if v.get("insufficient_data"):
+        return True
+    return False
+
+
+def marker_covers_ceiling(marker: Optional[Dict[str, Any]],
+                          max_epochs: int) -> bool:
+    """True when a training-complete marker certifies AT LEAST max_epochs.
+
+    Amendment 2026-09-11 (sbr1 escalation fix): a marker written for a lower
+    ceiling must NOT satisfy a higher one. The old unconditional check let a
+    15-epoch marker answer 'already complete' to a 20-epoch request, which
+    neutered the ladder's escalation loop — 'resume training to ceiling
+    20/25/30/35/40' re-ran the same 15-epoch gate five times and recorded a
+    terminal FAIL without training a single additional epoch.
+
+    The caller is responsible for the ckpt_name match (the notebook's
+    _stage4_read_marker_json already enforces it).
+    """
+    if not isinstance(marker, dict):
         return False
-    return bool(c2.get("insufficient_data"))
+    try:
+        return int(marker.get("max_epochs", -1)) >= int(max_epochs)
+    except (TypeError, ValueError):
+        return False
+
+
+def sbr1_gate_decision(clean_acc: Optional[float], d_reference: float,
+                       margin: float = 3.0) -> Tuple[bool, Dict[str, Any]]:
+    """One-sided SBR-1 clean-accuracy gate (amendment 2026-09-11).
+
+    Pre-registered intent (docs/rhan_next_roadmap.json -> rhan_nx.sbr1.gate):
+    FAIL when SBR-1's clean accuracy COLLAPSES toward ~45% WITHOUT any
+    adversarial pressure — the cheapest possible discovery of the failure
+    mode E2b hit at massive compute cost. The original implementation used a
+    symmetric band abs(clean - D) <= 3pp, which also fails OVER-performance:
+    it rejected the real SBR-1 run (62.49% clean vs D's 54.96%) for BEATING
+    the reference by +7.5pp. A strictly better model must pass a gate whose
+    purpose is collapse detection.
+
+    Decision: pass iff clean_acc >= d_reference - margin.
+    Returns (passed, verdict_dict) — verdict is written to the roadmap and
+    report/sbr1_gate_verdict.json verbatim, so keep it JSON-serializable.
+    """
+    floor = round(d_reference - margin, 2)
+    if clean_acc is None:
+        return False, {
+            "sbr1_clean_acc": None, "d_reference": d_reference,
+            "floor": floor, "one_sided_collapse_gate": True,
+            "passed": False, "insufficient_data": True,
+            "note": ("no durable clean-accuracy record found "
+                     "(completion marker + session diag both absent)"),
+        }
+    passed = float(clean_acc) >= floor
+    return passed, {
+        "sbr1_clean_acc": float(clean_acc), "d_reference": d_reference,
+        "floor": floor, "one_sided_collapse_gate": True,
+        "passed": passed,
+        "criterion": (f"clean_acc >= d_reference - {margin:g}pp "
+                      "(collapse detector; over-performance passes)"),
+    }
 
 
 def report_state(roadmap: Optional[Dict[str, Any]] = None) -> str:
