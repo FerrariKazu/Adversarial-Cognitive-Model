@@ -409,15 +409,27 @@ def _stage4_upload_marker(ckpt_name, max_epochs, last_epoch, best_acc):
 
 def _stage4_training_done(ckpt_name, max_epochs, tag="", best_acc_hint=None):
     """True if ckpt_name's training is already complete:
-      1) a completion marker names it (local or HF, per-ckpt or shared), or
+      1) a completion marker names it AND certifies >= max_epochs, or
       2) its HF rolling checkpoint logged the final epoch (marker upload may
          have failed — self-heal by writing the per-ckpt marker).
-    Never launches, deletes, or restarts anything."""
+    Never launches, deletes, or restarts anything.
+
+    2026-09-11 (sbr1 escalation fix): a marker written for a LOWER ceiling
+    no longer satisfies a higher request. The old unconditional check let
+    the 15-epoch marker answer 'already complete' to a 20-epoch ask, so the
+    ladder's 'resume training to ceiling 20/25/30/35/40' loop never trained
+    anything — it re-ran the same gate five times and recorded a terminal
+    FAIL (scripts/stage_state_machine.py::marker_covers_ceiling)."""
     _m = _stage4_read_marker_json(ckpt_name)
     if _m is not None:
-        print(f"  [SKIP] {tag}{ckpt_name} training already complete "
-              f"(best={_m.get('best_acc', '?')}%)", flush=True)
-        return True
+        if marker_covers_ceiling(_m, max_epochs):
+            print(f"  [SKIP] {tag}{ckpt_name} training already complete "
+                  f"(best={_m.get('best_acc', '?')}%)", flush=True)
+            return True
+        print(f"  [marker] {tag}{ckpt_name} completion marker covers only "
+              f"{_m.get('max_epochs', '?')} epochs (< requested {max_epochs}) "
+              f"— training resumes below it", flush=True)
+        return False
     if _stage4_hf_has(f"{ckpt_name}_best.pth"):
         _ep = _stage4_rolling_epoch(ckpt_name)
         if _ep >= int(max_epochs):
@@ -516,7 +528,7 @@ if DO_RHAN_NX:
     ssm = importlib.reload(ssm)
     from stage_state_machine import (
         get_next_action, advance, ensure_rhan_nx_state, report_state,
-        gate_failed_re_evaluable)
+        gate_failed_re_evaluable, marker_covers_ceiling, sbr1_gate_decision)
     # Restore the HF-synced roadmap BEFORE reading — a fresh session must
     # never clobber runtime verdicts written by prior sessions.
     sync_roadmap_down()
@@ -562,11 +574,18 @@ if DO_RHAN_NX:
         # only after torch/CUDA startup (~2 min lost). Fail fast here instead,
         # and keep this funnel resume-safe by protocol.
         _base_path = _nx_ensure_ckpt(base)
-        assert os.path.exists(_base_path), (
-            f"[{tag}] base checkpoint '{base}' failed to resolve locally "
-            f"({_base_path}) AND on HF — refusing to launch: the trainer "
-            "would otherwise silently fall back to random init (the "
-            "2026-09-11 sbr1 incident).")
+        if not os.path.exists(_base_path):
+            assert DRY_RUN, (
+                f"[{tag}] base checkpoint '{base}' failed to resolve locally "
+                f"({_base_path}) AND on HF — refusing to launch: the trainer "
+                "would otherwise silently fall back to random init (the "
+                "2026-09-11 sbr1 incident).")
+            # Pre-flight only: a dry-run can fabricate ladder state whose
+            # base was never really trained. Warn and continue so the walk
+            # covers every branch.
+            print(f"  [DRY-RUN] WARNING: base '{base}' not resolvable — "
+                  f"real run would FATAL here.", flush=True)
+            return
         _all = f"{extra} --ckpt-name {ckpt_name} --max-epochs {max_epochs}"
         assert "--force-restart" not in _all, (
             "_nx_trainer is resume-safe: NEVER pass --force-restart (glued "
@@ -605,6 +624,60 @@ if DO_RHAN_NX:
                     except Exception:
                         pass
         return rows[-1] if rows else None
+
+    def _nx_sbr1_decision():
+        """SBR-1 gate input: durable clean accuracy, protocol-matched.
+
+        Precedence (2026-09-11):
+          1. The session diag jsonl (live training telemetry, te_acc of the
+             last epoch) — authoritative for THIS session.
+          2. The completion marker's best_acc — the ONLY artifact that
+             survives a session wipe. The 2026-09-11 stop was scored -1.0
+             because the diag jsonl is session-local and the marker was
+             never consulted.
+          3. Nothing durable -> None (the decision helper then records
+             insufficient_data and the repair rule re-runs the gate).
+        """
+        _row = _nx_diag_last(
+            os.path.join(_REPO_ROOT, "report", f"{_ckpt}_diag.jsonl"))
+        if _row is not None and _row.get("te_acc") is not None:
+            return float(_row["te_acc"]), "session_diag"
+        _m = _stage4_read_marker_json(_ckpt)
+        if _m is not None and _m.get("best_acc") is not None:
+            try:
+                return float(_m["best_acc"]), "completion_marker"
+            except (TypeError, ValueError):
+                pass
+        return None, "none"
+
+    def _nx_repair_ceiling():
+        """Ceiling to use when re-entering 'training' for a gate repair.
+
+        The repair must re-enter at a ceiling the EXISTING artifacts satisfy,
+        so _stage4_training_done returns True and the trainer no-ops (the
+        checkpoint is never touched). Precedence:
+          1. the completion marker's max_epochs (the truth about what was
+             trained — survives session wipes),
+          2. the HF rolling checkpoint's last epoch (self-heal path),
+          3. the recorded ceiling (last resort: an honest cold start).
+        NOT ceiling_hi: the 2026-09-11 repair used ceiling_hi=40, so the
+        guarded trainer re-requested 40 epochs — with a local rolling ckpt
+        that FATAL'd on the cross-commit guard; on a fresh VM it would have
+        RETRAINED from the base.
+        """
+        _m = _stage4_read_marker_json(_ckpt)
+        if _m is not None and _m.get("max_epochs") is not None:
+            try:
+                return int(_m["max_epochs"])
+            except (TypeError, ValueError):
+                pass
+        try:
+            _ep = int(_stage4_rolling_epoch(_ckpt))
+            if _ep > 0:
+                return _ep
+        except Exception:
+            pass
+        return int(_st.get("ceiling", _info["ceiling_lo"]))
 
     def _nx_16seed_eval(ckpt_label, ckpt_path, sweep100, sweep50):
         """Fresh 16-seed PGD-100 (+ PGD-50 masking leg) on the NEW checkpoint;
@@ -824,15 +897,17 @@ if DO_RHAN_NX:
                     pass
                 _passed = (_rc == 0) and bool(
                     _verdict and _verdict.get("passed"))
-            else:  # sbr1: clean accuracy within 3pp of D's frozen record
-                _row = _nx_diag_last(
-                    os.path.join(_REPO_ROOT, "report",
-                                 f"{_ckpt}_diag.jsonl"))
-                _te = float(_row["te_acc"]) if _row else -1.0
-                _passed = abs(_te - RHANNX_D_CLEAN) <= 3.0
-                _verdict = {"sbr1_clean_acc": _te,
-                            "d_reference": RHANNX_D_CLEAN,
-                            "within_3pp": _passed}
+            else:  # sbr1: one-sided collapse gate (amendment 2026-09-11)
+                # Pre-registered intent: FAIL when SBR-1's clean accuracy
+                # COLLAPSES toward ~45% — NOT a symmetric band. The original
+                # abs(clean - D) <= 3pp implementation rejected the real run
+                # (62.49% clean vs D's 54.96%) for BEATING the reference by
+                # +7.5pp; a strictly better model must pass a collapse
+                # detector. Protocol-matched input (session diag, then the
+                # session-wipe-durable completion marker).
+                _te, _te_src = _nx_sbr1_decision()
+                _passed, _verdict = sbr1_gate_decision(_te, RHANNX_D_CLEAN)
+                _verdict["clean_acc_source"] = _te_src
                 with open(os.path.join(_REPO_ROOT, "report",
                                        "sbr1_gate_verdict.json"),
                           "w") as _f:
@@ -857,18 +932,20 @@ if DO_RHAN_NX:
                         roadmap_path=ROADMAP_LOCAL)
         elif _action.substep == "gate_failed":
             if gate_failed_re_evaluable(_st):
-                # Amendment 2026-09-11: an insufficient_data verdict is a
-                # measurement artifact (lost session-local series), not a
-                # criteria outcome. Re-enter training at the final ceiling:
-                # the trainer no-ops (already complete), the gate re-runs
-                # under the t0-anchored amendment, and the branch advances
-                # normally. Substantive fails keep terminal semantics.
+                # Amendment 2026-09-11: a measurement-artifact verdict (lost
+                # session-local series, OR the symmetric-band formula that
+                # failed SBR-1 for over-performing) is not a criteria
+                # outcome. Re-enter training at the ceiling the EXISTING
+                # artifacts satisfy — the trainer no-ops (already complete),
+                # the gate re-runs, and the branch advances normally.
+                # Substantive fails keep terminal semantics.
+                _rep_ceiling = _nx_repair_ceiling()
                 print(f"  REPAIR (amendment 2026-09-11): {_action.stage} "
-                      f"gate_failed verdict is insufficient_data only — "
-                      f"re-evaluating the gate (checkpoint untouched; "
-                      f"training already complete).")
+                      f"gate_failed verdict is a measurement artifact — "
+                      f"re-evaluating the gate at ceiling {_rep_ceiling} "
+                      f"(checkpoint untouched; training already complete).")
                 advance(_action.stage, "training",
-                        ceiling=int(_info["ceiling_hi"]),
+                        ceiling=_rep_ceiling,
                         roadmap_path=ROADMAP_LOCAL)
             else:
                 _ceiling = int(_st.get("ceiling", _info["ceiling_lo"]))
@@ -1282,15 +1359,12 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
                         pass
                     _passed = (_rc == 0) and bool(
                         _verdict and _verdict.get("passed"))
-                else:  # sbr1: clean accuracy within 3pp of D's frozen record
-                    _row = _nx_diag_last(
-                        os.path.join(_REPO_ROOT, "report",
-                                     f"{_ckpt}_diag.jsonl"))
-                    _te = float(_row["te_acc"]) if _row else -1.0
-                    _passed = abs(_te - RHANNX_D_CLEAN) <= 3.0
-                    _verdict = {"sbr1_clean_acc": _te,
-                                "d_reference": RHANNX_D_CLEAN,
-                                "within_3pp": _passed}
+                else:  # sbr1: one-sided collapse gate (amendment 2026-09-11)
+                    # See single-step path — the symmetric band rejected the
+                    # real run (62.49% clean vs D 54.96%) for over-performing.
+                    _te, _te_src = _nx_sbr1_decision()
+                    _passed, _verdict = sbr1_gate_decision(_te, RHANNX_D_CLEAN)
+                    _verdict["clean_acc_source"] = _te_src
                     with open(os.path.join(_REPO_ROOT, "report",
                                            "sbr1_gate_verdict.json"), "w") as _f:
                         json.dump(_verdict, _f, indent=2)
@@ -1321,24 +1395,28 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
                     sync_roadmap_up()
             elif _action.substep == "gate_failed":
                 if gate_failed_re_evaluable(_st):
-                    # Amendment 2026-09-11 (see single-step path): an
-                    # insufficient_data verdict is a measurement artifact,
-                    # not a criteria outcome — re-evaluate the gate.
+                    # Amendment 2026-09-11 (see single-step path): a
+                    # measurement-artifact verdict (lost series, or the
+                    # symmetric-band formula that failed SBR-1 for
+                    # over-performing) re-enters training at the ceiling the
+                    # EXISTING artifacts satisfy — trainer no-ops, gate
+                    # re-runs. Substantive fails keep terminal semantics.
                     _nx_repair_count += 1
                     if _nx_repair_count > 2:
-                        print(f"  ✗ {_action.stage}: insufficient_data repair "
+                        print(f"  ✗ {_action.stage}: artifact repair "
                               f"re-tried {_nx_repair_count - 1}x and the gate "
                               f"still cannot evaluate — STOP (likely a broken "
                               f"checkpoint or gate environment; diagnose "
                               f"manually).")
                         _nx_ladder_done = True
                     else:
+                        _rep_ceiling = _nx_repair_ceiling()
                         print(f"  REPAIR (amendment 2026-09-11): {_action.stage} "
-                              f"gate_failed verdict is insufficient_data only — "
-                              f"re-evaluating the gate (checkpoint untouched; "
-                              f"training already complete).")
+                              f"gate_failed verdict is a measurement artifact — "
+                              f"re-evaluating the gate at ceiling {_rep_ceiling} "
+                              f"(checkpoint untouched; training already complete).")
                         advance(_action.stage, "training",
-                                ceiling=int(_info["ceiling_hi"]),
+                                ceiling=_rep_ceiling,
                                 roadmap_path=ROADMAP_LOCAL)
                         sync_roadmap_up()
                 else:

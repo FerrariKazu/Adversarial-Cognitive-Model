@@ -6,6 +6,13 @@ session-local and got wiped mid-run), not a criteria outcome. The
 gate_failed_re_evaluable() helper classifies those verdicts; the notebook
 uses it to re-run the gate instead of stopping the ladder. A substantive
 fail (criteria evaluated and failed) keeps terminal gate_failed semantics.
+
+Second 2026-09-11 rule (same day): a gate_failed verdict that records the
+checkpoint BEATING its reference (sbr1_clean_acc >= d_reference) is a
+gate-FORMULA artifact — the symmetric band abs(clean - D) <= 3pp failed the
+real SBR-1 run (62.49% vs D's 54.96%) for over-performing. The one-sided
+collapse detector (sbr1_gate_decision) is the corrected formula; the
+recorded FAIL is re-evaluable under it.
 """
 from __future__ import annotations
 
@@ -19,6 +26,8 @@ from stage_state_machine import (  # noqa: E402
     get_next_action,
     advance,
     ensure_rhan_nx_state,
+    marker_covers_ceiling,
+    sbr1_gate_decision,
 )
 
 # The exact verdict the 2026-09-10 session recorded for sbr0
@@ -102,3 +111,76 @@ def test_repair_advances_to_training_and_ladder_maps_it():
         action = get_next_action(load_roadmap(rp))
         assert action.stage == "sbr0"
         assert action.substep == "training"
+
+
+# ── sbr1 formula-artifact rule + one-sided gate (amendment 2026-09-11) ──────
+
+# The exact verdict the 2026-09-11 session recorded for sbr1: the REAL run
+# (62.49% clean) rejected by the symmetric band for beating D's 54.96%.
+REAL_SBR1_VERDICT = {
+    "sbr1_clean_acc": 62.4875,
+    "d_reference": 54.96,
+    "within_3pp": False,
+}
+
+
+def test_real_sbr1_overperformance_verdict_is_re_evaluable():
+    assert gate_failed_re_evaluable(
+        _state_with_verdict(REAL_SBR1_VERDICT))
+
+
+def test_sbr1_missing_telemetry_sentinel_is_re_evaluable():
+    # The old code scored a wiped session as te_acc=-1.0 — impossible
+    # accuracy, i.e. a measurement artifact, not a criteria outcome.
+    assert gate_failed_re_evaluable(_state_with_verdict(
+        {"sbr1_clean_acc": -1.0, "d_reference": 54.96,
+         "within_3pp": False}))
+
+
+def test_sbr1_substantive_collapse_fail_is_not_re_evaluable():
+    # Clean accuracy BELOW the floor — the real failure mode the gate
+    # exists to catch. Terminal, never re-rolled.
+    assert not gate_failed_re_evaluable(_state_with_verdict(
+        {"sbr1_clean_acc": 45.2, "d_reference": 54.96,
+         "within_3pp": False}))
+
+
+def test_sbr1_gate_decision_one_sided():
+    # Over-performance PASSES (the exact numbers from the real run).
+    passed, v = sbr1_gate_decision(62.4875, 54.96)
+    assert passed
+    assert v["passed"] is True
+    assert v["floor"] == 51.96
+    assert v["one_sided_collapse_gate"] is True
+    # At/below floor boundary.
+    passed, v = sbr1_gate_decision(51.96, 54.96)
+    assert passed  # floor itself is a pass (>=)
+    passed, _ = sbr1_gate_decision(51.95, 54.96)
+    assert not passed
+    # Collapse fails — the pre-registered E2b-style discovery.
+    passed, v = sbr1_gate_decision(45.2, 54.96)
+    assert not passed
+    assert v["passed"] is False
+    assert "insufficient_data" not in v
+
+
+def test_sbr1_gate_decision_missing_data():
+    passed, v = sbr1_gate_decision(None, 54.96)
+    assert not passed
+    assert v["insufficient_data"] is True
+    assert v["sbr1_clean_acc"] is None
+
+
+# ── marker escalation (the neutered ceiling loop) ───────────────────────────
+
+def test_marker_covers_ceiling():
+    m = {"ckpt_name": "rhan_nx_sbr1", "max_epochs": 15,
+         "best_acc": 62.4875}
+    assert marker_covers_ceiling(m, 15)
+    assert not marker_covers_ceiling(m, 20)   # escalation must retrain
+    assert not marker_covers_ceiling(m, 40)
+    assert marker_covers_ceiling({"max_epochs": 40}, 40)
+    assert marker_covers_ceiling({"max_epochs": 41}, 40)
+    assert not marker_covers_ceiling(None, 15)
+    assert not marker_covers_ceiling({}, 15)
+    assert not marker_covers_ceiling({"max_epochs": "junk"}, 15)
