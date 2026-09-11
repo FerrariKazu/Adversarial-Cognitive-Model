@@ -1009,6 +1009,16 @@ def main():
     best_target_ckpt = args.target_ckpt or os.path.join(
         ckpt_dir, 'rhan_stl10_large_pseudolabel_best.pth')
     best_target_ckpt = ensure_checkpoint_exists(best_target_ckpt)
+    if not os.path.exists(best_target_ckpt):
+        # 2026-09-11 sbr1 incident: a doubled checkpoint suffix 404'd on HF
+        # and the run silently trained from random init for 3 epochs before
+        # anyone noticed. Random init is NEVER a legitimate start in this
+        # protocol — every run initializes from a validated checkpoint.
+        raise SystemExit(
+            f"FATAL: base checkpoint not found locally or on HF: "
+            f"{best_target_ckpt}. Refusing to train from random init "
+            f"(every run in this protocol must initialize from a validated "
+            f"checkpoint — see the 2026-09-11 sbr1 incident).")
     if os.path.exists(best_target_ckpt):
         from checkpoint_utils import compat_load
         ckpt = compat_load(best_target_ckpt, map_location=device)
