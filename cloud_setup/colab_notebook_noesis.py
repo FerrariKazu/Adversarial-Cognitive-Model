@@ -5019,20 +5019,25 @@ else:
 DO_RHAN_NX = True   # master toggle for the RHAN-NX Generation-0 ladder
 
 # RHAN-NX artifact names (per-stage).
+# "base" is a bare checkpoint NAME (no _best.pth suffix) — _nx_ensure_ckpt
+# resolves it to checkpoints/<name>_best.pth and downloads from HF. The
+# 2026-09-11 incident: sbr1's base was written as a full filename, the
+# suffix got doubled (…_best.pth_best.pth), the 404 fell through to the
+# trainer's silent random-init path, and SBR-1 trained from scratch.
 RHANNX = {
     "sbr0": {"ckpt": "rhan_nx_sbr0", "base": "rhan_next_ais_hpc",
              "ceiling_lo": 15, "ceiling_hi": 60, "step": 5},
-    "sbr1": {"ckpt": "rhan_nx_sbr1", "base": "rhan_nx_sbr0_best.pth",
+    "sbr1": {"ckpt": "rhan_nx_sbr1", "base": "rhan_nx_sbr0",
               "ceiling_lo": 15, "ceiling_hi": 40, "step": 5},
-    "sbr2": {"ckpt": "rhan_nx_sbr2", "base": "rhan_nx_sbr1_best.pth"},
-    "sbr3": {"ckpt": "rhan_nx_sbr3", "base": "rhan_nx_sbr2_best.pth"},
-    "sbr4": {"ckpt": "rhan_nx_sbr4", "base": "rhan_nx_sbr3_best.pth"},
+    "sbr2": {"ckpt": "rhan_nx_sbr2", "base": "rhan_nx_sbr1"},
+    "sbr3": {"ckpt": "rhan_nx_sbr3", "base": "rhan_nx_sbr2"},
+    "sbr4": {"ckpt": "rhan_nx_sbr4", "base": "rhan_nx_sbr3"},
     "ais_v2": {"ckpt": "rhan_nx_ais_v2",
                 "smoke_ckpt": "rhan_nx_ais_v2_smoke",
-                "base": "rhan_next_ais_v1_halting_only_best.pth"},
+                "base": "rhan_next_ais_v1_halting_only"},
     "hpc_belief": {"ckpt": "rhan_nx_hpc_belief",
                     "smoke_ckpt": "rhan_nx_hpc_belief_smoke",
-                    "base": "rhan_next_ais_v1_halting_only_best.pth"},
+                    "base": "rhan_next_ais_v1_halting_only"},
 }
 RHANNX_D_CLEAN = 54.96   # D's clean accuracy, frozen record (SBR-1 gate ref)
 RHANNX_SEEDS = list(range(41, 57))   # 16 seeds, matched to D
@@ -5061,7 +5066,17 @@ if DO_RHAN_NX:
         return os.path.join(_REPO_ROOT, "checkpoints", f"{name}_best.pth")
 
     def _nx_ensure_ckpt(name):
-        """Download a checkpoint from HF if not present locally."""
+        """Download a checkpoint from HF if not present locally.
+
+        2026-09-11: tolerate a full filename passed as `name` (strip a
+        trailing _best.pth / .pth) so a table entry like
+        "rhan_nx_sbr0_best.pth" resolves to the same file instead of the
+        doubled rhan_nx_sbr0_best.pth_best.pth that 404'd on HF.
+        """
+        if name.endswith("_best.pth"):
+            name = name[: -len("_best.pth")]
+        elif name.endswith(".pth"):
+            name = name[: -len(".pth")]
         _p = _nx_ckpt_path(name)
         if not os.path.exists(_p):
             try:
@@ -5082,6 +5097,12 @@ if DO_RHAN_NX:
         # into this command; the trainer's unknown-arg FATAL guard refused it
         # only after torch/CUDA startup (~2 min lost). Fail fast here instead,
         # and keep this funnel resume-safe by protocol.
+        _base_path = _nx_ensure_ckpt(base)
+        assert os.path.exists(_base_path), (
+            f"[{tag}] base checkpoint '{base}' failed to resolve locally "
+            f"({_base_path}) AND on HF — refusing to launch: the trainer "
+            "would otherwise silently fall back to random init (the "
+            "2026-09-11 sbr1 incident).")
         _all = f"{extra} --ckpt-name {ckpt_name} --max-epochs {max_epochs}"
         assert "--force-restart" not in _all, (
             "_nx_trainer is resume-safe: NEVER pass --force-restart (glued "
@@ -5096,7 +5117,7 @@ if DO_RHAN_NX:
             f"--sbr-slot-iters 3 "
             f"{extra} "
             f"--ckpt-name {ckpt_name} --max-epochs {max_epochs} "
-            f"--target-ckpt {_nx_ensure_ckpt(base)} "
+            f"--target-ckpt {_base_path} "
             f"--batch-size 16 --accum-steps 16 --force-single-gpu "
             f"--diag-json report/{ckpt_name}_diag.jsonl")
         assert not _cmd.replace("--force-single-gpu", "").strip().endswith(
