@@ -15,7 +15,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "phase1_training"))
 
-from checkpoint_utils import current_code_commit, resume_commit_ok
+from checkpoint_utils import (current_code_commit, resume_commit_ok,
+                              training_fingerprint)
 
 
 def test_current_code_commit_is_a_sha():
@@ -58,3 +59,60 @@ def test_roundtrip_matching_explicit_current():
     saved = {"code_commit": cc, "epoch": 7}
     ok, msg = resume_commit_ok(saved, cc)
     assert ok, msg
+
+
+# ── Training fingerprint (2026-09-12) ────────────────────────────────────────
+# Real, immutable repo history (do NOT rewrite these SHAs casually — they pin
+# the exact incidents the fingerprint policy resolves):
+#   8abb343  last commit touching training math before the fingerprint guard
+#   54c3984  sbr1 gate fix            (notebooks + scripts + docs only)
+#   47d30b2  Kaggle/Colab parity      (notebooks only)
+
+def test_notebook_only_commits_share_fingerprint():
+    # 54c3984 -> 47d30b2 changed only cloud_setup/, docs/, scripts/, tests/:
+    # both must resolve to the same training fingerprint (8abb343).
+    assert training_fingerprint("54c3984") == training_fingerprint("47d30b2")
+    assert training_fingerprint("47d30b2") == "8abb343"
+
+
+def test_sbr2_incident_is_now_resumable():
+    # THE incident: SBR-2's rolling checkpoint was written by 54c3984; the
+    # next session checked out 47d30b2 and the raw-commit guard demanded
+    # deleting ~6h of real progress. Under fingerprint semantics this is a
+    # legitimate resume (explicit currents — no dependence on live HEAD).
+    ok, msg = resume_commit_ok({"code_commit": "54c3984", "epoch": 3},
+                               current="47d30b2")
+    assert ok, msg
+
+
+def test_stamped_fingerprint_is_trusted():
+    # New checkpoints carry 'training_fingerprint'; resume must honor the
+    # stamp rather than re-resolving git (works even outside a git repo).
+    ok, msg = resume_commit_ok({"code_commit": "54c3984",
+                                "training_fingerprint": "8abb343"},
+                               current="47d30b2")
+    assert ok, msg
+
+
+def test_genuine_math_change_still_refuses():
+    # A checkpoint from 8abb343's training code is NOT resumable under
+    # b5b8b68-era code: their training fingerprints differ (b5b8b68 predates
+    # 8abb343's math changes).
+    ok, msg = resume_commit_ok({"code_commit": "8abb343", "epoch": 9},
+                               current="b5b8b68")
+    assert not ok, msg
+    assert "refusing to resume" in msg.lower()
+
+
+def test_unknown_commit_refuses_safe_direction():
+    # An unresolvable commit (squashed away, foreign clone) resolves to
+    # itself and therefore never matches an older checkpoint's fingerprint —
+    # refusal is the safe direction.
+    ok, msg = resume_commit_ok({"code_commit": "8abb343"}, current="ffffff0")
+    assert not ok, msg
+
+
+def test_fingerprint_message_distinguishes_notebook_resume():
+    ok, msg = resume_commit_ok({"code_commit": "54c3984"}, current="47d30b2")
+    assert ok
+    assert "notebooks only" in msg.lower()

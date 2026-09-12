@@ -76,7 +76,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from rhan_core.config.pillar_config import RHANNextConfig
 from rhan_core.model import RHANNext
-from checkpoint_utils import compat_load, current_code_commit, resume_commit_ok
+from checkpoint_utils import (compat_load, current_code_commit,
+                              resume_commit_ok, training_fingerprint)
 
 # ── Reuse the frozen v12 pipeline (data, pseudo-labeling, HF, diagnostics) ──
 from train_rhan_v12 import (
@@ -1074,6 +1075,11 @@ def main():
     # resume: a checkpoint written by different code must never be resumed
     # (the 2026-08-12 stale-resume bug that invalidated the Stage 2 smoke).
     code_commit = current_code_commit()
+    # Fingerprint of the TRAINING code (notebook-only commits resolve to their
+    # training-relevant ancestor — see checkpoint_utils.TRAINING_NEUTRAL_EDGES).
+    # Stamped beside code_commit in every artifact; resume compares
+    # fingerprints, so notebook-only commits never invalidate a mid-run resume.
+    train_fp = training_fingerprint(code_commit)
 
     hf_token = os.environ.get("HF_TOKEN")
     if not hf_token:
@@ -1145,6 +1151,16 @@ def main():
             print(f"\n[FATAL] Could not verify HF rolling checkpoint — no local copy "
                   f"exists. Aborting rather than silently restarting.", flush=True)
             sys.exit(1)
+
+        if is_ddp:
+            # Rank 0 has finished the HF-restore decision above; other ranks
+            # may now rely on the (possibly just-written) local rolling file.
+            # Without this barrier a non-zero rank can reach the load below
+            # while the file is still missing/stale and silently diverge from
+            # rank 0 (different weights per rank). If rank 0 exits on any of
+            # the FATAL paths above, torchrun tears down the whole group.
+            import torch.distributed as dist
+            dist.barrier()
 
         if os.path.exists(rolling_path):
             from checkpoint_utils import compat_load
@@ -1481,7 +1497,8 @@ def main():
                     'model': raw_model.state_dict(),
                     'config': cfg.to_dict(),
                     'arch': 'rhan_next',
-                    'code_commit': code_commit})
+                    'code_commit': code_commit,
+                    'training_fingerprint': train_fp})
                 sync_to_hf(best_path)
 
         if rank == 0:
@@ -1524,7 +1541,8 @@ def main():
                         'config': cfg.to_dict(),
                         'arch': 'rhan_next',
                         'first_epoch_diag': first_epoch_diag,
-                        'code_commit': code_commit})
+                        'code_commit': code_commit,
+                        'training_fingerprint': train_fp})
             sync_to_hf(rolling_path)
             gc.collect()
             torch.cuda.empty_cache()
@@ -1551,7 +1569,8 @@ def main():
                         'model': raw_model.state_dict(),
                         'config': cfg.to_dict(),
                         'arch': 'rhan_next',
-                        'code_commit': code_commit})
+                        'code_commit': code_commit,
+                        'training_fingerprint': train_fp})
         sync_to_hf(best_path)
         wait_for_hf_sync()
 
@@ -1562,12 +1581,12 @@ def main():
             _tc_marker = os.path.join(os.path.dirname(best_path),
                                       'training_complete.json')
             import json as _json_tc
-            with open(_tc_marker, 'w') as _ftc:
-                _json_tc.dump({'ckpt_name': args.ckpt_name,
+            with open(_tc_marker, 'w') as _ftc:                        _json_tc.dump({'ckpt_name': args.ckpt_name,
                             'best_acc': best_acc,
                             'max_epochs': args.max_epochs,
                             'last_epoch': last_epoch,
-                            'code_commit': code_commit}, _ftc)
+                            'code_commit': code_commit,
+                            'training_fingerprint': train_fp}, _ftc)
             sync_to_hf(_tc_marker)
             wait_for_hf_sync()
             print(f"  ✓ training_complete.json uploaded to HF", flush=True)
