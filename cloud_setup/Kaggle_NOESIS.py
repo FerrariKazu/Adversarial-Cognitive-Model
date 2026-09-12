@@ -592,8 +592,45 @@ if DO_RHAN_NX:
             "tokens like '--force-restart--diag-json' also fail this check). "
             "A fresh Colab session already starts from epoch 1 because the "
             "stale HF rolling checkpoints are deleted before training.")
+        # 2026-09-12: use ALL visible GPUs via torchrun DDP when >1 GPU is
+        # present (Kaggle T4x2). The trainer's DDP path shards the sampler
+        # across ranks and keeps per-rank --accum-steps, so effective batch is
+        # --batch-size x world_size. Micro-batch is HALVED here so the
+        # effective batch and optimizer trajectory are IDENTICAL to the
+        # single-GPU 16x16=256 recipe: 2 GPUs -> 8 per rank x 16 accum x 2
+        # ranks = 256. A resume from a single-GPU rolling checkpoint stays
+        # consistent (same math). Also avoids nn.DataParallel, which crashes
+        # with 'CUDA error: misaligned address' on T4/Turing + fp16 autocast
+        # (2026-09 kaggle_v11_isolation findings).
+        # Escape hatch: RHAN_NX_SINGLE_GPU=1 forces the proven single-GPU
+        # python3 path (identical to pre-2026-09-12 behavior).
+        _ngpu = (1 if os.environ.get("RHAN_NX_SINGLE_GPU")
+                 else max(int(torch.cuda.device_count() or 0), 1))
+        if _ngpu > 1:
+            _micro = max(16 // _ngpu, 1)
+            _accum = 16 * 16 // (_micro * _ngpu)
+            _launcher = (f"torchrun --nproc_per_node={_ngpu} "
+                         f"phase1_training/train_rhan_next.py")
+            _ngpu_note = (f"  # DDP: {_ngpu} GPUs x {_micro} micro-batch "
+                          f"x {_accum} accum = {_micro * _accum * _ngpu} effective")
+            # NCCL hardening for containerized T4 pairs (2026-09 torchrun/NCCL
+            # trouble documented in kaggle_v11_isolation_*): disable P2P over
+            # PCIe and InfiniBand; gradient all-reduce goes through SHM.
+            os.environ.setdefault("NCCL_P2P_DISABLE", "1")
+            os.environ.setdefault("NCCL_IB_DISABLE", "1")
+        else:
+            _micro, _accum = 16, 16
+            _launcher = "python3 phase1_training/train_rhan_next.py"
+            _ngpu_note = ""
+
+        def _launch(cmd):
+            """Print (with a DDP annotation) and run the trainer command."""
+            print(f"  [{tag}] {cmd}{_ngpu_note}")
+            if not DRY_RUN:
+                run(cmd)
+
         _cmd = (
-            f"python3 phase1_training/train_rhan_next.py "
+            f"{_launcher} "
             f"--enable-ais --no-ais-precision-recon "
             f"--enable-hpc --hpc-num-levels 1 --w-hpc 0.10 "
             f"--enable-sbr --sbr-num-slots 16 --sbr-slot-dim 512 "
@@ -601,14 +638,12 @@ if DO_RHAN_NX:
             f"{extra} "
             f"--ckpt-name {ckpt_name} --max-epochs {max_epochs} "
             f"--target-ckpt {_base_path} "
-            f"--batch-size 16 --accum-steps 16 --force-single-gpu "
+            f"--batch-size {_micro} --accum-steps {_accum} "
             f"--diag-json report/{ckpt_name}_diag.jsonl")
         assert not _cmd.replace("--force-single-gpu", "").strip().endswith(
             "--force-restart"), \
             "glued/misplaced --force-restart detected in _nx_trainer command"
-        print(f"  [{tag}] {_cmd}")
-        if not DRY_RUN:
-            run(_cmd)
+        _launch(_cmd)
 
     def _nx_diag_last(diag_path):
         """Last (most recent) row of a --diag-json jsonl file."""

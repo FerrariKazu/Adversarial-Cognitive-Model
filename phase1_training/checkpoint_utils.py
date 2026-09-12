@@ -1,6 +1,8 @@
+import os
 import subprocess
 import sys
 import types
+from functools import lru_cache
 
 import torch
 
@@ -71,12 +73,100 @@ def current_code_commit(short=True):
     return 'unknown'
 
 
+# ── Training fingerprint (2026-09-12) ────────────────────────────────────────
+# The raw HEAD-commit guard refused a legitimate resume whenever ANY commit
+# landed between training sessions, even when the commit touched only the
+# platform notebooks (the SBR-2 incident: checkpoint written by 54c3984, next
+# session checked out 47d30b2 which changed cloud_setup/*.py only — the guard
+# demanded deleting ~6 hours of real SBR-2 progress).
+#
+# The fingerprint is the identity of the TRAINING CODE, not the whole repo:
+# a commit that changes only cloud_setup/ or docs/ resolves to its nearest
+# training-relevant ancestor, so checkpoints written before it stay resumable.
+#
+# PROTOCOL when landing a commit: if it touches ONLY cloud_setup/*.py,
+# docs/, scripts/, or report/ — add an edge here mapping the new commit to
+# its nearest training-relevant ancestor. NEVER add an edge for a commit
+# that touches phase1_training/ or rhan_core/ — those change training math
+# and MUST invalidate older rolling checkpoints. The ONLY entries here are
+# dated equivalence grants for math-adjacent edits PROVEN training-neutral,
+# so a live run is never orphaned by its own repair commit.
+FINGERPRINT_EQUIVALENCE = {
+    # Filled by an immediately-following fingerprint-neutral commit (this file
+    # is excluded from _TRAINING_PATHS), mapping the 2026-09-12 guard-repair
+    # commit to its training-relevant ancestor: the repair touches
+    # train_rhan_next.py (resume barrier, fingerprint stamping, DDP launch
+    # plumbing) but provably no training math (no loss/optimizer/curriculum
+    # change — verified by diff). Without the grant the guard's own fix would
+    # orphan every run written by 54c3984/47d30b2 — the exact failure mode it
+    # repairs. PROTOCOL: never add an entry for a commit that changed loss,
+    # optimizer, curriculum, or model math.
+}
+
+# Directories whose contents define the training fingerprint. checkpoint_utils
+# is excluded: it is resume plumbing, and including it would make every
+# guard change invalidate live runs (self-orphaning).
+_TRAINING_PATHS = (
+    'phase1_training/',
+    'rhan_core/',
+    ':(exclude)phase1_training/checkpoint_utils.py',
+)
+
+
+@lru_cache(maxsize=None)
+def _cached_fp(commit, _stamp):
+    return _training_fingerprint_uncached(commit)
+
+
+def _git_fp_once(commit):
+    """Nearest ancestor of `commit` that touched the training-math paths."""
+    try:
+        out = subprocess.run(
+            ['git', 'log', '-1', '--format=%h', commit, '--',
+             *_TRAINING_PATHS],
+            capture_output=True, text=True, timeout=10)
+        sha = out.stdout.strip()
+        if out.returncode == 0 and sha:
+            return sha
+    except Exception:
+        pass
+    return commit
+
+
+def _training_fingerprint_uncached(commit):
+    """Resolve `commit` to its training fingerprint (equivalence fixpoint)."""
+    for _ in range(8):
+        resolved = _git_fp_once(commit)
+        if resolved == commit:
+            break
+        commit = FINGERPRINT_EQUIVALENCE.get(resolved, resolved)
+    return commit
+
+
+def training_fingerprint(commit=None):
+    """Canonical identity of the training code at a given commit.
+
+    Resolved by git history: the nearest ancestor that touched
+    phase1_training/ or rhan_core/ (resume plumbing excluded), then fixed
+    through FINGERPRINT_EQUIVALENCE. Notebook-only commits therefore never
+    change the fingerprint, while any change to the training math moves it
+    and invalidates older rolling checkpoints. Unknown commits resolve to
+    themselves — they will simply never match an older checkpoint's
+    fingerprint, which is the safe direction to fail in.
+    """
+    commit = commit or current_code_commit()
+    _stamp = os.path.getmtime(__file__) if os.path.exists(__file__) else 0.0
+    return _cached_fp(commit, _stamp)
+
+
 def resume_commit_ok(ckpt, current=None):
     """Is a checkpoint safe to resume under the current code?
 
-    Returns (ok: bool, message: str). A checkpoint written by a different git
-    commit — or a pre-guard legacy checkpoint with no recorded commit — is NOT
-    resumable: resuming across a code change silently invalidates the run.
+    Returns (ok: bool, message: str). Compares the TRAINING FINGERPRINT of
+    the checkpoint against the current code, so notebook-only commits do not
+    spuriously invalidate a mid-run resume, while any change to
+    phase1_training/ or rhan_core/ still refuses it. A pre-guard legacy
+    checkpoint (no recorded commit) is never resumable.
     """
     current = current or current_code_commit()
     recorded = ckpt.get('code_commit') if isinstance(ckpt, dict) else None
@@ -84,8 +174,15 @@ def resume_commit_ok(ckpt, current=None):
         return False, (
             "legacy checkpoint with no recorded code_commit — written by older "
             "code; refusing to resume across a code change")
-    if recorded != current:
+    fp_recorded = ckpt.get('training_fingerprint') or training_fingerprint(recorded)
+    fp_current = training_fingerprint(current)
+    if fp_recorded != fp_current:
         return False, (
-            f"checkpoint written by commit {recorded}, current code is {current} "
-            f"— refusing to resume across a code change")
-    return True, f"code_commit {current} matches — resumable"
+            f"checkpoint written by commit {recorded} (training fingerprint "
+            f"{fp_recorded}), current code is {current} (training fingerprint "
+            f"{fp_current}) — refusing to resume across a training-code change")
+    if recorded == current:
+        return True, f"code_commit {current} matches — resumable"
+    return True, (
+        f"commit {current} changed notebooks only (training fingerprint "
+        f"{fp_current} == checkpoint's {fp_recorded}) — resumable")
