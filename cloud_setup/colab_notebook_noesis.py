@@ -1138,7 +1138,11 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
     _nx_ladder_done = False
     _nx_repair_count = 0  # amendment 2026-09-11: bound insufficient_data repairs
     while not _nx_ladder_done:
-        sync_roadmap_down()
+        if DRY_RUN:
+            pass  # pre-flight: HF is never written in dry-run, so re-downing
+            # each iteration would revert the shadow state's advances (ping-pong)
+        else:
+            sync_roadmap_down()
         _roadmap = json.load(open(ROADMAP_LOCAL))
         ensure_rhan_nx_state(_roadmap)
         _action = get_next_action(_roadmap)

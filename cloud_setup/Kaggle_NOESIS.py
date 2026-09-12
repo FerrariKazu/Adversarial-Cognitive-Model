@@ -227,6 +227,7 @@ if torch.cuda.is_available():
 else:
     print("⚠ CPU-only runtime (dry-run or eval-only host).", flush=True)
 
+
 # %% [markdown]
 # ## Step 4: Shared Setup — report dir + repo root
 
@@ -442,7 +443,6 @@ def _stage4_training_done(ckpt_name, max_epochs, tag="", best_acc_hint=None):
 
 
 
-
 # ═══════════════════════════════════════════════════════════════════════
 # STAGE 5 — RHAN-NX GENERATION 0 (SBR-0..4 LADDER, D2/AIS-v2, D3/BELIEF-HPC)
 # ═══════════════════════════════════════════════════════════════════════
@@ -581,8 +581,8 @@ if DO_RHAN_NX:
                 "would otherwise silently fall back to random init (the "
                 "2026-09-11 sbr1 incident).")
             # Pre-flight only: a dry-run can fabricate ladder state whose
-            # base was never really trained. Warn and continue so the walk
-            # covers every branch.
+            # base was never really trained (e.g. sbr2 'done' in the shadow
+            # roadmap). Warn and continue so the walk covers every branch.
             print(f"  [DRY-RUN] WARNING: base '{base}' not resolvable — "
                   f"real run would FATAL here.", flush=True)
             return
@@ -1176,7 +1176,11 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
     _nx_ladder_done = False
     _nx_repair_count = 0  # amendment 2026-09-11: bound insufficient_data repairs
     while not _nx_ladder_done:
-        sync_roadmap_down()
+        if DRY_RUN:
+            pass  # pre-flight: HF is never written in dry-run, so re-downing
+            # each iteration would revert the shadow state's advances (ping-pong)
+        else:
+            sync_roadmap_down()
         _roadmap = json.load(open(ROADMAP_LOCAL))
         ensure_rhan_nx_state(_roadmap)
         _action = get_next_action(_roadmap)
