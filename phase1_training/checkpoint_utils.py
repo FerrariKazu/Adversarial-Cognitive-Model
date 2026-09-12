@@ -92,15 +92,13 @@ def current_code_commit(short=True):
 # dated equivalence grants for math-adjacent edits PROVEN training-neutral,
 # so a live run is never orphaned by its own repair commit.
 FINGERPRINT_EQUIVALENCE = {
-    # Filled by an immediately-following fingerprint-neutral commit (this file
-    # is excluded from _TRAINING_PATHS), mapping the 2026-09-12 guard-repair
-    # commit to its training-relevant ancestor: the repair touches
+    # 3d0b0e4 (2026-09-12 guard repair) ≡ 8abb343: the repair touched
     # train_rhan_next.py (resume barrier, fingerprint stamping, DDP launch
-    # plumbing) but provably no training math (no loss/optimizer/curriculum
-    # change — verified by diff). Without the grant the guard's own fix would
-    # orphan every run written by 54c3984/47d30b2 — the exact failure mode it
-    # repairs. PROTOCOL: never add an entry for a commit that changed loss,
-    # optimizer, curriculum, or model math.
+    # plumbing) but no training math — no loss/optimizer/curriculum/model
+    # change (verified by diff). Without this grant the guard's own fix
+    # would orphan every run written by 54c3984/47d30b2 (e.g. the live
+    # SBR-2 rolling checkpoint) — the exact failure mode it repairs.
+    '3d0b0e4': '8abb343',
 }
 
 # Directories whose contents define the training fingerprint. checkpoint_utils
@@ -134,12 +132,19 @@ def _git_fp_once(commit):
 
 
 def _training_fingerprint_uncached(commit):
-    """Resolve `commit` to its training fingerprint (equivalence fixpoint)."""
+    """Resolve `commit` to its training fingerprint (equivalence fixpoint).
+
+    The equivalence grant is applied BEFORE each git resolution: a granted
+    commit is typically a math-path-toucher itself (its own git resolution
+    would return it unchanged), so the grant is what redirects the walk to
+    the equivalent ancestor.
+    """
     for _ in range(8):
+        commit = FINGERPRINT_EQUIVALENCE.get(commit, commit)
         resolved = _git_fp_once(commit)
         if resolved == commit:
             break
-        commit = FINGERPRINT_EQUIVALENCE.get(resolved, resolved)
+        commit = resolved
     return commit
 
 
