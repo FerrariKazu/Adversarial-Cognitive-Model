@@ -721,6 +721,11 @@ if DO_RHAN_NX:
     def _nx_16seed_eval(ckpt_label, ckpt_path, sweep100, sweep50):
         """Fresh 16-seed PGD-100 (+ PGD-50 masking leg) on the NEW checkpoint;
         comparators seeded as donor rows from the E1 sweep."""
+        # 2026-09-12: a fresh session starts with an empty /kaggle/working —
+        # materialize the checkpoint from HF before eval (the funnel's eval
+        # leg used to die on FileNotFoundError although the checkpoint was
+        # on HF; mirrors the [repair] step in the sbr0/sbr1 gate path).
+        _nx_ensure_ckpt(ckpt_label)
         _seeds = " ".join(str(s) for s in RHANNX_SEEDS)
         _spec = f'"{ckpt_label}:{ckpt_path}:next"'
         # Seed the D + baseline donor cells (rule 1b — never re-evaluate).
@@ -1100,6 +1105,7 @@ if DO_RHAN_NX:
             if _action.stage == "ais_v2":
                 # Candidate-preference + gaze-shift gate (the genuinely new
                 # check: predicted vs observed surprise correlation > 0).
+                _nx_ensure_ckpt(_smoke)  # 2026-09-12: self-heal from HF
                 _rc2 = run(
                     "python3 scripts/eval_ais_v2_gate.py "
                     f"--ckpt {_nx_ckpt_path(_smoke)} "
@@ -1593,6 +1599,7 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
                     check=False)
                 _ok = _ok and (_rc == 0 or DRY_RUN)
                 if _action.stage == "ais_v2":
+                    _nx_ensure_ckpt(_smoke)  # 2026-09-12: self-heal from HF
                     _rc2 = run(
                         "python3 scripts/eval_ais_v2_gate.py "
                         f"--ckpt {_nx_ckpt_path(_smoke)} "
