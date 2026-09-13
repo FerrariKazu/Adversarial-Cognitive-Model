@@ -1,0 +1,7 @@
+{
+  "ckpt_name": "rhan_next_ais_hpc",
+  "best_acc": 56.1625,
+  "max_epochs": 60,
+  "last_epoch": 60,
+  "code_commit": "dc6fe10"
+}

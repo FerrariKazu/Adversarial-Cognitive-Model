@@ -49,6 +49,13 @@ The ONLY extensions over eval_full_epsilon_sweep.py are:
      mutually exclusive with an explicit --ckpt-specs. Keys, when given,
      follow the flag directly (e.g. `--ablation-matrix C_hpc_only B_ais_only
      A_baseline`); without keys, every eligible matrix entry is used.
+  3. CHECKPOINT SELF-HEAL (2026-09-12 Kaggle incident). For arch "next", a
+     missing checkpoint is downloaded from the FerrariKazu/rhan-checkpoints
+     dataset repo (same convention as the driver's _nx_ensure_ckpt) before
+     failing — a fresh Colab/Kaggle session starts with an empty
+     /kaggle/working and the eval funnel used to die on FileNotFoundError
+     even though the checkpoint existed on HF. The FileNotFoundError is
+     still raised when HF does not have the file either.
 
 No other eval script may be added per stage (roadmap). Examples:
 
@@ -101,6 +108,39 @@ SELFTEST_REF = os.path.join(_THIS_DIR, 'eval_rhan_selftest_ref.json')
 PROVENANCE_NAME = 'eval_provenance.json'
 
 
+HF_CKPT_REPO = "FerrariKazu/rhan-checkpoints"
+
+
+def _hf_fetch_next_checkpoint(ckpt_path):
+    """Best-effort download of a missing 'next' checkpoint from HF.
+
+    Mirrors the driver funnel's _nx_ensure_ckpt: dataset repo
+    FerrariKazu/rhan-checkpoints, filename = basename of the requested
+    path, downloaded next to that path. Returns the loaded state dict on
+    success, None when HF has no such file (or huggingface_hub / HF_TOKEN
+    are unavailable) so the caller can raise its original error.
+    """
+    fname = os.path.basename(ckpt_path)
+    try:
+        from huggingface_hub import hf_hub_download
+        print(f"  [eval] {ckpt_path} missing locally — trying "
+              f"{HF_CKPT_REPO}/{fname} ...", flush=True)
+        dl = hf_hub_download(
+            repo_id=HF_CKPT_REPO, repo_type="dataset", filename=fname,
+            local_dir=os.path.dirname(ckpt_path) or ".",
+            token=os.environ.get("HF_TOKEN"))
+        print(f"  ✓ {fname} downloaded from HF ({os.path.getsize(dl) // (1024 * 1024)} MB)",
+              flush=True)
+        return torch.load(dl, map_location="cpu", weights_only=False)
+    except FileNotFoundError:
+        # hf_hub_download raises EntryNotFoundError (a FileNotFoundError
+        # subclass) when the file is not in the repo — the expected miss.
+        return None
+    except Exception as ex:
+        print(f"  ⚠ HF download of {fname} failed: {ex}", flush=True)
+        return None
+
+
 def _load_model(arch, ckpt_path, device, freeze_gaze=False):
     """Extended arch registry: adds 'next' (RHANNext); everything else
     delegates unchanged to the frozen loader."""
@@ -112,20 +152,24 @@ def _load_model(arch, ckpt_path, device, freeze_gaze=False):
         if os.path.exists(ckpt_path):
             state = torch.load(ckpt_path, map_location=device,
                                weights_only=False)
-            if isinstance(state, dict):
-                cfg_dict = state.get('config')
-                if isinstance(cfg_dict, dict):
-                    cfg = RHANNextConfig.from_dict(cfg_dict)
-                    print(f"  [eval] RHANNext config from checkpoint: {cfg}",
-                          flush=True)
-                for k in ('model', 'model_state_dict', 'state_dict'):
-                    if k in state:
-                        state = state[k]
-                        break
         else:
-            raise FileNotFoundError(
-                f"Checkpoint not found: {ckpt_path}. "
-                f"Download it from HF before running the eval.")
+            state = _hf_fetch_next_checkpoint(ckpt_path)
+            if state is None:
+                raise FileNotFoundError(
+                    f"Checkpoint not found: {ckpt_path}. "
+                    f"Download it from HF before running the eval.")
+        # Unwrap config + state dict (applies to BOTH the local and the
+        # HF-downloaded checkpoint — the sbr2 pillars live in 'config').
+        if isinstance(state, dict):
+            cfg_dict = state.get('config')
+            if isinstance(cfg_dict, dict):
+                cfg = RHANNextConfig.from_dict(cfg_dict)
+                print(f"  [eval] RHANNext config from checkpoint: {cfg}",
+                      flush=True)
+            for k in ('model', 'model_state_dict', 'state_dict'):
+                if k in state:
+                    state = state[k]
+                    break
         model = RHANNext(config=cfg).to(device)
         missing, unexpected = model.load_state_dict(state, strict=False)
         n_loaded = len(state) - len(missing)
