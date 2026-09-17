@@ -42,3 +42,4 @@ RHANarch.md
 .verify_samples/
 RHANfuture.md
 build/
+*.pth.sync
