@@ -241,15 +241,27 @@ def gate_failed_re_evaluable(stage_state: Dict[str, Any]) -> bool:
     stopped. The amended gate (acbb143) anchors the trend at the epoch-0
     baseline and was never given the chance to evaluate that checkpoint.
 
-    Scope is deliberately NARROW: only insufficient_data verdicts qualify.
+    Scope is deliberately NARROW: only measurement artifacts qualify.
     A verdict whose criteria were actually EVALUATED and failed (e.g. a flat
     or rising cosine trend, entropy collapse) is a substantive FAIL and
     keeps the terminal gate_failed semantics — that outcome must be written
     up honestly, never re-rolled.
     """
     v = stage_state.get("verdict")
-    if not isinstance(v, dict):
-        return False
+    # (d) amendment 2026-09-15 (ais_v2 gate crash): a gate_failed state with
+    # NO verdict (or a non-dict/unreadable one) means the gate script exited
+    # before evaluating any criterion — e.g. eval_ais_v2_gate.py crashed on
+    # `from dataset_stl10 import get_stl10_test` (a name that never existed;
+    # fixed in b0b0c1a). The notebook's smoke-gate advance recorded
+    # gate_failed on the crash's non-zero exit alone. Nothing was measured,
+    # so this is a plumbing artifact, not a criteria outcome. A MEASURED
+    # fail is unaffected: eval_ais_v2_gate.py writes its verdict JSON
+    # (passed=False, full criteria) before exiting 1, so it stays terminal.
+    # Callers bound re-attempts via a persisted artifact_repair_count so a
+    # persistently crashing gate cannot loop forever. (This check must come
+    # FIRST — rules (a)-(c) inspect the verdict dict.)
+    if v is None or not isinstance(v, dict):
+        return True
     # (a) sbr0-style: criterion 2 could not be measured (lost series).
     c2 = v.get("criteria", {}).get("2_pairwise_cosine_trend")
     if isinstance(c2, dict) and c2.get("insufficient_data"):
