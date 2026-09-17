@@ -154,7 +154,7 @@ def main(argv: Optional[List[str]] = None) -> int:
           flush=True)
     model.eval()
 
-    loader = DataLoader(get_stl10_test(root=os.path.join(REPO_ROOT, "data")),
+    loader = DataLoader(get_stl10_test(data_root=os.path.join(REPO_ROOT, "data")),
                         batch_size=args.batch_size, shuffle=False)
     verdict = evaluate(model, loader, device, max_samples=args.samples)
     verdict.update({
