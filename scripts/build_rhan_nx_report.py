@@ -136,6 +136,15 @@ def build_stage_summary(stage: str, sweeps: Dict,
     for lab in donor_labels:
         try:
             don = load_comparator(lab, donor_seeds)
+            # Byte-verify the per-seed donor rows HERE, while they still
+            # carry their (label, seed, eps) identity (rule 1b). Aggregated
+            # summary rows have no seed column and can never be byte-checked
+            # post-hoc — the 2026-09-15 crash (TypeError int(None)) was the
+            # old post-hoc assert hitting exactly that.
+            assert_donor_rows_byte_identical(
+                don.to_dict("records"),
+                COMPARATOR_REGISTRY[lab]["source_csv"],
+                labels=[lab], seeds=list(donor_seeds))
         except (AssertionError, KeyError) as _e:
             # Loud degradation, never fabrication: the comparator's validated
             # rows are unavailable (HF restore failed without a token, or the
@@ -333,16 +342,14 @@ def build_report(stage_summaries: List[Dict], donor_seeds: Sequence[int],
     md = "\n".join(L) + "\n"
 
     # ── Assertions — BEFORE writing (rule 1c) ───────────────────────────────
+    # NOTE: donor-row integrity (rule 1b) is asserted at LOAD time in
+    # build_stage_summary, on the per-seed rows returned by load_comparator.
+    # The summary tables hold only aggregated (mean/std) cells with no seed
+    # column — they can never be byte-verified post-hoc, and passing them
+    # here previously crashed on int(None) (2026-09-15 incident).
     for s in stage_summaries:
         if s["status"] == "PENDING" or s["table"].empty:
             continue
-        donors_df = s["table"][s["table"]["source"] == "DONOR"]
-        if not donors_df.empty:
-            for lab in set(donors_df["ckpt_label"]):
-                src = COMPARATOR_REGISTRY[lab]["source_csv"]
-                rows = donors_df[donors_df["ckpt_label"] == lab]
-                assert_donor_rows_byte_identical(
-                    rows.to_dict("records"), src, labels=[lab])
     for csv_path in summary_csvs:
         # The summary FRESH cells are checked per-cell below against their
         # stage CSV (a full table-level assert is applied by

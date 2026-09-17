@@ -203,7 +203,10 @@ def assert_donor_rows_byte_identical(
             byte-for-byte; when False, compare only the key + acc_pct +
             macro_dprime (the values a report would cite).
 
-    Raises AssertionError listing every mismatched / absent donor row.
+    Raises AssertionError listing every mismatched / absent donor row, or
+    when a row lacks any key column — aggregated (mean/std) summary rows
+    carry no per-seed identity and can never be byte-verified; verify the
+    per-seed donor rows at load time instead.
     """
     df = read_per_seed_csv(source_csv)
     src = {(str(r["ckpt_label"]), int(r["seed"]),
@@ -213,12 +216,19 @@ def assert_donor_rows_byte_identical(
     problems: List[str] = []
     n_checked = 0
     for row in donor_rows:
-        key = tuple(row.get(c) for c in key_cols)
-        if len(key) == 3:
-            key = (str(key[0]), int(key[1]), round(float(key[2]), 4))
-        if labels is not None and str(key[0]) not in set(labels):
+        raw = tuple(row.get(c) for c in key_cols)
+        if any(v is None for v in raw):
+            raise AssertionError(
+                f"donor-row check: row lacks key columns {list(key_cols)} "
+                f"(got {dict(zip(key_cols, raw))}) — this check requires "
+                f"per-seed rows carrying their (label, seed, eps) identity, "
+                f"NOT aggregated summary rows (mean/std cells have no seed "
+                f"and cannot be byte-verified; byte-verify at load time "
+                f"instead — 2026-09-15 incident).")
+        key = (str(raw[0]), int(raw[1]), round(float(raw[2]), 4))
+        if labels is not None and key[0] not in set(labels):
             continue
-        if seeds is not None and int(key[1]) not in set(seeds):
+        if seeds is not None and key[1] not in set(seeds):
             continue
         n_checked += 1
         if key not in src:

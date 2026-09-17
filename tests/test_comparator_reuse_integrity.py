@@ -175,7 +175,30 @@ def test_assert_table_matches_csv_missing_source():
         assert_table_matches_csv(table, "report/does_not_exist/x.csv")
 
 
-# ── registry metadata sanity ────────────────────────────────────────────────
+# ── 2026-09-15 incident: aggregated rows in the donor check ─────────────
+
+def test_donor_check_aggregate_rows_raise_not_typeerror():
+    """build_report used to feed aggregated (mean/std) summary rows — no
+    seed column — into assert_donor_rows_byte_identical, crashing with
+    TypeError: int(None). The check must fail LOUDLY with AssertionError
+    (and explain why), never with an opaque TypeError."""
+    aggregate = {"ckpt_label": "rhan_next_ais_hpc", "seed": None,
+                 "eps_pixel": 0.094, "acc_mean": 34.02, "acc_std": 3.24}
+    with pytest.raises(AssertionError, match="NOT aggregated summary rows"):
+        assert_donor_rows_byte_identical([aggregate], str(E1_CSV),
+                                         labels=["rhan_next_ais_hpc"])
+
+
+def test_donor_check_rows_missing_seed_column_raise():
+    """Same incident class when the seed column is simply absent."""
+    no_seed = {"ckpt_label": "rhan_next_ais_hpc", "eps_pixel": 0.0,
+               "acc_pct": 56.0}
+    with pytest.raises(AssertionError, match="per-seed rows"):
+        assert_donor_rows_byte_identical([no_seed], str(E1_CSV),
+                                         labels=["rhan_next_ais_hpc"])
+
+
+# ── registry metadata sanity ────────────────────────────────────────────────────
 
 def test_registry_seed_counts_recorded():
     assert cr.COMPARATOR_REGISTRY["rhan_next_ais_hpc"]["validated_seeds"] == \
