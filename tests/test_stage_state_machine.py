@@ -75,19 +75,50 @@ def test_substantive_fail_is_not_re_evaluable():
     assert not gate_failed_re_evaluable(_state_with_verdict(v))
 
 
-def test_no_verdict_or_malformed_is_not_re_evaluable():
-    # Conservative default: anything unreadable stays a terminal FAIL.
-    assert not gate_failed_re_evaluable({"status": "gate_failed"})
-    assert not gate_failed_re_evaluable(
-        _state_with_verdict(None))
-    assert not gate_failed_re_evaluable(
-        _state_with_verdict("not-a-dict"))
+def test_no_verdict_crash_artifact_is_re_evaluable():
+    # Amendment 2026-09-15 (ais_v2 gate crash): gate_failed with NO verdict
+    # (or a non-dict one) means the gate script died before measuring
+    # anything — e.g. the eval_ais_v2_gate.py ImportError fixed in b0b0c1a,
+    # where the notebook recorded gate_failed from the crash's non-zero exit
+    # alone. Nothing was measured, so the gate may re-run; the notebook
+    # bounds re-attempts via the persisted artifact_repair_count.
+    assert gate_failed_re_evaluable({"status": "gate_failed"})
+    assert gate_failed_re_evaluable(_state_with_verdict(None))
+    assert gate_failed_re_evaluable(_state_with_verdict("not-a-dict"))
+
+
+def test_malformed_verdict_dict_stays_conservative_terminal():
+    # A dict verdict with no interpretable criteria content is ambiguous —
+    # it could be an unknown-but-valid gate schema that measured something.
+    # Conservative default (unchanged from the 2026-09-11 amendment): stays a
+    # terminal FAIL. Only a NO-verdict state is provably unmeasured.
     assert not gate_failed_re_evaluable(
         _state_with_verdict({"passed": False, "criteria": {}}))
     assert not gate_failed_re_evaluable(
         _state_with_verdict({"passed": False,
                              "criteria": {"2_pairwise_cosine_trend":
                                           "malformed"}}))
+
+
+def test_hpc_belief_diag_incomplete_artifact_is_re_evaluable():
+    # The exact insufficient_data verdict the ladder writes when the belief-
+    # HPC smoke diag JSONL has < 2 rows (the gate could not measure the
+    # trend) — a measurement artifact, re-runnable under the caller's bound.
+    assert gate_failed_re_evaluable(_state_with_verdict(
+        {"passed": False, "insufficient_data": True, "n_diag_rows": 0,
+         "schema": "hpc_belief_smoke_gate_v1"}))
+
+
+def test_measured_ais_v2_style_fail_is_not_re_evaluable():
+    # The exact shape eval_ais_v2_gate.py writes on a MEASURED fail:
+    # full criteria with passed=False. Terminal — never re-rolled.
+    v = {"passed": False,
+         "criteria": {
+             "g1_gaze_shift": {"passed": False, "mean_shift": 0.011,
+                               "floor": 0.02},
+             "g2_candidate_preference": {"passed": True, "corr": 0.21}},
+         "schema": "ais_v2_smoke_gate_v1"}
+    assert not gate_failed_re_evaluable(_state_with_verdict(v))
 
 
 def test_repair_advances_to_training_and_ladder_maps_it():

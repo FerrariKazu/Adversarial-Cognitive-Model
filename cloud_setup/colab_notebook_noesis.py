@@ -1102,6 +1102,13 @@ if DO_RHAN_NX:
                    "tests/test_hpc_disable_backward_compat.py -q"),
                 check=False)
             _ok = _ok and (_rc == 0 or DRY_RUN)
+            # 2026-09-15: only a MEASURED fail records gate_failed. A gate
+            # crash (non-zero exit, no verdict written) leaves the stage at
+            # gate_pending so the loop retries instead of recording a
+            # "failure" that never measured anything.
+            _verdict_path = os.path.join(
+                _REPO_ROOT, "report", "rhan_nx_ais_v2_smoke_gate.json")
+            _gate_measured = os.path.exists(_verdict_path)
             if _action.stage == "ais_v2":
                 # Candidate-preference + gaze-shift gate (the genuinely new
                 # check: predicted vs observed surprise correlation > 0).
@@ -1113,6 +1120,7 @@ if DO_RHAN_NX:
                     f"--out report/rhan_nx_ais_v2_smoke_gate.json",
                     check=False)
                 _ok = _ok and (_rc2 == 0 or DRY_RUN)
+                _gate_measured = os.path.exists(_verdict_path)
             else:
                 # Belief-HPC smoke gate: error trend >= 10% decline + Pi_D
                 # reference envelope (car #1) with truck-rank WATCH
@@ -1148,10 +1156,51 @@ if DO_RHAN_NX:
                       f"the 60-epoch run")
                 advance(_action.stage, "training", phase="full",
                         roadmap_path=ROADMAP_LOCAL)
+            elif _action.stage == "ais_v2" and not _gate_measured:
+                # 2026-09-15: crash, not a criteria outcome. Bound via the
+                # persisted artifact_repair_count — after a second crash the
+                # next advance records gate_failed and the handler stops.
+                _crashes = int(_st.get("artifact_repair_count", 0)) + 1
+                if _crashes >= 2:
+                    print(f"  ✗ {_action.stage} smoke gate CRASHED twice "
+                          f"without a verdict — recording gate_failed "
+                          f"(STOP; diagnose the gate environment)")
+                    advance(_action.stage, "gate_failed",
+                            artifact_repair_count=_crashes,
+                            roadmap_path=ROADMAP_LOCAL)
+                else:
+                    print(f"  ⚠ {_action.stage} smoke gate CRASHED without "
+                          f"writing a verdict — NOT recording gate_failed; "
+                          f"re-run this cell (crash {_crashes}/2)")
+                    advance(_action.stage, "gate_pending",
+                            artifact_repair_count=_crashes,
+                            roadmap_path=ROADMAP_LOCAL)
             else:
+                # 2026-09-15: attach what was actually measured so the
+                # gate_failed handler can distinguish a criteria FAIL
+                # (terminal) from a crash artifact (reparable).
+                _verdict = None
+                if _action.stage == "ais_v2":
+                    try:
+                        with open(_verdict_path) as _vf:
+                            _verdict = json.load(_vf)
+                    except Exception:
+                        _verdict = None
+                else:
+                    _verdict = (
+                        {"passed": False, "insufficient_data": True,
+                         "n_diag_rows": len(_rows),
+                         "schema": "hpc_belief_smoke_gate_v1"}
+                        if len(_rows) < 2 else
+                        {"passed": False,
+                         "criteria": {
+                             "hpc_error_trend": {"passed": bool(_trend_ok)},
+                             "pi_d_reference_envelope":
+                                 {"passed": bool(_car_first)}},
+                         "schema": "hpc_belief_smoke_gate_v1"})
                 print(f"  ✗ {_action.stage} SMOKE GATE FAILED — STOP; "
                       f"diagnose before the full run")
-                advance(_action.stage, "gate_failed",
+                advance(_action.stage, "gate_failed", verdict=_verdict,
                         roadmap_path=ROADMAP_LOCAL)
         elif _action.substep == "eval":
             _nx_16seed_eval(_ckpt, _nx_ckpt_path(_ckpt), _sweep100, _sweep50)
@@ -1170,8 +1219,26 @@ if DO_RHAN_NX:
             _nx_build_report()
             advance(_action.stage, "done", roadmap_path=ROADMAP_LOCAL)
         elif _action.substep == "gate_failed":
-            print(f"  ✗ {_action.stage} GATE FAILED — STOP. Write the honest "
-                  f"failure verdict; no downstream comparison is built on it.")
+            # Amendment 2026-09-15: a no-verdict gate_failed is a plumbing
+            # artifact (gate crashed before measuring, e.g. the ais_v2
+            # ImportError fixed in b0b0c1a) — re-run the gate ONCE, then
+            # stop if it still cannot evaluate. A measured FAIL (verdict
+            # written, passed=False) stays terminal. Bound is persisted on
+            # the stage so it survives session restarts.
+            if (_action.stage in ("ais_v2", "hpc_belief")
+                    and gate_failed_re_evaluable(_st)
+                    and int(_st.get("artifact_repair_count", 0)) < 1):
+                _rep = int(_st.get("artifact_repair_count", 0)) + 1
+                print(f"  REPAIR (amendment 2026-09-15): {_action.stage} "
+                      f"gate_failed has no measured verdict — re-running "
+                      f"the gate (attempt {_rep}/1; checkpoint untouched, "
+                      f"training already complete).")
+                advance(_action.stage, "gate_pending",
+                        artifact_repair_count=_rep,
+                        roadmap_path=ROADMAP_LOCAL)
+            else:
+                print(f"  ✗ {_action.stage} GATE FAILED — STOP. Write the honest "
+                      f"failure verdict; no downstream comparison is built on it.")
     else:
         print(f"  unknown action {_action}", flush=True)
 
@@ -1598,6 +1665,13 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
                        "tests/test_hpc_disable_backward_compat.py -q"),
                     check=False)
                 _ok = _ok and (_rc == 0 or DRY_RUN)
+                # 2026-09-15: only a MEASURED fail records gate_failed. A
+                # gate crash (non-zero exit, no verdict written) leaves the
+                # stage at gate_pending so the loop retries instead of
+                # recording a "failure" that never measured anything.
+                _verdict_path = os.path.join(
+                    _REPO_ROOT, "report", "rhan_nx_ais_v2_smoke_gate.json")
+                _gate_measured = os.path.exists(_verdict_path)
                 if _action.stage == "ais_v2":
                     _nx_ensure_ckpt(_smoke)  # 2026-09-12: self-heal from HF
                     _rc2 = run(
@@ -1607,7 +1681,7 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
                         f"--out report/rhan_nx_ais_v2_smoke_gate.json",
                         check=False)
                     _ok = _ok and (_rc2 == 0 or DRY_RUN)
-                else:
+                    _gate_measured = os.path.exists(_verdict_path)
                     _rows = []
                     _diag = os.path.join(_REPO_ROOT, "report",
                                          f"{_smoke}_diag.jsonl")
@@ -1640,10 +1714,55 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
                     advance(_action.stage, "training", phase="full",
                             roadmap_path=ROADMAP_LOCAL)
                     sync_roadmap_up()
+                elif _action.stage == "ais_v2" and not _gate_measured:
+                    # 2026-09-15: crash, not a criteria outcome. Bound the
+                    # retries via the persisted artifact_repair_count: after
+                    # a second crash, record gate_failed (no verdict) — the
+                    # repaired gate_failed handler below then stops.
+                    _crashes = int(_st.get("artifact_repair_count", 0)) + 1
+                    if _crashes >= 2:
+                        print(f"  ✗ {_action.stage} smoke gate CRASHED twice "
+                              f"without a verdict — recording gate_failed "
+                              f"(STOP; diagnose the gate environment)")
+                        advance(_action.stage, "gate_failed",
+                                artifact_repair_count=_crashes,
+                                roadmap_path=ROADMAP_LOCAL)
+                        sync_roadmap_up()
+                        _nx_ladder_done = True
+                    else:
+                        print(f"  ⚠ {_action.stage} smoke gate CRASHED without "
+                              f"writing a verdict — NOT recording gate_failed; "
+                              f"re-entering the gate (crash {_crashes}/2)")
+                        advance(_action.stage, "gate_pending",
+                                artifact_repair_count=_crashes,
+                                roadmap_path=ROADMAP_LOCAL)
+                        sync_roadmap_up()
                 else:
+                    # 2026-09-15: attach what was actually measured so the
+                    # gate_failed handler can distinguish a criteria FAIL
+                    # (terminal) from a crash artifact (reparable).
+                    _verdict = None
+                    if _action.stage == "ais_v2":
+                        try:
+                            with open(_verdict_path) as _vf:
+                                _verdict = json.load(_vf)
+                        except Exception:
+                            _verdict = None
+                    else:
+                        _verdict = (
+                            {"passed": False, "insufficient_data": True,
+                             "n_diag_rows": len(_rows),
+                             "schema": "hpc_belief_smoke_gate_v1"}
+                            if len(_rows) < 2 else
+                            {"passed": False,
+                             "criteria": {
+                                 "hpc_error_trend": {"passed": bool(_trend_ok)},
+                                 "pi_d_reference_envelope":
+                                     {"passed": bool(_car_first)}},
+                             "schema": "hpc_belief_smoke_gate_v1"})
                     print(f"  ✗ {_action.stage} SMOKE GATE FAILED — STOP; "
                           f"diagnose before the full run")
-                    advance(_action.stage, "gate_failed",
+                    advance(_action.stage, "gate_failed", verdict=_verdict,
                             roadmap_path=ROADMAP_LOCAL)
                     sync_roadmap_up()
                     _nx_ladder_done = True
@@ -1670,9 +1789,27 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
                 advance(_action.stage, "done", roadmap_path=ROADMAP_LOCAL)
                 sync_roadmap_up()
             elif _action.substep == "gate_failed":
-                print(f"  ✗ {_action.stage} GATE FAILED — STOP. Write the honest "
-                      f"failure verdict; no downstream comparison is built on it.")
-                _nx_ladder_done = True
+                # Amendment 2026-09-15: a no-verdict gate_failed is a plumbing
+                # artifact (gate crashed before measuring — e.g. the ais_v2
+                # ImportError fixed in b0b0c1a) — re-run the gate ONCE, then
+                # stop if it still cannot evaluate. A measured FAIL (verdict
+                # attached, passed=False) stays terminal. The bound is
+                # persisted on the stage so it survives session restarts.
+                if (gate_failed_re_evaluable(_st)
+                        and int(_st.get("artifact_repair_count", 0)) < 1):
+                    _rep = int(_st.get("artifact_repair_count", 0)) + 1
+                    print(f"  REPAIR (amendment 2026-09-15): {_action.stage} "
+                          f"gate_failed has no measured verdict — re-running "
+                          f"the gate (attempt {_rep}/1; checkpoint untouched, "
+                          f"training already complete).")
+                    advance(_action.stage, "gate_pending",
+                            artifact_repair_count=_rep,
+                            roadmap_path=ROADMAP_LOCAL)
+                    sync_roadmap_up()
+                else:
+                    print(f"  ✗ {_action.stage} GATE FAILED — STOP. Write the honest "
+                          f"failure verdict; no downstream comparison is built on it.")
+                    _nx_ladder_done = True
         else:
             print(f"  unknown action {_action}", flush=True)
             _nx_ladder_done = True
