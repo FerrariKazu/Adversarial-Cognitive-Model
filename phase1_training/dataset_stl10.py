@@ -132,6 +132,20 @@ def get_stl10_loaders(batch_size=64, data_root='./data/stl10'):
     return train_loader, test_loader
 
 
+def get_stl10_test(data_root='./data/stl10'):
+    """Test-split dataset (8,000 images) with the standard test transform.
+
+    Returns the dataset (not a DataLoader) so callers can choose their own
+    batching (e.g. gate/eval scripts that cap sample counts).
+    """
+    test_transform = T.Compose([
+        T.ToTensor(),
+        T.Normalize(STL10_MEAN, STL10_STD),
+    ])
+    return STL10(data_root, split='test',
+                 transform=test_transform, download=True)
+
+
 def get_stl10_unlabeled_loader(batch_size=128, data_root='./data/stl10'):
     """100K unlabeled images for self-supervised pretraining."""
     transform = T.Compose([
