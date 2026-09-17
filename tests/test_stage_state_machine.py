@@ -109,6 +109,26 @@ def test_hpc_belief_diag_incomplete_artifact_is_re_evaluable():
          "schema": "hpc_belief_smoke_gate_v1"}))
 
 
+def test_verdict_pass_recorded_as_gate_failed_is_re_evaluable():
+    # Rule (e), 2026-09-17: the gate MEASURED a pass (verdict passed=True,
+    # both criteria green: g1 0.109 >= 0.02, g2 r=0.706 >= 0.05) but the
+    # ladder recorded gate_failed anyway — the belief-HPC diag veto ran
+    # inside the ais_v2 branch. The verdict is the measurement; the status
+    # is wrong. Re-evaluable so the gate can re-run instead of stopping the
+    # ladder on a passing result. (Notebook-side this is additionally
+    # bounded by a separate verdict_repair_count budget.)
+    v = {"g1_gaze_shift": {"passed": True, "mean_shift_per_step": 0.109309,
+                           "floor": 0.02, "n_samples": 512},
+         "g2_candidate_preference": {"passed": True,
+                                    "pearson_corr_predicted_vs_observed":
+                                        0.705502, "floor": 0.05,
+                                    "n_pairs": 1536, "min_pairs": 64},
+         "passed": True, "schema": "ais_v2_smoke_gate_v1"}
+    st = _state_with_verdict(v)
+    st["artifact_repair_count"] = 1  # crash budget already spent
+    assert gate_failed_re_evaluable(st)
+
+
 def test_measured_ais_v2_style_fail_is_not_re_evaluable():
     # The exact shape eval_ais_v2_gate.py writes on a MEASURED fail:
     # full criteria with passed=False. Terminal — never re-rolled.

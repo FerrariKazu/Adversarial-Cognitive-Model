@@ -285,6 +285,14 @@ def gate_failed_re_evaluable(stage_state: Dict[str, Any]) -> bool:
     # (c) any verdict that could not measure anything at all.
     if v.get("insufficient_data"):
         return True
+    # (e) 2026-09-17: status/verdict disagreement — the gate MEASURED a pass
+    # (verdict passed=True) but gate_failed was recorded anyway. Source that
+    # day: the Colab ladder gate block ran the belief-HPC diag veto inside
+    # the ais_v2 branch AFTER eval_ais_v2_gate.py had already passed (g1
+    # 0.109 >= 0.02, g2 r=0.706 >= 0.05). The verdict is the measurement;
+    # the status is wrong. Re-runnable.
+    if v.get("passed") is True:
+        return True
     return False
 
 

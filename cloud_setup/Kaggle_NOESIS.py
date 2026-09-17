@@ -1263,17 +1263,39 @@ if DO_RHAN_NX:
             # stop if it still cannot evaluate. A measured FAIL (verdict
             # written, passed=False) stays terminal. Bound is persisted on
             # the stage so it survives session restarts.
+            # 2026-09-17 disagreement rule: a MEASURED PASS (verdict
+            # passed=True) recorded as gate_failed (the ladder block ran the
+            # belief-HPC diag veto inside the ais_v2 branch) is also a
+            # plumbing artifact. Verdict = the measurement; status = wrong.
+            # Uses verdict_repair_count (separate budget from the crash
+            # budget), bounded to one re-run by this branch.
+            _disagree = bool(
+                isinstance(_st.get("verdict"), dict)
+                and _st["verdict"].get("passed") is True)
             if (_action.stage in ("ais_v2", "hpc_belief")
                     and gate_failed_re_evaluable(_st)
-                    and int(_st.get("artifact_repair_count", 0)) < 1):
-                _rep = int(_st.get("artifact_repair_count", 0)) + 1
-                print(f"  REPAIR (amendment 2026-09-15): {_action.stage} "
-                      f"gate_failed has no measured verdict — re-running "
-                      f"the gate (attempt {_rep}/1; checkpoint untouched, "
-                      f"training already complete).")
+                    and (_disagree
+                         or int(_st.get("artifact_repair_count", 0)) < 1)):
+                _nxt = {}
+                if _disagree:
+                    _rep = int(_st.get("verdict_repair_count", 0)) + 1
+                    _nxt["verdict_repair_count"] = _rep
+                    _why = (f"verdict says PASS but status is gate_failed "
+                            f"(status/verdict disagreement) — re-running "
+                            f"the gate (attempt {_rep}/1)")
+                else:
+                    _rep = int(_st.get("artifact_repair_count", 0)) + 1
+                    _nxt["artifact_repair_count"] = _rep
+                    _why = (f"gate_failed has no measured verdict — re-running "
+                            f"the gate (attempt {_rep}/1; checkpoint untouched, "
+                            f"training already complete)")
+                print(f"  REPAIR (amendment 2026-09-15/2026-09-17): "
+                      f"{_action.stage} {_why}.")
                 advance(_action.stage, "gate_pending",
-                        artifact_repair_count=_rep,
-                        roadmap_path=ROADMAP_LOCAL)
+                        roadmap_path=ROADMAP_LOCAL, **_nxt)
+            else:
+                print(f"  ✗ {_action.stage} GATE FAILED — STOP. Write the honest "
+                      f"failure verdict; no downstream comparison is built on it.")
     else:
         print(f"  unknown action {_action}", flush=True)
 
@@ -1831,16 +1853,34 @@ if DO_RHAN_NX_LADDER_RUN and not DO_RHAN_NX_SINGLE_STEP:
                 # stop if it still cannot evaluate. A measured FAIL (verdict
                 # attached, passed=False) stays terminal. The bound is
                 # persisted on the stage so it survives session restarts.
+                # 2026-09-17 disagreement rule: a MEASURED PASS (verdict
+                # passed=True) recorded as gate_failed is also a plumbing
+                # artifact (verdict = the measurement; status = wrong).
+                # Separate verdict_repair_count budget, bounded to one.
+                _disagree = bool(
+                    isinstance(_st.get("verdict"), dict)
+                    and _st["verdict"].get("passed") is True)
                 if (gate_failed_re_evaluable(_st)
-                        and int(_st.get("artifact_repair_count", 0)) < 1):
-                    _rep = int(_st.get("artifact_repair_count", 0)) + 1
-                    print(f"  REPAIR (amendment 2026-09-15): {_action.stage} "
-                          f"gate_failed has no measured verdict — re-running "
-                          f"the gate (attempt {_rep}/1; checkpoint untouched, "
-                          f"training already complete).")
+                        and (_disagree
+                             or int(_st.get("artifact_repair_count", 0)) < 1)):
+                    _nxt = {}
+                    if _disagree:
+                        _rep = int(_st.get("verdict_repair_count", 0)) + 1
+                        _nxt["verdict_repair_count"] = _rep
+                        _why = (f"verdict says PASS but status is gate_failed "
+                                f"(status/verdict disagreement) — re-running "
+                                f"the gate (attempt {_rep}/1)")
+                    else:
+                        _rep = int(_st.get("artifact_repair_count", 0)) + 1
+                        _nxt["artifact_repair_count"] = _rep
+                        _why = (f"gate_failed has no measured verdict — "
+                                f"re-running the gate (attempt {_rep}/1; "
+                                f"checkpoint untouched, training already "
+                                f"complete)")
+                    print(f"  REPAIR (amendment 2026-09-15/2026-09-17): "
+                          f"{_action.stage} {_why}.")
                     advance(_action.stage, "gate_pending",
-                            artifact_repair_count=_rep,
-                            roadmap_path=ROADMAP_LOCAL)
+                            roadmap_path=ROADMAP_LOCAL, **_nxt)
                     sync_roadmap_up()
                 else:
                     print(f"  ✗ {_action.stage} GATE FAILED — STOP. Write the honest "
