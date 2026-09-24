@@ -70,7 +70,7 @@ of scope until the plan says otherwise.
 
 ---
 
-> **Source decision:** RHAN_NXA/MASTER_PLAN.md (scope of authorized
+> **Source decision:** noesis_vision/RHAN_NXA/MASTER_PLAN.md (scope of authorized
 > material: Part 0, Parts 1.A–1.I, Parts 2–6, and the Agent 0
 > contract; the out-of-scope table restates decisions documented in
 > those parts; nothing here adds new architecture).
