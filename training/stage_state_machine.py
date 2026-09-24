@@ -1,5 +1,6 @@
 """
-Generation-1 foundation state machine — Agent J1.
+Generation-1 foundation state machine — Agent J1 (steps 1-4),
+extended by Agent J2 (steps 5-6).
 ================================================================================
 
 ADAPTED from scripts/stage_state_machine.py (Part 5 port table: ADAPT —
@@ -10,9 +11,10 @@ every advance() persists immediately, so a session dying at any point
 resumes by re-running — the single source of truth, never the
 developer's memory.
 
-THE PHASE LIST IS EXACTLY FOUR (Agent J1 contract; Part 2 steps 5-6 are
-J2's file, gated on Agent F — extending this list here is a FAILURE
-CONDITION, not a shortcut):
+THE PHASE LIST IS EXACTLY SIX (Part 2 steps 1-4 landed by Agent J1;
+steps 5-6 landed by Agent J2 once Agent F's modules exist — they do,
+commit 38127f2). Steps 7+ (S_t arm, L_stab arm, ablation matrix) are
+NOT J2's and MUST NOT be appended here:
 
     backbone_only    step 1 — the compact substrate, ONE fixed center
                      fixation, linear classifier head. Establishes the
@@ -30,11 +32,21 @@ CONDITION, not a shortcut):
                      precision; the predict -> observe -> error ->
                      precision -> update cycle) — still fixed/heuristic
                      gaze. NO AIS-v2: Agent F is deliberately NOT wired
-                     here (that is J2's step 5).
+                     here.
+    ais_v2_swap      step 5 — + AIS-v2 gaze (Agent F's policy driving
+                     the glimpse loop; the predict -> observe -> error
+                     -> precision -> update -> GAZE-SELECT cycle).
+                     First end-to-end test of the active-perception
+                     thesis. Soft selection in training; hard argmax
+                     at inference; t=0 saliency boundary untouched.
+    gen1_core        step 6 — the INTEGRATED system as the frozen
+                     reference (Part 2 step 6): S_t=None, L_stab
+                     diagnostic-only. The Generation-1 core result.
 
-The gaze scheme for ALL phases is the PLACEHOLDER fixed schedule
+For steps 1-4 the gaze scheme is the PLACEHOLDER fixed schedule
 (GAZE_SCHEDULE_T4) and must never be referred to as "AIS-v2" in any
-log, checkpoint, or report.
+log, checkpoint, or report; for steps 5-6 the scheme is Agent F's
+AISv2GazePolicy and must be RECORDED as AIS-v2.
 
 Substeps per phase: not_started -> running -> trained -> eval_pending
 -> eval_complete -> done. No gates at this layer: gate criteria live in
@@ -50,9 +62,12 @@ import json
 import os
 from typing import Any, Dict, NamedTuple, Optional
 
-#: The J1 phase list — EXACTLY the Part 2 steps 1-4. Do not extend.
+#: The foundation phase list — EXACTLY Part 2 steps 1-4 (J1) extended
+#: by Part 2 steps 5-6 (J2, Agent F landed). Steps 7+ are NOT phases of
+#: this machine.
 FOUNDATION_PHASES = ["backbone_only", "recurrence_only",
-                     "belief_no_f", "belief_with_f"]
+                     "belief_no_f", "belief_with_f",
+                     "ais_v2_swap", "gen1_core"]
 
 #: Linear chain: each phase trains from scratch on the SAME recipe; the
 #: comparison is matched-compute across phases (Part 3), not cumulative.
@@ -61,6 +76,8 @@ DEPENDENCIES: Dict[str, Optional[str]] = {
     "recurrence_only": "backbone_only",   # reads step 1's baseline numbers
     "belief_no_f": "recurrence_only",
     "belief_with_f": "belief_no_f",
+    "ais_v2_swap": "belief_with_f",       # reads step 4's numbers
+    "gen1_core": "ais_v2_swap",           # the frozen reference (step 6)
 }
 
 #: Canonical statuses (orchestration only — no gate statuses here).
@@ -74,6 +91,12 @@ GRADIENT_REQUIRED = {
     "recurrence_only": ("classifier",),
     "belief_no_f": ("evidential_head",),
     "belief_with_f": ("update_net", "precision", "predictor"),
+    # Step 5: the gaze choice itself must train the shared stack AND the
+    # policy's own logit_scale (F's ONLY learned state).
+    "ais_v2_swap": ("predictor", "evidential_head", "gaze_policy"),
+    # Step 6: the frozen reference — the full active-perception loop.
+    "gen1_core": ("predictor", "evidential_head", "gaze_policy",
+                  "update_net", "precision"),
 }
 
 
@@ -163,7 +186,8 @@ def advance(phase: str, new_status: str, roadmap_path: str, write: bool = True,
 def report_state(roadmap: Dict[str, Any]) -> str:
     ensure_foundation_state(roadmap)
     fnd = roadmap["generation1_foundation"]
-    lines = ["  generation1_foundation (J1: Part 2 steps 1-4; steps 5-6 = J2)"]
+    lines = ["  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, "
+             "J2 = 5-6; steps 7+ are NOT this machine)"]
     for phase in fnd["phases_order"]:
         st = fnd["phases"][phase]
         note = st.get("best_val_acc")

@@ -1,13 +1,13 @@
 """
-train_generation1_foundation.py — Agent J1. Part 2 steps 1-4, one trainer.
+train_generation1_foundation.py — Agent J1 (Part 2 steps 1-4), extended
+by Agent J2 (Part 2 steps 5-6: the AIS-v2 integration). One trainer.
 ================================================================================
 
-Wires Agents A/B/C/D/E (+ I's harness) into the PRE-AIS-v2 foundation
-sequence (Part 2 steps 1-4). Agent F's POLICY is deliberately NOT wired
-here: step 5 (AIS-v2 integration) is J2's file, gated separately. The
-canonical GazeState (noesis_vision.gaze.gaze_state) IS used — it is the
-A_t record carrier, not the AIS-v2 selection mechanism. Extending this
-trainer's phase list is a FAILURE CONDITION, not a shortcut.
+Wires Agents A/B/C/D/E (+ I's harness) into the foundation sequence.
+J2 wires Agent F's POLICY (AISv2GazePolicy) for steps 5-6, exactly as
+the Part 2 ladder specifies: step 5 = first end-to-end AIS-v2 loop;
+step 6 = the integrated system, the frozen Gen-1 reference. Steps 7+
+(S_t arm, L_stab arm, ablation matrix) are NOT in this trainer.
 
 Phases (training/stage_state_machine.py is the orchestration truth):
   backbone_only    step 1 — substrate + ONE fixed center fixation +
@@ -27,11 +27,18 @@ Phases (training/stage_state_machine.py is the orchestration truth):
                    (error_target = latent_next_glimpse, LOCKED default),
                    precision from U_t, z_{t+1} = z_t + Pi*UpdateNet(z,E)
                    — still fixed/heuristic gaze.
+  ais_v2_swap      step 5 — + Agent F's AIS-v2 gaze: the full predict ->
+                   observe -> error -> precision -> update -> GAZE-SELECT
+                   cycle. The shared predictor/head are THE SAME modules
+                   (F's reuse boundary); soft selection in training,
+                   hard argmax at inference; t=0 saliency boundary
+                   untouched. K=4 candidates (LOCKED range 4-8).
+  gen1_core        step 6 — the integrated system, S_t=None, L_stab
+                   diagnostic-only. The Generation-1 core result.
 
-GAZE SCHEME FOR ALL PHASES — PLACEHOLDER, NEVER "AIS-v2": a fixed
-deterministic 4-point schedule built from Agent C's foveation crop
-mechanism directly (no learned selection, no candidate scoring, no
-policy). Every artifact labels it PLACEHOLDER_FIXED_GAZE.
+GAZE SCHEME: steps 1-4 use the PLACEHOLDER fixed schedule and every
+artifact labels it PLACEHOLDER_FIXED_GAZE (never "AIS-v2"); steps 5-6
+use Agent F's policy and every artifact labels it AIS_V2.
 
 Resume discipline (Gen-0 rules, carried): mandatory HF rolling resume
 via Agent A's resume_or_abort (never a silent restart); best/rolling
@@ -44,9 +51,10 @@ Platform portability (local RTX 4060 / Kaggle / Colab — same file):
   * single-process, single-GPU-first (CUDA if available, else CPU);
   * no platform-specific imports; HF token resolved from --hf-token,
     $HF_TOKEN, or .env (python-dotenv if present);
-  * --smoke runs the ENTIRE four-phase chain on Agent I's synthetic
-    loaders (tiny subset, CPU-able, NO HF writes) — the orchestration
-    proof that costs seconds, run before spending any GPU-hours;
+  * --smoke runs the ENTIRE six-phase chain on Agent I's synthetic
+    loaders (tiny subset, CPU-able, NO HF writes, artifacts quarantined
+    under smoke/) — the orchestration proof that costs seconds, run
+    before spending any GPU-hours;
   * real launches REQUIRE a structurally valid ImageNet-100 root
     (Agent I's validate_imagenet100_root) — checked BEFORE training.
 
@@ -99,6 +107,7 @@ from noesis_vision.core.multi_group_optimizer import (  # noqa: E402
 )
 from noesis_vision.core.provenance import (  # noqa: E402
     config_sha256, write_manifest)
+from noesis_vision.gaze.ais_v2_policy import AISv2GazePolicy  # noqa: E402
 from noesis_vision.gaze.gaze_state import GazeState  # noqa: E402 (canonical A_t)
 from noesis_vision.models.backbone import CompactViT  # noqa: E402
 from noesis_vision.models.foveation import foveal_sample  # noqa: E402
@@ -129,6 +138,18 @@ HF_REPO_ROLLING = "FerrariKazu/rhan-nxa-checkpoints-rolling"
 ROADMAP_NAME = "generation1_foundation_roadmap.json"
 
 PLACEHOLDER_GAZE_LABEL = "PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)"
+#: Steps 5-6: the policy IS Agent F's AIS-v2 — recorded as such everywhere.
+AIS_V2_GAZE_LABEL = "AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)"
+
+
+def gaze_scheme_for_phase(phase: str) -> str:
+    """The TRUE gaze scheme per phase — never mislabel a placeholder as
+    AIS-v2, and never label the AIS-v2 phases as a placeholder."""
+    if phase == "backbone_only":
+        return "single_center_fixation"
+    if phase in ("ais_v2_swap", "gen1_core"):
+        return AIS_V2_GAZE_LABEL
+    return PLACEHOLDER_GAZE_LABEL
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -231,6 +252,7 @@ class FoundationConfig:
     d_z: int = 384
     num_glimpses: int = 4                     # LOCKED T=4 (Part 1.C)
     within_glimpse_iters: int = 2             # LOCKED range 2-3 (Part 1.C)
+    num_candidates: int = 4                   # LOCKED range 4-8 (Part 1.E)
     # optimization
     epochs: int = 60
     lr: float = 0.003
@@ -259,7 +281,10 @@ class FoundationConfig:
         d["eval_seeds"] = list(self.eval_seeds)
         d["eps_list"] = list(self.eps_list)
         d["hf_token"] = None            # never serialized
-        d["gaze_scheme"] = PLACEHOLDER_GAZE_LABEL
+        # The config alone is phase-agnostic; the per-phase scheme is
+        # recorded by the model (model.gaze_scheme) and in the manifests.
+        d["gaze_scheme"] = ("phase-dependent: single_center_fixation | "
+                            "PLACEHOLDER_FIXED_GAZE | AIS_V2")
         return d
 
 
@@ -286,11 +311,20 @@ class FoundationModel(nn.Module):
         self.phase = phase
         self.use_refinement = phase != "backbone_only"
         self.use_recurrence = phase in ("recurrence_only", "belief_no_f",
-                                        "belief_with_f")
-        self.carry_belief = phase in ("belief_no_f", "belief_with_f")
-        self.belief_dynamics = phase == "belief_with_f"
-        self.gaze_scheme = ("single_center_fixation" if not self.use_recurrence
-                            else PLACEHOLDER_GAZE_LABEL)
+                                        "belief_with_f", "ais_v2_swap",
+                                        "gen1_core")
+        self.carry_belief = phase in ("belief_no_f", "belief_with_f",
+                                      "ais_v2_swap", "gen1_core")
+        self.belief_dynamics = phase in ("belief_with_f", "ais_v2_swap",
+                                         "gen1_core")
+        # Steps 5-6 ONLY: Agent F's policy drives the glimpse loop.
+        self.use_ais_v2 = phase in ("ais_v2_swap", "gen1_core")
+        if not self.use_recurrence:
+            self.gaze_scheme = "single_center_fixation"
+        elif self.use_ais_v2:
+            self.gaze_scheme = AIS_V2_GAZE_LABEL
+        else:
+            self.gaze_scheme = PLACEHOLDER_GAZE_LABEL
 
         # Agent C's substrate — the ONLY backbone (shared, never duplicated).
         self.backbone = CompactViT(img_size=cfg.fovea_size)
@@ -316,6 +350,15 @@ class FoundationModel(nn.Module):
                 d_z=cfg.d_z, d_feat=cfg.d_z, n_tokens=16)
             self.update_net = ConcreteUpdateNet(d_z=cfg.d_z)
             self.precision = PrecisionFunction()
+        if self.use_ais_v2:
+            # Agent F's policy — the ONE candidate scorer. The predictor
+            # and evidential head are the SAME instances built above
+            # (F's reuse boundary: injected, never re-implemented;
+            # identity is asserted by the J2 tests).
+            self.gaze_policy = AISv2GazePolicy(
+                predictor=self.predictor,
+                evidential_head=self.evidential_head,
+                num_candidates=cfg.num_candidates)
 
     # ── optimizer-group surfaces (Agent A registry; per-phase layout) ───────
     def group_params(self) -> Dict[str, List[nn.Parameter]]:
@@ -331,6 +374,12 @@ class FoundationModel(nn.Module):
             groups["predictor"] = list(self.predictor.parameters())
             groups["update_net"] = list(self.update_net.parameters())
             groups["precision"] = list(self.precision.parameters())
+        if self.use_ais_v2:
+            # ONLY the policy's own learned state (logit_scale). The shared
+            # predictor/head already have their own groups; F's
+            # register_optimizer_group() would recursively re-claim them
+            # here and the registry's double-claim guard raises loudly.
+            groups["gaze_policy"] = [self.gaze_policy.logit_scale]
         return groups
 
     # ── one glimpse: crop -> trunk -> (optional refinement) -> parts ────────
@@ -350,6 +399,9 @@ class FoundationModel(nn.Module):
         cfg = self.cfg
         B, T = x.shape[0], cfg.num_glimpses
         device = x.device
+
+        if self.use_ais_v2:
+            return self._forward_ais_v2(x, B, T, device)
 
         if not self.use_recurrence:
             # ── step 1: ONE fixed center fixation, no refinement ──────────
@@ -411,6 +463,88 @@ class FoundationModel(nn.Module):
         feats = torch.cat([z_t, dp_t.evidence], dim=-1)
         return self.cls_head(feats) + self.ev_readout(dp_t.evidence)
 
+    # ── steps 5-6: the AIS-v2 loop (Agent F's policy drives the gaze) ──────
+    def _forward_ais_v2(self, x: torch.Tensor, B: int, T: int,
+                        device: torch.device) -> torch.Tensor:
+        """predict -> observe -> error -> precision -> update -> gaze-select.
+
+        Gaze chronology (Agent F's API, used exactly as contracted):
+          t = 0: the fixed first fixation seeds the record; the policy's
+                 t=0 branch is STRUCTURAL (no U_0-conditioned prediction
+                 exists; E_0 := 0) and scores candidates on the heuristic
+                 saliency surface; it selects gaze for t = 1.
+          t = 1..T-1: observe at the selected a_t (pred_t was made last
+                 step AT a_t); dynamics step; the policy scores candidates
+                 against belief_t (+ the prediction at the CURRENT gaze,
+                 for the anchor's error map) and selects a_{t+1} while
+                 t + 1 < T.
+        Exactly T records enter the GazeState (LOCKED cap — record()
+        raises loudly at capacity); selections are detached when recorded
+        (A_t is a coordinate record, Part 1.A). Soft selection during
+        training (the motor Jacobian flows into the shared stack through
+        foveal_sample); hard argmax, no Gumbel noise, under no_grad at
+        inference (F's phase rule).
+        """
+        cfg = self.cfg
+        zero_tok = torch.zeros(B, 16, cfg.d_z, device=device)
+        training = self.training
+        # Inference determinism (the preserve-list's "deterministic seeded
+        # behavior"): the candidate jitter (anchor + Gaussian, Gen-0's
+        # validated sigma) is SEEDED per forward at eval so two eval passes
+        # — and evals resumed from the same checkpoint — select
+        # identically. Training keeps the global RNG (exploration is
+        # stochastic, seeded at run level by seed_everything).
+        gen = None
+        if not training:
+            gen = torch.Generator(device=device)
+            gen.manual_seed(int(cfg.seed))
+        a_t = torch.zeros(B, 2, device=device)      # fixed first fixation
+        gaze_state = GazeState(gaze_history=[a_t], current_glimpse_idx=0)
+
+        z_t: Optional[torch.Tensor] = None
+        dp_t: Optional[DirichletParams] = None
+        pred_t: Optional[torch.Tensor] = None       # prediction AT a_t
+        err: Optional[torch.Tensor] = None
+
+        for t in range(T):
+            pooled_t, tokens_t = self._glimpse(x, a_t)
+            obs = tokens_t.detach()                 # target convention
+            if t == 0:
+                z_t = pooled_t                      # observation seeds content
+                err = torch.zeros_like(tokens_t)    # LOCKED boundary E_0 := 0
+            else:
+                err = obs - pred_t
+                Pi_t = self.precision(dp_t)
+                z_t = belief_update(z_t, err, Pi_t, self.update_net)
+            dp_t = self.evidential_head(tokens_t)
+            # Per-step SNAPSHOT of the live GazeState (record() mutates the
+            # live object; beliefs must each see the history as it was).
+            belief_t = populate_belief(
+                z=z_t,
+                U=DirichletParams(evidence=dp_t.evidence),
+                E=(zero_tok if t == 0 else err),
+                A=GazeState(gaze_history=list(gaze_state.gaze_history),
+                            current_glimpse_idx=t))
+            if t + 1 < T:
+                sel = self.gaze_policy.select_next_location(
+                    belief_t, obs, a_t,
+                    predicted_tokens=(pred_t if t >= 1 else None),
+                    training=training, generator=gen)
+                a_next = sel.selected               # (B, 2); carries the
+                # selection gradient in training (soft weights), detached
+                # coordinates at inference.
+                # Predict the NEXT glimpse's features from the CURRENT
+                # belief AT the selected location (error_target =
+                # latent_next_glimpse, LOCKED) — the motor Jacobian
+                # df_stem(a)/da enters here through foveal_sample.
+                pred_t = self.predictor.predict_features(belief_t, a_next)
+                gaze_state = self.gaze_policy.record(gaze_state, sel)
+                a_t = a_next
+
+        # Readout: content + the ONE uncertainty representation.
+        feats = torch.cat([z_t, dp_t.evidence], dim=-1)
+        return self.cls_head(feats) + self.ev_readout(dp_t.evidence)
+
 
 def build_model(cfg: FoundationConfig, phase: str) -> FoundationModel:
     return FoundationModel(cfg, phase)
@@ -433,6 +567,8 @@ def _component_params(model: FoundationModel, name: str) -> List[nn.Parameter]:
         return list(model.update_net.parameters())
     if name == "precision":
         return list(model.precision.parameters())
+    if name == "gaze_policy":
+        return [model.gaze_policy.logit_scale]
     raise ValueError(f"unknown gradient component {name!r}")
 
 
@@ -537,13 +673,21 @@ def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
                 print(f"{tag} [force-fresh] removed {p}", flush=True)
 
     # ── mandatory-resume gate (Agent A; NEVER a silent restart) ────────────
+    # --force-fresh is an AUDIBLE LOCAL cold start: the local rolling/best
+    # artifacts were just deleted, and the HF rolling copy must NOT be
+    # silently re-downloaded (that would resurrect the run force-fresh just
+    # destroyed — a silent restart wearing a loud flag). The next
+    # save_rolling OVERWRITES the HF copy; until then HF is stale, loudly.
     try:
         state = resume_or_abort(
             rolling_path,
-            hf_repo_id=HF_REPO_ROLLING if cfg.use_hf else None,
-            hf_filename=hf_roll_name if cfg.use_hf else None,
+            hf_repo_id=(None if cfg.force_fresh else
+                        (HF_REPO_ROLLING if cfg.use_hf else None)),
+            hf_filename=(None if cfg.force_fresh else
+                         (hf_roll_name if cfg.use_hf else None)),
             hf_token=cfg.hf_token,
-            downloader=_hf_download if cfg.use_hf else None)
+            downloader=_hf_download if (cfg.use_hf and not cfg.force_fresh)
+            else None)
     except CheckpointResumeError as e:
         raise SystemExit(f"{tag} STOP — resume gate refused: {e}") from e
 
@@ -553,7 +697,7 @@ def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
     groups = model.group_params()
     registry.register_backbone(groups["backbone"])
     for name in ("classifier", "evidential_head", "predictor", "update_net",
-                 "precision"):
+                 "precision", "gaze_policy"):
         if name in groups:
             registry.register(name, groups[name])
     optimizer = registry.build_optimizer(cfg.lr, cfg.momentum,
@@ -617,8 +761,10 @@ def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
                                   "weight_decay": cfg.weight_decay,
                                   "groups": registry.group_names},
                 extra={"phase": phase,
-                       "gaze_scheme": PLACEHOLDER_GAZE_LABEL,
-                       "j1_steps": "1-4", "ais_v2": False})
+                       "gaze_scheme": gaze_scheme_for_phase(phase),
+                       "part2_steps": ("1-4" if phase in FOUNDATION_PHASES[:4]
+                                       else "5-6"),
+                       "ais_v2": phase in ("ais_v2_swap", "gen1_core")})
             print(f"{tag} cold start (provenance manifest written)",
                   flush=True)
 
@@ -645,7 +791,7 @@ def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
             save_rolling(rolling_path, epoch=epoch + 1, model=model,
                          optimizer=optimizer, scheduler=scheduler,
                          extra={"phase": phase,
-                                "gaze_scheme": PLACEHOLDER_GAZE_LABEL},
+                                "gaze_scheme": gaze_scheme_for_phase(phase)},
                          uploader=up_rolling)
         if val_acc > best_acc:
             best_acc = val_acc
@@ -697,7 +843,7 @@ def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
         "compactness": {k: comp[k] for k in
                         ("params_total", "params_trainable",
                          "est_macs_per_image")},
-        "gaze_scheme": PLACEHOLDER_GAZE_LABEL,
+        "gaze_scheme": model.gaze_scheme,
     }
     with open(os.path.join(cfg.report_dir,
                            f"foundation_{phase}_result.json"), "w") as f:
@@ -799,13 +945,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         cfg.num_workers = 0
         cfg.batch_size = 8
         cfg.amp = False
+        # FULL artifact quarantine: smoke checkpoints/manifests/roadmap must
+        # never share a path with real-run state — otherwise a real cold
+        # start would silently RESUME from a synthetic rolling checkpoint
+        # (same contamination class as force-fresh's HF resurrection).
+        cfg.ckpt_dir = os.path.join(cfg.ckpt_dir, "smoke")
+        cfg.runs_dir = os.path.join(cfg.runs_dir, "smoke")
 
     device = torch.device(
         args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     print(f"device={device}  smoke={cfg.smoke}  hf={cfg.use_hf}\n"
-          f"gaze={PLACEHOLDER_GAZE_LABEL}", flush=True)
+          f"gaze: steps 1-4 = {PLACEHOLDER_GAZE_LABEL}\n"
+          f"      steps 5-6 = {AIS_V2_GAZE_LABEL}", flush=True)
 
-    roadmap_path = os.path.join(cfg.report_dir, ROADMAP_NAME)
+    # The roadmap FILE is protocol state. Smoke NEVER writes it — a stray
+    # smoke run must not be able to mark real phases 'done' and silently
+    # skip them from the real run (launch-integrity rule).
+    roadmap_path = os.path.join(
+        cfg.report_dir if not cfg.smoke
+        else os.path.join(cfg.report_dir, "smoke"), ROADMAP_NAME)
     roadmap = load_or_init_roadmap(roadmap_path, hf_token, cfg.use_hf)
 
     # ── data: synthetic for smoke, VERIFIED ImageNet-100 for real runs ─────
@@ -848,7 +1006,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         roadmap = advance(phase, "trained", roadmap_path=roadmap_path,
                           best_val_acc=result["best_val_acc"],
                           ckpt=f"foundation_{phase}_best.pth",
-                          gaze_scheme=PLACEHOLDER_GAZE_LABEL)
+                          gaze_scheme=gaze_scheme_for_phase(phase))
         roadmap = advance(phase, "eval_pending", roadmap_path=roadmap_path)
         roadmap = advance(phase, "eval_complete", roadmap_path=roadmap_path,
                           summary_csv=result["eval"]["summary_csv"])

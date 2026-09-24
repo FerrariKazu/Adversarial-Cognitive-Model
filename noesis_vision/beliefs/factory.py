@@ -34,10 +34,12 @@ def populate_belief(z: torch.Tensor, U: DirichletParams, E: torch.Tensor,
 
     Args:
         z: (B, D_z) global content — gradients always (Part 1.A).
-        U: DirichletParams placeholder (SUPERSEDE with Agent D's).
+        U: Agent D's CANONICAL DirichletParams (placeholder superseded;
+            re-imported via vector_belief, Agent J2 integration).
         E: (B, N, D_feat) latent prediction error; the zero tensor at t = 0
             (LOCKED E_0 := 0 — enforced, not convention-by-honor-system).
-        A: GazeState placeholder (SUPERSEDE with Agent F's).
+        A: Agent F's CANONICAL GazeState (placeholder superseded;
+            re-imported via vector_belief, Agent J2 integration).
         S: None in the core build (Part 1.D).
 
     Returns:
