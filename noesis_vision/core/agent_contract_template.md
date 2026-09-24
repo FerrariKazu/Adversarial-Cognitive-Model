@@ -6,7 +6,7 @@ non-improvisation clause at the end. This is the template Agents A–J
 inherit, per MASTER_PLAN Part 4.
 
 How to use it: fill every `{{PLACEHOLDER}}` from the agent's own
-contract in `RHAN_NXA/MASTER_PLAN.md` (or, for Agents A–J, from the
+contract in `noesis_vision/noesis_vision/RHAN_NXA/MASTER_PLAN.md` (or, for Agents A–J, from the
 prompt drafted after Agent 0's handoff review). Never improvise a
 placeholder's content — a missing fact is a question back to the plan's
 author, not a guess. Do not add, drop, merge, or reorder points: the

@@ -6,7 +6,7 @@ config rather than reimplementing its own interpretation (MASTER_PLAN,
 Agent 0 contract — the structural fix for Gen-0's interface drift).
 
 Status labels used in field comments (see MASTER_PLAN Part 1 and
-RHAN_NXA/docs/15_Status_And_Decision_System.md):
+noesis_vision/RHAN_NXA/docs/15_Status_And_Decision_System.md):
 
   LOCKED                  — decided; not agent discretion.
   REQUIRED                — mechanism design is required (not a claim it works).
@@ -21,7 +21,7 @@ This module establishes NOTHING empirically. Pure interface design —
 no experiment, no claim, no number (Agent 0 contract, Scientific
 Interpretation).
 
-Source: RHAN_NXA/MASTER_PLAN.md, Parts 1.A–1.I (verbatim capture).
+Source: noesis_vision/RHAN_NXA/MASTER_PLAN.md, Parts 1.A–1.I (verbatim capture).
 """
 
 from __future__ import annotations

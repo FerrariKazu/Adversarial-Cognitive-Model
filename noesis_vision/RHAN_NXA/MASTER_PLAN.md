@@ -4,7 +4,7 @@
 > **Status of this file:** this is the source-of-truth capture of the
 > RHAN-NXA plan as authorized for Gen-1 documentation. Sections 8+ of the
 > master plan are **NOT** documented yet and must not be inferred.
-> Every architecture chapter under `RHAN_NXA/docs/` carries a
+> Every architecture chapter under `noesis_vision/RHAN_NXA/docs/` carries a
 > `Source decision` pointer back to a section of this file.
 
 ---

@@ -109,7 +109,7 @@ Read the above, then `12` → `13` → `14` → `15` → `19` → `24` → `26` 
 Read `02` → `15` → `16` → `20` → `24` → `25` → `28`.
 
 ### If you are researching RHAN
-Read everything, plus `RHAN_NXA/MASTER_PLAN.md` (the source of truth
+Read everything, plus `noesis_vision/RHAN_NXA/MASTER_PLAN.md` (the source of truth
 this documentation was built from).
 
 ---

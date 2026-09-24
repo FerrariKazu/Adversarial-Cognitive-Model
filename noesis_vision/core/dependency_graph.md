@@ -3,7 +3,7 @@
 Agents and future sessions CHECK THIS FILE before starting work. The
 graphs below are the MASTER_PLAN Part 2/4 graphs reproduced exactly —
 no reordering, no simplification (Agent 0 acceptance criteria). If this
-file ever disagrees with `RHAN_NXA/MASTER_PLAN.md`, the MASTER_PLAN
+file ever disagrees with `noesis_vision/noesis_vision/RHAN_NXA/MASTER_PLAN.md`, the MASTER_PLAN
 wins: STOP and report the discrepancy rather than reconciling silently.
 
 ---

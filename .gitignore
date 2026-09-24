@@ -26,8 +26,8 @@ figures_v2/
 figures_v3/
 RHANv10Report/
 docs/
-# RHAN_NXA/docs is the Gen-1 documentation deliverable — tracked, unlike legacy docs folders
-!RHAN_NXA/docs/
+# RHAN_NXA/docs is the Gen-1 documentation deliverable — tracked, unlike legacy docs folders; it lives INSIDE the noesis_vision package as of 2026-09-24
+!noesis_vision/RHAN_NXA/docs/
 competition/
 Paper/
 paper/

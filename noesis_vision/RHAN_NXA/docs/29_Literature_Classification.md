@@ -44,7 +44,7 @@ and an honest caveat about what has *not* been verified.
 Read that carefully: even the architecture's central unification is
 claimed only as a *possible* combination, pending a literature check
 that has not been done. This documentation preserves that boundary —
-no sentence anywhere in `RHAN_NXA/` claims "first," "novel," or "new"
+no sentence anywhere in `noesis_vision/RHAN_NXA/` claims "first," "novel," or "new"
 beyond what this chapter licenses.
 
 ## The caveat that travels with this chapter
