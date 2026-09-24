@@ -26,6 +26,8 @@ figures_v2/
 figures_v3/
 RHANv10Report/
 docs/
+# RHAN_NXA/docs is the Gen-1 documentation deliverable — tracked, unlike legacy docs folders
+!RHAN_NXA/docs/
 competition/
 Paper/
 paper/
