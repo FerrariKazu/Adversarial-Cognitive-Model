@@ -39,6 +39,15 @@ import torch
 from noesis_vision.beliefs.drift import drift_to as _module_drift_to
 from noesis_vision.beliefs.interfaces import BeliefState
 
+# Agent F supersession (IN FLIGHT): the canonical GazeState now lives in
+# noesis_vision.gaze.gaze_state (same SUPERSEDE pattern as Agent D's
+# DirichletParams). Field names and shapes are identical by design, so
+# until Agent J1 performs the flagged deletion/re-import, BOTH classes are
+# accepted at this boundary — no silent coercion either way (entries are
+# re-validated below regardless of type). No import cycle: gaze_state
+# imports nothing from beliefs.
+from noesis_vision.gaze.gaze_state import GazeState as _CanonicalGazeState
+
 
 @dataclass
 class DirichletParams:  # PLACEHOLDER — SUPERSEDED by noesis_vision.uncertainty.evidential_head.DirichletParams (Agent D, canonical since its landing). INTEGRATION TASK (Agent J checklist, Agent D contract): DELETE this placeholder and import the canonical one here and in factory.py — the two definitions must not coexist past integration.
@@ -112,10 +121,12 @@ class VectorBeliefState(BeliefState):
                 f"E must be (B, N, D_feat) with z's batch ({B}) — the shared "
                 f"predictor's output space (Part 1.B); got {got}")
 
-        if not isinstance(A, GazeState):
+        if not isinstance(A, (GazeState, _CanonicalGazeState)):
             raise ValueError(
-                "A must be a GazeState (placeholder until Agent F's "
-                "definition lands — see the SUPERSEDE note in this file)")
+                "A must be a GazeState (the beliefs placeholder until "
+                "Agent J1's supersession, or Agent F's canonical "
+                "noesis_vision.gaze.gaze_state.GazeState — the two are "
+                "shape-identical by design)")
         for g in A.gaze_history:
             if (not torch.is_tensor(g) or g.dim() != 2
                     or g.shape[0] != B or g.shape[1] != 2):
