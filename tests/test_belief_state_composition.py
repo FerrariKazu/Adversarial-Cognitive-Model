@@ -77,7 +77,12 @@ def test_part_1a_shape_validation():
                         E=torch.randn(B, N, DF), A=A)
     with pytest.raises(ValueError, match=r"\(B, N, D_feat\)"):
         populate_belief(z=z, U=U, E=torch.randn(B + 1, N, DF), A=A)  # batch mismatch
-    bad_A = GazeState(gaze_history=[torch.zeros(B, 3)], current_glimpse_idx=1)
+    # (Since the canonical-GazeState supersession, a wrong-LAST-dim entry
+    # is rejected eagerly AT GazeState construction (its own guard, tested
+    # in test_gaze_state_canonical); the belief-layer batch check below
+    # uses a valid-shape entry with the WRONG batch.)
+    bad_A = GazeState(gaze_history=[torch.zeros(B + 1, 2)],
+                      current_glimpse_idx=1)
     with pytest.raises(ValueError, match=r"\(B, 2\)"):
         populate_belief(z=z, U=U, E=torch.randn(B, N, DF), A=bad_A)
     with pytest.raises(ValueError, match=r"\(B, K, D_s\) or None"):

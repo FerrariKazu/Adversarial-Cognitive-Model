@@ -23,17 +23,31 @@ def count_params(model: nn.Module) -> Dict[str, int]:
     """Total/trainable parameter counts — derived twice and asserted
     consistent before returning: (a) named_parameters, (b) state_dict
     keys MINUS registered buffers (state_dict carries buffers too; a
-    persistent buffer is not a parameter). Any state_dict key that is
-    neither a parameter nor a buffer is a real anomaly -> fail."""
+    persistent buffer is not a parameter).
+
+    Shared modules (Agent F's reuse boundary: the gaze policy holds THE
+    SAME predictor/evidential-head instances) make state_dict list the
+    SAME tensors under several paths (e.g. gaze_policy.predictor.*
+    mirroring predictor.*). Aliases are STRUCTURAL SHARING, not doubled
+    storage: each underlying storage is counted ONCE, keyed by data_ptr
+    (state_dict entries are detached views of the same storage). A key
+    matching neither a parameter nor buffer storage remains a real
+    anomaly -> fail; the two derivations must still agree exactly."""
     total_a = sum(p.numel() for p in model.parameters())
-    param_keys = set(dict(model.named_parameters()).keys())
-    buffer_keys = set(dict(model.named_buffers()).keys())
+    param_storages = {p.data_ptr(): p.numel() for p in model.parameters()}
+    buffer_storages = {b.data_ptr() for _, b in model.named_buffers()}
     extra = []
     total_b = 0
+    counted = set()
     for k, v in model.state_dict().items():
-        if k in param_keys:
-            total_b += v.numel()
-        elif k in buffer_keys:
+        if v.numel() == 0:
+            continue                      # empty tensors count nothing
+        ptr = v.data_ptr()
+        if ptr in param_storages:
+            if ptr not in counted:        # shared/aliased: count ONCE
+                counted.add(ptr)
+                total_b += param_storages[ptr]
+        elif ptr in buffer_storages:
             continue                      # a buffer: not a parameter
         else:
             extra.append(k)               # neither: a real anomaly

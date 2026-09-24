@@ -21,17 +21,19 @@ Shapes are Part 1.A VERBATIM:
           NO gradient (a coordinate record; differentiability lives in the
           policy that produced it)
 
-PLACEHOLDER POLICY (Agent B contract): the concrete U and A dataclasses
-belong to Agent D (DirichletParams, EvidentialHead port) and Agent F
-(GazeState, AIS-v2 gaze bookkeeping). Until they land, minimal placeholder
-shapes are defined HERE AND ONLY HERE, marked SUPERSEDE. Two definitions
-must not coexist past integration: when Agent D's / Agent F's versions
-arrive, delete the placeholders and import theirs — if their shapes are
-incompatible with this file, STOP and flag (do not silently coerce).
+PLACEHOLDER POLICY (Agent B contract, now COMPLETE): the concrete U and A
+dataclasses belonged to Agent D (DirichletParams) and Agent F (GazeState).
+BOTH placeholders were DELETED by Agent J2's integration (the flagged
+Agent-J checklist task): the CANONICAL definitions —
+noesis_vision.uncertainty.evidential_head.DirichletParams (Agent D) and
+noesis_vision.gaze.gaze_state.GazeState (Agent F) — are imported here and
+re-exported under this module's names, so the public import surface
+(`from noesis_vision.beliefs.vector_belief import DirichletParams,
+GazeState`) is unchanged and now resolves to the canonical identities.
+The two definitions no longer coexist anywhere (non-improvisation rule).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import List, Optional
 
 import torch
@@ -39,51 +41,12 @@ import torch
 from noesis_vision.beliefs.drift import drift_to as _module_drift_to
 from noesis_vision.beliefs.interfaces import BeliefState
 
-# Agent F supersession (IN FLIGHT): the canonical GazeState now lives in
-# noesis_vision.gaze.gaze_state (same SUPERSEDE pattern as Agent D's
-# DirichletParams). Field names and shapes are identical by design, so
-# until Agent J1 performs the flagged deletion/re-import, BOTH classes are
-# accepted at this boundary — no silent coercion either way (entries are
-# re-validated below regardless of type). No import cycle: gaze_state
-# imports nothing from beliefs.
-from noesis_vision.gaze.gaze_state import GazeState as _CanonicalGazeState
-
-
-@dataclass
-class DirichletParams:  # PLACEHOLDER — SUPERSEDED by noesis_vision.uncertainty.evidential_head.DirichletParams (Agent D, canonical since its landing). INTEGRATION TASK (Agent J checklist, Agent D contract): DELETE this placeholder and import the canonical one here and in factory.py — the two definitions must not coexist past integration.
-    """Placeholder U-carrier — Part 1.A's Dirichlet evidence, minimal shape.
-
-    Agent D's CANONICAL DirichletParams now exists
-    (noesis_vision/uncertainty/evidential_head.py) with identical field
-    name (`evidence`) and identical alpha/uncertainty formulas; this
-    placeholder remains only so this module imports nothing circular
-    until Agent J performs the flagged deletion/re-import.
-    """
-
-    evidence: torch.Tensor  # (B, C), non-negative (softplus output) — Part 1.A
-
-    @property
-    def alpha(self) -> torch.Tensor:
-        """alpha_t = e_t + 1 (Part 1.A), shape (B, C)."""
-        return self.evidence + 1.0
-
-    @property
-    def uncertainty(self) -> torch.Tensor:
-        """Uncertainty scalar: C / sum(alpha_t) (Part 1.A), shape (B,)."""
-        return self.evidence.shape[-1] / self.alpha.sum(dim=-1)
-
-
-@dataclass
-class GazeState:  # PLACEHOLDER — SUPERSEDE with Agent F's definition (AIS-v2 gaze bookkeeping, Part 1.E) when it lands; same deletion/re-import integration task for Agent J.
-    """Placeholder A-carrier — Part 1.A's gaze record, minimal shape.
-
-    Agent F's real GazeState supersedes this at integration (same rule
-    as the DirichletParams placeholder above).
-    """
-
-    gaze_history: List[torch.Tensor] = field(default_factory=list)
-    # list of (B, 2) coordinate tensors, length <= T; NO gradient
-    current_glimpse_idx: int = 0
+# Supersession COMPLETE (Agent J2 integration): no import cycles — both
+# canonical modules import nothing from beliefs. The names below ARE the
+# canonical classes (re-exported for backward-compatible imports).
+from noesis_vision.gaze.gaze_state import GazeState  # noqa: E402,F401
+from noesis_vision.uncertainty.evidential_head import (  # noqa: E402,F401
+    DirichletParams)
 
 
 class VectorBeliefState(BeliefState):
@@ -121,12 +84,11 @@ class VectorBeliefState(BeliefState):
                 f"E must be (B, N, D_feat) with z's batch ({B}) — the shared "
                 f"predictor's output space (Part 1.B); got {got}")
 
-        if not isinstance(A, (GazeState, _CanonicalGazeState)):
+        if not isinstance(A, GazeState):
             raise ValueError(
-                "A must be a GazeState (the beliefs placeholder until "
-                "Agent J1's supersession, or Agent F's canonical "
-                "noesis_vision.gaze.gaze_state.GazeState — the two are "
-                "shape-identical by design)")
+                "A must be Agent F's canonical GazeState "
+                "(noesis_vision.gaze.gaze_state.GazeState — the placeholder "
+                "was superseded; Agent J2 integration)")
         for g in A.gaze_history:
             if (not torch.is_tensor(g) or g.dim() != 2
                     or g.shape[0] != B or g.shape[1] != 2):
