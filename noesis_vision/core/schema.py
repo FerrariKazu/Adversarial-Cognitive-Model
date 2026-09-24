@@ -72,6 +72,7 @@ OPTIMIZER_GROUP_NAMES = (
     "recurrence_refinement",
     "predictor",
     "update_net",
+    "precision",
     "evidential_head",
     "gaze_policy",
     "l_stab_diagnostic",
