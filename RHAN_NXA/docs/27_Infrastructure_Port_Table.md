@@ -8,10 +8,11 @@ to every disposition.*
 
 ## In one sentence
 
-Nine infrastructure items inherited from the Gen-0/STL-10 project, each
-with an explicit disposition — **PORT VERBATIM**, **ADAPT**, or
-**REJECT** — so nothing is ported by momentum and nothing is rewritten
-by taste.
+Nine infrastructure items, each
+with an explicit disposition — **PORT VERBATIM**, **ADAPT**, **REJECT**,
+or **NEW** — so nothing is ported by momentum and nothing is rewritten
+by taste. Eight are inherited from the Gen-0/STL-10 project; the
+EvidentialHead is NEW (see its row).
 
 ## The table
 
@@ -23,7 +24,7 @@ by taste.
 | Comparator registry | **ADAPT** | Same concept, new dataset/checkpoint namespace |
 | Structural-consistency assertion (Summary Table vs CSV) | **PORT VERBATIM** | Non-negotiable given its history |
 | Attack evaluation (norm-space PGD/AutoAttack conventions) | **ADAPT** | Same conventions, new input resolution/normalization stats |
-| EvidentialHead | **PORT VERBATIM** | Already exists, already validated in isolation |
+| EvidentialHead | **NEW** | First implementation in this project of a published formulation (Sensoy et al.), not ported from anywhere |
 | AIS-v1's relocated-Eq.-II gaze code | **REJECT** | Superseded by AIS-v2's design; do not carry forward as a fallback path |
 | Legacy Slot Attention (16-slot) module | **REJECT** | Doubled evidence against it (Part 1.D) |
 
@@ -45,9 +46,16 @@ rebinding resolution and stats for the new dataset.
 mechanism-level, not infrastructural: AIS-v1's gaze code is superseded
 by design (one mechanism, no v3 — `10_AIS_v2.md`), and the 16-slot
 Slot Attention module is rejected on doubled evidence
-(`06_Structure_State.md`). A rejected module that survives as a
+(`06_Structure_State.md`). A **REJECTED** module that survives as a
 "fallback path" is precisely how legacy behavior silently re-enters a
 codebase — the mechanism of the Part-0 confound.
+
+**NEW** — first implementation in this project of a published
+formulation (Sensoy et al. for the EvidentialHead). Nothing is ported,
+so there is no Gen-0 validation to inherit; the implementation carries
+its own contract tests. This is not a claim of scientific novelty —
+Part 6's literature classification already records evidential deep
+learning as KNOWN PRIOR.
 
 ## The no-parallel-port rule
 
@@ -61,7 +69,9 @@ package in parallel with the new one. Agent 0's contract makes
 
 - Agent A owns porting the optimizer/resume/logging items; Part 6's
   compute accounting rides on its logging infrastructure.
-- Agent D owns the EvidentialHead port (PORT VERBATIM by ownership).
+- Agent D owns the EvidentialHead (NEW — first implementation of the
+  Sensoy et al. formulation in this project; no Gen-0 source exists to
+  port).
 - Agent 0's schema.py must make its optimizer-group config shape match
   what the ported multi-group optimizer expects — informational
   alignment, not implementation (`30_Agent0_Interface_Contract.md`).

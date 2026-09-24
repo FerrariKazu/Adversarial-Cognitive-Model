@@ -496,7 +496,7 @@ prompt, not just Agent 0's.
 | Comparator registry | **ADAPT** | Same concept, new dataset/checkpoint namespace |
 | Structural-consistency assertion (Summary Table vs CSV) | **PORT VERBATIM** | Non-negotiable given its history |
 | Attack evaluation (norm-space PGD/AutoAttack conventions) | **ADAPT** | Same conventions, new input resolution/normalization stats |
-| EvidentialHead | **PORT VERBATIM** | Already exists, already validated in isolation |
+| EvidentialHead | **NEW** | First implementation in this project of a published formulation (Sensoy et al.), not ported from anywhere |
 | AIS-v1's relocated-Eq.-II gaze code | **REJECT** | Superseded by AIS-v2's design; do not carry forward as a fallback path |
 | Legacy Slot Attention (16-slot) module | **REJECT** | Doubled evidence against it (Part 1.D) |
 | Stage-state machine | **ADAPT** | Same pattern, new phase list (Part 2) |
