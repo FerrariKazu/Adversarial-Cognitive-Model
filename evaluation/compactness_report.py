@@ -76,7 +76,8 @@ def estimate_macs(model: nn.Module, input_size: int = 96) -> int:
     was_training = model.training
     model.eval()
     with torch.no_grad():
-        model(torch.randn(1, 3, input_size, input_size))
+        device = next(model.parameters()).device   # run on the model's device
+        model(torch.randn(1, 3, input_size, input_size, device=device))
     for h in hooks:
         h.remove()
     if was_training:
