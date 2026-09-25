@@ -138,21 +138,21 @@ def main() -> int:
         out_base = train_dir if split == "train" else val_dir
         t0 = time.time()
         for i in range(n):
+            fname = f"{fn.split('/')[-1].replace('.parquet','')}_{i:06d}.jpg"
+            lab_i = int(data[lab_col][i])
+            cls_dir = os.path.join(out_base, _wnid_of(_label_name(lab_i)))
+            out = os.path.join(cls_dir, fname)
+            if os.path.exists(out):
+                continue              # resume: skip BEFORE the expensive decode
+            os.makedirs(cls_dir, exist_ok=True)
             rec = data[img_col][i]
             raw = rec["bytes"] if isinstance(rec, dict) else rec
-            lab_i = int(data[lab_col][i])
-            name = _label_name(lab_i)
-            cls_dir = os.path.join(out_base, _wnid_of(name))
-            os.makedirs(cls_dir, exist_ok=True)
             img = _decode_bytes(raw)
-            fname = f"{fn.split('/')[-1].replace('.parquet','')}_{i:06d}.jpg"
-            out = os.path.join(cls_dir, fname)
-            if not os.path.exists(out):
-                # Atomic write: a killed process must never leave a partial
-                # JPEG that the exists() skip would treat as converted.
-                tmp_out = out + ".tmp"
-                img.convert("RGB").save(tmp_out, "JPEG", quality=95)
-                os.replace(tmp_out, out)
+            # Atomic write: a killed process must never leave a partial
+            # JPEG that the exists() skip would treat as converted.
+            tmp_out = out + ".tmp"
+            img.convert("RGB").save(tmp_out, "JPEG", quality=95)
+            os.replace(tmp_out, out)
         print(f"  {fn}: {n} rows -> {split}/ ({time.time()-t0:.0f}s)",
               flush=True)
         del data, tbl
