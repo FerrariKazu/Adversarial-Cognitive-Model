@@ -19,6 +19,7 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"   # the launcher and roadmap checks are repo-root-relative
 MAX_RESTARTS="${1:-60}"
 SUPER_LOG="$REPO_ROOT/report/supervisor.log"
 mkdir -p "$REPO_ROOT/report"

@@ -227,12 +227,22 @@ def resume_or_abort(rolling_path: str, hf_repo_id: Optional[str] = None,
 
     remote_path: Optional[str] = None
     hf_verified = False
+    hf_proven_absent = False
     if hf_repo_id and hf_filename and downloader is not None:
         try:
             remote_path = downloader(hf_repo_id, hf_filename, hf_token)
             hf_verified = True
-        except Exception:
+        except Exception as e:
             hf_verified = False
+            # EntryNotFoundError means the repo was REACHABLE and the file
+            # PROVABLY absent — a verified fresh run, not an unverifiable
+            # state. Any other failure (network, auth, hub-missing) keeps
+            # the safe direction: abort below, never a silent restart.
+            try:
+                from huggingface_hub.errors import EntryNotFoundError
+            except Exception:
+                EntryNotFoundError = ()   # catches nothing -> abort (safe)
+            hf_proven_absent = isinstance(e, EntryNotFoundError)
 
     if remote_path is not None:
         remote_epoch = torch.load(remote_path, map_location="cpu",
@@ -242,7 +252,7 @@ def resume_or_abort(rolling_path: str, hf_repo_id: Optional[str] = None,
             shutil.copy(remote_path, rolling_path)
 
     if not os.path.exists(rolling_path):
-        if hf_repo_id and not hf_verified:
+        if hf_repo_id and not hf_verified and not hf_proven_absent:
             # We could not PROVE HF has no rolling checkpoint — aborting is
             # the safe direction (a silent restart would orphan the run).
             raise CheckpointResumeError(
