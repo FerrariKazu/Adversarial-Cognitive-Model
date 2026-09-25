@@ -51,8 +51,17 @@ except Exception:
 EOF
 )
     if [ "$n_done" = "6" ]; then
-        log "ALL SIX PHASES DONE — production run complete."
-        exit 0
+        log "ALL SIX PHASES DONE — running Phase-11 completion verification."
+        python3 scripts/verify_run_complete.py | tee -a "$SUPER_LOG"
+        vrc=${PIPESTATUS[0]}
+        if [ "$vrc" = "0" ]; then
+            log "COMPLETION VERIFIED (checkpoints, manifests, eval artifacts, " \
+                "HF sync, frozen config hash). Production run FINISHED."
+            exit 0
+        fi
+        log "VERIFICATION rc=$vrc — HUMAN ATTENTION REQUIRED (see " \
+            "report/run_completion_report.json)."
+        exit 2
     fi
 
     if [ "$rc" -ne 0 ]; then
