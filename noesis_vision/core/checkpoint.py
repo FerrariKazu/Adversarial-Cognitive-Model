@@ -249,7 +249,11 @@ def resume_or_abort(rolling_path: str, hf_repo_id: Optional[str] = None,
                                   weights_only=False).get("epoch", -1)
         if remote_epoch >= local_epoch:
             os.makedirs(os.path.dirname(rolling_path) or ".", exist_ok=True)
-            shutil.copy(remote_path, rolling_path)
+            # The downloader may stage the file INSIDE checkpoints/ (same
+            # path) — copying onto itself is a SameFileError, not a resume
+            # problem; skip the copy when source == destination.
+            if os.path.abspath(remote_path) != os.path.abspath(rolling_path):
+                shutil.copy(remote_path, rolling_path)
 
     if not os.path.exists(rolling_path):
         if hf_repo_id and not hf_verified and not hf_proven_absent:
