@@ -40,6 +40,15 @@ GAZE SCHEME: steps 1-4 use the PLACEHOLDER fixed schedule and every
 artifact labels it PLACEHOLDER_FIXED_GAZE (never "AIS-v2"); steps 5-6
 use Agent F's policy and every artifact labels it AIS_V2.
 
+ADVERSARIAL RECIPE (2026-09-29 correction): the ported Gen-0 TRADES/PGD
+curriculum (eps 0.031->0.062->0.094, beta 2.0->2.5, PGD-4, w_trades 0.55
+-- training/adv_curriculum.py) is now the DEFAULT training objective.
+The 2026-09-25->26 Gen-1 run trained PURE cross-entropy (no adversarial
+term anywhere in the loop — a planning gap, owned in the plan).
+--clean-only reproduces that old behavior EXPLICITLY (it changes the
+config hash and is recorded in the manifest); smoke mode sets it
+automatically so the orchestration proof stays seconds-cheap.
+
 Resume discipline (Gen-0 rules, carried): mandatory HF rolling resume
 via Agent A's resume_or_abort (never a silent restart); best/rolling
 parity verified before any artifact is cited; provenance manifest per
@@ -87,6 +96,13 @@ if REPO_ROOT not in sys.path:
 
 from evaluation.clean_and_robust import run_clean_and_robust  # noqa: E402
 from evaluation.compactness_report import compactness_report  # noqa: E402
+from training.adv_curriculum import (  # noqa: E402
+    W_TRADES_DEFAULT,
+    curriculum_for_epoch,
+    pgd_kl_attack,
+    phase_curriculum,
+    trades_loss,
+)
 from evaluation.imagenet100_loader import (  # noqa: E402
     IMAGENET100_IMG_SIZE,
     IMAGENET100_NUM_CLASSES,
@@ -124,6 +140,7 @@ from noesis_vision.uncertainty.evidential_head import (  # noqa: E402
     EvidentialHead,
 )
 from training.stage_state_machine import (  # noqa: E402
+    DEPENDENCIES,
     FOUNDATION_PHASES,
     GRADIENT_REQUIRED,
     advance,
@@ -258,6 +275,15 @@ class FoundationConfig:
     lr: float = 0.003
     momentum: float = 0.9
     weight_decay: float = 1e-4
+    # Gen-0 TRADES/PGD curriculum (ported 2026-09-29; was MISSING from the
+    # frozen Gen-1 contract — the 2026-09-25->26 run trained pure-CE):
+    # eps 0.031->0.062->0.094 ramp over each phase's window, beta
+    # 2.0->2.0->2.5, PGD-4 attack, w_trades 0.55. --clean-only is an
+    # explicit, LOUD deviation (SBR-0/1 semantics). All of this enters
+    # cfg.to_dict(), hence the provenance config hash.
+    w_trades: float = W_TRADES_DEFAULT
+    clean_only: bool = False
+    recipe_version: str = "gen1-adv-curriculum-v1"
     seed: int = 41
     amp: bool = True
     roll_every: int = 1
@@ -621,14 +647,32 @@ def evaluate_val(model: FoundationModel, loader, device) -> float:
 
 
 def train_one_epoch(model, loader, optimizer, registry, device,
-                    scaler) -> float:
+                    scaler, epoch: int = 1, total_epochs: int = 1,
+                    clean_only: bool = False,
+                    w_trades: float = W_TRADES_DEFAULT) -> float:
+    """One epoch under the ported Gen-0 recipe (training/adv_curriculum.py).
+
+    clean_only=False (default): TRADES — x_adv is built by Gen-0's PGD-KL
+    attack at the epoch's curriculum (eps, steps), then the loss is
+    w_trades * (CE(clean) + beta * KL(adv || clean)). clean_only=True:
+    pure CE (SBR-0/1 semantics — an explicit, recorded deviation).
+    """
     model.train()
+    point = curriculum_for_epoch(epoch, total_epochs)
     total_loss, n_batches = 0.0, 0
     for x, y in loader:
         x, y = x.to(device), y.to(device)
         optimizer.zero_grad(set_to_none=True)
         with torch.autocast("cuda", enabled=scaler is not None):
-            loss = F.cross_entropy(model(x), y)
+            if clean_only:
+                loss = F.cross_entropy(model(x), y)
+            else:
+                # Gen-0 order: attack under eval/no-grad, then train-step
+                # (the attack re-enables train() on exit).
+                x_adv = pgd_kl_attack(model, x, eps=point.eps,
+                                      steps=point.pgd_steps)
+                loss, _ = trades_loss(model, x, y, x_adv, beta=point.beta)
+                loss = w_trades * loss
         if scaler is not None:
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
@@ -690,6 +734,50 @@ def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
             else None)
     except CheckpointResumeError as e:
         raise SystemExit(f"{tag} STOP — resume gate refused: {e}") from e
+
+    # ── genuine-training-difference gate (the §11 gen1_core fix) ───────────
+    # The ladder is a from-scratch matched-compute chain (stage_state_machine
+    # DEPENDENCIES): no phase is weight-initialized from its parent, so a
+    # phase that starts with NO rolling state (local or HF) must not already
+    # possess a best checkpoint whose model payload is bitwise-identical to
+    # its parent's — that is exactly the silent-inheritance signature of the
+    # 2026-09-25->26 gen1_core artifact (206/206 tensors, state-dict hash
+    # 4814d7c70bfce254 shared with ais_v2_swap). --force-fresh deletes the
+    # best file too, so it passes; smoke is quarantined and skipped.
+    if state is None and phase != FOUNDATION_PHASES[0] and not cfg.smoke:
+        parent = DEPENDENCIES[phase]
+        own_best = os.path.join(cfg.ckpt_dir,
+                                f"foundation_{phase}_best.pth")
+        parent_best = os.path.join(cfg.ckpt_dir,
+                                   f"foundation_{parent}_best.pth")
+        if os.path.exists(own_best) and os.path.exists(parent_best):
+            try:
+                own = torch.load(own_best, map_location="cpu",
+                                 weights_only=False)
+                par = torch.load(parent_best, map_location="cpu",
+                                 weights_only=False)
+                own_sd, par_sd = own.get("model", {}), par.get("model", {})
+                overlap = [k for k in own_sd if k in par_sd]
+                same = (len(overlap) == len(own_sd) == len(par_sd)
+                        and all(torch.equal(own_sd[k], par_sd[k])
+                                for k in overlap))
+                if same and own_sd:
+                    raise SystemExit(
+                        f"{tag} STOP — silent-inheritance guard: "
+                        f"foundation_{phase}_best.pth is bitwise-identical "
+                        f"(all {len(own_sd)} tensors) to its parent "
+                        f"{parent}'s best, while NO rolling state exists "
+                        f"for this phase. That is the 2026-09-25->26 "
+                        f"gen1_core failure mode: a best checkpoint with "
+                        f"no genuine training behind it. Delete the best "
+                        f"checkpoint explicitly if you intend a real cold "
+                        f"start.")
+            except SystemExit:
+                raise
+            except Exception as e:  # noqa: BLE001 — a broken guard must
+                # never kill a legitimate run; parity/eval checks still run.
+                print(f"{tag} WARNING: inheritance guard skipped ({e})",
+                      flush=True)
 
     seed_everything(cfg.seed)
     model = build_model(cfg, phase).to(device)
@@ -764,7 +852,15 @@ def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
                        "gaze_scheme": gaze_scheme_for_phase(phase),
                        "part2_steps": ("1-4" if phase in FOUNDATION_PHASES[:4]
                                        else "5-6"),
-                       "ais_v2": phase in ("ais_v2_swap", "gen1_core")})
+                       "ais_v2": phase in ("ais_v2_swap", "gen1_core"),
+                       "adv_curriculum": {
+                           "recipe_version": cfg.recipe_version,
+                           "w_trades": cfg.w_trades,
+                           "clean_only": cfg.clean_only,
+                           "eps_ramp": [0.031, 0.062, 0.094],
+                           "beta_ramp": [2.0, 2.0, 2.5],
+                           "pgd_steps": 4,
+                       }})
             print(f"{tag} cold start (provenance manifest written)",
                   flush=True)
 
@@ -783,8 +879,12 @@ def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
             print(f"{tag} gradient reach OK for "
                   f"{GRADIENT_REQUIRED[phase]}", flush=True)
             grad_checked = True
+        point = phase_curriculum(phase, epoch + 1, cfg.epochs)
         tr_loss = train_one_epoch(model, loaders["train"], optimizer,
-                                  registry, device, scaler)
+                                  registry, device, scaler,
+                                  epoch=epoch + 1, total_epochs=cfg.epochs,
+                                  clean_only=cfg.clean_only,
+                                  w_trades=cfg.w_trades)
         val_acc = evaluate_val(model, loaders["val"], device)
         scheduler.step()
         if (epoch + 1) % cfg.roll_every == 0 or epoch + 1 == cfg.epochs:
@@ -797,9 +897,12 @@ def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
             best_acc = val_acc
             save_best(best_path, model=model, config=cfg.to_dict(),
                       metric_value=val_acc, uploader=up_best)
+        adv = ("clean-only" if cfg.clean_only else
+               f"eps={point.eps:.3f} beta={point.beta:.1f} "
+               f"pgd={point.pgd_steps}")
         print(f"{tag} epoch {epoch + 1}/{cfg.epochs} "
               f"loss={tr_loss:.4f} val_acc={val_acc:.4f} "
-              f"best={best_acc:.4f}", flush=True)
+              f"best={best_acc:.4f} [{adv}]", flush=True)
 
     # ── parity check BEFORE anything cites the artifacts (Agent A rule) ────
     if os.path.exists(best_path) and os.path.exists(rolling_path):
@@ -894,6 +997,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--eval-seeds", type=int, nargs="+", default=None)
     ap.add_argument("--n-eval-samples", type=int, default=None)
     ap.add_argument("--pgd-steps", type=int, default=None)
+    ap.add_argument("--w-trades", type=float, default=None,
+                    help="TRADES weight (Gen-0 default 0.55)")
+    ap.add_argument("--clean-only", action="store_true",
+                    help="SBR-0/1 semantics: NO adversarial term (pure CE) "
+                         "— a loud, recorded deviation from the default "
+                         "ported Gen-0 TRADES/PGD curriculum")
     ap.add_argument("--device", default=None, help="cuda | cpu (default auto)")
     ap.add_argument("--no-amp", action="store_true")
     ap.add_argument("--no-hf", action="store_true",
@@ -928,6 +1037,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         cfg.n_eval_samples = args.n_eval_samples
     if args.pgd_steps is not None:
         cfg.pgd_steps = args.pgd_steps
+    if args.w_trades is not None:
+        cfg.w_trades = args.w_trades
+    cfg.clean_only = args.clean_only
     cfg.amp = not args.no_amp
     cfg.force_fresh = args.force_fresh
     cfg.smoke = args.smoke
@@ -938,6 +1050,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     cfg.hf_token = hf_token
 
     if args.smoke:
+        # Smoke: pure-CE (SBR-0/1-style) so the orchestration proof stays
+        # seconds-cheap — the attack leg is exercised by the unit tests
+        # instead. Recorded as clean_only in the smoke manifest.
+        cfg.clean_only = True
         cfg.epochs = min(cfg.epochs, 1)
         cfg.eval_seeds = (0,)
         cfg.n_eval_samples = 8
