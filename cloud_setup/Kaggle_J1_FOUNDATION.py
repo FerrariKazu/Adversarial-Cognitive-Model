@@ -1,45 +1,60 @@
 #!/usr/bin/env python3
 """
-Kaggle Notebook — RHAN-NXA Generation 1 FOUNDATION (Agent J1) Execution
+Kaggle Notebook — RHAN-NXA GENERATION 1 FOUNDATION (six phases, J2-era)
 =======================================================================
 
-Runs Part 2 steps 1-4 (backbone_only -> recurrence_only -> belief_no_f ->
-belief_with_f) via training/train_generation1_foundation.py, on the
-PLACEHOLDER fixed gaze schedule. Steps 5-6 (the AIS-v2 swap) are J2's file
-and are deliberately NOT runnable from here (Agent F's modules exist; the
-ladder gate is J2's).
+Runs the FULL six-phase foundation ladder
+(backbone_only -> recurrence_only -> belief_no_f -> belief_with_f ->
+ais_v2_swap -> gen1_core) via training/train_generation1_foundation.py.
+Steps 1-4 use the PLACEHOLDER fixed gaze schedule; steps 5-6 run the
+AIS-v2 swap (Agent F AISv2GazePolicy) — live in the trainer since the J2
+commits, so this notebook needs NO companion file anymore.
+
+This replaces the J1-era 4-phase version (the run that launched 2026-09-25
+from the local RTX 4060 has since COMPLETED all six phases; verification
+initially false-failed on a verifier data_root bug, fixed 2026-09-29).
 
 DURABILITY MODEL (mirrors Kaggle_NOESIS.py):
   - /kaggle/working is wiped between sessions, so ALL durable state lives
     on HF. The trainer itself owns the two dedicated repos (Gen-0
     contamination is structurally impossible — separate repos):
-        FerrariKazu/rhan-nxa-checkpoints          (best ckpts + eval CSVs)
+        FerrariKazu/rhan-nxa-checkpoints          (best ckpts)
         FerrariKazu/rhan-nxa-checkpoints-rolling  (rolling ckpts + roadmap)
+    THIS notebook additionally syncs the artifacts the trainer leaves
+    host-local (per-phase provenance manifests, eval CSVs/result/verdict
+    jsons, compactness reports) to the best repo after each run, so a
+    wiped session can still be verified end-to-end.
   - Resume: the trainer calls Agent A's resume_or_abort (local first, then
     the rolling HF repo) + resume_guard; a session dying at ANY point
-    resumes by RE-RUNNING THIS CELL. Never pass --force-restart here.
-  - One run per cell execution: the dispatch executes the machine's next
-    action and exits. Re-run the cell (or the notebook) to continue.
-    Phases already marked done in the HF-synced roadmap are skipped.
+    resumes by RE-RUNNING THE DISPATCH CELL. Never pass --force-restart.
+  - One run per cell execution: the dispatch runs the trainer once (the
+    trainer itself executes the machine's next action and exits). Re-run
+    the cell (or the notebook) to continue. Phases already done in the
+    HF-synced roadmap are skipped.
+
+DATA — fully automated, NO manual dataset attach required:
+  scripts/prepare_imagenet100.py downloads the PINNED source
+  (clane9/imagenet-100 @ 0519dc2f…), converts to
+  <root>/{train,val}/<wnid>/*.jpg, and structurally verifies + fingerprints
+  the tree. Resumable per file; ~1-2 h once per runtime (or attach a
+  pre-converted Kaggle dataset and point DATA_ROOT at it to skip).
 
 USAGE:
   1. Kaggle Notebook, accelerator = GPU (T4 x2 or P100); Internet ON.
-  2. Add-ons > Secrets > add 'HF_TOKEN' (must match exactly).
-  3. Run all cells. First run: SMOKE PROOF cell (fast, synthetic) then the
-     dispatch cell. The dispatch STOPs loudly if ImageNet-100 is absent —
-     attach the dataset first (see DATA_ROOT below).
+  2. Add-ons > Secrets > add 'HF_TOKEN' (key must match exactly).
+  3. Run all cells: deps -> clone -> token -> SMOKE PROOF (fast, synthetic)
+     -> DATA bootstrap (first run only) -> DISPATCH. When the roadmap
+     reaches 6/6, the dispatch runs the Phase-11 completion verifier.
   4. Pre-flight without spending compute: set environment variable
      NOESIS_DRY_RUN=1 (Kaggle: Add-ons > Environment variables) — prints
-     the exact launch commands, exercises skip/gate logic against LIVE HF
-     state, and never launches training, touches git state, or writes to
-     HF (roadmap writes are shielded to a scratch copy).
+     the exact launch commands, exercises skip/verify logic against LIVE
+     HF state, and never launches training, touches git state, or writes
+     to HF (roadmap writes are shielded to a scratch copy).
 
-DATA (the one thing this notebook does NOT do for you):
-  Attach an ImageNet-100 Kaggle dataset and point DATA_ROOT at it (default
-  /kaggle/input/imagenet100 — adjust to your dataset's mount path). The
-  layout must be <root>/{train,val}/<wnid>/... (exactly 100 class dirs per
-  split). The trainer runs Agent I's structural validation BEFORE any
-  launch; a wrong layout is a loud STOP, never a silently-wrong result.
+BATCH/WORKERS: the dispatch mirrors the FROZEN production defaults
+(--batch-size 48 --num-workers 4). Override via J1_BATCH / J1_WORKERS env
+vars if the runtime struggles — a different batch is a DIFFERENT config
+(it enters the provenance hash); never change it mid-ladder.
 """
 # %% [markdown]
 # ## Step 1: Environment — fail fast on HF stalls, then deps
@@ -97,14 +112,18 @@ if not DRY_RUN:
             "--index-url https://download.pytorch.org/whl/cu121")
     for _mod, _pkg in (("huggingface_hub", "huggingface_hub"),
                        ("pandas", "pandas"),
-                       ("PIL", "Pillow")):
+                       ("PIL", "Pillow"),
+                       ("pyarrow", "pyarrow"),
+                       ("dotenv", "python-dotenv")):
         try:
             __import__(_mod)
         except Exception:
             run(f"pip install --quiet {_pkg}")
-    # NOTE: `datasets` is deliberately NOT installed — the J1 trainer +
-    # Agent I eval chain import torch/torchvision/pandas/huggingface_hub
-    # only (verified); installing it would pull pyarrow for nothing.
+    # NOTE: the `datasets` library is deliberately NOT installed — the J1/J2
+    # trainer, the Agent I eval chain, AND scripts/prepare_imagenet100.py
+    # import torch/torchvision/pandas/huggingface_hub/pyarrow/PIL only
+    # (verified); installing it would pull a heavy dependency chain for
+    # nothing.
 
 # %% [markdown]
 # ## Step 2: Clone and checkout feature/rhan-next (NOT main!)
@@ -180,7 +199,7 @@ else:
 # ## Step 4: SMOKE PROOF — orchestration chain, synthetic, NOT results
 
 # %%
-# One fast end-to-end proof that the 4-phase chain orchestrates on THIS
+# One fast end-to-end proof that the SIX-phase chain orchestrates on THIS
 # runtime (machine walk, gradient-reach checks, parity, eval CSVs). Uses
 # synthetic loaders, 1 epoch, NO HF writes, NO dataset. Numbers are NOT
 # results. Skip on re-runs: delete the marker to force it again.
@@ -197,35 +216,72 @@ else:
           flush=True)
 
 # %% [markdown]
-# ## Step 5: Launch helpers — durable state on HF, one run per cell
+# ## Step 5: DATA — automated pinned-source bootstrap (or attach your own)
 
 # %%
-DATA_ROOT = os.environ.get("J1_DATA_ROOT", "/kaggle/input/imagenet100")
+# Primary path: scripts/prepare_imagenet100.py pulls the PINNED source
+# (clane9/imagenet-100 @ 0519dc2f… — the byte-identity contract of the
+# frozen launch manifest), converts to <root>/{train,val}/<wnid>/*.jpg,
+# structurally validates (exactly 100 class dirs per split) and writes
+# fingerprint.json. Resumable per file: a killed bootstrap resumes by
+# re-running this cell. ~1-2 h once per runtime.
+#
+# Fast path: if DATA_ROOT already contains a valid tree (e.g. you attached
+# a pre-converted Kaggle dataset), the bootstrap is skipped.
 TRAINER = "training/train_generation1_foundation.py"
+CONVERTER = "scripts/prepare_imagenet100.py"
 HF_ROLLING = "FerrariKazu/rhan-nxa-checkpoints-rolling"
 HF_BEST = "FerrariKazu/rhan-nxa-checkpoints"
 ROADMAP_ON_HF = "generation1_foundation_roadmap.json"
 
+DATA_ROOT = os.environ.get("J1_DATA_ROOT", "/kaggle/input/imagenet100")
 
-def hf_file_exists(repo_id, filename):
+
+def _data_ok(root):
+    if not os.path.isdir(root):
+        return False
     try:
-        from huggingface_hub import HfApi
-        return filename in HfApi(token=hf_token).list_repo_files(
-            repo_id=repo_id, repo_type="dataset")
+        import subprocess as _sp
+        _r = _sp.run(f'python3 -c "import sys; sys.path.insert(0, \'.\'); '
+                     f'from evaluation.imagenet100_loader import '
+                     f'validate_imagenet100_root; '
+                     f'validate_imagenet100_root({root!r}, split=\'train\'); '
+                     f'validate_imagenet100_root({root!r}, split=\'val\')"',
+                     shell=True, capture_output=True, text=True)
+        return _r.returncode == 0
     except Exception:
         return False
 
 
+if DRY_RUN:
+    print(f"[DRY-RUN] DATA_ROOT={DATA_ROOT} exists={os.path.isdir(DATA_ROOT)}")
+    if not os.path.isdir(DATA_ROOT):
+        print(f"[DRY-RUN] would bootstrap: python3 {CONVERTER} --root {DATA_ROOT}")
+elif _data_ok(DATA_ROOT):
+    print(f"✓ DATA pre-flight OK: {DATA_ROOT} (100/100 class dirs both splits)")
+elif os.path.isdir(DATA_ROOT) and not os.access(DATA_ROOT, os.W_OK):
+    raise SystemExit(
+        f"STOP — {DATA_ROOT} exists but is NOT writable (read-only "
+        "/kaggle/input mount?). Convert to a writable copy instead:\n"
+        "  !cp -r <read-only-root> /kaggle/working/imagenet100\n"
+        "  then set J1_DATA_ROOT=/kaggle/working/imagenet100 and rerun.")
+else:
+    print(f"== DATA bootstrap (pinned source, resumable) -> {DATA_ROOT} ==")
+    run(f"python3 {CONVERTER} --root {DATA_ROOT}")
+    if not _data_ok(DATA_ROOT):
+        raise SystemExit(
+            f"STOP — bootstrap finished but {DATA_ROOT} failed structural "
+            "validation. Read the converter output above; do NOT proceed.")
+
+# %% [markdown]
+# ## Step 6: Dispatch helpers — durable state on HF, artifact durability
+
+# %%
+
+
 def _roadmap_status():
     """Phase statuses from local roadmap, restoring the HF copy first
-    (runtime state beats the fresh-clone baseline; rev-guarded)."""
-    local_rev = 0
-    if os.path.exists(ROADMAP_LOCAL):
-        try:
-            local_rev = json.load(open(ROADMAP_LOCAL)).get(
-                "generation1_foundation", {}).get("schema_version", 1)
-        except Exception:
-            pass
+    (runtime state beats the fresh-clone baseline)."""
     if not DRY_RUN:
         try:
             from huggingface_hub import hf_hub_download
@@ -244,55 +300,103 @@ def _roadmap_status():
         return {}
 
 
+def _upload(local_path, repo_path, repo_id):
+    """Per-file durability sync (Kaggle_NOESIS upload_hf_file pattern)."""
+    if DRY_RUN:
+        print(f"  [DRY-RUN] would sync {local_path} -> {repo_id}:{repo_path}",
+              flush=True)
+        return False
+    if not os.path.exists(local_path):
+        return False
+    try:
+        from huggingface_hub import HfApi
+        HfApi(token=hf_token).upload_file(
+            path_or_fileobj=local_path, path_in_repo=repo_path,
+            repo_id=repo_id, repo_type="dataset", token=hf_token)
+        return True
+    except Exception as e:
+        print(f"  WARNING: could not sync {local_path} to HF: {e}", flush=True)
+        return False
+
+
+def sync_run_artifacts(statuses):
+    """Upload the artifacts the trainer leaves host-local so a wiped
+    session (and scripts/verify_run_complete.py on ANY host) can still see
+    them: per-phase provenance manifests, eval summary CSV, result json,
+    compactness report. Rolling ckpts + roadmap are already synced by the
+    trainer itself; best ckpts by the trainer too (all six phases)."""
+    done = [p for p, s in statuses.items() if s == "done"]
+    for ph in done:
+        _upload(f"runs/foundation_{ph}/manifest.json",
+                f"runs/foundation_{ph}/manifest.json", HF_BEST)
+        _upload(f"report/foundation_{ph}_eval/summary_table.csv",
+                f"report/foundation_{ph}_eval/summary_table.csv", HF_BEST)
+        _upload(f"report/foundation_{ph}_result.json",
+                f"report/foundation_{ph}_result.json", HF_BEST)
+        _upload(f"report/foundation_{ph}_compactness.json",
+                f"report/foundation_{ph}_compactness.json", HF_BEST)
+    if done:
+        print(f"  ✓ artifact durability sync done for {len(done)} phase(s)",
+              flush=True)
+
 # %% [markdown]
-# ## Step 6: THE DISPATCH — one run, resume-safe, data-gated
+# ## Step 7: THE DISPATCH — one run, resume-safe, then verify at 6/6
 
 # %%
-# Data pre-flight FIRST (the contract's mandatory check) — before spending
-# a single training step. Missing data is a loud STOP with instructions,
-# never a silently-wrong run.
-data_ready = os.path.isdir(DATA_ROOT)
+# Batch 48 / workers 4 mirror the FROZEN production defaults (the launcher's
+# DEFAULTS recorded in the frozen manifest's overrides_applied_to_hash).
+BATCH = os.environ.get("J1_BATCH", "48")
+WORKERS = os.environ.get("J1_WORKERS", "4")
+
+statuses = _roadmap_status()
+done = sorted(p for p, s in statuses.items() if s == "done")
+print(f"  roadmap: {len(done)}/6 done {done}", flush=True)
+
 if DRY_RUN:
-    print(f"[DRY-RUN] DATA_ROOT={DATA_ROOT} exists={data_ready}")
-    print(f"[DRY-RUN] roadmap statuses: {_roadmap_status()}")
-    print(f"[DRY-RUN] would launch: python3 {TRAINER} "
-          f"--data-root {DATA_ROOT} --batch-size 96")
-    print("[DRY-RUN] no training launched, no state mutated.")
-elif not data_ready:
+    print(f"[DRY-RUN] would launch: python3 {TRAINER} --data-root {DATA_ROOT} "
+          f"--batch-size {BATCH} --num-workers {WORKERS}")
+    print("[DRY-RUN] no training launched, no state mutated.",
+          flush=True)
+elif not _data_ok(DATA_ROOT):
     raise SystemExit(
-        f"STOP — ImageNet-100 not found at {DATA_ROOT}.\n"
-        "  1) Attach an ImageNet-100 dataset to this notebook (Add Input).\n"
-        "  2) Point DATA_ROOT at its mount path (env var J1_DATA_ROOT or "
-        "edit Step 5).\n"
-        "     Layout required: <root>/{train,val}/<wnid>/... (100 class "
-        "dirs per split).\n"
-        "The trainer would also refuse (Agent I structural validation), "
-        "but refusing BEFORE the GPU bill is the point.")
+        f"STOP — ImageNet-100 not validated at {DATA_ROOT}.\n"
+        "  Run Step 5 (DATA bootstrap) first, or attach a pre-converted "
+        "dataset and point J1_DATA_ROOT at it.\n"
+        "  Layout required: <root>/{train,val}/<wnid>/... (100 class dirs "
+        "per split). The trainer would also refuse (Agent I structural "
+        "validation), but refusing BEFORE the GPU bill is the point.")
 else:
-    statuses = _roadmap_status()
-    done = sorted(p for p, s in statuses.items() if s == "done")
-    if done:
-        print(f"  roadmap: already done = {done} — the trainer skips them.",
-              flush=True)
-        if len(done) == 4:
-            print("ALL FOUR FOUNDATION PHASES COMPLETE — nothing to run. "
-                  "Next: Agent J2 (steps 5-6, AIS-v2).", flush=True)
     # ONE run per cell execution. The trainer owns: resume gate (local ->
     # HF rolling), provenance manifest, gradient-reach checks, per-epoch
     # rolling + eval artifacts + roadmap sync (per-file HF sync, rev-guarded).
     # NEVER pass --force-restart here: resume is the protocol, restart is a
     # manually-audible local action.
-    rc = run(f"python3 {TRAINER} --data-root {DATA_ROOT} --batch-size 96")
-    print(f"\n{'='*70}\nrun finished (rc={rc}). "
-          f"Re-run this cell to continue the foundation sequence — "
-          f"phases already done are skipped.\n{'='*70}", flush=True)
+    rc = run(f"python3 {TRAINER} --data-root {DATA_ROOT} "
+             f"--batch-size {BATCH} --num-workers {WORKERS}")
+    statuses = _roadmap_status()
+    sync_run_artifacts(statuses)
+    n_done = sum(1 for s in statuses.values() if s == "done")
+    if n_done == 6:
+        print("\nALL SIX FOUNDATION PHASES COMPLETE — running Phase-11 "
+              "completion verification.", flush=True)
+        # On a fresh session the verifier self-heals missing local artifacts
+        # from HF (and pulls the frozen manifest from the rolling repo); if
+        # this runtime's dataset root differs from the frozen one, the
+        # config-hash compare is recorded as SKIPPED in the report notes
+        # (per-phase provenance manifests stay authoritative).
+        run("python3 scripts/verify_run_complete.py", check=False)
+    else:
+        print(f"\n{'='*70}\nrun finished (rc={rc}); {n_done}/6 phases done. "
+              f"Re-run this cell to continue — phases already done are "
+              f"skipped.\n{'='*70}", flush=True)
 
 # %% [markdown]
 # ## Re-run loop (no code — read me)
 #
-# The dispatch cell executes the machine's next action and exits. To run
-# the full foundation sequence: re-run Step 6 until it prints
-# "ALL FOUR FOUNDATION PHASES COMPLETE". Every re-run is resume-safe:
+# The dispatch cell runs the trainer ONCE per execution (the trainer itself
+# executes the machine's next action). To run the full six-phase ladder:
+# re-run Step 7 until it prints "ALL SIX FOUNDATION PHASES COMPLETE" and the
+# Phase-11 verifier passes. Every re-run is resume-safe:
 #
 #   - killed mid-training  -> resumes from the HF rolling checkpoint at the
 #     last completed epoch (optimizer state + scheduler included);
@@ -300,9 +404,12 @@ else:
 #     eval_pending; the trainer's single-run entry re-enters that phase and
 #     completes the remaining substeps;
 #   - killed mid-eval -> eval artifacts are rewritten atomically; already-
-#     done phases are never re-trained.
+#     done phases are never re-trained;
+#   - session wiped entirely -> fresh clone + HF roadmap restore + (if the
+#     bootstrap ran before) HF artifacts re-materialize; the DATA bootstrap
+#     re-runs only if no valid tree is present.
 #
 # Monitor: HF repo FerrariKazu/rhan-nxa-checkpoints-rolling carries the
 # roadmap (generation1_foundation_roadmap.json) and per-phase rolling
-# checkpoints; FerrariKazu/rhan-nxa-checkpoints carries best checkpoints
-# and the Agent I eval CSVs/summary as each phase completes.
+# checkpoints; FerrariKazu/rhan-nxa-checkpoints carries best checkpoints,
+# per-phase provenance manifests and the Agent I eval CSVs/summaries.

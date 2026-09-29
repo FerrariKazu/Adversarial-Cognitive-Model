@@ -198,6 +198,32 @@ def main() -> int:
           f"train={fingerprint['splits']['train']['images']} "
           f"val={fingerprint['splits']['val']['images']}")
     print("  The scientific configuration is now FROZEN (Phase 9 discipline).")
+
+    # Sync the frozen manifest to the rolling HF repo (the docstring
+    # contract above; verify_run_complete.py also self-heals from this copy
+    # on a fresh cloud clone, where runs/ is empty). Best-effort: a network
+    # failure must not block the launch, but it is printed LOUDLY — never
+    # silently skip provenance.
+    try:
+        from huggingface_hub import HfApi
+        tok = os.environ.get("HF_TOKEN")
+        if not tok and os.path.exists(os.path.join(REPO_ROOT, ".env")):
+            try:
+                from dotenv import dotenv_values
+                tok = dotenv_values(os.path.join(REPO_ROOT,
+                                                 ".env")).get("HF_TOKEN")
+            except Exception:
+                pass
+        HfApi(token=tok).upload_file(
+            path_or_fileobj=out,
+            path_in_repo="production_launch_manifest.json",
+            repo_id="FerrariKazu/rhan-nxa-checkpoints-rolling",
+            repo_type="dataset", token=tok)
+        print("  frozen manifest synced to the rolling HF repo")
+    except Exception as e:
+        print(f"  WARNING: frozen manifest NOT synced to HF ({e}) — "
+              f"upload {out} to the rolling repo manually before "
+              f"launching.")
     return 0
 
 
