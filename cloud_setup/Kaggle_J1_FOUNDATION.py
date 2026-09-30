@@ -278,6 +278,14 @@ from huggingface_hub import HfApi, hf_hub_download, list_repo_files
 from training.stage_state_machine import (DEPENDENCIES as _DEPS,
                                           FOUNDATION_PHASES as _PHASES)
 
+# Repo ids + roadmap filename are defined HERE, at FIRST USE — this cell
+# runs BEFORE Step 5, which previously owned these constants (a fresh
+# top-to-bottom session hit NameError: 'HF_ROLLING' is not defined in the
+# gate, which then correctly failed closed).
+HF_ROLLING = "FerrariKazu/rhan-nxa-checkpoints-rolling"
+HF_BEST = "FerrariKazu/rhan-nxa-checkpoints"
+ROADMAP_ON_HF = "generation1_foundation_roadmap.json"
+
 _api = HfApi(token=hf_token)
 STAMP = _time.strftime("%Y%m%d_%H%M%S")
 ARCH = f"archive/gen1_pure_ce_{STAMP}"
@@ -518,9 +526,9 @@ if RERUN_RESET:
 # a pre-converted Kaggle dataset), the bootstrap is skipped.
 TRAINER = "training/train_generation1_foundation.py"
 CONVERTER = "scripts/prepare_imagenet100.py"
-HF_ROLLING = "FerrariKazu/rhan-nxa-checkpoints-rolling"
-HF_BEST = "FerrariKazu/rhan-nxa-checkpoints"
-ROADMAP_ON_HF = "generation1_foundation_roadmap.json"
+# HF_ROLLING / HF_BEST / ROADMAP_ON_HF are defined in Step 4.5 (their
+# first use — that cell runs before this one; a duplicate definition here
+# would risk the two copies diverging).
 
 DATA_ROOT = os.environ.get("J1_DATA_ROOT", "/kaggle/tmp/imagenet100")
 # NOTE: /kaggle/tmp is writable EPHEMERAL scratch with ~57 GB (the dataset
