@@ -120,14 +120,14 @@ Artifact store:                  HuggingFace, NOT git: FerrariKazu/rhan-nxa-chec
    while `docs/` is gitignored — see `.gitignore` lines 27–29.
 4. **Test coverage concentrates on the Gen-1 line**: `tests/` (49 files) is
    almost entirely `noesis_vision`/`training`/`evaluation` tests.
-5. **Conflicting evidence, documented not resolved**: the **README** presents
-   RHAN-Next (`rhan_core/`, Gen-0) as "Current" and never mentions
-   `noesis_vision/`, RHAN-NXA, Gen-1, ImageNet-100, or the foundation ladder.
-   The README's "Current" section is **stale by one generation** — the
-   architecture table, reproduce commands, and key-files table all point at
-   Gen-0. Git history (Sept 2026) says Gen-1 is active. Per task rules, this
-   conflict is recorded; the Gen-1 verdict rests on code + manifests + commit
-   evidence, not the README.
+5. **Former conflict, RESOLVED 2026-09-30 (commit `7341cd6`)**: the README
+   used to present RHAN-Next (`rhan_core/`, Gen-0) as "Current". It now
+   opens with a "CURRENT RESEARCH GENERATION — RHAN-NXA / Gen-1" banner
+   pointing at `noesis_vision/`, `training/`, `evaluation/`, `tests/`, this
+   map, and `CONTRIBUTING.md`, states the generation lineage and the
+   RHAN/RHAN-Next/RHAN-NXA/NOESIS naming contract, and labels the pure-CE
+   vs TRADES/PGD arms explicitly. The Gen-0 section is preserved verbatim
+   under "Historical / Reference Generation".
 6. **Second conflict**: `rhan_core/model.py` (Gen-0 RHANNext, 76.7M params,
    STL-10 96×96) still imports cleanly and has tests; it is *reachable* but
    *frozen* — a reference implementation for Gen-1 comparisons, not an active
@@ -149,8 +149,10 @@ Adversarial-Cognitive-Model/
 ├── scripts/                # ★ Gen-1 tooling (data, gates, verifier, sweep, reset)
 ├── tests/                  # ★ test suite (49 files; Gen-1-focused; pytest)
 ├── cloud_setup/            # cloud launchers (Kaggle/Colab/local) across ALL generations
+├── applications/           # FUTURE-HOME boundary for RHAN applications (README only, no code yet)
 ├── config/                 # legacy YAML attack/train configs (Gen "-1")
-├── docs/                   # MIXED (gitignored except noesis_vision docs): roadmap, stage docs, PDFs
+├── docs/                   # TRACKED docs dir (2026-09-30 policy): map, Gen-1 architecture guide,
+│                           #   Gen-0 research record; PDFs/Zone files ignored; roadmap JSON tracked
 ├── rhan_core/              # Gen-0 RHAN-Next package (frozen reference)
 ├── rhan_math/              # mathematical proof reports + figures (gitignored, but tracked files exist)
 ├── phase1_training/        # HISTORICAL: all Gen "-1"/v1–v7/STL-10 models & trainers (103 files)
@@ -1425,9 +1427,12 @@ table (parse or import). Risk: none.
 
 - **P2-1.** `scripts/consistency_assert.py` → re-export or deprecate in favor
   of the package module.
-- **P2-2.** `report/` + `docs/` ignore-vs-tracked friction: decide the
-  evidence policy per directory; explicit exceptions (as done for this
-  document and `noesis_vision/RHAN_NXA/docs/`).
+- **P2-2.** ~~`docs/` ignore-vs-tracked friction~~ **RESOLVED 2026-09-30
+  (commit `f7b8bbe`)**: `docs/` is now a normally tracked directory with
+  explicit ignored subpaths (PDFs, Zone.Identifier files, stage3 env
+  snapshot); the Gen-0 research record (`docs/research/`,
+  `NOESIS_FOUNDATION.md`, `Stage_E1-3_Analysis.md`) was added to git in
+  commit `5c7a8d1`. `report/` policy still open.
 - **P2-3.** `scratch/` curation: provenance headers (generation, purpose,
   artifact produced) or grouped `archive/scratch_<gen>/`.
 - **P2-4.** Config dedup: single source for batch/worker defaults shared by
@@ -1504,9 +1509,12 @@ Actual files, in order:
 3. `noesis_vision/RHAN_NXA/docs/00_README.md` → `01_What_Is_RHAN_NXA.md` →
    `16_Gen0_Evidence_And_Confounds.md` — what Gen-1 is and why Gen-0's
    confounds force the restart. (`MASTER_PLAN.md` when implementing.)
-4. `docs/ARCHITECTURE.md` — Gen-0 package layout (still the best
-   rhan_core orientation; status line is dated).
-5. `docs/REPOSITORY_MAP.md` — this map.
+4. `docs/RHAN_NXA_ARCHITECTURE.md` — the current-generation architecture
+   guide (created 2026-09-30; status vocabulary IMPLEMENTED/DEFERRED/
+   REJECTED/PENDING DECISION/UNKNOWN/NOT YET IMPLEMENTED).
+5. `docs/REPOSITORY_MAP.md` — this map. (For Gen-0 orientation,
+   `docs/ARCHITECTURE.md` remains the rhan_core package tour; its status
+   line is dated.)
 6. Canonical model entry point: `noesis_vision/models/backbone.py` (then
    `beliefs/`, `predictive_coding/`, `uncertainty/`, `gaze/`).
 7. Canonical training entry point:
@@ -1523,10 +1531,9 @@ Actual files, in order:
 11. Cloud execution: `cloud_setup/Kaggle_J1_FOUNDATION.py` (read its header
     comments — they narrate the reset/pre-flight discipline).
 
-Missing documents to say out loud: there is no `CONTRIBUTING.md`, no single
-up-to-date architecture document for **Gen-1** specifically
-(`docs/ARCHITECTURE.md` covers Gen-0; the RHAN_NXA book covers design, not
-the repository), and no index of `scratch/`.
+Formerly-missing documents, now present (2026-09-30): `CONTRIBUTING.md`
+(the contributor guide) and `docs/RHAN_NXA_ARCHITECTURE.md` (the Gen-1
+architecture guide). Still missing: an index of `scratch/`.
 
 ---
 
@@ -1557,19 +1564,19 @@ All preserved; several are frozen-but-load-bearing (`train_rhan_next.py`,
 `data_generation/` synthetic pipelines.
 
 ## What is confusing?
-README generation drift; two `stage_state_machine.py`; two
-`consistency_assert.py`; two `vector_belief.py`; curriculum constants
+~~README generation drift~~ (fixed 2026-09-30); two `stage_state_machine.py`;
+two `consistency_assert.py`; two `vector_belief.py`; curriculum constants
 duplicated across generations; four roadmap-JSON copies; root eval sprawl;
-63-script scratch dir; gitignored-but-tracked `report/`+`docs/` files;
+63-script scratch dir; gitignored-but-tracked `report/` files;
 tracked binary weights and Zone.Identifier files; Colab twin lacking the
 Kaggle guards; cloud_setup `__pycache__` ghosts of renamed notebooks.
 
 ## What should be refactored first?
-(P0) 1. README current-generation banner; 2. bring the Colab launcher to
-guard parity (or factor shared guards). Then (P1) state-machine rename,
-eval-sprawl archive, roadmap precedence, curriculum parity test — only
-after the in-flight adversarial re-run finishes, since resume touches every
-working dir.
+(P0) 1. ~~README current-generation banner~~ **DONE 2026-09-30**;
+2. bring the Colab launcher to guard parity (or factor shared guards).
+Then (P1) state-machine rename, eval-sprawl archive, roadmap precedence,
+curriculum parity test — only after the pending adversarial re-run has
+been launched and finished, since resume touches every working dir.
 
 ## What must NOT be touched because it preserves research provenance?
 `phase3_human_study/` (irreplaceable human data); `phase1_training/` +
@@ -1594,9 +1601,11 @@ historical); `checkpoints_tier2/` tracked binaries (era evidence).
 4. **Ephemeral cloud state** — `/kaggle/tmp` wipes between sessions; data
    re-bootstrap (~19 GB) is required per fresh session; resume correctness
    leans on HF discipline (tests pin this, keep it that way).
-5. **Documentation drift** — three generations of "current" claims in
+5. ~~**Documentation drift** — three generations of "current" claims in
    README/ARCHITECTURE/docs; without the banner fix, onboarding starts in
-   the wrong generation.
+   the wrong generation.~~ **MITIGATED 2026-09-30**: README banner +
+   `RHAN_NXA_ARCHITECTURE.md` + `CONTRIBUTING.md` (residual risk: the docs
+   must now be kept in sync with the code, as always).
 
 ## Biggest opportunities
 1. A single `archive/` layout would cut the tracked-tree confusion in half
@@ -1613,6 +1622,8 @@ historical); `checkpoints_tier2/` tracked binaries (era evidence).
 
 ---
 
-*End of map. Validation trail: file created 2026-09-30; repository otherwise
-unmodified except the one-line `.gitignore` exception required to commit
-this document (`!docs/REPOSITORY_MAP.md`); see commit for the diff.*
+*End of map. Originally created 2026-09-30 (commit `74d2e19`); §2-5, §3,
+§20-P2-2, §22, and this summary refreshed the same day (commit
+`7341cd6` and follow-ups) to reflect the documentation refactor. The
+§20 P0-2/P1 items and §21 target layout remain OPEN and are the input
+for the next, code-touching refactor stage.*
