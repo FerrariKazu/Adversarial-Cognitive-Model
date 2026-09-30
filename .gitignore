@@ -25,9 +25,13 @@ figures/
 figures_v2/
 figures_v3/
 RHANv10Report/
-docs/
+docs/*
+# keep prior behavior: package-level docs dirs stay ignored (only root docs/* + the map are special-cased)
+rhan_core/docs/
 # RHAN_NXA/docs is the Gen-1 documentation deliverable — tracked, unlike legacy docs folders; it lives INSIDE the noesis_vision package as of 2026-09-24
 !noesis_vision/RHAN_NXA/docs/
+# The repository architecture map is deliberately tracked input for the planned refactor
+!docs/REPOSITORY_MAP.md
 competition/
 Paper/
 paper/
