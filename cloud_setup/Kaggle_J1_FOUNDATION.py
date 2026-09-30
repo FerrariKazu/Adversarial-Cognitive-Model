@@ -462,6 +462,20 @@ DATA_ROOT = os.environ.get("J1_DATA_ROOT", "/kaggle/tmp/imagenet100")
 # fine — the _data_ok branch accepts it before any write is attempted.
 
 
+def _data_stop(reason: str):
+    """The one STOP with the one guidance, for every unwritable-root case."""
+    raise SystemExit(
+        f"STOP — {reason}\n"
+        "The data bootstrap must CREATE/own its root. Pick one:\n"
+        "  a) unset J1_DATA_ROOT and use the default /kaggle/tmp/imagenet100\n"
+        "     (created on demand; ~57 GB ephemeral scratch);\n"
+        "  b) attach a pre-converted dataset and set J1_DATA_ROOT to it\n"
+        "     (works as-is when it validates 100/100 classes);\n"
+        "  c) copy a read-only attach into scratch first:\n"
+        "       !cp -r <read-only-root> /kaggle/tmp/imagenet100\n"
+        "     then set J1_DATA_ROOT=/kaggle/tmp/imagenet100.")
+
+
 def _data_ok(root):
     if not os.path.isdir(root):
         return False
@@ -484,32 +498,33 @@ if DRY_RUN:
         print(f"[DRY-RUN] would bootstrap: python3 {CONVERTER} --root {DATA_ROOT}")
 elif _data_ok(DATA_ROOT):
     print(f"✓ DATA pre-flight OK: {DATA_ROOT} (100/100 class dirs both splits)")
-elif os.path.isdir(DATA_ROOT) and not os.access(DATA_ROOT, os.W_OK):
-    raise SystemExit(
-        f"STOP — {DATA_ROOT} exists but is NOT writable (read-only "
-        "/kaggle/input mount?). Convert to a writable copy instead:\n"
-        "  !cp -r <read-only-root> /kaggle/working/imagenet100\n"
-        "  then set J1_DATA_ROOT=/kaggle/working/imagenet100 and rerun.")
 else:
-    # The bootstrap CREATES the tree — it needs a WRITABLE root. /kaggle/input
-    # is read-only EVEN for creating new dirs (EROFS), which is how the first
-    # re-run attempt died. Probe before spending the 1-2 h download.
-    _probe = DATA_ROOT if os.path.isdir(DATA_ROOT) else \
-        (os.path.dirname(DATA_ROOT) or ".")
-    if not os.access(_probe, os.W_OK):
-        raise SystemExit(
-            f"STOP — {_probe} is NOT writable, and the bootstrap must "
-            "create the tree there (/kaggle/input mounts are read-only). "
-            "Pick one:\n"
-            "  a) unset J1_DATA_ROOT and use the writable default "
-            "/kaggle/tmp/imagenet100 (ephemeral scratch, ~57 GB);\n"
-            "  b) attach a pre-converted dataset and set J1_DATA_ROOT to it "
-            "(works as-is when it validates 100/100 classes);\n"
-            "  c) copy a read-only attach into scratch first:\n"
-            "       !cp -r <read-only-root> /kaggle/tmp/imagenet100\n"
-            "     then set J1_DATA_ROOT=/kaggle/tmp/imagenet100.")
+    # The bootstrap CREATES the tree — it needs a WRITABLE root. Two real
+    # failure modes, both hit in this re-run: (1) /kaggle/input is read-only
+    # EVEN for creating dirs (EROFS); (2) a MISSING parent makes plain
+    # os.access(W_OK) return False (ENOENT != EACCES) — the default
+    # /kaggle/tmp/imagenet100 was wrongly rejected on a runtime that had no
+    # /kaggle/tmp yet. So probe by DOING: create the root (the converter
+    # only writes INSIDE it), then require real writability. One path, one
+    # STOP, one guidance (the old exists-but-readonly elif folded in here).
+    try:
+        os.makedirs(DATA_ROOT, exist_ok=True)
+    except OSError as e:
+        _data_stop(f"cannot create {DATA_ROOT} ({e}).")
+    if not os.access(DATA_ROOT, os.W_OK):
+        _data_stop(f"{DATA_ROOT} exists but is NOT writable (read-only "
+                   "/kaggle/input mount?).")
+    # The converter's hf_hub_download calls use the DEFAULT cache
+    # (~/.cache/huggingface, ~19 GB of parquet) — pin it next to the output
+    # on the same big ephemeral disk so nothing lands in the container
+    # overlay mid-download.
+    os.environ.setdefault("HF_HUB_CACHE", "/kaggle/tmp/hf_cache")
     print(f"== DATA bootstrap (pinned source, resumable) -> {DATA_ROOT} ==")
     run(f"python3 {CONVERTER} --root {DATA_ROOT}")
+    # The parquet cache is dead weight once the jpg tree + fingerprint exist
+    # (resume is keyed on the jpgs, not the cache) — free ~19 GB for
+    # checkpoints. Only after FULL success.
+    shutil.rmtree(os.environ["HF_HUB_CACHE"], ignore_errors=True)
     if not _data_ok(DATA_ROOT):
         raise SystemExit(
             f"STOP — bootstrap finished but {DATA_ROOT} failed structural "
