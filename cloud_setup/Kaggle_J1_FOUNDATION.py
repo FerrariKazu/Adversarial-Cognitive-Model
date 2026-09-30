@@ -283,45 +283,67 @@ STAMP = _time.strftime("%Y%m%d_%H%M%S")
 ARCH = f"archive/gen1_pure_ce_{STAMP}"
 _RESET_MARKER = ".j1_pure_ce_reset_done"
 
+def _hf_probe(fn, *a, **k):
+    """Retry an HF read probe: transient 429/5xx at cell-run time must not
+    silently flip the reset gate. Re-raises after the final attempt."""
+    last = None
+    for _i in range(3):
+        try:
+            return fn(*a, **k)
+        except Exception as _e:  # noqa: BLE001 — retried below
+            last = _e
+            _time.sleep(20 * (_i + 1))
+    raise last
+
 def _reset_already_done() -> bool:
     """One-time guard: a local marker OR the archive dir on HF (from any
-    prior session) means the reset must never fire again."""
+    prior session) means the reset must never fire again. Raises if HF is
+    unreachable after retries (the caller fails closed)."""
     if os.path.exists(_RESET_MARKER):
         return True
-    try:
-        return any(n.startswith("archive/gen1_pure_ce_")
-                   for n in list_repo_files(HF_ROLLING, repo_type="dataset",
-                                            token=hf_token))
-    except Exception:
-        # Unverifiable -> assume already done (FAIL CLOSED): wrongly NOT
-        # firing is recoverable (the stale-state pre-flight stops dispatch
-        # loudly); wrongly firing would archive a LIVE corrected run.
-        return True
+    names = _hf_probe(list_repo_files, HF_ROLLING, repo_type="dataset",
+                      token=hf_token)
+    return any(n.startswith("archive/gen1_pure_ce_") for n in names)
 
 def _roadmap_has_pure_ce() -> bool:
     """True while the HF roadmap still records any foundation phase as
-    done — the stale pure-CE state this reset exists to clear."""
-    try:
-        _p = hf_hub_download(repo_id=HF_ROLLING, filename=ROADMAP_ON_HF,
-                             repo_type="dataset", token=hf_token)
-        _d = _json.load(open(_p)).get("generation1_foundation", {})
-        return any((v or {}).get("status") == "done"
-                   for v in _d.get("phases", {}).values())
-    except Exception:
-        return False
+    done — the stale pure-CE state this reset exists to clear. Raises if
+    HF is unreachable after retries (the caller fails closed)."""
+    _p = _hf_probe(hf_hub_download, repo_id=HF_ROLLING,
+                   filename=ROADMAP_ON_HF, repo_type="dataset",
+                   token=hf_token)
+    _d = _json.load(open(_p)).get("generation1_foundation", {})
+    return any((v or {}).get("status") == "done"
+               for v in _d.get("phases", {}).values())
 
 FORCED_RESET = os.environ.get("J1_RERUN_RESET", "0") == "1"
-AUTO_RESET = (not DRY_RUN and not FORCED_RESET
-              and _roadmap_has_pure_ce() and not _reset_already_done())
+_probe_ok, _probe_err, _stale, _already = True, "", False, False
+if not DRY_RUN and not FORCED_RESET:
+    try:
+        _stale = _roadmap_has_pure_ce()
+        _already = _reset_already_done()
+    except Exception as _e:  # noqa: BLE001 — fail CLOSED below
+        _probe_ok, _probe_err = False, str(_e)[:160]
+AUTO_RESET = (not DRY_RUN and not FORCED_RESET and _probe_ok
+              and _stale and not _already)
 RERUN_RESET = (FORCED_RESET or AUTO_RESET) and not DRY_RUN
 
 if DRY_RUN:
     print("[DRY-RUN] RERUN RESET exists (auto-fires once on the stale "
           "pure-CE state; J1_RERUN_RESET=1 force-fires). OFF now.",
           flush=True)
+elif not RERUN_RESET and not _probe_ok and not FORCED_RESET:
+    print(f"RERUN RESET: SKIPPED — HF probes failed after retries "
+          f"({_probe_err}). Failing closed: NOTHING was archived or "
+          "deleted. If the dispatch below stops with the stale-ladder "
+          "message, simply re-run the notebook — this gate retries and "
+          "will fire once HF is reachable.", flush=True)
+elif not RERUN_RESET and _stale and _already:
+    print("RERUN RESET: reset already done (archive/marker present) — "
+          "no action needed.", flush=True)
 elif not RERUN_RESET:
-    print("RERUN RESET: not needed — no stale pure-CE roadmap state "
-          "detected (already reset or in progress).", flush=True)
+    print("RERUN RESET: not needed — HF roadmap has no stale pure-CE "
+          "state (already reset or in progress).", flush=True)
 elif AUTO_RESET:
     print("RERUN RESET: AUTO-FIRED — the HF roadmap still shows the stale "
           "pure-CE ladder and no archive exists yet. Archiving + resetting "
@@ -692,12 +714,13 @@ if (not DRY_RUN) and len(done) == 6 and not os.path.exists(
     # run. The corrected re-run must start at Step 4.5.
     raise SystemExit(
         "STOP — HF roadmap says 6/6 done but this clone has NO local phase "
-        "manifests, and the Step 4.5 auto-reset did NOT clear it. That means "
-        "the reset already ran once but its roadmap write failed or was "
-        "interrupted (e.g. HF outage mid-reset). Inspect "
-        f"{HF_ROLLING}:archive/gen1_pure_ce_*/ and the roadmap JSON first; "
-        "once the HF state is understood, re-run the notebook with "
-        "J1_RERUN_RESET=1 to force the reset again.")
+        "manifests, and the Step 4.5 auto-reset did not clear it. Either "
+        "the gate's HF probes failed this run (it fails closed and prints "
+        "a SKIPPED line above — just re-run the notebook) or a previous "
+        "reset completed its archive but failed the roadmap write. Inspect "
+        f"{HF_ROLLING}:archive/gen1_pure_ce_*/ and the roadmap JSON; once "
+        "the HF state is understood, re-run normally or force with "
+        "J1_RERUN_RESET=1.")
 
 if DRY_RUN:
     print(f"[DRY-RUN] would launch: python3 {TRAINER} --data-root {DATA_ROOT} "
