@@ -55,6 +55,17 @@ BATCH/WORKERS: the dispatch mirrors the FROZEN production defaults
 (--batch-size 48 --num-workers 4). Override via J1_BATCH / J1_WORKERS env
 vars if the runtime struggles — a different batch is a DIFFERENT config
 (it enters the provenance hash); never change it mid-ladder.
+
+RERUN (2026-09-29 RECIPE CORRECTION):
+The 2026-09-25->26 ladder trained PURE cross-entropy — the trainer had no
+adversarial term (confirmed 2026-09-29; see report/GEN1_RESULTS_MASTER.md
+on the rolling repo). The corrected trainer (commit 33a180b) ports Gen-0's
+TRADES/PGD curriculum and DEFAULTS to it; --clean-only is never passed
+here. Step 2 refuses commits that predate the correction, Step 4.5 is the
+ONE-TIME audible HF reset for the stale pure-CE state (gate:
+J1_RERUN_RESET=1 for exactly one cell run), and the dispatch VERIFIES
+after every run that each done phase's manifest records the adversarial
+recipe — the pure-CE gap cannot silently recur.
 """
 # %% [markdown]
 # ## Step 1: Environment — fail fast on HF stalls, then deps
@@ -163,6 +174,17 @@ if not DRY_RUN:
             "training/train_generation1_foundation.py not found — the "
             "checked-out commit predates Agent J1. Push/verify the J1 "
             "commit on feature/rhan-next first.")
+    # The 2026-09-29 recipe correction (commit 33a180b): the trainer must
+    # carry the ported TRADES/PGD curriculum. A stale checkout would launch
+    # another pure-CE run — the exact bug this re-run exists to fix.
+    _trainer_src = open("training/train_generation1_foundation.py").read()
+    if "adv_curriculum" not in _trainer_src or "--clean-only" not in _trainer_src:
+        raise RuntimeError(
+            "checked-out trainer LACKS the 2026-09-29 curriculum port "
+            "(commit 33a180b). git fetch/pull on feature/rhan-next first — "
+            "never launch a ladder from pre-correction code.")
+    print("✓ trainer carries the 2026-09-29 TRADES/PGD curriculum port",
+          flush=True)
 
 # %% [markdown]
 # ## Step 3: HF_TOKEN (Kaggle Secrets) + environment
@@ -213,6 +235,196 @@ elif not os.path.exists(_SMOKE_MARK):
           flush=True)
 else:
     print("✓ smoke already verified on this runtime (marker exists).",
+          flush=True)
+
+# %% [markdown]
+# ## Step 4.5: RERUN RESET — archive + clear the pure-CE run ON HF (one-time)
+#
+# The stale pure-CE ladder lives ON HF: a 6/6-done roadmap plus foundation_*
+# checkpoints in both repos. Left in place it would poison the re-run (the
+# resume gate would restore/refuse against old-code rolling checkpoints;
+# the completion verifier would self-heal stale eval CSVs). This cell is
+# the AUDIBLE, HF-native reset:
+#   1. copies every foundation_* checkpoint on both repos into
+#      archive/gen1_pure_ce_<stamp>/checkpoints/ on the ROLLING repo;
+#   2. writes an archive README (what the run was, where the results doc
+#      lives — the pure-CE arm stays citable as a control);
+#   3. DELETES the pure-CE checkpoints, per-phase eval/manifest artifacts,
+#      and the stale frozen-launch/completion/supervisor records;
+#   4. resets the roadmap to all not_started with roadmap_rev BUMPED, so
+#      every host's rev guard treats the reset as the newer state.
+#
+# OFF by default. Turn ON with environment variable J1_RERUN_RESET=1
+# (Kaggle: Add-ons > Environment variables) for EXACTLY ONE cell run,
+# then remove the variable. Destructive to the pure-CE working set
+# (archived first); not designed to be idempotent past the first run.
+
+# %%
+RERUN_RESET = os.environ.get("J1_RERUN_RESET", "0") == "1"
+
+if DRY_RUN:
+    print("[DRY-RUN] RERUN RESET exists; gated by J1_RERUN_RESET=1 (off by "
+          "default). OFF now.", flush=True)
+elif not RERUN_RESET:
+    print("RERUN RESET: off (J1_RERUN_RESET != 1) — assuming the ladder is "
+          "already reset or in progress.", flush=True)
+else:
+    import glob as _glob
+    import time as _time
+    from huggingface_hub import HfApi, hf_hub_download, list_repo_files
+    from training.stage_state_machine import (DEPENDENCIES as _DEPS,
+                                              FOUNDATION_PHASES as _PHASES)
+
+    _api = HfApi(token=hf_token)
+    STAMP = _time.strftime("%Y%m%d_%H%M%S")
+    ARCH = f"archive/gen1_pure_ce_{STAMP}"
+    _roles = ((HF_BEST, "_best.pth"), (HF_ROLLING, "_rolling.pth"))
+    print(f"== RERUN RESET: pure-CE working set -> {HF_ROLLING}:{ARCH}/ ==",
+          flush=True)
+
+    # -- 1. archive every foundation checkpoint from both repos -----------
+    _archived = 0
+    for repo_id, suffix in _roles:
+        try:
+            names = [f for f in list_repo_files(repo_id, repo_type="dataset",
+                                                token=hf_token)
+                     if f.startswith("foundation_") and f.endswith(suffix)]
+        except Exception as e:
+            print(f"  WARNING: cannot list {repo_id}: {e}", flush=True)
+            continue
+        for name in names:
+            try:
+                p = hf_hub_download(repo_id=repo_id, filename=name,
+                                    repo_type="dataset", token=hf_token)
+                dst = os.path.join(ARCH, "checkpoints", name)
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copyfile(p, dst)
+                _api.upload_file(path_or_fileobj=dst, path_in_repo=dst,
+                                 repo_id=HF_ROLLING, repo_type="dataset",
+                                 token=hf_token)
+                _archived += 1
+            except Exception as e:
+                print(f"  WARNING: archive failed {repo_id}:{name}: {e}",
+                      flush=True)
+    print(f"  archived {_archived} checkpoint(s)", flush=True)
+
+    # -- 2. archive README --------------------------------------------------
+    _readme = os.path.join(ARCH, "README.txt")
+    os.makedirs(os.path.dirname(_readme), exist_ok=True)
+    with open(_readme, "w") as f:
+        f.write(
+            "ARCHIVE: Gen-1 foundation pure-CE run (2026-09-25 -> 2026-09-26)\n"
+            f"Archived by Kaggle_J1_FOUNDATION.py reset at {STAMP}.\n\n"
+            "This run trained with PURE cross-entropy: the frozen trainer had\n"
+            "NO adversarial term (confirmed 2026-09-29 by code read). The\n"
+            "corrected trainer adds the ported Gen-0 TRADES/PGD curriculum\n"
+            "(commit 33a180b) — a different recipe, therefore a NEW\n"
+            "experiment; the checkpoints could not be resumed.\n\n"
+            "Full extracted results of THIS archived run:\n"
+            "  report/GEN1_RESULTS_MASTER.md on the rolling repo\n"
+            "  (FerrariKazu/rhan-nxa-checkpoints-rolling). The pure-CE arm\n"
+            "  remains citable as the clean-CE control for the re-run.\n")
+    _api.upload_file(path_or_fileobj=_readme, path_in_repo=_readme,
+                     repo_id=HF_ROLLING, repo_type="dataset", token=hf_token)
+    print("  archive README written", flush=True)
+
+    # -- 3. delete the pure-CE working set from HF --------------------------
+    _deleted = 0
+    for repo_id, suffix in _roles:
+        try:
+            names = [f for f in list_repo_files(repo_id, repo_type="dataset",
+                                                token=hf_token)
+                     if f.startswith("foundation_") and f.endswith(suffix)]
+        except Exception:
+            continue
+        for name in names:
+            try:
+                _api.delete_file(name, repo_id, repo_type="dataset",
+                                 token=hf_token)
+                _deleted += 1
+            except Exception as e:
+                print(f"  WARNING: delete failed {repo_id}:{name}: {e}",
+                      flush=True)
+    # per-phase eval/manifest artifacts live on the BEST repo
+    for ph in _PHASES:
+        for rel in (f"runs/foundation_{ph}/manifest.json",
+                    f"report/foundation_{ph}_result.json",
+                    f"report/foundation_{ph}_compactness.json",
+                    f"report/foundation_{ph}_eval/summary_table.csv",
+                    f"report/foundation_{ph}_eval/epsilon_sweep_per_seed.csv",
+                    f"report/foundation_{ph}_eval/eval_provenance.json"):
+            try:
+                _api.delete_file(rel, HF_BEST, repo_type="dataset",
+                                 token=hf_token)
+                _deleted += 1
+            except Exception:
+                pass
+    # stale run-wide records on the rolling repo (the old frozen manifest
+    # would make the verifier 'verify' the OLD config against the NEW run)
+    for name in ("run_completion_report.json", "supervisor.log",
+                 "production_launch_manifest.json"):
+        try:
+            _api.delete_file(name, HF_ROLLING, repo_type="dataset",
+                             token=hf_token)
+            _deleted += 1
+        except Exception:
+            pass
+    print(f"  deleted {_deleted} stale artifact(s) from the working set",
+          flush=True)
+
+    # local tree: a reused runtime must not carry stale artifacts either
+    for pat in ("checkpoints/foundation_*_best.pth",
+                "checkpoints/foundation_*_rolling.pth",
+                "report/foundation_*_eval", "report/foundation_*_result.json",
+                "report/foundation_*_compactness.json", "runs/foundation_*",
+                "report/run_completion_report.json", "report/supervisor.log",
+                "runs/production_launch_manifest.json"):
+        for m in _glob.glob(pat):
+            shutil.rmtree(m, ignore_errors=True) if os.path.isdir(m) \
+                else os.remove(m)
+
+    # -- 4. reset the roadmap ON HF (rev bumped = newer everywhere) --------
+    _old_rev = 0
+    try:
+        p = hf_hub_download(repo_id=HF_ROLLING, filename=ROADMAP_ON_HF,
+                            repo_type="dataset", token=hf_token)
+        _old_rev = int(json.load(open(p)).get("roadmap_rev", 0) or 0)
+    except Exception:
+        pass
+    _fresh = {
+        "schema_version": 1,
+        "phases_order": list(_PHASES),
+        "current_phase": _PHASES[0],
+        "current_substep": "not_started",
+        "roadmap_rev": _old_rev + 1,
+        "reset": {
+            "from": "gen1-pure-ce-2026-09-25",
+            "at_utc": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime()),
+            "reason": ("pure-CE run had no adversarial term; corrected "
+                       "recipe (33a180b) = new experiment. Archive: "
+                       f"{ARCH}/"),
+        },
+        "generation1_foundation": {
+            "schema_version": 1,
+            "phases_order": list(_PHASES),
+            "current_phase": _PHASES[0],
+            "current_substep": "not_started",
+            "phases": {ph: {"status": "not_started",
+                            "depends_on": _DEPS[ph]} for ph in _PHASES},
+        },
+    }
+    os.makedirs(os.path.dirname(ROADMAP_LOCAL) or ".", exist_ok=True)
+    with open(ROADMAP_LOCAL, "w") as f:
+        json.dump(_fresh, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    _api.upload_file(path_or_fileobj=ROADMAP_LOCAL,
+                     path_in_repo=ROADMAP_ON_HF, repo_id=HF_ROLLING,
+                     repo_type="dataset", token=hf_token)
+    print(f"  roadmap reset: 6 phases -> not_started, roadmap_rev "
+          f"{_old_rev} -> {_old_rev + 1} (HF + local)", flush=True)
+    print(f"\nRESET DONE. Pure-CE run archived at {HF_ROLLING}:{ARCH}/.\n"
+          "REMOVE J1_RERUN_RESET=1 from the environment now — the reset is "
+          "one-time. Continue with Step 5 (DATA) and Step 7 (dispatch).",
           flush=True)
 
 # %% [markdown]
@@ -339,6 +551,33 @@ def sync_run_artifacts(statuses):
         print(f"  ✓ artifact durability sync done for {len(done)} phase(s)",
               flush=True)
 
+
+def assert_adversarial_recipe(statuses):
+    """Loud post-run guard: every 'done' phase's manifest must record the
+    adversarial recipe (clean_only=False). A phase that completed without
+    it means the pure-CE gap recurred — STOP before artifacts accumulate
+    (this is the audit that was missing in the 2026-09-25->26 run)."""
+    bad = []
+    for ph, st in sorted(statuses.items()):
+        if st != "done":
+            continue
+        try:
+            man = json.load(open(f"runs/foundation_{ph}/manifest.json"))
+            rec = man.get("adv_curriculum", {})
+            if rec.get("clean_only") is not False:
+                bad.append(f"{ph}: clean_only={rec.get('clean_only')!r}")
+        except Exception as e:
+            bad.append(f"{ph}: manifest unreadable ({e})")
+    if bad:
+        raise SystemExit(
+            "STOP — phase(s) completed WITHOUT the adversarial recipe:\n  "
+            + "\n  ".join(bad)
+            + "\nThe 2026-09-25->26 pure-CE gap has recurred; do NOT "
+              "continue the ladder. Check the checked-out commit.")
+    if statuses:
+        print("  ✓ adversarial recipe verified in every done phase's "
+              "manifest", flush=True)
+
 # %% [markdown]
 # ## Step 7: THE DISPATCH — one run, resume-safe, then verify at 6/6
 
@@ -351,6 +590,19 @@ WORKERS = os.environ.get("J1_WORKERS", "4")
 statuses = _roadmap_status()
 done = sorted(p for p, s in statuses.items() if s == "done")
 print(f"  roadmap: {len(done)}/6 done {done}", flush=True)
+
+if (not DRY_RUN) and len(done) == 6 and not os.path.exists(
+        f"runs/foundation_{done[0]}/manifest.json"):
+    # HF says 6/6 done but this clone has no local phase manifests: the
+    # STALE pure-CE state. Dispatching now would silently do nothing (the
+    # trainer skips done phases) or, worse, let the verifier bless the old
+    # run. The corrected re-run must start at Step 4.5.
+    raise SystemExit(
+        "STOP — HF roadmap says 6/6 done but this clone has NO local phase "
+        "manifests: this is the STALE pure-CE ladder. Run Step 4.5 first "
+        "(set environment variable J1_RERUN_RESET=1 for ONE cell run, then "
+        "remove it) to archive + reset before dispatching the corrected "
+        "ladder.")
 
 if DRY_RUN:
     print(f"[DRY-RUN] would launch: python3 {TRAINER} --data-root {DATA_ROOT} "
@@ -375,6 +627,7 @@ else:
              f"--batch-size {BATCH} --num-workers {WORKERS}")
     statuses = _roadmap_status()
     sync_run_artifacts(statuses)
+    assert_adversarial_recipe(statuses)
     n_done = sum(1 for s in statuses.values() if s == "done")
     if n_done == 6:
         print("\nALL SIX FOUNDATION PHASES COMPLETE — running Phase-11 "
@@ -408,6 +661,12 @@ else:
 #   - session wiped entirely -> fresh clone + HF roadmap restore + (if the
 #     bootstrap ran before) HF artifacts re-materialize; the DATA bootstrap
 #     re-runs only if no valid tree is present.
+#
+# ONE-TIME for this re-run: Step 4.5 (J1_RERUN_RESET=1, single cell run)
+# archived the pure-CE ladder to archive/gen1_pure_ce_*/ on the rolling
+# repo and reset the roadmap. The dispatch verifies after EVERY run that
+# each done phase's manifest carries the adversarial recipe — a silent
+# pure-CE recurrence stops the ladder loudly instead of costing 36 GPU-hours.
 #
 # Monitor: HF repo FerrariKazu/rhan-nxa-checkpoints-rolling carries the
 # roadmap (generation1_foundation_roadmap.json) and per-phase rolling
