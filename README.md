@@ -6,7 +6,69 @@
 
 ---
 
-## RHAN-Next: Active Inference + Hierarchical Predictive Coding (Current)
+## CURRENT RESEARCH GENERATION — RHAN-NXA / Gen-1
+
+The active system on branch `feature/rhan-next` is **RHAN-NXA (Generation 1)**,
+packaged as `noesis_vision/` and trained by the six-phase foundation ladder
+with the TRADES/PGD adversarial curriculum as the **default** objective.
+
+| Start here | Path |
+|---|---|
+| What is RHAN-NXA? | `noesis_vision/RHAN_NXA/docs/00_README.md` (+ `MASTER_PLAN.md`) |
+| Current architecture guide | `docs/RHAN_NXA_ARCHITECTURE.md` |
+| Current model | `noesis_vision/` (`core/`, `models/`, `beliefs/`, `predictive_coding/`, `uncertainty/`, `gaze/`) |
+| Current training | `training/train_generation1_foundation.py` (+ `training/adv_curriculum.py`) |
+| Current evaluation | `evaluation/clean_and_robust.py` via `scripts/generate_full_sweep.py` |
+| Tests | `tests/` — run `python3 -m pytest tests/ -q` |
+| Cloud launcher | `cloud_setup/Kaggle_J1_FOUNDATION.py` |
+| Repository map (authoritative) | `docs/REPOSITORY_MAP.md` |
+| Contributor guide | `CONTRIBUTING.md` |
+
+### Generation lineage
+
+```text
+RHAN historical lineage (CIFAR-10 12-model study, RHAN v1–v7, STL-10 scale-up)
+        ↓
+Gen-0 / RHAN-Next  (rhan_core/ — frozen reference generation)
+        ↓
+Gen-1 / RHAN-NXA   (noesis_vision/ — CURRENT)
+        ↓
+future RHAN generations
+```
+
+### Naming contract
+
+- **RHAN** — the research lineage / architecture family (all generations).
+- **RHAN-Next** — the Generation-0 model + package (`rhan_core/`); frozen,
+  kept as the comparison reference. Formerly marked "Current" in this README.
+- **RHAN-NXA** — the Generation-1 architecture (`noesis_vision/`); current.
+- **NOESIS** — the umbrella research/software identity used by the Gen-1
+  documentation (`docs/NOESIS_FOUNDATION.md`, `noesis_vision/RHAN_NXA/`):
+  "RHAN-NXA" names the architecture, "NOESIS" names the framework.
+- **RHANvN** (v1–v12) — the pre-Gen-0 CIFAR/STL-10 lineage in
+  `phase1_training/` (historical).
+
+### Scientific provenance: the two Gen-1 arms
+
+The first Gen-1 foundation run (2026-09-25→26) trained with **pure
+cross-entropy** — an owned planning gap. It is preserved as the **historical
+control arm** (`report/GEN1_RESULTS_MASTER.md`; archived on the HF rolling
+repo under `archive/gen1_pure_ce_<stamp>/`). The **corrected adversarial
+run** (TRADES/PGD curriculum: ε 0.031→0.062→0.094, β 2.0→2.5, PGD-4,
+`w_trades` 0.55) is a separate arm. Result tables are never merged; every
+run's manifest records its objective (`adv_curriculum.clean_only`), so the
+question **"which training objective produced this number?" always has an
+auditable answer.**
+
+---
+
+## RHAN-Next (Gen-0) — Historical / Reference Generation
+
+> Status: **frozen reference**, superseded by RHAN-NXA above. Kept because
+> Gen-1's results are compared against Gen-0's. `rhan_core/` and its
+> entrypoints must not be "upgraded" to Gen-1 abstractions.
+> The section below is preserved verbatim from the Gen-0 era
+> (its "Running/Pending" rows describe 2026-07 state, not current state).
 
 The latest generation (**RHAN-Next**, branch `feature/rhan-next`) composes two biologically-inspired pillars into a single architecture:
 
@@ -308,7 +370,7 @@ n=18 participants, 1,800 trials, 5 epsilon blocks.
 Data: `phase3_human_study/data/responses_mapped.csv`
 Mapping: `phase3_human_study/manifest.csv`
 
-## Repository Structure
+## Repository Structure (2026-05 snapshot — see `docs/REPOSITORY_MAP.md` for the current, complete map)
 ```text
 .
 ├── config/                 # Attack and training configuration (YAML)
