@@ -68,8 +68,11 @@ adversarial term (confirmed 2026-09-29; see report/GEN1_RESULTS_MASTER.md
 on the rolling repo). The corrected trainer (commit 33a180b) ports Gen-0's
 TRADES/PGD curriculum and DEFAULTS to it; --clean-only is never passed
 here. Step 2 refuses commits that predate the correction, Step 4.5 is the
-ONE-TIME audible HF reset for the stale pure-CE state (gate:
-J1_RERUN_RESET=1 for exactly one cell run), and the dispatch VERIFIES
+ONE-TIME audible HF reset for the stale pure-CE state — it AUTO-FIRES
+when the HF roadmap still shows the stale pure-CE ladder and no reset
+archive exists yet (no environment variable needed: a marker file plus
+the archive dir on HF make it fire exactly once across sessions;
+J1_RERUN_RESET=1 still force-fires manually), and the dispatch VERIFIES
 after every run that each done phase's manifest records the adversarial
 recipe — the pure-CE gap cannot silently recur.
 """
@@ -260,30 +263,73 @@ else:
 #   4. resets the roadmap to all not_started with roadmap_rev BUMPED, so
 #      every host's rev guard treats the reset as the newer state.
 #
-# OFF by default. Turn ON with environment variable J1_RERUN_RESET=1
-# (Kaggle: Add-ons > Environment variables) for EXACTLY ONE cell run,
-# then remove the variable. Destructive to the pure-CE working set
-# (archived first); not designed to be idempotent past the first run.
+# AUTO-FIRES EXACTLY ONCE: fires when the HF roadmap still records the
+# stale pure-CE ladder AND no reset archive exists yet. A marker file in
+# the clone plus the archive dir on HF make it strictly one-time across
+# sessions. J1_RERUN_RESET=1 still force-fires (manual override).
+# Destructive to the pure-CE working set (archived first); not designed
+# to be idempotent past the first run.
 
 # %%
-RERUN_RESET = os.environ.get("J1_RERUN_RESET", "0") == "1"
+import glob as _glob
+import json as _json
+import time as _time
+from huggingface_hub import HfApi, hf_hub_download, list_repo_files
+from training.stage_state_machine import (DEPENDENCIES as _DEPS,
+                                          FOUNDATION_PHASES as _PHASES)
+
+_api = HfApi(token=hf_token)
+STAMP = _time.strftime("%Y%m%d_%H%M%S")
+ARCH = f"archive/gen1_pure_ce_{STAMP}"
+_RESET_MARKER = ".j1_pure_ce_reset_done"
+
+def _reset_already_done() -> bool:
+    """One-time guard: a local marker OR the archive dir on HF (from any
+    prior session) means the reset must never fire again."""
+    if os.path.exists(_RESET_MARKER):
+        return True
+    try:
+        return any(n.startswith("archive/gen1_pure_ce_")
+                   for n in list_repo_files(HF_ROLLING, repo_type="dataset",
+                                            token=hf_token))
+    except Exception:
+        # Unverifiable -> assume already done (FAIL CLOSED): wrongly NOT
+        # firing is recoverable (the stale-state pre-flight stops dispatch
+        # loudly); wrongly firing would archive a LIVE corrected run.
+        return True
+
+def _roadmap_has_pure_ce() -> bool:
+    """True while the HF roadmap still records any foundation phase as
+    done — the stale pure-CE state this reset exists to clear."""
+    try:
+        _p = hf_hub_download(repo_id=HF_ROLLING, filename=ROADMAP_ON_HF,
+                             repo_type="dataset", token=hf_token)
+        _d = _json.load(open(_p)).get("generation1_foundation", {})
+        return any((v or {}).get("status") == "done"
+                   for v in _d.get("phases", {}).values())
+    except Exception:
+        return False
+
+FORCED_RESET = os.environ.get("J1_RERUN_RESET", "0") == "1"
+AUTO_RESET = (not DRY_RUN and not FORCED_RESET
+              and _roadmap_has_pure_ce() and not _reset_already_done())
+RERUN_RESET = (FORCED_RESET or AUTO_RESET) and not DRY_RUN
 
 if DRY_RUN:
-    print("[DRY-RUN] RERUN RESET exists; gated by J1_RERUN_RESET=1 (off by "
-          "default). OFF now.", flush=True)
+    print("[DRY-RUN] RERUN RESET exists (auto-fires once on the stale "
+          "pure-CE state; J1_RERUN_RESET=1 force-fires). OFF now.",
+          flush=True)
 elif not RERUN_RESET:
-    print("RERUN RESET: off (J1_RERUN_RESET != 1) — assuming the ladder is "
-          "already reset or in progress.", flush=True)
+    print("RERUN RESET: not needed — no stale pure-CE roadmap state "
+          "detected (already reset or in progress).", flush=True)
+elif AUTO_RESET:
+    print("RERUN RESET: AUTO-FIRED — the HF roadmap still shows the stale "
+          "pure-CE ladder and no archive exists yet. Archiving + resetting "
+          "exactly once now.", flush=True)
 else:
-    import glob as _glob
-    import time as _time
-    from huggingface_hub import HfApi, hf_hub_download, list_repo_files
-    from training.stage_state_machine import (DEPENDENCIES as _DEPS,
-                                              FOUNDATION_PHASES as _PHASES)
+    print("RERUN RESET: forced via J1_RERUN_RESET=1.", flush=True)
 
-    _api = HfApi(token=hf_token)
-    STAMP = _time.strftime("%Y%m%d_%H%M%S")
-    ARCH = f"archive/gen1_pure_ce_{STAMP}"
+if RERUN_RESET:
     _roles = ((HF_BEST, "_best.pth"), (HF_ROLLING, "_rolling.pth"))
     print(f"== RERUN RESET: pure-CE working set -> {HF_ROLLING}:{ARCH}/ ==",
           flush=True)
@@ -426,12 +472,14 @@ else:
     _api.upload_file(path_or_fileobj=ROADMAP_LOCAL,
                      path_in_repo=ROADMAP_ON_HF, repo_id=HF_ROLLING,
                      repo_type="dataset", token=hf_token)
+    with open(_RESET_MARKER, "w") as _mf:
+        _mf.write(f"pure-CE ladder archived to {ARCH} at {STAMP}\n")
     print(f"  roadmap reset: 6 phases -> not_started, roadmap_rev "
           f"{_old_rev} -> {_old_rev + 1} (HF + local)", flush=True)
     print(f"\nRESET DONE. Pure-CE run archived at {HF_ROLLING}:{ARCH}/.\n"
-          "REMOVE J1_RERUN_RESET=1 from the environment now — the reset is "
-          "one-time. Continue with Step 5 (DATA) and Step 7 (dispatch).",
-          flush=True)
+          "The reset is one-time: the marker file plus the archive dir on "
+          "HF prevent it from ever firing again. Continue with Step 5 "
+          "(DATA) and Step 7 (dispatch).", flush=True)
 
 # %% [markdown]
 # ## Step 5: DATA — automated pinned-source bootstrap (or attach your own)
@@ -644,10 +692,12 @@ if (not DRY_RUN) and len(done) == 6 and not os.path.exists(
     # run. The corrected re-run must start at Step 4.5.
     raise SystemExit(
         "STOP — HF roadmap says 6/6 done but this clone has NO local phase "
-        "manifests: this is the STALE pure-CE ladder. Run Step 4.5 first "
-        "(set environment variable J1_RERUN_RESET=1 for ONE cell run, then "
-        "remove it) to archive + reset before dispatching the corrected "
-        "ladder.")
+        "manifests, and the Step 4.5 auto-reset did NOT clear it. That means "
+        "the reset already ran once but its roadmap write failed or was "
+        "interrupted (e.g. HF outage mid-reset). Inspect "
+        f"{HF_ROLLING}:archive/gen1_pure_ce_*/ and the roadmap JSON first; "
+        "once the HF state is understood, re-run the notebook with "
+        "J1_RERUN_RESET=1 to force the reset again.")
 
 if DRY_RUN:
     print(f"[DRY-RUN] would launch: python3 {TRAINER} --data-root {DATA_ROOT} "
@@ -707,10 +757,11 @@ else:
 #     bootstrap ran before) HF artifacts re-materialize; the DATA bootstrap
 #     re-runs only if no valid tree is present.
 #
-# ONE-TIME for this re-run: Step 4.5 (J1_RERUN_RESET=1, single cell run)
-# archived the pure-CE ladder to archive/gen1_pure_ce_*/ on the rolling
-# repo and reset the roadmap. The dispatch verifies after EVERY run that
-# each done phase's manifest carries the adversarial recipe — a silent
+# ONE-TIME for this re-run: Step 4.5 AUTO-FIRED once the stale pure-CE
+# ladder was detected (marker-gated, exactly once), archived it to
+# archive/gen1_pure_ce_*/ on the rolling repo and reset the roadmap. The
+# dispatch verifies after EVERY run that each done phase's manifest
+# carries the adversarial recipe — a silent
 # pure-CE recurrence stops the ladder loudly instead of costing 36 GPU-hours.
 #
 # Monitor: HF repo FerrariKazu/rhan-nxa-checkpoints-rolling carries the
