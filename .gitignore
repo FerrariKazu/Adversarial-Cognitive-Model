@@ -25,13 +25,25 @@ figures/
 figures_v2/
 figures_v3/
 RHANv10Report/
+# ── docs/ policy (2026-09-30): docs/ is a normal tracked directory EXCEPT for
+#    the explicitly ignored subpaths below (generated binaries / render output).
+#    A new contributor creating docs/<name>.md should NOT need a gitignore
+#    exception — plain `git add docs/whatever.md` works.
 docs/*
-# keep prior behavior: package-level docs dirs stay ignored (only root docs/* + the map are special-cased)
+!docs/*.md
+!docs/research/
+docs/research/*
+!docs/research/*.md
+!docs/research/*.csv
+!docs/research/*.json
+# legacy noesis PDF/LaTeX build artifacts (regenerable)
+docs/*.pdf
+docs/*:Zone.Identifier
+docs/stage3_environment.json
+# keep prior behavior: package-level docs dirs stay ignored
 rhan_core/docs/
 # RHAN_NXA/docs is the Gen-1 documentation deliverable — tracked, unlike legacy docs folders; it lives INSIDE the noesis_vision package as of 2026-09-24
 !noesis_vision/RHAN_NXA/docs/
-# The repository architecture map is deliberately tracked input for the planned refactor
-!docs/REPOSITORY_MAP.md
 competition/
 Paper/
 paper/
