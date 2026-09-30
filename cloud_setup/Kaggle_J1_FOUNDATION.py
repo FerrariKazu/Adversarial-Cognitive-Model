@@ -37,7 +37,13 @@ DATA — fully automated, NO manual dataset attach required:
   (clane9/imagenet-100 @ 0519dc2f…), converts to
   <root>/{train,val}/<wnid>/*.jpg, and structurally verifies + fingerprints
   the tree. Resumable per file; ~1-2 h once per runtime (or attach a
-  pre-converted Kaggle dataset and point DATA_ROOT at it to skip).
+  pre-converted Kaggle dataset and point J1_DATA_ROOT at it to skip).
+  DEFAULT root is /kaggle/tmp/imagenet100 — writable, and it shares the
+  ~57 GB ephemeral scratch pool instead of /kaggle/working's 20 GB
+  PERSISTED quota (the dataset alone is ~19 GB; the ladder's checkpoints
+  would push a working-dir dataset over quota mid-run). /kaggle/input is
+  a read-only mount and cannot be written at all; a read-only ATTACH
+  still works when it structurally validates.
 
 USAGE:
   1. Kaggle Notebook, accelerator = GPU (T4 x2 or P100); Internet ON.
@@ -446,7 +452,14 @@ HF_ROLLING = "FerrariKazu/rhan-nxa-checkpoints-rolling"
 HF_BEST = "FerrariKazu/rhan-nxa-checkpoints"
 ROADMAP_ON_HF = "generation1_foundation_roadmap.json"
 
-DATA_ROOT = os.environ.get("J1_DATA_ROOT", "/kaggle/input/imagenet100")
+DATA_ROOT = os.environ.get("J1_DATA_ROOT", "/kaggle/tmp/imagenet100")
+# NOTE: /kaggle/tmp is writable EPHEMERAL scratch with ~57 GB (the dataset
+# is ~19 GB; /kaggle/working's persisted quota is only 20 GB — a dataset
+# there risks DiskQuotaExceeded mid-ladder). /kaggle/input is a read-only
+# mount: the first re-run attempt died there with `OSError: [Errno 30]
+# Read-only file system` because the bootstrap tried to CREATE the tree
+# under it. A read-only ATTACH (existing, structurally valid) is still
+# fine — the _data_ok branch accepts it before any write is attempted.
 
 
 def _data_ok(root):
@@ -478,6 +491,23 @@ elif os.path.isdir(DATA_ROOT) and not os.access(DATA_ROOT, os.W_OK):
         "  !cp -r <read-only-root> /kaggle/working/imagenet100\n"
         "  then set J1_DATA_ROOT=/kaggle/working/imagenet100 and rerun.")
 else:
+    # The bootstrap CREATES the tree — it needs a WRITABLE root. /kaggle/input
+    # is read-only EVEN for creating new dirs (EROFS), which is how the first
+    # re-run attempt died. Probe before spending the 1-2 h download.
+    _probe = DATA_ROOT if os.path.isdir(DATA_ROOT) else \
+        (os.path.dirname(DATA_ROOT) or ".")
+    if not os.access(_probe, os.W_OK):
+        raise SystemExit(
+            f"STOP — {_probe} is NOT writable, and the bootstrap must "
+            "create the tree there (/kaggle/input mounts are read-only). "
+            "Pick one:\n"
+            "  a) unset J1_DATA_ROOT and use the writable default "
+            "/kaggle/tmp/imagenet100 (ephemeral scratch, ~57 GB);\n"
+            "  b) attach a pre-converted dataset and set J1_DATA_ROOT to it "
+            "(works as-is when it validates 100/100 classes);\n"
+            "  c) copy a read-only attach into scratch first:\n"
+            "       !cp -r <read-only-root> /kaggle/tmp/imagenet100\n"
+            "     then set J1_DATA_ROOT=/kaggle/tmp/imagenet100.")
     print(f"== DATA bootstrap (pinned source, resumable) -> {DATA_ROOT} ==")
     run(f"python3 {CONVERTER} --root {DATA_ROOT}")
     if not _data_ok(DATA_ROOT):
