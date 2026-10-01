@@ -744,6 +744,58 @@ def assert_adversarial_recipe(statuses):
               "manifest", flush=True)
 
 # %% [markdown]
+# ## Step 6.5: STRANDED-ARTIFACT RESCUE (one-time, 2026-10-01 quota outage)
+#
+# backbone_only finished DURING the storage-quota 403 window: its best
+# (val 0.0588) and epoch-60 rolling were written locally while every HF
+# upload failed, and a running dispatch cell cannot be interrupted to
+# re-upload them. /kaggle/working PERSISTS across sessions, so this cell —
+# run at the start of the next session, BEFORE the dispatch — pushes the
+# stranded files to HF from the restored working dir. Marker-gated: at
+# most once. If the working dir was wiped instead, this prints what is
+# missing; the roadmap on HF (small-file syncs never stopped) keeps the
+# recorded best_val_acc as the honest record either way.
+
+# %%
+import glob as _glob
+_RESCUE_MARKER = "/kaggle/working/.j1_stranded_rescue_done"
+if not DRY_RUN and not os.path.exists(_RESCUE_MARKER):
+    _JOBS = [
+        # (local rel path, HF repo path, repo) — ckpts go to repo ROOT,
+        # matching the trainer's upload layout exactly.
+        ("checkpoints/foundation_backbone_only_best.pth",
+         "foundation_backbone_only_best.pth", HF_BEST),
+        ("checkpoints/foundation_backbone_only_rolling.pth",
+         "foundation_backbone_only_rolling.pth", HF_ROLLING),
+        ("checkpoints/foundation_recurrence_only_best.pth",
+         "foundation_recurrence_only_best.pth", HF_BEST),
+        ("checkpoints/foundation_recurrence_only_rolling.pth",
+         "foundation_recurrence_only_rolling.pth", HF_ROLLING),
+    ]
+    # Small provenance/eval artifacts for the outage phases (local-only
+    # until the end-of-ladder sync would have run).
+    _JOBS += [(p, p, HF_BEST) for p in sorted(_glob.glob(
+        "runs/foundation_*/manifest.json"))]
+    _JOBS += [(p, p, HF_BEST) for p in sorted(_glob.glob(
+        "report/foundation_backbone_only_result.json"))]
+    _JOBS += [(p, p, HF_BEST) for p in sorted(_glob.glob(
+        "report/foundation_backbone_only_compactness.json"))]
+    _JOBS += [(p, p, HF_BEST) for p in sorted(_glob.glob(
+        "report/foundation_backbone_only_eval/*"))]
+    _todo = [(_l, _r, _repo) for (_l, _r, _repo) in _JOBS
+             if os.path.exists(_l)]
+    if _todo:
+        print(f"== RESCUE: uploading {len(_todo)} stranded artifact(s) to "
+              "HF (2026-10-01 quota outage) ==", flush=True)
+        for _l, _r, _repo in _todo:
+            _upload(_l, _r, _repo)
+    else:
+        print("RESCUE: no stranded artifacts found in /kaggle/working "
+              "(working dir was wiped, or no outage artifact existed).",
+              flush=True)
+    open(_RESCUE_MARKER, "w").write("ok\n")
+
+# %% [markdown]
 # ## Step 7: THE DISPATCH — one run, resume-safe, then verify at 6/6
 
 # %%
