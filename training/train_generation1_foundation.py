@@ -186,15 +186,73 @@ def _resolve_hf_token(explicit: Optional[str]) -> Optional[str]:
         return None
 
 
+_HF_QUOTA_EXHAUSTED = False
+
+
+def _hf_quota_exhausted(message: str) -> bool:
+    """A 403 'storage limit reached' body means EVERY future checkpoint
+    upload will fail too. Training could keep marching on, but the
+    durability contract would be broken: a session death at that point
+    orphans the run. This is fatal, not a warning."""
+    m = message.lower()
+    return ("storage limit" in m or "storage quota" in m
+            or ("403" in m and "forbidden" in m))
+
+
+def _hf_fail_closed(what: str) -> None:
+    raise SystemExit(
+        f"STOP — HF storage quota still exhausted; refusing to keep "
+        f"training without checkpoint durability ({what}). Free private "
+        f"storage on the HF account (squash history, delete stale repos, "
+        f"or upgrade), then re-run the dispatch — it resumes from the "
+        f"last durable rolling epoch.")
+
+
+def _hf_free_private_history(repo_id: str, token: Optional[str]) -> bool:
+    """Squash repo history so overwritten files stop holding stale LFS
+    revisions (per-epoch overwrites accumulate quota). The tip survives:
+    archive/, roadmap, manifests, results."""
+    try:
+        from huggingface_hub import HfApi
+        HfApi(token=token).super_squash_history(
+            repo_id=repo_id, repo_type="dataset",
+            commit_message="durability: squash history to reclaim storage quota")
+        print(f"  ✓ squashed history on {repo_id} (tip preserved)",
+              flush=True)
+        return True
+    except Exception as e:  # noqa: BLE001 — caller aborts either way
+        print(f"  WARNING: history squash failed for {repo_id}: {e}",
+              flush=True)
+        return False
+
+
 def _hf_upload(local_path: str, repo_path: str, repo_id: str,
                token: Optional[str]) -> bool:
+    global _HF_QUOTA_EXHAUSTED
+    if _HF_QUOTA_EXHAUSTED:
+        _hf_fail_closed(repo_path)
     try:
         from huggingface_hub import HfApi
         HfApi(token=token).upload_file(
             path_or_fileobj=local_path, path_in_repo=repo_path,
             repo_id=repo_id, repo_type="dataset", token=token)
         return True
-    except Exception as e:  # noqa: BLE001 — durability is best-effort per file
+    except Exception as e:  # noqa: BLE001 — quota 403 below is fatal,
+        # every other failure stays warn-and-continue (transient network
+        # errors must not kill a 6-hour phase; the next epoch retries).
+        msg = str(e)
+        if _hf_quota_exhausted(msg):
+            _HF_QUOTA_EXHAUSTED = True
+            print(f"\n{'='*70}\nFATAL (durability): HF storage quota "
+                  f"exhausted ({repo_path}).\n{msg}\n"
+                  "Squashing repo history to reclaim quota, then aborting — "
+                  "a run whose checkpoints cannot reach HF is a "
+                  "silent-restart hazard. Training stops AFTER the squash; "
+                  "the next dispatch resumes from the last durable rolling "
+                  f"epoch.\n{'='*70}", flush=True)
+            for _r in (HF_REPO_ROLLING, HF_REPO):
+                _hf_free_private_history(_r, token)
+            raise SystemExit(3) from e
         print(f"  WARNING: HF upload failed ({repo_path}): {e}", flush=True)
         return False
 
@@ -286,7 +344,12 @@ class FoundationConfig:
     recipe_version: str = "gen1-adv-curriculum-v1"
     seed: int = 41
     amp: bool = True
-    roll_every: int = 1
+    # Rolling uploads every 5 epochs, not every epoch: each .pth overwrite
+    # is a NEW LFS revision on HF until history is squashed, so per-epoch
+    # rolls burned the account's private storage quota mid-run (2026-10-01).
+    # Resume granularity drops from ~6 min to ~30 min — the acceptable trade
+    # for never losing an entire phase to an invisible quota wall.
+    roll_every: int = 5
     # eval (Agent I harness; 8-seed floor per Part 3 policy)
     eval_seeds: Tuple[int, ...] = tuple(range(41, 49))
     n_eval_samples: int = 300

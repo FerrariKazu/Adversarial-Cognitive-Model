@@ -324,6 +324,48 @@ def _roadmap_has_pure_ce() -> bool:
     return any((v or {}).get("status") == "done"
                for v in _d.get("phases", {}).values())
 
+# ── storage-quota pre-flight (2026-10-01 incident) ────────────────────────
+# The account's private LFS quota fills with EVERY overwritten revision of
+# an uploaded file (rolling .pth per epoch). When it is full, every
+# checkpoint upload 403s while training marches on undurably — the exact
+# silent-restart hazard this notebook exists to prevent. Probe BEFORE any
+# training starts; squash history first (tip is preserved: archive,
+# roadmap, manifests, results). Disable with J1_SKIP_QUOTA_CHECK=1.
+if not DRY_RUN and not os.environ.get("J1_SKIP_QUOTA_CHECK"):
+    def _quota_used_gb(repo_id: str) -> float:
+        info = _hf_probe(_api.repo_info, repo_id, repo_type="dataset",
+                         files_metadata=False)
+        return float(getattr(info, "used_storage", 0) or 0) / 1e9
+
+    try:
+        _used = max(_quota_used_gb(HF_ROLLING), _quota_used_gb(HF_BEST))
+        print(f"✓ HF private storage reachable (largest repo "
+              f"~{_used:.1f} GB of LFS revisions)", flush=True)
+    except Exception as _e:
+        raise RuntimeError(
+            f"HF storage probe FAILED before training: {_e}\n"
+            "A full private-storage quota makes every checkpoint upload "
+            "403 while training continues undurably (2026-10-01: 5h of "
+            "rolling+best uploads lost this way). Fix quota first — "
+            "squash repo history in the HF UI (Settings), delete stale "
+            "repos, or set J1_SKIP_QUOTA_CHECK=1 to override.") from _e
+    try:
+        # Unconditional: once per session start is cheap, and it does not
+        # depend on used_storage being populated by the API response.
+        _api.super_squash_history(
+            repo_id=HF_ROLLING, repo_type="dataset",
+            commit_message="pre-flight: squash history to keep LFS quota under the cap")
+        _api.super_squash_history(
+            repo_id=HF_BEST, repo_type="dataset",
+            commit_message="pre-flight: squash history to keep LFS quota under the cap")
+        print("✓ history squashed on both checkpoint repos (tip "
+              "preserved: archive/, roadmap, manifests, results)",
+              flush=True)
+    except Exception as _e:
+        print(f"⚠ history squash skipped: {_e}\n"
+              "  If uploads later fail with 'storage limit reached', "
+              "squash manually in each repo's HF Settings.", flush=True)
+
 FORCED_RESET = os.environ.get("J1_RERUN_RESET", "0") == "1"
 _probe_ok, _probe_err, _stale, _already = True, "", False, False
 if not DRY_RUN and not FORCED_RESET:
