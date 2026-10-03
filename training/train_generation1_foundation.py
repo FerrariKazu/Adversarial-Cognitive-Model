@@ -1074,6 +1074,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--smoke", action="store_true",
                     help="synthetic tiny-data chain — the orchestration "
                          "proof; numbers are NOT results (no HF writes)")
+    ap.add_argument("--skip-halt-guard", action="store_true",
+                    help="2026-10-03: real-data training is cancelled; the "
+                         "halt guard documents this flag but the J1_ALLOW_TRAINING=1 "
+                         "env override is the ONLY way past the guard")
     ap.add_argument("--force-fresh", action="store_true",
                     help="LOUDLY delete this run's rolling/best/manifest "
                          "artifacts before starting (audible cold start)")
