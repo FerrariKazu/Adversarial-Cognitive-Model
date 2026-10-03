@@ -1,0 +1,26 @@
+{
+  "report": "docs/FORENSIC_REPORT_NXA_GENERATION1.md",
+  "run_status": "STOPPED — halt guard wired; no phase trains until §19 gate passes",
+  "cancellation": {
+    "model_run": "belief_with_f (rec 0.031; ws0.55; pdg4; beta2.0)",
+    "plateau": "loss 2.1195-2.1282; val 0.1316->0.1366 ep4-20",
+    "killed_phases": {"backbone_only": 0.0588, "recurrence_only": 0.0580, "belief_no_f": 0.1566, "belief_with_f": "~0.136 @ep20"}
+  },
+  "A_exec_summary": "Two confirmed compounding defects: (1) gradient truncation from autocast cast-cache poisoning + within-region no_grad forward (verified repro, exact code), making the run drifted only by weight decay; (2) objective dominance of the KL term (70% loss share) which, once gradients flow, initially degrades clean accuracy. Neither data nor any NXA mechanism is at fault.",
+  "B_confirmed": ["C1 gradient truncation: exact mechanism reproduced from raw ckpt; 57/163 backbone grads; classifier 0/2; |dW| = wd-only", "C2 objective dominance: CE_share 0.3004 / KL_share 0.7114; 30-batch run degrades clean val 0.3316->0.2376 under unpoisoned TRADES", "C3 reachability != usefulness: check_gradient_reach passes in production while 66% of trunk grads are absent"],
+  "C_suspected": ["C4 recipe mis-scaled for ImageNet-100@96px from scratch (Gen-0 validated on STL-10; never revalidated)", "C5 clip/parameterisation coincidence not fully isolated"],
+  "D_ruled_out": ["D1 dataset (pin-verified fingerprint, counts, labels, mapping, decode, stats)", "D2 labels (32-sample label sanity + shim test + gate PASS)", "D3 input/glimpse plane (4 distinct crops; no grayscale; non-degenerate)", "D4 recurrence (T-sweep: 0.2002 T1 < 0.2480 T2 < 0.3477 T4; no degeneration)", "D5 belief/prediction-error (functional; z-only 0.2061 vs full 0.3027)", "D6 AIS-v2 (deferred by directive)", "D7 optimizer/scheduler/eval (matched §3 control reproduces CE curve)"],
+  "E_baseline": {"control_ep1": {"loss": 4.18, "val_acc": 0.104}, "control_ep3": {"loss": 3.71, "val_acc": 0.160}, "control_ep8": {"loss": 3.33, "val_acc": 0.199}, "pure_ce_ladder": {"backbone_only": 0.3130, "recurrence_only": 0.3668, "belief_no_f": 0.2684, "belief_with_f": 0.3316, "ais_v2_swap": 0.3334, "gen1_core": 0.3334}, "note": "control reproduces pure-CE epoch-1 signature exactly (4.1757/0.1080); current tree is proven trainable under clean CE"},
+  "F_attribution": {
+    "recurrence": "EXPERIMENTAL CANDIDATE (not required; not a failure locus)",
+    "BeliefState": "PENDING DECISION (identity step costs 0.3668->0.2684 under CE; dynamics restores to 0.3316, still below step1)",
+    "prediction_error": "REJECTED for the current config (E path is 70% of loss gradient; z-only 0.2061 vs full 0.3027)",
+    "AIS": "DEFERRED (must not be evaluated until base learns)"
+  },
+  "G_discard": ["adv_curriculum v1 recipe (validated only on STL-10; never revalidated)", "per-group clip 1.0 in the recipe path during truncation + KL dominance", "call the Gen-1 ladder reset note 'stale pure-CE state' (discard, re-log under new phase numbering)"],
+  "H_preserve": ["evaluation/evaluate_val + compactness report", "provenance/registry/parity/rollback tooling", "checkpoint I/O with code_commit + code identity", "pure-CE ladder artifacts (12 ckpts + roadmap + report)"],
+  "I_requirements": ["gated launch (§19), not epoch-count", "per-step grad health audit", "terms ≤50% of budget without explicit win", "recipe re-param for 100-class", "mechanisms with isolated controls + success criteria", "fixed compute budget"],
+  "J_minimal_suite": ["1 tiny-overfit gate (PASS 100%@50 steps)", "2 clean-CE control (PASS, epoch-1 signature reproduced)", "3 dataset forensics (PASS)", "4 output collapse check (PASS; entropy 4.0-4.46 under attack, not collapsed)", "5/6 gradient + objective decomposition (PASS: truncation proven; KL_share 0.71 measured)", "7 §10 A/B (A arm reproduced; B pending, OOM-cancelled)"],
+  "J_pending_hub": ["J-D1 §10 matched A/B 60ep/2 seeds", "J-D2 §11 T=1/2/4 curves", "J-D3 §12 A-D curves", "J-D4 §13 no-E vs E", "J-D5 recipe variant matrix", "J-D6 cosmetic crop sampling note"],
+  "stop_guard": {"file": "docs/CANCELLATION_NOTICE_2026-10-03.md", "guard": "training/production_halt.py wired into train_generation1_foundation.py main()", "override_only": "J1_ALLOW_TRAINING=1 + written authorization"}
+}
