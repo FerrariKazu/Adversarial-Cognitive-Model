@@ -61,3 +61,4 @@ RHANarch.md
 RHANfuture.md
 build/
 *.pth.sync
+diagnosis_artifacts/**/*.pth
