@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RHAN-NXA Technical Handbook Prototype</title>
+<style>
+@page {
+    size: a4;
+    margin: 22mm 18mm 22mm 18mm;
+    @top-left {
+        content: "RHAN-NXA TECHNICAL HANDBOOK";
+        font-family: "Liberation Sans", sans-serif;
+        font-size: 7.5pt;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        color: #94A3B8;
+    }
+    @top-right {
+        content: "PART II: THE PERCEPTUAL STATE";
+        font-family: "Liberation Sans", sans-serif;
+        font-size: 7.5pt;
+        font-weight: 600;
+        letter-spacing: 1px;
+        color: #94A3B8;
+    }
+    @bottom-left {
+        content: "GEN-1 CORE SPECIFICATION";
+        font-family: "Liberation Sans", sans-serif;
+        font-size: 7.5pt;
+        color: #94A3B8;
+    }
+    @bottom-right {
+        content: counter(page);
+        font-family: "Liberation Sans", sans-serif;
+        font-size: 9pt;
+        font-weight: 700;
+        color: #0F172A;
+    }
+}
+
+@page :first {
+    margin: 0;
+    @top-left { content: none; }
+    @top-right { content: none; }
+    @bottom-left { content: none; }
+    @bottom-right { content: none; }
+}
+
+@page part-page {
+    background-color: #0F172A;
+    color: #FAF9F5;
+    margin: 0;
+    @top-left { content: none; }
+    @top-right { content: none; }
+    @bottom-left { content: none; }
+    @bottom-right { content: none; }
+}
+
+body {
+    font-family: "Bitstream Charter", "Liberation Serif", serif;
+    font-size: 10pt;
+    line-height: 1.55;
+    color: #0F172A;
+    background-color: #FFFFFF;
+    margin: 0;
+}
+
+.cover-page {
+    page-break-after: always;
+    height: 100vh;
+    padding: 70px 50px;
+    background: linear-gradient(145deg, #090D16 0%, #0F172A 60%, #1E293B 100%);
+    color: #F8FAFC;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.cover-badge {
+    font-family: "Liberation Sans", sans-serif;
+    font-size: 9pt;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #38BDF8;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+}
+
+.cover-title {
+    font-family: "Liberation Sans", sans-serif;
+    font-size: 34pt;
+    font-weight: 800;
+    line-height: 1.12;
+    margin: 0 0 16px 0;
+    color: #FFFFFF;
+    letter-spacing: -0.5px;
+}
+
+.cover-subtitle {
+    font-family: "Bitstream Charter", "Liberation Serif", serif;
+    font-size: 14pt;
+    font-style: italic;
+    color: #94A3B8;
+    line-height: 1.4;
+    max-width: 580px;
+    margin-bottom: 30px;
+}
+
+.cover-meta {
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    padding-top: 25px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    font-family: "Liberation Sans", sans-serif;
+    font-size: 9pt;
+    color: #94A3B8;
+}
+
+.cover-meta strong {
+    color: #F8FAFC;
+}
+
+.part-break {
+    page: part-page;
+    page-break-before: always;
+    page-break-after: always;
+    height: 100vh;
+    padding: 120px 60px;
+    box-sizing: border-box;
+    background: #0F172A;
+    color: #F8FAFC;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.part-number {
+    font-family: "Liberation Sans", sans-serif;
+    font-size: 14pt;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: #38BDF8;
+    margin-bottom: 12px;
+}
+
+.part-title {
+    font-family: "Liberation Sans", sans-serif;
+    font-size: 32pt;
+    font-weight: 800;
+    line-height: 1.15;
+    margin: 0 0 24px 0;
+}
+
+.part-desc {
+    font-family: "Bitstream Charter", "Liberation Serif", serif;
+    font-size: 12pt;
+    font-style: italic;
+    color: #CBD5E1;
+    max-width: 500px;
+    line-height: 1.6;
+}
+
+.chapter-header {
+    margin-top: 10px;
+    margin-bottom: 28px;
+    border-bottom: 2px solid #0F172A;
+    padding-bottom: 18px;
+}
+
+.chapter-num-pill {
+    display: inline-block;
+    background: #0F172A;
+    color: #FFFFFF;
+    font-family: "Liberation Sans", sans-serif;
+    font-size: 11pt;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.chapter-title {
+    font-family: "Liberation Sans", sans-serif;
+    font-size: 22pt;
+    font-weight: 800;
+    color: #0F172A;
+    margin: 0 0 8px 0;
+    letter-spacing: -0.3px;
+}
+
+.chapter-subtitle {
+    font-family: "Bitstream Charter", "Liberation Serif", serif;
+    font-size: 11.5pt;
+    font-style: italic;
+    color: #475569;
+    margin: 0 0 12px 0;
+}
+
+.chapter-quote {
+    font-family: "Bitstream Charter", "Liberation Serif", serif;
+    font-size: 10pt;
+    color: #D97706;
+    border-left: 3px solid #D97706;
+    padding-left: 12px;
+    margin-top: 12px;
+    font-style: italic;
+}
+
+.lead-p {
+    font-size: 10.8pt;
+    line-height: 1.6;
+    color: #0F172A;
+    margin-bottom: 16px;
+    font-weight: 500;
+}
+
+.callout {
+    border-left: 4px solid #0284C7;
+    background: #FAF9F5;
+    padding: 14px 18px;
+    border-radius: 0 6px 6px 0;
+    margin: 20px 0;
+    border: 1px solid #E2E8F0;
+    border-left: 4px solid #0284C7;
+}
+
+.callout-distinction {
+    border-left: 4px solid #D97706;
+    background: #FFFBEB;
+    border-color: #FCD34D;
+    border-left-width: 4px;
+}
+
+.callout-title {
+    font-family: "Liberation Sans", sans-serif;
+    font-size: 9.5pt;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    color: #0F172A;
+}
+
+.eq-box {
+    background: #FAF9F5;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin: 20px 0;
+    text-align: center;
+    font-size: 12pt;
+}
+
+.figure-box {
+    margin: 25px 0;
+    text-align: center;
+    page-break-inside: avoid;
+}
+
+.figure-box img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+}
+
+.caption {
+    font-family: "Liberation Sans", sans-serif;
+    font-size: 8.5pt;
+    color: #475569;
+    margin-top: 8px;
+    text-align: left;
+    line-height: 1.4;
+}
+
+.caption strong {
+    color: #0F172A;
+}
+
+table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 9pt;
+}
+
+table.data-table th {
+    background: #0F172A;
+    color: #FFFFFF;
+    font-family: "Liberation Sans", sans-serif;
+    font-weight: 700;
+    padding: 8px 10px;
+    text-align: left;
+}
+
+table.data-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #E2E8F0;
+}
+
+table.data-table tr:nth-child(even) td {
+    background: #F8FAFC;
+}
+
+.badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-family: "Liberation Sans", sans-serif;
+    font-size: 8pt;
+    font-weight: 700;
+}
+.badge-locked { background: #E0F2FE; color: #0284C7; border: 1px solid #BAE6FD; }
+.badge-req { background: #FEF3C7; color: #D97706; border: 1px solid #FDE68A; }
+.badge-unk { background: #EDE9FE; color: #7C3AED; border: 1px dashed #C4B5FD; }
+.badge-rej { background: #FEE2E2; color: #DC2626; border: 1px solid #FCA5A5; }
+
+pre.code-block {
+    background: #0F172A;
+    color: #F8FAFC;
+    font-family: "Liberation Mono", monospace;
+    font-size: 8.5pt;
+    padding: 14px;
+    border-radius: 6px;
+    overflow-x: auto;
+    line-height: 1.45;
+}
+</style>
+</head>
+<body>
+
+<!-- Cover Page -->
+<div class="cover-page">
+    <div>
+        <div class="cover-badge">Research Monograph &amp; Technical Manual</div>
+        <div class="cover-title">RHAN-NXA<br>Technical Handbook</div>
+        <div class="cover-subtitle">Active Foveated Inference, Latent Prediction Errors, and Recurrent Belief Dynamics in Adversarial Machine Perception</div>
+    </div>
+    <div class="cover-meta">
+        <div>
+            <strong>Architecture:</strong> Generation-1 Visual Core<br>
+            <strong>Epistemic Framework:</strong> Dirichlet Evidential Belief<br>
+            <strong>Model Scale:</strong> ~23.3M Active Parameters
+        </div>
+        <div>
+            <strong>Status:</strong> Pre-Registration Specification<br>
+            <strong>Document Revision:</strong> 2.0 (Redesigned Edition)<br>
+            <strong>Date:</strong> 2026 Edition
+        </div>
+    </div>
+</div>
+
+<!-- Part Break -->
+<div class="part-break">
+    <div class="part-number">PART II</div>
+    <div class="part-title">The Perceptual<br>Belief State</div>
+    <div class="part-desc">
+        Mathematical formalization of the 5-tuple state space, None-propagating structural contracts, closed-form evidential uncertainty, and trajectory drift measurement.
+    </div>
+</div>
+
+<!-- Chapter 04 Opening -->
+<div style="page-break-before: always;">
+    <div class="chapter-header">
+        <div class="chapter-num-pill">CHAPTER 04</div>
+        <div class="chapter-title">The Perceptual Belief State</div>
+        <div class="chapter-subtitle">Formalization of the 5-Tuple Belief Container B_t = (z_t, S_t, U_t, E_t, A_t)</div>
+        <div class="chapter-quote">
+            "An intelligent observer does not simply compute features; it maintains an explicit hypothesis about the external scene that is refined, bounded, and verified over time."
+        </div>
+    </div>
+
+    <p class="lead-p">
+        In standard feedforward computer vision architectures, internal representations are ephemeral activations that vanish once the network produces its final logits. In contrast, RHAN-NXA organizes computation around an explicit, stateful, and interpretable perceptual belief container.
+    </p>
+
+    <div class="eq-box">
+        <strong>B<sub>t</sub> = (z<sub>t</sub>, S<sub>t</sub>, U<sub>t</sub>, E<sub>t</sub>, A<sub>t</sub>)</strong>
+        <div style="font-size: 9.5pt; color: #475569; margin-top: 6px; font-family: 'Liberation Sans', sans-serif;">
+            [Canonical 5-Tuple Belief State &bull; S<sub>t</sub> = None in Gen-1 Core &bull; E<sub>0</sub> := 0 LOCKED]
+        </div>
+    </div>
+
+    <p>
+        The five subcomponents are strictly typed, sample-wise differentiable where required, and immutable across recurrent timesteps. The global vector <em>z<sub>t</sub> &isin; &reals;<sup>B &times; 384</sup></em> captures holistic scene semantics; <em>S<sub>t</sub></em> reserves an interface for discrete slot graphs; <em>U<sub>t</sub> &isin; [0, 1]</em> quantifies epistemic ignorance; <em>E<sub>t</sub> &isin; &reals;<sup>B &times; 16 &times; 384</sup></em> measures latent prediction discrepancy; and <em>A<sub>t</sub></em> preserves the spatial gaze fixation history trajectory.
+    </p>
+
+    <div class="callout callout-distinction">
+        <div class="callout-title">Important Distinction: &theta; vs h<sub>t</sub> vs B<sub>t</sub></div>
+        <p style="margin: 0; font-size: 9.5pt;">
+            <strong>Parametric Weights (&theta;):</strong> Static, learned filter weights stored in checkpoints.<br>
+            <strong>Working Memory (h<sub>t</sub>):</strong> Transient hidden states in attention layers that discard after processing.<br>
+            <strong>Perceptual Belief (B<sub>t</sub>):</strong> The explicit, persistent hypothesis about the scene that survives across foveal saccades and governs active information sampling.
+        </p>
+    </div>
+</div>
+
+<!-- Figure Page -->
+<div style="page-break-before: always;">
+    <div class="figure-box">
+        <img src="../../docs/rhan_nxa/figures/belief_state.svg" alt="Figure 2: Belief State Architecture">
+        <div class="caption">
+            <strong>Figure 2: The Canonical Belief State Container B<sub>t</sub> = (z<sub>t</sub>, S<sub>t</sub>, U<sub>t</sub>, E<sub>t</sub>, A<sub>t</sub>).</strong> Concrete layout of the immutable container. In Generation-1 Core, the structural slot state S<sub>t</sub> evaluates strictly to None under the None-propagating rule, while E<sub>0</sub> := 0 establishes a locked zero-discrepancy boundary condition for the first glimpse.
+        </div>
+    </div>
+
+    <div class="callout">
+        <div class="callout-title">Core Idea: The None-Propagating Contract</div>
+        <p style="margin: 0; font-size: 9.5pt;">
+            To ensure architectural safety during phased research, every member function of <code>BeliefState</code> must execute validly when <code>S_t is None</code>. No component is permitted to crash, raise unhandled attribute exceptions, or silently coerce <code>None</code> to a zero tensor.
+        </p>
+    </div>
+</div>
+
+<!-- Table & Code Page -->
+<div style="page-break-before: always;">
+    <h3 style="font-family: 'Liberation Sans', sans-serif; font-size: 13pt; margin-bottom: 10px;">Epistemic Decision Records</h3>
+    <p style="font-size: 9.5pt; color: #475569; margin-bottom: 14px;">
+        Every proposed architectural mechanism in RHAN-NXA is governed by an explicit epistemic status badge to eliminate subjectivity.
+    </p>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Mechanism</th>
+                <th>Status</th>
+                <th>Component</th>
+                <th>Scientific Evidence / Justification</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Recurrent CompactViT</td>
+                <td><span class="badge badge-locked">&#x25CF; LOCKED</span></td>
+                <td>Backbone</td>
+                <td>23.3M parameter tied within-glimpse visual trunk.</td>
+            </tr>
+            <tr>
+                <td>UpdateNet Discrepancy</td>
+                <td><span class="badge badge-req">&#x25B2; REQUIRED</span></td>
+                <td>Predictive Coding</td>
+                <td>Bounded belief revision via tanh clamping (&delta;<sub>max</sub> = 0.1).</td>
+            </tr>
+            <tr>
+                <td>AIS-v2 System Contribution</td>
+                <td><span class="badge badge-unk">? UNKNOWN</span></td>
+                <td>Active Sampling</td>
+                <td>Confounded by legacy _nx_trainer SBR flag in 16-seed Gen-0 runs.</td>
+            </tr>
+            <tr>
+                <td>Pixel Reconstruction</td>
+                <td><span class="badge badge-rej">&#x2715; REJECTED</span></td>
+                <td>Loss Objective</td>
+                <td>Texture bias without robustness gain; eliminated from Gen-1.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3 style="font-family: 'Liberation Sans', sans-serif; font-size: 12pt; margin-top: 25px; margin-bottom: 8px;">Implementation: VectorBeliefState Invariants</h3>
+    <pre class="code-block"><code>@dataclass(frozen=True)
+class VectorBeliefState(BeliefState):
+    z: torch.Tensor          # (B, D_z) - Holistic scene latent
+    U: DirichletParams       # (B, C)   - Epistemic evidence
+    E: torch.Tensor          # (B, N, D_feat) - Prediction discrepancy
+    A: GazeState             # Trajectory history list of (B, 2)
+    S: Optional[torch.Tensor] = None # None in Gen-1 Core
+
+    def __post_init__(self):
+        assert self.z.dim() == 2, f"z must be (B, D_z), got {self.z.shape}"
+        assert self.E.dim() == 3, f"E must be (B, N, D_feat), got {self.E.shape}"
+        # LOCKED Boundary condition: First glimpse has zero discrepancy
+        if self.A.current_glimpse_idx == 0:
+            assert torch.all(self.E == 0), "E_0 := 0 invariant violated!"</code></pre>
+</div>
+
+</body>
+</html>
