@@ -1,0 +1,10 @@
+{
+  "Arm_A_clean_epoch1_loss": 4.1696,
+  "Arm_A_clean_epoch1_val": 0.1006,
+  "Arm_A_clean_epoch2_loss": 3.8938,
+  "Arm_A_clean_epoch2_val": 0.1316,
+  "Arm_A_clean_epoch3_loss": 3.7554,
+  "Arm_A_clean_epoch3_val": 0.1466,
+  "placement": "cache_enabled=False (unpoisoned)",
+  "verdict_status": "A healthy; B pending"
+}

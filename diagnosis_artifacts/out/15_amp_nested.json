@@ -1,0 +1,17 @@
+{
+  "Q1_attack_fp32_nested_loss_in_region": {
+    "bb": "163/163",
+    "cls": "2/2",
+    "bb_norm": 35.378
+  },
+  "Q2_steps1": {
+    "bb": "57/163",
+    "cls": "0/2",
+    "bb_norm": 1.6063
+  },
+  "Q2_steps4": {
+    "bb": "57/163",
+    "cls": "0/2",
+    "bb_norm": 2.3938
+  }
+}

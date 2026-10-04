@@ -1,0 +1,108 @@
+{
+  "J_attackIN_lossOUT": {
+    "backbone": {
+      "grad_norm": 26.200623,
+      "n": 163
+    },
+    "classifier": {
+      "grad_norm": 2.101212,
+      "n": 2
+    },
+    "evidential_head": {
+      "grad_norm": 1.989393,
+      "n": 6
+    },
+    "predictor": {
+      "grad_norm": 0.0,
+      "n": 10
+    },
+    "update_net": {
+      "grad_norm": 6e-06,
+      "n": 6
+    },
+    "precision": {
+      "grad_norm": 1e-06,
+      "n": 4
+    }
+  },
+  "K_attackOUT_lossIN": {
+    "backbone": {
+      "grad_norm": 29.3298,
+      "n": 163
+    },
+    "classifier": {
+      "grad_norm": 2.066722,
+      "n": 2
+    },
+    "evidential_head": {
+      "grad_norm": 1.986461,
+      "n": 6
+    },
+    "predictor": {
+      "grad_norm": 0.0,
+      "n": 10
+    },
+    "update_net": {
+      "grad_norm": 0.0,
+      "n": 6
+    },
+    "precision": {
+      "grad_norm": 0.0,
+      "n": 4
+    }
+  },
+  "L_cut_map": {
+    "n_with_grad": 57,
+    "n_total": 163,
+    "blocks_with_grad": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "first_last": [
+      [
+        "backbone.cls_token",
+        "backbone.register_token"
+      ],
+      [
+        "backbone.refinement.block.norm2.weight",
+        "backbone.refinement.block.norm2.bias"
+      ]
+    ]
+  },
+  "L2_attackIN_CEonly": {
+    "backbone": {
+      "grad_norm": 1.818009,
+      "n": 57
+    },
+    "classifier": {
+      "grad_norm": null,
+      "n": 0
+    },
+    "evidential_head": {
+      "grad_norm": null,
+      "n": 0
+    },
+    "predictor": {
+      "grad_norm": null,
+      "n": 0
+    },
+    "update_net": {
+      "grad_norm": null,
+      "n": 0
+    },
+    "precision": {
+      "grad_norm": null,
+      "n": 0
+    }
+  }
+}

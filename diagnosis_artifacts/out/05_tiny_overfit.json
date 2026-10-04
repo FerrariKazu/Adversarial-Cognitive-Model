@@ -1,0 +1,181 @@
+{
+  "section": "5_tiny_overfit_gate",
+  "n_samples": 32,
+  "steps": 300,
+  "label_sanity": [
+    {
+      "sample_index": 3736,
+      "class_id": 74,
+      "class_name": "red_fox_Vulpes_vulpes",
+      "tensor_stats": {
+        "shape": [
+          3,
+          96,
+          96
+        ],
+        "dtype": "torch.float32",
+        "min": -2.118,
+        "max": 2.03,
+        "mean": -0.814
+      }
+    },
+    {
+      "sample_index": 2328,
+      "class_id": 46,
+      "class_name": "head_cabbage",
+      "tensor_stats": {
+        "shape": [
+          3,
+          96,
+          96
+        ],
+        "dtype": "torch.float32",
+        "min": -2.084,
+        "max": 2.588,
+        "mean": -0.023
+      }
+    },
+    {
+      "sample_index": 4268,
+      "class_id": 85,
+      "class_name": "stinkhorn_carrion_fungus",
+      "tensor_stats": {
+        "shape": [
+          3,
+          96,
+          96
+        ],
+        "dtype": "torch.float32",
+        "min": -1.947,
+        "max": 2.64,
+        "mean": 0.093
+      }
+    },
+    {
+      "sample_index": 2850,
+      "class_id": 57,
+      "class_name": "little_blue_heron_Egretta_caerulea",
+      "tensor_stats": {
+        "shape": [
+          3,
+          96,
+          96
+        ],
+        "dtype": "torch.float32",
+        "min": -1.964,
+        "max": 2.501,
+        "mean": 0.555
+      }
+    },
+    {
+      "sample_index": 1020,
+      "class_id": 20,
+      "class_name": "bonnet_poke_bonnet",
+      "tensor_stats": {
+        "shape": [
+          3,
+          96,
+          96
+        ],
+        "dtype": "torch.float32",
+        "min": -2.118,
+        "max": 2.309,
+        "mean": -0.031
+      }
+    },
+    {
+      "sample_index": 1232,
+      "class_id": 24,
+      "class_name": "car_wheel",
+      "tensor_stats": {
+        "shape": [
+          3,
+          96,
+          96
+        ],
+        "dtype": "torch.float32",
+        "min": -2.118,
+        "max": 2.64,
+        "mean": -1.227
+      }
+    },
+    {
+      "sample_index": 4329,
+      "class_id": 86,
+      "class_name": "stretcher",
+      "tensor_stats": {
+        "shape": [
+          3,
+          96,
+          96
+        ],
+        "dtype": "torch.float32",
+        "min": -1.073,
+        "max": 2.64,
+        "mean": 1.957
+      }
+    },
+    {
+      "sample_index": 2914,
+      "class_id": 58,
+      "class_name": "lorikeet",
+      "tensor_stats": {
+        "shape": [
+          3,
+          96,
+          96
+        ],
+        "dtype": "torch.float32",
+        "min": -2.118,
+        "max": 2.64,
+        "mean": 0.085
+      }
+    }
+  ],
+  "label_change_test": {
+    "loss_true_labels": 4.3331,
+    "loss_shifted_labels": 4.8132,
+    "expected_relation": "shifted >= true for a random init (uniform logits)",
+    "holds": true
+  },
+  "trajectory": [
+    {
+      "step": 1,
+      "loss": 4.8789,
+      "acc": 0.875
+    },
+    {
+      "step": 50,
+      "loss": 0.0001,
+      "acc": 1.0
+    },
+    {
+      "step": 100,
+      "loss": 0.0,
+      "acc": 1.0
+    },
+    {
+      "step": 150,
+      "loss": 0.0,
+      "acc": 1.0
+    },
+    {
+      "step": 200,
+      "loss": 0.0,
+      "acc": 1.0
+    },
+    {
+      "step": 250,
+      "loss": 0.0,
+      "acc": 1.0
+    },
+    {
+      "step": 300,
+      "loss": 0.0,
+      "acc": 1.0
+    }
+  ],
+  "final_train_acc": 1.0,
+  "gate_threshold": 0.95,
+  "gate": "PASS"
+}

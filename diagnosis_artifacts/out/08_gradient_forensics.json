@@ -1,0 +1,200 @@
+{
+  "section": "8_gradient_update_forensics",
+  "checkpoint": "/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_belief_with_f_best.pth",
+  "recipe": {
+    "w_trades": 0.55,
+    "beta": 2.0,
+    "eps": 0.031
+  },
+  "per_batch": [
+    {
+      "batch": 0,
+      "loss": 2.612,
+      "grads": {
+        "backbone": {
+          "grad_norm": 1.946333,
+          "n_tensors": 57,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "classifier": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "evidential_head": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "predictor": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "update_net": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "precision": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "_total": 1.946333
+      },
+      "param_delta_norms": {
+        "backbone": -9.3e-05,
+        "classifier": 0.0,
+        "evidential_head": 0.0,
+        "predictor": 0.0,
+        "update_net": 0.0,
+        "precision": 0.0
+      },
+      "group_lrs": {
+        "backbone": 0.003,
+        "classifier": 0.003,
+        "evidential_head": 0.003,
+        "predictor": 0.003,
+        "update_net": 0.003,
+        "precision": 0.003
+      }
+    },
+    {
+      "batch": 1,
+      "loss": 2.8293,
+      "grads": {
+        "backbone": {
+          "grad_norm": 2.121089,
+          "n_tensors": 57,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "classifier": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "evidential_head": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "predictor": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "update_net": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "precision": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "_total": 2.121089
+      },
+      "param_delta_norms": {
+        "backbone": -0.00015,
+        "classifier": 0.0,
+        "evidential_head": 0.0,
+        "predictor": 0.0,
+        "update_net": 0.0,
+        "precision": 0.0
+      },
+      "group_lrs": {
+        "backbone": 0.003,
+        "classifier": 0.003,
+        "evidential_head": 0.003,
+        "predictor": 0.003,
+        "update_net": 0.003,
+        "precision": 0.003
+      }
+    },
+    {
+      "batch": 2,
+      "loss": 2.3392,
+      "grads": {
+        "backbone": {
+          "grad_norm": 1.584488,
+          "n_tensors": 57,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "classifier": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "evidential_head": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "predictor": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "update_net": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "precision": {
+          "grad_norm": 0.0,
+          "n_tensors": 0,
+          "n_all_zero_tensors": 0.0,
+          "nan_inf_tensors": 0
+        },
+        "_total": 1.584488
+      },
+      "param_delta_norms": {
+        "backbone": -0.000211,
+        "classifier": 0.0,
+        "evidential_head": 0.0,
+        "predictor": 0.0,
+        "update_net": 0.0,
+        "precision": 0.0
+      },
+      "group_lrs": {
+        "backbone": 0.003,
+        "classifier": 0.003,
+        "evidential_head": 0.003,
+        "predictor": 0.003,
+        "update_net": 0.003,
+        "precision": 0.003
+      }
+    }
+  ],
+  "flag_groups_all_zero_grad": [],
+  "flag_groups_nan_inf_grad": [],
+  "flag_groups_tiny_grad_lt_1e-4": [
+    "classifier",
+    "evidential_head",
+    "predictor",
+    "update_net",
+    "precision"
+  ],
+  "heldout_batch_correct_before": 16,
+  "heldout_batch_correct_after": 17,
+  "note": "|dW| here is the RAW param-norm delta per single step at lr=3e-3; per-group clip (budget 1.0) applies inside optimizer.step path"
+}

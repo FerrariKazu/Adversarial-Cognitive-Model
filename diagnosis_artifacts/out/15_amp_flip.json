@@ -1,0 +1,20 @@
+{
+  "M_no_flip": {
+    "backbone_tensors_with_grad": "57/163",
+    "backbone_grad_norm": 2.4019,
+    "classifier_tensors_with_grad": "0/2",
+    "classifier_grad_norm": 0.0
+  },
+  "N_with_flip": {
+    "backbone_tensors_with_grad": "57/163",
+    "backbone_grad_norm": 2.4019,
+    "classifier_tensors_with_grad": "0/2",
+    "classifier_grad_norm": 0.0
+  },
+  "O_flip_in_amp_loss_fp32": {
+    "backbone_tensors_with_grad": "163/163",
+    "backbone_grad_norm": 33.9791,
+    "classifier_tensors_with_grad": "2/2",
+    "classifier_grad_norm": 2.920525
+  }
+}
