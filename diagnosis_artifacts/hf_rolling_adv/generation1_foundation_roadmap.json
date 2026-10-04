@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "phases_order": [
+    "backbone_only",
+    "recurrence_only",
+    "belief_no_f",
+    "belief_with_f",
+    "ais_v2_swap",
+    "gen1_core"
+  ],
+  "current_phase": "backbone_only",
+  "current_substep": "not_started",
+  "roadmap_rev": 1,
+  "reset": {
+    "from": "gen1-pure-ce-2026-09-25",
+    "at_utc": "2026-09-30T21:53:06Z",
+    "reason": "pure-CE run had no adversarial term; corrected recipe (33a180b) = new experiment. Archive: archive/gen1_pure_ce_20260930_215119/"
+  },
+  "generation1_foundation": {
+    "schema_version": 1,
+    "phases_order": [
+      "backbone_only",
+      "recurrence_only",
+      "belief_no_f",
+      "belief_with_f",
+      "ais_v2_swap",
+      "gen1_core"
+    ],
+    "current_phase": "belief_with_f",
+    "current_substep": "running",
+    "phases": {
+      "backbone_only": {
+        "status": "done",
+        "depends_on": null,
+        "started_utc": "2026-09-30T21:59:50Z",
+        "best_val_acc": 0.0588,
+        "ckpt": "foundation_backbone_only_best.pth",
+        "gaze_scheme": "single_center_fixation",
+        "summary_csv": "/kaggle/working/Adversarial-Cognitive-Model/report/foundation_backbone_only_eval/summary_table.csv",
+        "finished_utc": "2026-10-01T03:44:31Z"
+      },
+      "recurrence_only": {
+        "status": "done",
+        "depends_on": "backbone_only",
+        "started_utc": "2026-10-01T22:15:11Z",
+        "best_val_acc": 0.058,
+        "ckpt": "foundation_recurrence_only_best.pth",
+        "gaze_scheme": "PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)",
+        "summary_csv": "/kaggle/working/Adversarial-Cognitive-Model/report/foundation_recurrence_only_eval/summary_table.csv",
+        "finished_utc": "2026-10-02T03:03:54Z"
+      },
+      "belief_no_f": {
+        "status": "done",
+        "depends_on": "recurrence_only",
+        "started_utc": "2026-10-02T19:48:00Z",
+        "best_val_acc": 0.1566,
+        "ckpt": "foundation_belief_no_f_best.pth",
+        "gaze_scheme": "PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)",
+        "summary_csv": "/content/Adversarial-Cognitive-Model/report/foundation_belief_no_f_eval/summary_table.csv",
+        "finished_utc": "2026-10-02T23:52:54Z"
+      },
+      "belief_with_f": {
+        "status": "running",
+        "depends_on": "belief_no_f",
+        "started_utc": "2026-10-03T07:29:28Z"
+      },
+      "ais_v2_swap": {
+        "status": "not_started",
+        "depends_on": "belief_with_f"
+      },
+      "gen1_core": {
+        "status": "not_started",
+        "depends_on": "ais_v2_swap"
+      }
+    }
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "section": "9_objective_decomposition",
+  "checkpoint": "/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_belief_with_f_best.pth",
+  "decomposition": {
+    "L_total_structure": "0.55 * ( CE(model(x_clean), y) + beta * KL(p_adv || p_clean.detach()) )",
+    "other_terms_in_foundation_trainer": "NONE (verified: CE + KL only)",
+    "curriculum_point": {
+      "eps": 0.031,
+      "beta": 2.0,
+      "pgd_steps": 4,
+      "w_trades": 0.55,
+      "window": "epochs 1-20 of 60"
+    },
+    "raw_values": {
+      "CE_clean": 1.3349,
+      "KL_adv_clean": 1.5546,
+      "CE_plus_betaKL": 4.444,
+      "L_total": 2.4442
+    },
+    "weighted_contributions": {
+      "w*CE": 0.7342,
+      "w*beta*KL": 1.71
+    },
+    "share_of_total": {
+      "CE_share": 0.3004,
+      "KL_share": 0.6996
+    },
+    "per_group_grad_norm_ce_only": {
+      "backbone": 80.77867,
+      "classifier": 8.64417,
+      "evidential_head": 8.55747,
+      "predictor": 0.0,
+      "update_net": 2e-05,
+      "precision": 0.0
+    },
+    "per_group_grad_norm_kl_only": {
+      "backbone": 28.08125,
+      "classifier": 2.50644,
+      "evidential_head": 2.27511,
+      "predictor": 0.0,
+      "update_net": 1e-05,
+      "precision": 0.0
+    },
+    "per_group_grad_norm_total": {
+      "backbone": 50.69137,
+      "classifier": 3.67174,
+      "evidential_head": 3.79953,
+      "predictor": 0.0,
+      "update_net": 1e-05,
+      "precision": 0.0
+    }
+  },
+  "detach_audit": {
+    "t0.pooled_t.requires_grad": true,
+    "t0.tokens_t.requires_grad": true,
+    "t0.evidence_requires_grad": true,
+    "t0.pred_t_requires_grad": true,
+    "t1.pooled_t.requires_grad": true,
+    "t1.tokens_t.requires_grad": true,
+    "t1.obs_detached": true,
+    "t1.err_requires_grad_via_pred": true,
+    "t1.z_next_requires_grad": true,
+    "t1.evidence_requires_grad": true,
+    "t1.pred_t_requires_grad": true,
+    "t2.pooled_t.requires_grad": true,
+    "t2.tokens_t.requires_grad": true,
+    "t2.obs_detached": true,
+    "t2.err_requires_grad_via_pred": true,
+    "t2.z_next_requires_grad": true,
+    "t2.evidence_requires_grad": true,
+    "t2.pred_t_requires_grad": true,
+    "t3.pooled_t.requires_grad": true,
+    "t3.tokens_t.requires_grad": true,
+    "t3.obs_detached": true,
+    "t3.err_requires_grad_via_pred": true,
+    "t3.z_next_requires_grad": true,
+    "t3.evidence_requires_grad": true
+  },
+  "detach_audit_verdict": "PASS \u2014 target convention detaches ONLY the observation target; every learned path (err via pred_t, z-update, evidence, logits) carries gradient"
+}

@@ -1,0 +1,14 @@
+{
+  "P1_autograd_grad_in_region": {
+    "backbone_tensors_with_grad": "163/163",
+    "classifier_tensors_with_grad": "2/2"
+  },
+  "P2_no_autograd_grad": {
+    "backbone_tensors_with_grad": "163/163",
+    "classifier_tensors_with_grad": "2/2"
+  },
+  "P3_separate_regions": {
+    "backbone_tensors_with_grad": "163/163",
+    "classifier_tensors_with_grad": "2/2"
+  }
+}

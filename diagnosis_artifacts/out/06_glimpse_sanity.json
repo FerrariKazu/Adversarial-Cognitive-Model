@@ -1,0 +1,140 @@
+{
+  "section": "6_input_glimpse_sanity",
+  "per_gaze": [
+    {
+      "t": 0,
+      "gaze_xy": [
+        -0.6,
+        -0.6
+      ],
+      "crop": {
+        "shape": [
+          32,
+          3,
+          56,
+          56
+        ],
+        "min": -2.1179,
+        "max": 2.5584,
+        "mean": 0.0135,
+        "std": 0.9836,
+        "channel_var_mean": 0.952196,
+        "not_grayscale": true
+      },
+      "pooled": {
+        "mean": 0.01916,
+        "std": 1.24102,
+        "norm_mean": 24.3092,
+        "degenerate": false
+      },
+      "tokens": {
+        "norm_mean": 24.22,
+        "std": 1.23656
+      }
+    },
+    {
+      "t": 1,
+      "gaze_xy": [
+        0.6,
+        -0.6
+      ],
+      "crop": {
+        "shape": [
+          32,
+          3,
+          56,
+          56
+        ],
+        "min": -2.1179,
+        "max": 2.6344,
+        "mean": -0.0873,
+        "std": 0.968,
+        "channel_var_mean": 0.92288,
+        "not_grayscale": true
+      },
+      "pooled": {
+        "mean": 0.024,
+        "std": 1.23541,
+        "norm_mean": 24.202,
+        "degenerate": false
+      },
+      "tokens": {
+        "norm_mean": 24.1695,
+        "std": 1.23385
+      }
+    },
+    {
+      "t": 2,
+      "gaze_xy": [
+        -0.6,
+        0.6
+      ],
+      "crop": {
+        "shape": [
+          32,
+          3,
+          56,
+          56
+        ],
+        "min": -2.1145,
+        "max": 2.6072,
+        "mean": -0.0217,
+        "std": 0.9394,
+        "channel_var_mean": 0.87236,
+        "not_grayscale": true
+      },
+      "pooled": {
+        "mean": 0.02405,
+        "std": 1.24157,
+        "norm_mean": 24.3257,
+        "degenerate": false
+      },
+      "tokens": {
+        "norm_mean": 24.2852,
+        "std": 1.23963
+      }
+    },
+    {
+      "t": 3,
+      "gaze_xy": [
+        0.6,
+        0.6
+      ],
+      "crop": {
+        "shape": [
+          32,
+          3,
+          56,
+          56
+        ],
+        "min": -2.1179,
+        "max": 2.64,
+        "mean": 0.0157,
+        "std": 0.9438,
+        "channel_var_mean": 0.883016,
+        "not_grayscale": true
+      },
+      "pooled": {
+        "mean": 0.02378,
+        "std": 1.24201,
+        "norm_mean": 24.3354,
+        "degenerate": false
+      },
+      "tokens": {
+        "norm_mean": 24.2078,
+        "std": 1.23562
+      }
+    }
+  ],
+  "checks": {
+    "crops_distinct_across_gazes": true,
+    "no_constant_fixation": true,
+    "gaze_inside_frame": true,
+    "crop_range_valid": true,
+    "no_grayscale_conversion": true,
+    "no_degenerate_pooled": true,
+    "crop_resolution_is_56": true
+  },
+  "verdict_inputs": null,
+  "verdict": "PASS \u2014 glimpses are spatially distinct, correctly normalized, non-degenerate"
+}

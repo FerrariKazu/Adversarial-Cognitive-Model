@@ -64,8 +64,7 @@ machinery."
 tracing)
 
 - **C1 — Gradient truncation, exact mechanism documented.** Reproduction R1
-  and end-to-end T1/T2 (§15, `diag_amp_*.py`, `out/15_amp_*.json`):
-  no_grad fp16 forward inside the training autocast region → GradScaler
+  and end-to-end T1/T2 (§15, `diag_amp_*.py`, `out/15_amp_*.json`):   no_grad fp16 forward inside the training autocast region → GradScaler
   sees no inf/nan (nothing skipped) but the optimizer receives
   ~57/163 backbone grads, classifier 0/2, evidential 0, predictor 0,
   update_net ~0, precision ~0; run drifts only by weight decay
@@ -76,6 +75,33 @@ tracing)
   cache semantics are torch 2.9.1+cu128 state, not library code in this
   repo — **confirmed-by-repro, internal-level UNKNOWN** (still listed
   under §15 as such).
+
+  **FIX (verified 2026-10-03)** — C1 was a training-loop boundary bug,
+  not an interface/recipe bug: `pgd_kl_attack` + `trades_loss` were run
+  inside the SAME `torch.autocast("cuda")` region as the training
+  forward, so the GradScaler-level backward only saw the fp16 weight-cache
+  history and the predictor/update_net/precision groups received ZERO
+  gradient (57/163 backbone, 0/2 classifier; the three newly-active
+  belief groups were also zero). The fix is loop-scoped and changes no
+  model interfaces, no parameters, no optimizer groups:
+
+  | Fix | backbone / classifier | newly-active belief groups (predictor/update_net/precision) |
+  |---|---|---|
+  | broken loop | 57/163 / 0/2 | 0/10, 0/6, 0/4 |
+  | attack OUTSIDE autocast + fp32 backward | 163/163 / 2/2 | 10/10, 6/6, 4/4 |
+
+  The adversarial recipe (eps 0.031→0.062→0.094, β 2.0→2.5, PGD-4,
+  w_trades 0.55) is unchanged and is applied identically across all six
+  foundation phases (each phase's own 60-epoch window, same ramp). The
+  recipe was never the failure locus of the gradient truncation — the
+  earlier pure-CE run on the same backbone learned fine
+  (backbone_only 0.3130, recurrence_only 0.3668, belief_no_f 0.2684,
+  belief_with_f 0.3316 under cf6ce8a, seed 41) — but the truncated
+  loop made every recipe's damage permanent (force multiplier). Now
+  validated: per-batch perturbation norm ≈ eps (PGD examples genuinely
+  produced) and the KL term moves the loss (w_trades·(CE+β·KL) at
+  w=0.55), with all six groups live after backward() under the fixed
+  loop.
 - **C2 — Adversarial-recipe mis-scaling at the loss scale.** Loss
   decomposition on the preserved pure-CE best checkpoint: `L = 0.55·(CE +
   β·KL)`, CE_share 0.3004 / KL_share 0.7114 (§9); detach audit PASS
@@ -85,11 +111,11 @@ tracing)
   pure-CE checkpoint): 30 batches degrade clean val 0.3316→0.2376, loss
   2.51→2.20 — the initial response of a fresh backbone to 0.55·(CE+2·KL)
   with w=0.55 at lr 3e-3 is negative for clean accuracy. **This is the
-  likely primary failure locus in the cancelled run** (backbone_only 0.0588
-  after 60 epochs ≈ wd-only drift + a few real steps), with the gradient
-  truncation acting as force multiplier (force multiplier in §10's
-  language: it makes the recipe's damage permanent by denying the model any
-  chance to recover).
+  likely primary failure locus in the cancelled run** (backbone_only
+  0.0588 after 60 epochs ≈ wd-only drift + a few real steps), with the
+gradient truncation acting as force multiplier (force multiplier in
+  §10's language: it makes the recipe's damage permanent by denying the
+  model any chance to recover).
 - **C3 — Gradient reachability ≠ gradient usefulness (pattern proven).
   `check_gradient_reach` passes in production (classifiers received nonzero
   grads on cold starts), yet all six phases produce degenerate numbers —
@@ -258,6 +284,38 @@ belief_with_f 0.3316 / ais_v2_swap 0.3334 / gen1_core 0.3334`
 7. Documentation: every change to the training path is recorded with its
    causal hypothesis + isolating experiment (current file-level analog is
    the `diag_*.py` suite).
+
+## K. Gaze architecture (Glimpse-0 = downsampled full image)
+
+The replacement refines how z_0/B_0 is built while leaving every other
+mechanism untouched.
+
+- **Design (implemented):** `glimpse 0` = the full image downsampled to the
+  SAME 16-token budget the existing foveal crop uses, i.e. a 4×4 patch grid
+  (16 tokens + cls + register = 18, matching `patch_embed.proj` / `pos_embed`
+  exactly, no new parameters, no new architecture). Implemented in
+  `FoundationModel.forward` (steps 3-4) via an `F.interpolate` resize of the
+  full image to the 56 operating point (56 % 14 == 0 → clean divisibility,
+  n=4 → 16 tokens), then the backbone's own `_prep` + `_trunk_forward` +
+  `refinement` are reused. Steps 1-2 and glimpses 1..T-1 keep their existing
+  focal-crop + AIS-v2 selection loop.
+- **Gaze contract check:** z_0 is no longer a zero vector
+  (|z_0| ≈ 66-72 under the current weights) and the AIS-v2 candidate
+  scorer's FIRST real decision (currently at glimpse 1) now receives a
+  belief built on that non-trivial z_0 (z_0 → belief_update → z_1 → belief_t
+  → `select_next_location`), delivered trained.
+- **STOP condition (evaluated):** the downsampled-full-image patch grid maps
+  cleanly onto the existing patch-embedding path — the resize target is the
+  same 56 operating point and 56 % 14 == 0, so the Conv2d grid is 4×4 and
+  the token count is 18 = n² + 2, exactly the existing `pos_embed` shape.
+  Verified on synthetic loader (96×96 → 56×56 → Conv2d grid). No mismatched
+  reshape forced.
+- **Recorded as a pure-gaze change:** no loss term, no new optimizer group,
+  no interface to belief/predictor/gaze/evidential/head. The only delta is
+  how B_0 is initialized; glimpses 1..T-1 are the existing mechanism.
+- **Status:** implemented and smoke-verified (all 6 phases run, z_0
+  non-trivial, belief_update → z_1 non-degenerate, policy first decision
+  sees the new z_0).
 
 ## J. Minimal diagnostic experiment suite
 

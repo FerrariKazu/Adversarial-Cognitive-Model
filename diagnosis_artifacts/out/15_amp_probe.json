@@ -1,0 +1,31 @@
+{
+  "A_fp32_CE": {
+    "loss": 2.5408,
+    "backbone": 31.65373,
+    "classifier": 2.76327
+  },
+  "B_amp_CE": {
+    "loss": 2.5414,
+    "backbone": 31.64779,
+    "classifier": 2.7642
+  },
+  "C_fp32_TRADES": {
+    "loss": 2.8533,
+    "backbone": 35.03112,
+    "classifier": 2.23278
+  },
+  "D_amp_TRADES": {
+    "loss": 2.6152,
+    "backbone": 2.00558,
+    "classifier": null
+  },
+  "E_step_mechanics": {
+    "scaler_scale": 65536.0,
+    "grads_after_unscale": {
+      "backbone": 1.96196,
+      "classifier": null
+    },
+    "backbone_dW_measured": 6.5e-05,
+    "backbone_dW_predicted_lr_times_g": 0.005886
+  }
+}

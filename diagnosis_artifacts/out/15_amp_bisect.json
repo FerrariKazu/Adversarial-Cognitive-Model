@@ -1,0 +1,208 @@
+{
+  "F_amp_trades_fixed_perturb": {
+    "backbone": {
+      "grad_norm": 16.87832,
+      "tensors_with_grad": 163,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "classifier": {
+      "grad_norm": 1.558909,
+      "tensors_with_grad": 2,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "evidential_head": {
+      "grad_norm": 1.363862,
+      "tensors_with_grad": 6,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "predictor": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 10,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "update_net": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 6,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "precision": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 4,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    }
+  },
+  "G_amp_forward_fp32_loss": {
+    "backbone": {
+      "grad_norm": 35.297556,
+      "tensors_with_grad": 163,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "classifier": {
+      "grad_norm": 2.324743,
+      "tensors_with_grad": 2,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "evidential_head": {
+      "grad_norm": 2.267053,
+      "tensors_with_grad": 6,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "predictor": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 10,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "update_net": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 6,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "precision": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 4,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    }
+  },
+  "H_full_production_order_after_unscale": {
+    "backbone": {
+      "grad_norm": 2.023545,
+      "tensors_with_grad": 57,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "classifier": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "evidential_head": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "predictor": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "update_net": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "precision": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    }
+  },
+  "H_full_production_order_after_clip": {
+    "backbone": {
+      "grad_norm": 0.999999,
+      "tensors_with_grad": 57,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "classifier": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "evidential_head": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "predictor": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "update_net": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "precision": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    }
+  },
+  "H_full_production_order_step": {
+    "scale_after": 65536.0,
+    "step_skipped": false,
+    "dW": {
+      "backbone": 3.4e-05,
+      "classifier": 0.0
+    }
+  },
+  "I_no_clip_after_unscale": {
+    "backbone": {
+      "grad_norm": 2.184368,
+      "tensors_with_grad": 57,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "classifier": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "evidential_head": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "predictor": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "update_net": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    },
+    "precision": {
+      "grad_norm": 0.0,
+      "tensors_with_grad": 0,
+      "inf_tensors": 0,
+      "nan_tensors": 0
+    }
+  },
+  "I_no_clip_step": {
+    "scale_after": 65536.0,
+    "step_skipped": false,
+    "dW": {
+      "backbone": 0.0001,
+      "classifier": 0.0
+    }
+  }
+}

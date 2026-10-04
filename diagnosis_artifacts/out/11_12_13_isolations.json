@@ -1,0 +1,46 @@
+{
+  "section": "11_12_13_isolations",
+  "n_eval": 1024,
+  "s11_recurrence": {
+    "ckpt": "foundation_recurrence_only_best.pth (pure-CE era, trained at T=4)",
+    "note": "fixed-weight T-sweep = inference-time structure probe only",
+    "sweep": {
+      "T=1": {
+        "acc": 0.2002,
+        "mean_pooled_norm": 18.8331
+      },
+      "T=2": {
+        "acc": 0.248,
+        "mean_pooled_norm": 15.9207
+      },
+      "T=4": {
+        "acc": 0.3477,
+        "mean_pooled_norm": 13.4554
+      }
+    },
+    "training_tier_pending": "\u00a711 full: matched 60-epoch runs at T=1/2/4 measuring train loss, grad norms, activation norms, prediction entropy (hub)"
+  },
+  "s12_beliefstate": {
+    "era_table_pure_ce": {
+      "recurrence_only": 0.3668,
+      "belief_no_f": 0.2684,
+      "belief_with_f": 0.3316
+    },
+    "observation": "belief carrier (identity update) DROPPED recurrence_only 0.3668 -> 0.2684; adding learned dynamics (F) recovered 0.3316 but did not exceed recurrence_only \u2014 the belief pathway inserted a cost without a demonstrated gain",
+    "live_probe": "see 12_z_evidence_probe below"
+  },
+  "s12_z_evidence_probe": {
+    "full_pathway_acc": 0.3027,
+    "z_content_only_acc": 0.2061,
+    "evidence_only_acc": 0.1846,
+    "note": "zeroing probe on the trained readout \u2014 indicative, not causal"
+  },
+  "s13_prediction_error": {
+    "inference_tier": {
+      "with_E_dynamics_acc": 0.3027,
+      "no_E_identity_acc": 0.2852
+    },
+    "training_tier_pending": "\u00a713 full: matched training runs with the E update replaced by identity; success criterion = E-arm beats identity beyond seed noise (hub); REJECT/DEFER if no benefit",
+    "note": "E_0 := 0 is LOCKED and implemented (verified in code + unit test test_t0_produces_exact_zero_error)"
+  }
+}

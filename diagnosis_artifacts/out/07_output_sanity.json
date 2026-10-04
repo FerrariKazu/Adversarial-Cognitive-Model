@@ -1,0 +1,112 @@
+{
+  "section": "7_output_sanity",
+  "batch_size": 256,
+  "results": {
+    "pure_ce_cf6ce8a/backbone_only": {
+      "ckpt_epoch": null,
+      "code_commit": "cf6ce8a",
+      "logit_mean": -0.0144,
+      "logit_std": 1.9441,
+      "logit_min": -7.651,
+      "logit_max": 9.595,
+      "softmax_entropy_mean": 2.8063,
+      "max_softmax_prob_mean": 0.3096,
+      "unique_predicted_classes": 62,
+      "top1_acc_on_batch": 0.4023,
+      "pred_hist_top5_share": 0.4648
+    },
+    "pure_ce_cf6ce8a/recurrence_only": {
+      "ckpt_epoch": null,
+      "code_commit": "cf6ce8a",
+      "logit_mean": -0.0158,
+      "logit_std": 2.5753,
+      "logit_min": -10.194,
+      "logit_max": 11.743,
+      "softmax_entropy_mean": 2.391,
+      "max_softmax_prob_mean": 0.3894,
+      "unique_predicted_classes": 61,
+      "top1_acc_on_batch": 0.4219,
+      "pred_hist_top5_share": 0.4766
+    },
+    "pure_ce_cf6ce8a/belief_no_f": {
+      "ckpt_epoch": null,
+      "code_commit": "cf6ce8a",
+      "logit_mean": 0.019,
+      "logit_std": 1.9131,
+      "logit_min": -7.371,
+      "logit_max": 9.179,
+      "softmax_entropy_mean": 3.1139,
+      "max_softmax_prob_mean": 0.246,
+      "unique_predicted_classes": 73,
+      "top1_acc_on_batch": 0.25,
+      "pred_hist_top5_share": 0.3125
+    },
+    "pure_ce_cf6ce8a/belief_with_f": {
+      "ckpt_epoch": null,
+      "code_commit": "cf6ce8a",
+      "logit_mean": 0.0522,
+      "logit_std": 2.437,
+      "logit_min": -10.157,
+      "logit_max": 11.924,
+      "softmax_entropy_mean": 2.6265,
+      "max_softmax_prob_mean": 0.338,
+      "unique_predicted_classes": 68,
+      "top1_acc_on_batch": 0.3867,
+      "pred_hist_top5_share": 0.4219
+    },
+    "adversarial_fef50f3/backbone_only": {
+      "ckpt_epoch": 22,
+      "code_commit": "fef50f3",
+      "logit_mean": -0.0239,
+      "logit_std": 0.5649,
+      "logit_min": -2.482,
+      "logit_max": 2.659,
+      "softmax_entropy_mean": 4.4582,
+      "max_softmax_prob_mean": 0.0337,
+      "unique_predicted_classes": 63,
+      "top1_acc_on_batch": 0.082,
+      "pred_hist_top5_share": 0.3359
+    },
+    "adversarial_fef50f3/recurrence_only": {
+      "ckpt_epoch": 60,
+      "code_commit": "fef50f3",
+      "logit_mean": 0.0195,
+      "logit_std": 0.6729,
+      "logit_min": -3.22,
+      "logit_max": 3.561,
+      "softmax_entropy_mean": 4.3882,
+      "max_softmax_prob_mean": 0.0435,
+      "unique_predicted_classes": 61,
+      "top1_acc_on_batch": 0.0977,
+      "pred_hist_top5_share": 0.2773
+    },
+    "adversarial_fef50f3/belief_no_f": {
+      "ckpt_epoch": 60,
+      "code_commit": "fef50f3",
+      "logit_mean": 0.0419,
+      "logit_std": 1.1762,
+      "logit_min": -5.631,
+      "logit_max": 5.348,
+      "softmax_entropy_mean": 4.0484,
+      "max_softmax_prob_mean": 0.0838,
+      "unique_predicted_classes": 72,
+      "top1_acc_on_batch": 0.1758,
+      "pred_hist_top5_share": 0.2852
+    },
+    "adversarial_fef50f3/belief_with_f": {
+      "ckpt_epoch": 22,
+      "code_commit": "fef50f3",
+      "logit_mean": 0.0728,
+      "logit_std": 1.219,
+      "logit_min": -5.283,
+      "logit_max": 5.593,
+      "softmax_entropy_mean": 3.9993,
+      "max_softmax_prob_mean": 0.0947,
+      "unique_predicted_classes": 73,
+      "top1_acc_on_batch": 0.1484,
+      "pred_hist_top5_share": 0.2617
+    }
+  },
+  "collapsed_models": [],
+  "verdict": "No hard collapse in any preserved checkpoint (predictions spread over >5 classes)"
+}
