@@ -69,6 +69,7 @@ from noesis_vision.gaze.gaze_state import GazeState
 from noesis_vision.predictive_coding.glimpse_predictor import (
     ConcreteGlimpseFeaturePredictor,
 )
+from noesis_vision.predictive_coding.ema_predictor import PredictorTarget
 from noesis_vision.uncertainty.evidential_head import (
     DirichletParams,
     EvidentialHead,
@@ -170,6 +171,14 @@ class AISv2GazePolicy(nn.Module):
         self.last_scores: Optional[CandidateScores] = None
         self.last_selection: Optional[SelectionResult] = None
 
+        # BYOL/DINO target encoder (Adjustment 2, Part 4): an EMA copy of
+        # the shared predictor, used ONLY to produce pred_t for the
+        # belief-update error. Never backpropagated through; polyak-updated
+        # each step after the shared predictor has stepped.
+        self.predictor_ema = PredictorTarget(
+            predictor=predictor, alpha=0.996
+        )
+
     # ── scoring ──────────────────────────────────────────────────────────────
     def score_candidates(self, belief, observed_tokens: torch.Tensor,
                          predicted_tokens: Optional[torch.Tensor],
@@ -211,8 +220,6 @@ class AISv2GazePolicy(nn.Module):
         B = candidates.shape[0]
         reductions = []
         for k in range(K):
-            pred_k = self.predictor.predict_features(
-                belief, candidates[:, k, :])              # (B, N, D), attached
             dp_k: DirichletParams = self.evidential_head(pred_k)
             reductions.append(dp_k.entropy())             # (B,)
         h_pred = torch.stack(reductions, dim=1)           # (B, K), attached
@@ -276,8 +283,27 @@ class AISv2GazePolicy(nn.Module):
                                    predicted_tokens, candidates,
                                    current_gaze=current_gaze)
         result = self.select(candidates, cs, training)
+        # After the shared predictor has stepped (AIS-v2 phases only),
+        # slide the target shadow toward it: the target is a frozen EMA
+        # copy, never trained, never reaching the shared predictor here.
+        if training:
+            self.predictor_ema.update()
         self.last_scores, self.last_selection = cs, result
         return result
+
+    # ── error-map helper (shared with the trainer's error pool) ──────────────
+    def token_error_map(self, observed_tokens: torch.Tensor,
+                        predicted_tokens: Optional[torch.Tensor],
+                        grid_size: int = 4) -> torch.Tensor:
+        """(B, N, D) token-feature error surface, (B, grid, grid).
+
+        Dispatches to the canonical ``token_error_map`` in the candidate
+        sampler (prediction-error branch when a prediction is supplied,
+        per-token feature magnitude when it is None) so both consumers
+        see exactly one definition.
+        """
+        return token_error_map(observed_tokens, predicted_tokens,
+                               grid_size)
 
     def record(self, gaze_state: GazeState,
                selection: SelectionResult) -> GazeState:
@@ -290,6 +316,7 @@ class AISv2GazePolicy(nn.Module):
         return gaze_state.record(selection.selected.detach())
 
     # ── Agent A registry integration (own optimizer group) ──────────────────
+    # ── Agent A registry integration (own optimizer groups) ──────────────────
     def register_optimizer_group(self, registry, lr_multiplier: float = 1.0,
                                  clip_norm: float = 1.0) -> None:
         """Register the policy's own parameters under 'gaze_policy'.
@@ -298,6 +325,17 @@ class AISv2GazePolicy(nn.Module):
         evidential head belong to THEIR own groups — never here).
         """
         registry.register("gaze_policy", list(self.parameters()),
+                          lr_multiplier=lr_multiplier, clip_norm=clip_norm)
+
+    def register_predictor_ema_group(self, registry, lr_multiplier: float = 1.0,
+                                     clip_norm: float = 1.0) -> None:
+        """Register the EMA target shadow under 'predictor_ema'.
+
+        The target is a detached shadow of the shared predictor, updated
+        by polyak at each step — it carries NO gradient and its own group
+        is registered so the standing per-group |dW| pre-flight can see it.
+        """
+        registry.register("predictor_ema", list(self.predictor_ema.parameters()),
                           lr_multiplier=lr_multiplier, clip_norm=clip_norm)
 
     def forward(self, belief, observed_tokens: torch.Tensor,
@@ -316,4 +354,4 @@ class AISv2GazePolicy(nn.Module):
                 f"mode={self.selection_mode!r}, tau={self.tau}, "
                 f"predictor={type(self.predictor).__name__} (shared, "
                 f"injected), head={type(self.evidential_head).__name__} "
-                f"(shared, injected)) — t=0: {AIS_T0_SCORING[:48]}...")
+                f"(shared, injected), predictor_ema={type(self.predictor_ema).__name__} (frozen EMA target)) — t=0: {AIS_T0_SCORING[:48]}...")

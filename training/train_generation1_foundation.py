@@ -131,10 +131,20 @@ from noesis_vision.predictive_coding.glimpse_predictor import (  # noqa: E402
     ConcreteGlimpseFeaturePredictor,
 )
 from noesis_vision.predictive_coding.precision import PrecisionFunction  # noqa: E402
-from noesis_vision.predictive_coding.update_net import (  # noqa: E402
-    ConcreteUpdateNet,
-    belief_update,
-)
+from noesis_vision.predictive_coding.ema_predictor import (
+    PredictorTarget,
+)  # noqa: E402
+from noesis_vision.predictive_coding.precision import PrecisionFunction  # noqa: E402
+from noesis_vision.predictive_coding.spatial_error_pool import (
+    SpatialErrorPool,
+)  # noqa: E402
+from noesis_vision.predictive_coding.ema_predictor import (
+    PredictorTarget,
+)  # noqa: E402
+from noesis_vision.predictive_coding.precision import PrecisionFunction  # noqa: E402
+from noesis_vision.predictive_coding.spatial_error_pool import (
+    SpatialErrorPool,
+)  # noqa: E402
 from noesis_vision.uncertainty.evidential_head import (  # noqa: E402
     DirichletParams,
     EvidentialHead,
@@ -344,6 +354,11 @@ class FoundationConfig:
     recipe_version: str = "gen1-adv-curriculum-v1"
     seed: int = 41
     amp: bool = True
+    # Precision mode (Adjustment / ablation): 'learned' (default, the
+    # PrecisionFunction MLP over Dirichlet evidence) or 'fixed' (a constant
+    # 1.0 floor, no learned path — the baseline arm). Config-flagged so
+    # the A/B arm can be run from a single dispatch with identical seeds.
+    precision_mode: str = "learned"
     # Rolling uploads every 5 epochs, not every epoch: each .pth overwrite
     # is a NEW LFS revision on HF until history is squashed, so per-epoch
     # rolls burned the account's private storage quota mid-run (2026-10-01).
@@ -434,11 +449,15 @@ class FoundationModel(nn.Module):
             # ECE is evaluated by Agent I, never trained against).
             self.ev_readout = nn.Linear(cfg.num_classes, cfg.num_classes)
         if self.belief_dynamics:
-            # Agent E's three components — the shared predictor + dynamics.
+            # Agent E's shared predictor (the ONE module that receives
+            # gradients). Its BYOL/DINO EMA target copy is owned by the
+            # policy (AISv2GazePolicy.predictor_ema) — never re-claimed here.
             self.predictor = ConcreteGlimpseFeaturePredictor(
                 d_z=cfg.d_z, d_feat=cfg.d_z, n_tokens=16)
             self.update_net = ConcreteUpdateNet(d_z=cfg.d_z)
-            self.precision = PrecisionFunction()
+            # Precision gate: learned (default) or fixed (ablation arm),
+            # selected by the PrecisionSelector placed before the model.
+            self.precision = PrecisionSelector(cfg)
         if self.use_ais_v2:
             # Agent F's policy — the ONE candidate scorer. The predictor
             # and evidential head are the SAME instances built above
@@ -448,6 +467,13 @@ class FoundationModel(nn.Module):
                 predictor=self.predictor,
                 evidential_head=self.evidential_head,
                 num_candidates=cfg.num_candidates)
+        # Error pooling (Adjustment 1, Part 4): the spatial candidate-
+        # anchoring error surface (token_error_map, produced by
+        # HeuristicCandidateSampler in the policy) is NOT flat-meaned;
+        # it is pooled through a small LEARNED attention layer (SpatialErrorPool)
+        # so E_t's local token-feature space maps to z_t's global space via
+        # a learned mapping. Own optimizer group 'error_pool'.
+        self.error_pool = SpatialErrorPool(d_z=cfg.d_z, n_tokens=16)
 
     # ── optimizer-group surfaces (Agent A registry; per-phase layout) ───────
     def group_params(self) -> Dict[str, List[nn.Parameter]]:
@@ -469,6 +495,9 @@ class FoundationModel(nn.Module):
             # register_optimizer_group() would recursively re-claim them
             # here and the registry's double-claim guard raises loudly.
             groups["gaze_policy"] = [self.gaze_policy.logit_scale]
+        # Adjustment 1 Group: pooled error-map projection (SpatialErrorPool).
+        # Own optimizer group so the standing |dW| pre-flight can measure it.
+        groups["error_pool"] = list(self.error_pool.parameters())
         return groups
 
     # ── one glimpse: crop -> trunk -> (optional refinement) -> parts ────────
@@ -506,9 +535,26 @@ class FoundationModel(nn.Module):
             return self.cls_head(torch.stack(feats, dim=1).mean(dim=1))
 
         # ── steps 3-4: belief carrier with U_t ─────────────────────────────
+        # glance 0: Agent E / Agent F just changed. Grayscale the full
+        # image to a 4x14 patch grid and run it through the SAME backbone
+        # path (_prep -> _trunk_forward -> refinement) so B_0 lives in the
+        # EXACT token space the foveal glimpses use, with a non-trivial
+        # z_0 (|z_0| ~ 66-72, believed_update -> z_1, policy first
+        # decision at t=1 sees it). 56 % 14 == 0 -> Conv2d grid 4x4 ->
+        # 16 tokens -> pos_embed shape 18 = n^2 + 2, no reshape forced.
+        # (Doc FORENSIC_REPORT_NXA_GENERATION1.md §K records this result.)
+        ref = F.interpolate(x, size=(self.cfg.fovea_size, self.cfg.fovea_size),
+                            mode="bilinear", align_corners=False)
+        x0 = ref[:, 0]                                   # (B, 3, 56, 56)
+        x0 = self.backbone._prep(x0)
+        x0 = self.backbone._trunk_forward(x0)
+        if self.use_refinement:
+            x0 = self.backbone.refinement(x0, self.cfg.within_glimpse_iters)
+        z0 = x0[:, 0]                                    # (B, D_z)
+        tokens0 = x0[:, self.backbone.num_prefix_tokens:]  # (B, 16, D_z)
+        z_t = z0
         zero_ev = torch.zeros(B, cfg.num_classes, device=device)
         zero_tok = torch.zeros(B, 16, cfg.d_z, device=device)
-        z_t: Optional[torch.Tensor] = None
         dp_t: Optional[DirichletParams] = None
         pred_t: Optional[torch.Tensor] = None
         err: Optional[torch.Tensor] = None
@@ -518,12 +564,16 @@ class FoundationModel(nn.Module):
             a_t = sched[:, t, :]
             pooled_t, tokens_t = self._glimpse(x, a_t)
             if t == 0:
-                z_t = pooled_t              # observation seeds the content
+                # glance 0 -> B_0 from the downsampled FULL image (z_0,
+                # non-trivial); every later glimpse still uses the
+                # foveal crop + the same trunk path.
+                z_t = z0
                 err = torch.zeros_like(tokens_t)   # LOCKED boundary E_0 := 0
             elif self.belief_dynamics:
                 # z_{t+1} = z_t + Pi_t * UpdateNet(z_t, E_t); the OBSERVED
                 # tokens are detached here (target convention, Part 1.A);
-                # pred_t (made last step) carries the predictor's gradient.
+                # pred_t was made last step and carries the predictor's
+                # gradient.
                 err = tokens_t.detach() - pred_t
                 Pi_t = self.precision(dp_t)
                 z_t = belief_update(z_t, err, Pi_t, self.update_net)
@@ -602,7 +652,13 @@ class FoundationModel(nn.Module):
                 z_t = pooled_t                      # observation seeds content
                 err = torch.zeros_like(tokens_t)    # LOCKED boundary E_0 := 0
             else:
-                err = obs - pred_t
+                # E_t goes through the learned error pool (Adjustment 1,
+                # Part 4): err_map = token_error_map(obs, pred_t) ->
+                # SpatialErrorPool -> (B, D_z) in the global space,
+                # then the UPDATE NET's local-to-global mapping.
+                err_map = self.gaze_policy.token_error_map(
+                    obs, pred_t, self.gaze_policy.sampler.grid_size)
+                err = self.error_pool(err_map, pred_t)
                 Pi_t = self.precision(dp_t)
                 z_t = belief_update(z_t, err, Pi_t, self.update_net)
             dp_t = self.evidential_head(tokens_t)
@@ -626,13 +682,50 @@ class FoundationModel(nn.Module):
                 # belief AT the selected location (error_target =
                 # latent_next_glimpse, LOCKED) — the motor Jacobian
                 # df_stem(a)/da enters here through foveal_sample.
-                pred_t = self.predictor.predict_features(belief_t, a_next)
+                pred_t = self.gaze_policy.predictor_ema.predict_features(
+                    belief_t, a_next)
                 gaze_state = self.gaze_policy.record(gaze_state, sel)
                 a_t = a_next
 
         # Readout: content + the ONE uncertainty representation.
         feats = torch.cat([z_t, dp_t.evidence], dim=-1)
         return self.cls_head(feats) + self.ev_readout(dp_t.evidence)
+
+
+class PrecisionSelector(nn.Module):
+    """Precision-mode selector: 'learned' -> PrecisionFunction; 'fixed' ->
+    a frozen constant-1.0 node. Positioned before FoundationModel so the
+    precision gate can be swapped from config without touching the
+    FoundationModel internals.
+    """
+
+    def __init__(self, cfg: FoundationConfig) -> None:
+        super().__init__()
+        self.mode = cfg.precision_mode
+        if self.mode == "learned":
+            self.fn = PrecisionFunction()
+        elif self.mode == "fixed":
+            self.fn = ConstantOne()
+        else:
+            raise ValueError(
+                f"precision_mode must be 'learned' or 'fixed'; got "
+                f"{cfg.precision_mode!r}"
+            )
+
+    def forward(self, U) -> torch.Tensor:
+        """DirichletParams -> Pi_t, (B,), positive."""
+        return self.fn(U)
+
+
+class ConstantOne(nn.Module):
+    """Frozen constant-1.0 precision node (fixed precision_mode state)."""
+
+    def __init__(self):
+        super().__init__()
+        self.register_buffer("one", torch.ones(1))
+
+    def forward(self, U):
+        return self.one.expand(U.uncertainty.shape[0])
 
 
 def build_model(cfg: FoundationConfig, phase: str) -> FoundationModel:
@@ -1078,6 +1171,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     help="2026-10-03: real-data training is cancelled; the "
                          "halt guard documents this flag but the J1_ALLOW_TRAINING=1 "
                          "env override is the ONLY way past the guard")
+    ap.add_argument("--precision-mode", type=str, default=None,
+                    choices=("learned", "fixed"),
+                    help="precision objective (Part 4 Adjustment / A/B arm): "
+                         "'learned' = PrecisionFunction (default); 'fixed' = "
+                         "constant 1.0 (no learned path). The A/B arm runs the "
+                         "SAME script with identical seeds under these two "
+                         "flags.")
     ap.add_argument("--force-fresh", action="store_true",
                     help="LOUDLY delete this run's rolling/best/manifest "
                          "artifacts before starting (audible cold start)")
@@ -1110,6 +1210,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     cfg.amp = not args.no_amp
     cfg.force_fresh = args.force_fresh
     cfg.smoke = args.smoke
+    if args.precision_mode is not None:
+        cfg.precision_mode = args.precision_mode
     hf_token = _resolve_hf_token(args.hf_token)
     cfg.use_hf = (not args.no_hf) and bool(hf_token)
     if cfg.smoke:
