@@ -216,11 +216,11 @@ Gen-2 stays a **perceptual architecture** (no LLM-style generic reasoning). Gen-
 - **Global gist:** t=0 full-image glimpse (224×224 → 56×56 → 16 tokens), fixed or learned, multi-scale (2–3 resolution branches). Gist is fused into `z_t` and the belief state as an additional input channel (global priors, coarse object layout, peripheral context, scene-level priors).
 - **Peripheral representation:** separate low-resolution peripheral token stream with its own (small) tokenizer; fused at the belief-update stage; peripheral/foveal split from day one.
 - **Foveal representation:** high-resolution local glimpses at the chosen gaze.
-- **Multi-scale input:** input pyramid (3–4 scales); each scale has its own tokenization; fusion before the belief update.
-- **Token allocation:** learned / heuristic allocation of tokens between gist/peripheral/foveal; resolution allocation learned.
+- **Multi-scale input:** fixed gist plus one peripheral stream only (one tokenizer for the peripheral tokens). The 3–4-scale per-tokenizer input pyramid is NOT a Gen-2 core capability: a multi-branch encoder reintroduces the frame-tokenizer confound that K1 was meant to remove and competes with the fixed gist for compute.
+- **Token allocation:** fixed by design — one fixed gist stream, one peripheral stream; resolution allocation is fixed, not learned (learned allocation is **GEN-2 EXPERIMENTAL**).
 - **Spatial coordinates:** 2-D gaze-coordinate embedding per gaze; RoPE / relative-position encoding; foveal coordinate normalization.
 - **Positional representation:** coordinate + relative position + register tokens (optional).
-- Boundary: gist and central multi-scale are **GEN-2 CORE** (directly answers the "never sees the scene" flaw); learned resolution allocation is **GEN-2 EXPERIMENTAL**; object-centric tokens are **GEN-3**.
+- Boundary: the fixed gist plus one peripheral stream is **GEN-2 CORE** (directly answers the "never sees the scene" flaw); learned resolution allocation is **GEN-2 EXPERIMENTAL**; object-centric tokens are **GEN-3**.
 
 ### 3.2 Backbone
 Evaluate (not necessarily adopt): DINOv2 / ViT variants / frozen trunk / low-LR trunk / partial adaptation / adapters / LoRA / multi-stage fine-tuning / EMA target encoder.
@@ -240,7 +240,7 @@ Richer than Gen-1's `z, U, E, A`:
 
 ### 3.4 Predictive model
 Candidate family (do not pick one): next-glimpse prediction (locked Gen-1), multi-step prediction, masked latent prediction, future latent prediction, cross-scale prediction, spatial prediction, object-level prediction, scene-level prediction, counterfactual prediction (Gen-3).
-- G2 uses next-glimpse + latent prediction family; counterfactual and object/scene prediction are **GEN-3**.
+- G2 uses next-glimpse + latent prediction family; counterfactual, object/scene perception, and reasoning are **GEN-3**. The counterfactual perception arm is **GEN-3 HIGH-RISK/HIGH-REWARD** (per the boundary table); it is not part of Gen-2.
 
 ### 3.5 Error system
 - Local / global / spatial / temporal / multi-scale / object-level / prediction-disagreement error.
@@ -278,7 +278,7 @@ Significantly more capable AIS.
 
 ### 3.10 Adaptive computation
 - Variable glimpse count, learned stopping, confidence-based stopping, uncertainty-based stopping, prediction-error stopping, dynamic compute allocation.
-- Boundary: variable glimpse count / learned stopping are **GEN-2 EXPERIMENTAL** (adaptive halting was deferred Gen-1 for a documented reason); dynamic compute allocation is **GEN-3**.
+- Boundary: variable glimpse count / learned stopping are **GEN-2 EXPERIMENTAL** (adaptive halting was deferred Gen-1 for a documented reason); dynamic compute allocation is **GEN-3**. The adaptive-glimpse/learned-stopping family is treated as a Gen-2 *experimental probe*, not a core capability.
 
 ### 3.11 Classifier / readout
 - Classification readout (Dirichlet-evidence) — unchanged, read from final belief.
@@ -307,10 +307,17 @@ The loop: **input pyramid → gist/peripheral/foveal tokenization → fusion →
 - **Ablations:** built by flipping one flag in the published config, never by hand-assembling a similar config.
 - **Controls:** parameter-matched and compute-matched controls established for every claim; the gradient-health harness provides matched-FLOPs control.
 
-### 4.2 Loss family (candidate family, not a single hardcoded equation)
-`L_total = λ_cls·L_cls + λ_pred·L_pred + λ_belief·L_belief + λ_policy·L_policy + λ_uncertainty·L_uncertainty + λ_precision·L_precision + λ_adv·L_adv + λ_consistency·L_consistency + λ_memory·L_memory`
+### 4.2 Loss family (reference + one-flag arms; NO λ-search)
+The reference keeps the three terms that Gen-0 established as non-negotiable and that remain the golden reference for every Gen-2 arm:
+
+`L_ref = L_cls(evidential) + L_pred + L_adv`
+
+Every other candidate loss enters as a **one-flag arm against the frozen reference** — the Gen-0 multi-loss competition lesson applied at the plan level. The λ-family search is rejected as designed: searching over 9 λ's recreates the Gen-0 failure of loss competition.
+
+- Reference arm: `L_cls(evidential) + L_pred + L_adv` (frozen across every Gen-2 arm).
+- Candidate arms (one flag on/off vs reference): any additional loss term (e.g., consistency, memory, adaptive-belief, uncertainty-decomposition) is gated through its pre-registered experiment ID and is never part of the reference equation.
 - Per term: what it teaches, failure modes, interaction, collapse modes, gradient conflicts, which phases activate each.
-- λ per term and per phase are hyperparameters to search; no term is hard-coded as the default.
+- No λ per term / no λ scheduling; the reference is a single fixed equation.
 
 ### 4.3 Prospective Gen-2 phases (candidate; extend the existing six-phase ladder)
 Defined per phase: name, purpose, active modules, frozen modules, trainable modules, losses, optimizer, data, number of glimpses, policy behavior, checkpoint, exit criteria, failure criteria, evaluation.
@@ -344,8 +351,12 @@ Higher-order (2–3-way) interaction experiments where justified (e.g., gist × 
 
 ## PART VI — GEN-2 EVALUATION SYSTEM
 
-Metrics: clean accuracy, robust accuracy (PGD + AutoAttack + EOT for stochastic gaze), calibration (ECE), NLL, AUROC, uncertainty quality, prediction quality, belief dynamics, belief-revision magnitude, gaze entropy, gaze diversity, gaze trajectory, gaze efficiency, spatial error (localization vs human attention), information gain, glimpse efficiency, compute efficiency (FLOPs/param per correct decision), human agreement, shape bias, texture bias, occlusion robustness, clutter robustness, distribution shift, peripheral degradation, viewpoint changes.
-Diagnostics for every new mechanism: U_t calibration, precision-field L2, gaze-center ratio, belief-drift under perturbation, candidate-score correlation (reuse `ais_v2_smoke_gate_v1` style), gradient health, failure-mode flags (all 22).
+### 6.1 Calibration gate (new — promotes U_t from eval diagnostic to a gate)
+`U_t` is consumed by three downstream consumers: the precision system (`Π = f(U)`), AIS candidate scoring, and any future adaptive-halting controller. A miscalibrated `U_t` therefore poisons every downstream conclusion, not just one metric. `G2-K11-a` is re-registered as a **prerequisite gate**: every new architecture variant must pass the U_t calibration gate before any claim about the gate's consumers is evaluated.
+
+- **U_t calibration gate (`G2-K11-a`):** entropy-injected synthetic belief states (`U_t` = known ground truth over a 10-point grid) → Brier score, ECE, calibration slope/intercept. Gate rule: ECE ≤ 0.05 AND calibration slope within [0.9, 1.1]. Fires at construction (not at final evaluation) — a failed gate raises before any training budget is spent.
+- **Metrics (post-gate):** clean accuracy, robust accuracy (PGD + AutoAttack + EOT for stochastic gaze), NLL, AUROC, uncertainty quality, prediction quality, belief dynamics, belief-revision magnitude, gaze entropy, gaze diversity, gaze trajectory, gaze efficiency, spatial error (localization vs human attention), information gain, glimpse efficiency, compute efficiency (FLOPs/param per correct decision), human agreement, shape bias, texture bias, occlusion robustness, clutter robustness, distribution shift, peripheral degradation, viewpoint changes.
+- **Diagnostics for every new mechanism:** precision-field L2, gaze-center ratio, belief-drift under perturbation, candidate-score correlation (reuse `ais_v2_smoke_gate_v1` style), gradient health, failure-mode flags (all 22). The calibration gate runs before this diagnostic list.
 
 ---
 
@@ -435,8 +446,8 @@ Assumptions: RTX 4060-class GPU for local work; larger experiments on external/H
 |---|---|---|---|
 | Hardware | RTX 4060 (16 GB) local | A100/H100 or equivalent (40–80 GB) | 8× A100 (80–80 GB) or distributed |
 
-Training budget (estimate): local 16-bit runs of the Gen-2 substrate with T=4 glimpses, batch 32, ~20–40 min/run at small scale; full ladder (once per pass) ~6–24 h on 1× 4060-class local, 1–4 h on 1× A100; full matrix (13+ arms, 5 seeds) ~2–6 weeks local; 1× A100 ~1–3 days. HPC-scale: full 16-seed protocol + AutoAttack + EOT ~1–3 weeks on a node; production runs on 8× nodes.
-Parameter count: compact ViT (Gen-1 substrate) + gist + peripheral tokenizers + policy network + precision field + error pyramid; budget ~10–30M params (parameter-matched controls for every claim).
+Training budget (estimate): local 16-bit runs of the Gen-2 substrate with T=4 glimpses, batch 32, ~20–40 min/run at small scale; full ladder (once per pass) ~6–24 h on 1× 4060-class local, 1–4 h on 1× A100; full matrix (13+ arms, 5 seeds) ~2–6 weeks local; 1× A100 ~1–3 days. HPC-scale: full 16-seed protocol + AutoAttack + EOT (AA×16 seeds×13 arms ≈ 10× the local matrix) ~1–3 weeks on a node; production runs on 8× nodes.
+Parameter count: fixed-gist encoder (zero new tokenizer params) + one peripheral stream + compact ViT trunk + policy network + precision field + spatial error map; budget ~10–30M params (parameter-matched controls for every claim).
 Inference: real-time at small scale; heavier at multi-scale; limit via candidate budget and early halting.
 Dataset size: STL-10 / ImageNet-100 / ImageNet-1K variants per the repository; use the repository's canonical data loaders; keep datasets pinned.
 No compute limitation should prevent the exploration: label each experiment Local / Medium / HPC; all experiments include small-faithfulness probes run locally first.
@@ -469,9 +480,10 @@ Chronological implementation plan, from the frozen Gen-1 baseline:
 Gen-1 frozen baseline (rhan-nxa-clean-baseline @ 14771f1)
   ↓
 Gen-2 FOUNDATION
-  ├── G2-K1: gist + peripheral + multi-scale input (fixed gist first, learned second)
-  ├── G2-K2: backbone-adaptation arms (frozen / low-LR / fine-tuned + drift monitoring)
   ├── G2-K9: optimizer recalibration (AdamW + warmup + cosine, per-subsystem LR, clip calibration)
+  ├── G2-K1: gist + peripheral (fixed gist first, learned second)
+  ├── G2-K4: precision system independent of U_t (scalar / spatial map / channel-wise / policy-conditioned)
+  ├── G2-K5/K6: observed-features belief-update pathway + spatial error + multi-scale error pyramid
   └── G2-K7: optimizer + EMA candidate (AdamW, warmup, cosine, EMA target encoder)
   ↓
 Gen-2 ACTIVE PERCEPTION
@@ -530,7 +542,7 @@ Gen-3 FULL ACTIVE PERCEPTUAL INTELLIGENCE
 
 | Feature | Gen-2 | Gen-3 |
 |---|---|---|
-| **GEN-2 CORE** | Global gist + peripheral/foveal + multi-scale input | — |
+| **GEN-2 CORE** | Fixed gist + one peripheral stream (+ multi-scale input is NOT core — see §3.1) | — |
 | | Frozen / low-LR / fine-tuned trunk with drift monitoring | — |
 | | Spatial prediction error + multi-scale error pyramid | — |
 | | Learned gaze policy (MLP / recurrent / transformer / spatial map) | — |
@@ -549,7 +561,6 @@ Gen-3 FULL ACTIVE PERCEPTUAL INTELLIGENCE
 | | Episodic / semantic / visual memory | — |
 | | Experience replay / retrieval | — |
 | | Long-term memory | — |
-| | Counterfactual perception | — |
 | | Transformer / compositional reasoning | — |
 | | Scene graph | — |
 | | Object-centric representation (slots, identity, attributes, relations) | — |
