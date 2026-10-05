@@ -7,43 +7,32 @@ cognitive_vision_lab/cache/
 # Large scratch data (regenerated/downloaded, never committed)
 scratch/synthetic_stl10_115k_tradeslabels.pt
 scratch/synth_shards/
-phase1_training/checkpoints/
-phase2_attacks/adv_images/
-phase3_human_study/stimuli/
-phase3_human_study/data/
-phase4_analysis/figures/
-phase5_sdt/figures/
-runs/
-*.pyc
+# ── ARCHIVE: generated artifacts from historical generations ──
+archive/gen-1-cifar12/checkpoints/**/*.pth
+archive/gen-1-cifar12/checkpoints/**/*.npy
+archive/gen0/checkpoints-legacy/**/*.pth
+# ── GENERATED: checkpoints, runs, report (at repository root) ──
+checkpoints/**/*.pth
+runs/**/*.log
+runs/**/*.json
+report/**/*.json
+report/**/*.csv
+*.pth.sync
+# ── CYPRESS/TMPDB ──
+cypress/
+# ── Notebooks & config ──
+*.ipynb
 .env
 .tex
-# Monograph, report, figure, and documentation folders
-report/
-rhan_math/
-presentational/
-figures/
-figures_v2/
-figures_v3/
-RHANv10Report/
-# ── docs/ policy (2026-09-30): docs/ is a normal tracked directory EXCEPT for
-#    the explicitly ignored subpaths below (generated binaries / render output).
-#    A new contributor creating docs/<name>.md should NOT need a gitignore
-#    exception — plain `git add docs/whatever.md` works.
-docs/*
-!docs/*.md
-!docs/research/
-docs/research/*
-!docs/research/*.md
-!docs/research/*.csv
-!docs/research/*.json
-# legacy noesis PDF/LaTeX build artifacts (regenerable)
+# ── docs/ policy (existing) ──
+docs/*  !docs/*.md !docs/research/ !docs/research/*.md !docs/research/*.csv !docs/research/*.json
 docs/*.pdf
 docs/*:Zone.Identifier
 docs/stage3_environment.json
-# keep prior behavior: package-level docs dirs stay ignored
 rhan_core/docs/
-# RHAN_NXA/docs is the Gen-1 documentation deliverable — tracked, unlike legacy docs folders; it lives INSIDE the noesis_vision package as of 2026-09-24
 !noesis_vision/RHAN_NXA/docs/
+
+# ── Legacy excluded (existing) ──
 competition/
 Paper/
 paper/

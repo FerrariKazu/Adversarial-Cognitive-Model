@@ -13,8 +13,10 @@ code-commit guard.
    `cloud_setup/Kaggle_J1_FOUNDATION.py`)
 4. Eval/scratch archives + provenance indexes
 5. `docs/REFACTOR_REPORT.md`
-6. Branch audit (`phase/trial-1-clip`, `phase/trial-2-adaptive`, same-tip
-   deletion candidates)
+6. Branch audit — **COMPLETED (2026-10-05)**
+   `phase/trial-1-clip`, `phase/trial-2-adaptive` (same-tip, same-content
+   deletions) executed: confirm squash/merge shape; both deleted as they had
+   only 0 unique commits vs main and feature/rhan-next.
 
 ## Ordering against the cancellation
 
@@ -53,10 +55,9 @@ consistent naming conventions pass), and the branch audit (6) last.
 6. **U7 — `docs/REFACTOR_REPORT.md`**: the stage-2 equivalent of this
    forensic report; written after the renames so it reflects the target
    names.
-7. **U8 — branch audit**: `phase/trial-1-clip`, `phase/trial-2-adaptive`
-   (same-tip, same-content deletions) — confirm squash/merge shape, decide
-   delete vs preserve (do not touch the pure-CE archive or the
-   `FerrariKazu/…` HF repos).
+7. **U8 — branch audit**: COMPLETED (2026-10-05) — `phase/trial-1-clip`,
+   `phase/trial-2-adaptive` deleted; `phase/1-shaperesnet` retained (unique
+   research content).
 
 ## Guardrails (unchanged)
 

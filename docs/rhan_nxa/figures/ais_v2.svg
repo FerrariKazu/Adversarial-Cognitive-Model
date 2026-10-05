@@ -1,0 +1,213 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 20px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 12.5px; font-weight: 500; fill: #64748B; }
+      .panel { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 1.8; }
+      .header-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 13.5px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 11px; fill: #334155; }
+      .dim-badge { font-family: 'Liberation Mono', monospace; font-size: 10.5px; fill: #0D9488; font-weight: 600; }
+      .formula-text { font-family: 'Liberation Mono', monospace; font-size: 10.5px; fill: #0F766E; }
+      .arrow { stroke: #0D9488; stroke-width: 2; fill: none; marker-end: url(#arrow-teal-head); }
+      .arrow-dark { stroke: #334155; stroke-width: 1.8; fill: none; marker-end: url(#arrow-head); }
+      .cand-box { fill: #F0FDFA; stroke: #5EEAD4; stroke-width: 1.5; }
+      .cand-best { fill: #CCFBF1; stroke: #0D9488; stroke-width: 2.2; }
+    </style>
+    <marker id="arrow-teal-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#0D9488"/>
+    </marker>
+    <marker id="arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#334155"/>
+    </marker>
+    <!-- Scene panel clip: prevents labels running outside the left panel -->
+    <clipPath id="clip-scene">
+      <rect x="0" y="0" width="360" height="370"/>
+    </clipPath>
+    <!-- Eval panel clip -->
+    <clipPath id="clip-eval">
+      <rect x="0" y="0" width="530" height="370"/>
+    </clipPath>
+    <!-- Candidate row clips (490px wide rows) -->
+    <clipPath id="clip-cand1">
+      <rect x="0" y="0" width="490" height="48"/>
+    </clipPath>
+    <clipPath id="clip-cand2">
+      <rect x="0" y="0" width="490" height="48"/>
+    </clipPath>
+    <clipPath id="clip-cand3">
+      <rect x="0" y="0" width="490" height="56"/>
+    </clipPath>
+    <clipPath id="clip-cand4">
+      <rect x="0" y="0" width="490" height="48"/>
+    </clipPath>
+    <!-- Formula box clip -->
+    <clipPath id="clip-formula">
+      <rect x="0" y="0" width="490" height="48"/>
+    </clipPath>
+    <!-- Status bar clips -->
+    <clipPath id="clip-status-l">
+      <rect x="0" y="0" width="430" height="38"/>
+    </clipPath>
+    <clipPath id="clip-status-r">
+      <rect x="0" y="0" width="440" height="38"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1000" height="600" class="bg" rx="12"/>
+  <rect x="15" y="15" width="970" height="570" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <text x="35" y="45" class="title">Figure 5. AIS-v2 Active Information Sampling: Perception as Active Investigation</text>
+  <text x="35" y="66" class="subtitle">Candidate Probing via Shared Predictor: Selecting Gaze Fixation by Maximising Predicted Dirichlet Uncertainty Reduction</text>
+
+  <!-- LEFT PANEL: Visual Scene & Spatial Candidate Generation -->
+  <g transform="translate(35, 95)">
+    <rect width="360" height="370" class="panel" rx="8"/>
+    <g clip-path="url(#clip-scene)">
+      <text x="20" y="26" class="header-text" fill="#0F766E">1. Spatial Visual Scene &amp; Gaze History</text>
+
+      <!-- Abstract Visual Image Canvas -->
+      <rect x="25" y="42" width="310" height="250" fill="#F1F5F9" stroke="#94A3B8" rx="6"/>
+
+      <!-- Ambiguous Object Contour -->
+      <path d="M 60 170 Q 110 80 190 120 T 300 160 Q 250 260 150 240 Z" fill="#E2E8F0" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4,2"/>
+      <text x="175" y="175" text-anchor="middle" font-size="10.5px" fill="#64748B" font-style="italic">Ambiguous Object Contour</text>
+
+      <!-- Past Fixation History A_t (Center t=0) -->
+      <circle cx="180" cy="165" r="16" fill="none" stroke="#64748B" stroke-width="1.8" stroke-dasharray="3,2"/>
+      <circle cx="180" cy="165" r="3.5" fill="#64748B"/>
+      <text x="180" y="193" text-anchor="middle" font-size="10px" font-weight="700" fill="#64748B">a_1 (t=0 Center)</text>
+
+      <!-- Candidate 1 -->
+      <circle cx="90" cy="90" r="14" fill="#FEF3C7" stroke="#F59E0B" stroke-width="1.5"/>
+      <text x="90" y="95" text-anchor="middle" font-size="10.5px" font-weight="700" fill="#B45309">1</text>
+      <text x="90" y="116" text-anchor="middle" font-size="9px" fill="#78350F">Background</text>
+
+      <!-- Candidate 2 -->
+      <circle cx="280" cy="90" r="14" fill="#FEF3C7" stroke="#F59E0B" stroke-width="1.5"/>
+      <text x="280" y="95" text-anchor="middle" font-size="10.5px" font-weight="700" fill="#B45309">2</text>
+      <text x="280" y="116" text-anchor="middle" font-size="9px" fill="#78350F">Texture noise</text>
+
+      <!-- Candidate 3 (SELECTED - Boundary Saccade) -->
+      <circle cx="240" cy="210" r="22" fill="#CCFBF1" stroke="#0D9488" stroke-width="2.5"/>
+      <circle cx="240" cy="210" r="4" fill="#0D9488"/>
+      <text x="240" y="215" text-anchor="middle" font-size="12px" font-weight="800" fill="#0F766E">3</text>
+      <!-- Gaze Saccade Path -->
+      <path d="M 180 165 Q 200 175 228 202" stroke="#0D9488" stroke-width="2.5" fill="none" marker-end="url(#arrow-teal-head)"/>
+      <!-- Label inside the scene panel, left-anchored so it doesn't overflow -->
+      <text x="250" y="244" text-anchor="start" font-size="10px" font-weight="700" fill="#0D9488">★ Selected a_{t+1}</text>
+
+      <!-- Candidate 4 -->
+      <circle cx="95" cy="235" r="14" fill="#FEF3C7" stroke="#F59E0B" stroke-width="1.5"/>
+      <text x="95" y="240" text-anchor="middle" font-size="10.5px" font-weight="700" fill="#B45309">4</text>
+      <text x="95" y="260" text-anchor="middle" font-size="9px" fill="#78350F">Uniform shadow</text>
+
+      <!-- Bottom summary inside scene panel -->
+      <text x="25" y="312" class="body-text" font-weight="700">Sampler Protocol (K = 4 candidates):</text>
+      <text x="25" y="330" class="body-text">• Non-learned proposal covering visual field</text>
+      <text x="25" y="348" class="body-text">• Avoids past history A_t via spatial repulsion</text>
+    </g>
+  </g>
+
+  <!-- Arrow Left -> Center -->
+  <path d="M 395 280 L 433 280" class="arrow-dark"/>
+
+  <!-- CENTER & RIGHT PANELS: Predictive Scoring and Information Gain -->
+  <g transform="translate(433, 95)">
+    <rect width="532" height="370" class="panel" rx="8"/>
+    <g clip-path="url(#clip-eval)">
+      <text x="20" y="26" class="header-text" fill="#0F766E">2. Prospective Candidate Evaluation (Shared Predictor)</text>
+
+      <!-- Formula Box -->
+      <rect x="20" y="42" width="490" height="52" fill="#F0FDFA" stroke="#99F6E4" rx="5"/>
+      <g clip-path="url(#clip-formula)">
+        <text x="30" y="62" class="formula-text" font-size="11px">For each candidate k ∈ {1..K}:</text>
+        <text x="30" y="82" class="formula-text" font-size="10px">ΔH(k) = H(Dir(z_t)) − H(Dir(UpdateNet(z_t, Pred(z_t, a^(k)))))</text>
+      </g>
+
+      <!-- Candidate 1 Evaluation -->
+      <g transform="translate(20, 107)">
+        <rect width="490" height="48" class="cand-box" rx="5"/>
+        <g clip-path="url(#clip-cand1)">
+          <circle cx="20" cy="24" r="11" fill="#FEF3C7"/>
+          <text x="20" y="28" text-anchor="middle" font-size="10px" font-weight="700" fill="#B45309">1</text>
+          <text x="40" y="22" class="body-text" font-weight="700">Candidate 1: a^(1) = (-0.6, -0.6)</text>
+          <text x="40" y="38" class="body-text">Forecast: Uniform sky pixels | Pred Error: Low</text>
+          <rect x="350" y="14" width="72" height="20" fill="#E2E8F0" rx="3"/>
+          <text x="386" y="28" text-anchor="middle" class="dim-badge" fill="#64748B">ΔH = +0.03</text>
+          <text x="430" y="28" font-size="10px" fill="#94A3B8">Low gain</text>
+        </g>
+      </g>
+
+      <!-- Candidate 2 Evaluation -->
+      <g transform="translate(20, 162)">
+        <rect width="490" height="48" class="cand-box" rx="5"/>
+        <g clip-path="url(#clip-cand2)">
+          <circle cx="20" cy="24" r="11" fill="#FEF3C7"/>
+          <text x="20" y="28" text-anchor="middle" font-size="10px" font-weight="700" fill="#B45309">2</text>
+          <text x="40" y="22" class="body-text" font-weight="700">Candidate 2: a^(2) = (+0.5, -0.6)</text>
+          <text x="40" y="38" class="body-text">Forecast: High-freq leaf texture | Pred Error: Med</text>
+          <rect x="350" y="14" width="72" height="20" fill="#E2E8F0" rx="3"/>
+          <text x="386" y="28" text-anchor="middle" class="dim-badge" fill="#64748B">ΔH = +0.11</text>
+          <text x="430" y="28" font-size="10px" fill="#94A3B8">Modest</text>
+        </g>
+      </g>
+
+      <!-- Candidate 3 Evaluation (WINNER) -->
+      <g transform="translate(20, 217)">
+        <rect width="490" height="56" class="cand-best" rx="5"/>
+        <g clip-path="url(#clip-cand3)">
+          <!-- Solid teal circle with white number — no separate fill-rect overlay -->
+          <circle cx="20" cy="28" r="12" fill="#0D9488"/>
+          <text x="20" y="32" text-anchor="middle" font-size="11px" font-weight="800" fill="#FFFFFF">3</text>
+          <text x="40" y="22" class="header-text" font-size="12px" fill="#0F766E">Cand. 3: a^(3) = (+0.3, +0.4) [BOUNDARY]</text>
+          <text x="40" y="40" class="body-text" font-size="10.5px" fill="#115E59">Forecast: Critical eye/ear contour</text>
+          <text x="40" y="52" class="body-text" font-size="10.5px" fill="#115E59">Resolves class ambiguity</text>
+          <!-- ΔH badge: outline only (no opaque fill that obscures) -->
+          <rect x="350" y="16" width="76" height="24" fill="#CCFBF1" stroke="#0D9488" stroke-width="1.5" rx="3"/>
+          <text x="388" y="32" text-anchor="middle" class="dim-badge" fill="#0F766E">ΔH = +0.42</text>
+          <text x="432" y="32" font-size="11px" font-weight="800" fill="#0F766E">★ SELECTED</text>
+        </g>
+      </g>
+
+      <!-- Candidate 4 Evaluation -->
+      <g transform="translate(20, 280)">
+        <rect width="490" height="48" class="cand-box" rx="5"/>
+        <g clip-path="url(#clip-cand4)">
+          <circle cx="20" cy="24" r="11" fill="#FEF3C7"/>
+          <text x="20" y="28" text-anchor="middle" font-size="10px" font-weight="700" fill="#B45309">4</text>
+          <text x="40" y="22" class="body-text" font-weight="700">Candidate 4: a^(4) = (-0.5, +0.5)</text>
+          <text x="40" y="38" class="body-text">Forecast: Shaded ground plane | Pred Error: Low</text>
+          <rect x="350" y="14" width="72" height="20" fill="#E2E8F0" rx="3"/>
+          <text x="386" y="28" text-anchor="middle" class="dim-badge" fill="#64748B">ΔH = +0.06</text>
+          <text x="430" y="28" font-size="10px" fill="#94A3B8">Low gain</text>
+        </g>
+      </g>
+
+      <text x="25" y="350" class="body-text" font-weight="700">Selection Policy:</text>
+      <text x="115" y="350" class="body-text">Training: a_{t+1} ~ Softmax(ΔH/τ)  |  Eval: argmax ΔH</text>
+    </g>
+  </g>
+
+  <!-- BOTTOM SCIENTIFIC HONESTY BAR -->
+  <g transform="translate(35, 482)">
+    <rect width="930" height="88" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.5" rx="8"/>
+    <text x="20" y="24" class="header-text" fill="#991B1B">CRITICAL SCIENTIFIC STATUS SPECIFICATION (Preserved Verbatim)</text>
+
+    <g transform="translate(20, 36)">
+      <rect width="430" height="40" fill="#FFFFFF" stroke="#FECACA" rx="4"/>
+      <g clip-path="url(#clip-status-l)">
+        <text x="14" y="16" class="body-text" font-weight="700" fill="#047857">✔ TARGETED MECHANISM VALIDITY: REQUIRED</text>
+        <text x="14" y="31" class="body-text" font-size="10.5px">Pearson r = 0.706: predicted uncertainty drop vs. actual error reduction.</text>
+      </g>
+    </g>
+
+    <g transform="translate(468, 36)">
+      <rect width="442" height="40" fill="#FFFFFF" stroke="#FECACA" rx="4"/>
+      <g clip-path="url(#clip-status-r)">
+        <text x="14" y="16" class="body-text" font-weight="700" fill="#B91C1C">❓ ISOLATED SYSTEM-LEVEL CONTRIBUTION: UNKNOWN</text>
+        <text x="14" y="31" class="body-text" font-size="10.5px">Gen-0 D2/D3 confounded by accidental SBR. Under clean DAG re-evaluation.</text>
+      </g>
+    </g>
+  </g>
+</svg>

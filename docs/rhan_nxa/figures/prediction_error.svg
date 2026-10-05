@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 19px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 500; fill: #64748B; }
+      .card { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 1.8; rx: 8px; }
+      .card-err { fill: #FEF2F2; stroke: #EF4444; stroke-width: 2; rx: 8px; }
+      .card-upd { fill: #EFF6FF; stroke: #3B82F6; stroke-width: 2; rx: 8px; }
+      .header-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 13.5px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 11.5px; fill: #334155; }
+      .dim-badge { font-family: 'Liberation Mono', monospace; font-size: 10.5px; fill: #2563EB; font-weight: 600; }
+      .formula-text { font-family: 'Liberation Mono', monospace; font-size: 10.5px; fill: #B91C1C; }
+      .arrow { stroke: #334155; stroke-width: 1.8; fill: none; marker-end: url(#arrow-head); }
+      .arrow-blue { stroke: #2563EB; stroke-width: 2; fill: none; marker-end: url(#arrow-blue-head); }
+    </style>
+    <marker id="arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-blue-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#2563EB"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="540" class="bg" rx="12"/>
+  <rect x="15" y="15" width="930" height="510" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <text x="35" y="45" class="title">Figure 6. Latent Prediction Error E_t, Precision Weighting Π_t, and Bounded UpdateNet</text>
+  <text x="35" y="66" class="subtitle">Closed-Loop Hypothesis Testing: Feature Discrepancy Update Bounded by DELTA_BOUND = 0.1</text>
+
+  <!-- TOP COMPARISON: Observed vs Predicted Tokens -->
+  <g transform="translate(35, 95)">
+    <!-- Predicted Tokens -->
+    <g transform="translate(0, 0)">
+      <rect width="260" height="150" class="card" stroke="#D97706"/>
+      <text x="130" y="24" text-anchor="middle" class="header-text" fill="#B45309">Predicted Patch Features ĝ_t</text>
+      <text x="130" y="42" text-anchor="middle" class="body-text">Forecast from prior belief z_{t-1} + a_t</text>
+      
+      <!-- 4x4 Grid of Tokens -->
+      <g transform="translate(65, 55)">
+        <rect x="0" y="0" width="30" height="16" fill="#FED7AA" stroke="#F97316" rx="2"/>
+        <rect x="34" y="0" width="30" height="16" fill="#FED7AA" stroke="#F97316" rx="2"/>
+        <rect x="68" y="0" width="30" height="16" fill="#FED7AA" stroke="#F97316" rx="2"/>
+        <rect x="102" y="0" width="30" height="16" fill="#FED7AA" stroke="#F97316" rx="2"/>
+        <rect x="0" y="20" width="30" height="16" fill="#FED7AA" stroke="#F97316" rx="2"/>
+        <rect x="34" y="20" width="30" height="16" fill="#FED7AA" stroke="#F97316" rx="2"/>
+        <rect x="68" y="20" width="30" height="16" fill="#FED7AA" stroke="#F97316" rx="2"/>
+        <rect x="102" y="20" width="30" height="16" fill="#FED7AA" stroke="#F97316" rx="2"/>
+      </g>
+      <text x="130" y="112" text-anchor="middle" class="dim-badge" fill="#C2410C">Shape: [B, 16, 384]</text>
+      <text x="130" y="132" text-anchor="middle" class="body-text" font-size="10.5px">Predictor Output (Shared MLP)</text>
+    </g>
+
+    <!-- Difference / Comparator Circle -->
+    <circle cx="310" cy="75" r="20" fill="#FEE2E2" stroke="#EF4444" stroke-width="2"/>
+    <text x="310" y="82" text-anchor="middle" font-size="20px" font-weight="700" fill="#DC2626">−</text>
+
+    <!-- Observed Tokens -->
+    <g transform="translate(360, 0)">
+      <rect width="260" height="150" class="card" stroke="#16A34A"/>
+      <text x="130" y="24" text-anchor="middle" class="header-text" fill="#15803D">Observed Patch Features g_t^obs</text>
+      <text x="130" y="42" text-anchor="middle" class="body-text">Foveated Glimpse Patch at a_t</text>
+      
+      <!-- 4x4 Grid of Tokens -->
+      <g transform="translate(65, 55)">
+        <rect x="0" y="0" width="30" height="16" fill="#BBF7D0" stroke="#22C55E" rx="2"/>
+        <rect x="34" y="0" width="30" height="16" fill="#BBF7D0" stroke="#22C55E" rx="2"/>
+        <rect x="68" y="0" width="30" height="16" fill="#BBF7D0" stroke="#22C55E" rx="2"/>
+        <rect x="102" y="0" width="30" height="16" fill="#BBF7D0" stroke="#22C55E" rx="2"/>
+        <rect x="0" y="20" width="30" height="16" fill="#BBF7D0" stroke="#22C55E" rx="2"/>
+        <rect x="34" y="20" width="30" height="16" fill="#BBF7D0" stroke="#22C55E" rx="2"/>
+        <rect x="68" y="20" width="30" height="16" fill="#BBF7D0" stroke="#22C55E" rx="2"/>
+        <rect x="102" y="20" width="30" height="16" fill="#BBF7D0" stroke="#22C55E" rx="2"/>
+      </g>
+      <text x="130" y="112" text-anchor="middle" class="dim-badge" fill="#15803D">Shape: [B, 16, 384]</text>
+      <text x="130" y="132" text-anchor="middle" class="body-text" font-size="10.5px">Patch Embedder Output</text>
+    </g>
+
+    <!-- Arrow to Error E_t -->
+    <path d="M 620 75 L 670 75" class="arrow"/>
+
+    <!-- Error Tensor Box -->
+    <g transform="translate(670, 0)">
+      <rect width="220" height="150" class="card-err"/>
+      <text x="110" y="24" text-anchor="middle" class="header-text" fill="#B91C1C">Prediction Error E_t</text>
+      <text x="110" y="46" text-anchor="middle" class="formula-text">E_t = ||g_t^obs - ĝ_t||_2</text>
+      <text x="110" y="70" text-anchor="middle" class="body-text">Mean token pooling:</text>
+      <rect x="25" y="80" width="170" height="24" fill="#FFFFFF" stroke="#FCA5A5" rx="4"/>
+      <text x="110" y="96" text-anchor="middle" class="dim-badge" fill="#DC2626">E_t^pooled: [B, 384]</text>
+      <text x="110" y="125" text-anchor="middle" class="body-text" font-size="10px">Boundary: E_0 := 0</text>
+    </g>
+  </g>
+
+  <!-- MIDDLE SECTION: Precision Weighting Modulation -->
+  <g transform="translate(35, 275)">
+    <rect width="890" height="100" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5" rx="8"/>
+    <text x="25" y="26" class="header-text" fill="#B45309">Precision Weighting Mechanism: Π_t = max(1 − U_t, 10^-4)</text>
+    <text x="25" y="48" class="body-text">HIGH U_t (ambiguous / noisy glimpse): Π_t → 10^-4 — Dampens update, prevents corrupting belief.</text>
+    <text x="25" y="66" class="body-text">LOW U_t (confident diagnostic glimpse): Π_t → 1.0 — Full predictive error applied to z_t.</text>
+  </g>
+
+  <!-- BOTTOM SECTION: UpdateNet Integration & Bounding -->
+  <g transform="translate(35, 395)">
+    <rect width="890" height="120" class="card-upd" rx="8"/>
+    <text x="25" y="26" class="header-text" fill="#1D4ED8">UpdateNet: Bounded Belief Integration (DELTA_BOUND = 0.1)</text>
+
+    <!-- Formula & Explanation -->
+    <g transform="translate(25, 40)">
+      <rect width="450" height="60" fill="#FFFFFF" stroke="#93C5FD" rx="5"/>
+      <text x="15" y="24" class="formula-text" font-size="11.5px" fill="#1E40AF">Δz_t = DELTA_BOUND · tanh(MLP([z_{t-1} || Π_t ⊙ E_t^pooled]))</text>
+      <text x="15" y="46" class="dim-badge">Input: [B, 768] → MLP (768→384→384) → Output Δz_t: [B, 384]</text>
+    </g>
+
+    <!-- Why Bounding Matters (Callout) -->
+    <g transform="translate(500, 40)">
+      <rect width="365" height="60" fill="#DBEAFE" stroke="#60A5FA" rx="5"/>
+      <text x="15" y="20" class="body-text" font-weight="700" fill="#1E3A8A">Hard Bound Invariant: ||Δz_t||_∞ ≤ 0.1</text>
+      <text x="15" y="38" class="body-text" font-size="10.5px" fill="#1E3A8A">• Prevents single-glimpse adversarial noise from flipping state.</text>
+      <text x="15" y="52" class="body-text" font-size="10.5px" fill="#1E3A8A">• Rejects raw linear addition z + λΠE (DR-003 rejection).</text>
+    </g>
+  </g>
+</svg>

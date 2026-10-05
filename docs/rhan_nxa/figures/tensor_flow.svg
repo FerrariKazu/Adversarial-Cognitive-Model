@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 19px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 500; fill: #64748B; }
+      .node { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 1.8; rx: 6px; }
+      .header-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 13px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 11px; fill: #334155; }
+      .dim-badge { font-family: 'Liberation Mono', monospace; font-size: 11px; fill: #2563EB; font-weight: 700; }
+      .arrow { stroke: #334155; stroke-width: 1.8; fill: none; marker-end: url(#arrow-head); }
+      .arrow-branch { stroke: #0284C7; stroke-width: 1.8; fill: none; marker-end: url(#arrow-blue-head); }
+    </style>
+    <marker id="arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-blue-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#0284C7"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="600" class="bg" rx="12"/>
+  <rect x="15" y="15" width="970" height="570" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <text x="35" y="45" class="title">Figure 11. End-to-End Architectural Tensor Flow and Dimensional Contracts</text>
+  <text x="35" y="66" class="subtitle">Complete Data Pipeline Mapping from High-Resolution Input Image to Multi-Branch Belief Updates</text>
+
+  <!-- LINEAR TRUNK: Left-to-Right from Input to z_t -->
+  
+  <!-- 1. Input Image -->
+  <g transform="translate(35, 110)">
+    <rect width="140" height="100" class="node" stroke="#64748B"/>
+    <text x="70" y="24" text-anchor="middle" class="header-text">Input Image x</text>
+    <text x="70" y="45" text-anchor="middle" class="body-text">Full visual scene</text>
+    <rect x="10" y="58" width="120" height="26" fill="#F1F5F9" rx="4"/>
+    <text x="70" y="75" text-anchor="middle" class="dim-badge">[B, 3, 224, 224]</text>
+  </g>
+
+  <!-- Arrow x -> Fovea -->
+  <path d="M 175 160 L 220 160" class="arrow"/>
+  <text x="197" y="152" text-anchor="middle" font-size="9px" fill="#64748B">a_t [B,2]</text>
+
+  <!-- 2. Foveated Glimpse -->
+  <g transform="translate(220, 110)">
+    <rect width="140" height="100" class="node" stroke="#16A34A" fill="#F0FDF4"/>
+    <text x="70" y="24" text-anchor="middle" class="header-text" fill="#15803D">Foveal Patch g_t</text>
+    <text x="70" y="45" text-anchor="middle" class="body-text">STN Bilinear Grid</text>
+    <rect x="10" y="58" width="120" height="26" fill="#DCFCE7" rx="4"/>
+    <text x="70" y="75" text-anchor="middle" class="dim-badge" fill="#15803D">[B, 3, 56, 56]</text>
+  </g>
+
+  <!-- Arrow Fovea -> Patch Tokens -->
+  <path d="M 360 160 L 405 160" class="arrow"/>
+  <text x="382" y="152" text-anchor="middle" font-size="9px" fill="#64748B">14×14 P</text>
+
+  <!-- 3. Patch Embeddings -->
+  <g transform="translate(405, 110)">
+    <rect width="150" height="100" class="node" stroke="#2563EB" fill="#EFF6FF"/>
+    <text x="75" y="24" text-anchor="middle" class="header-text" fill="#1D4ED8">Patch Tokens H^(0)</text>
+    <text x="75" y="45" text-anchor="middle" class="body-text">4×4 Grid = 16 tokens</text>
+    <rect x="10" y="58" width="130" height="26" fill="#DBEAFE" rx="4"/>
+    <text x="75" y="75" text-anchor="middle" class="dim-badge">[B, 16, 384]</text>
+  </g>
+
+  <!-- Arrow Tokens -> CompactViT -->
+  <path d="M 555 160 L 600 160" class="arrow"/>
+
+  <!-- 4. CompactViT Refinement -->
+  <g transform="translate(600, 100)">
+    <rect width="165" height="120" class="node" stroke="#2563EB" fill="#DBEAFE"/>
+    <text x="82" y="24" text-anchor="middle" class="header-text" fill="#1E40AF">CompactViT</text>
+    <text x="82" y="42" text-anchor="middle" class="body-text">Tied Refinement (2 iters)</text>
+    <text x="82" y="60" text-anchor="middle" class="body-text">CLS token pool</text>
+    <rect x="12" y="75" width="140" height="30" fill="#BFDBFE" rx="4"/>
+    <text x="82" y="94" text-anchor="middle" class="dim-badge" fill="#1E3A8A">Refined: [B, 16, 384]</text>
+  </g>
+
+  <!-- Arrow CompactViT -> z_t -->
+  <path d="M 765 160 L 810 160" class="arrow"/>
+  <text x="787" y="152" text-anchor="middle" font-size="9px" fill="#64748B">Pool</text>
+
+  <!-- 5. Belief State z_t -->
+  <g transform="translate(810, 105)">
+    <rect width="145" height="100" class="node" stroke="#0284C7" fill="#F0F9FF" stroke-width="2.5"/>
+    <text x="72" y="24" text-anchor="middle" class="header-text" fill="#0369A1">Global State z_t</text>
+    <text x="72" y="45" text-anchor="middle" class="body-text">Central Substrate</text>
+    <rect x="10" y="58" width="125" height="26" fill="#BAE6FD" rx="4"/>
+    <text x="72" y="75" text-anchor="middle" class="dim-badge" fill="#0369A1">[B, 384]</text>
+  </g>
+
+  <!-- DIVERGENT BRANCHES FROM z_t (Bottom Half) -->
+  
+  <!-- Branch Distribution Bus Line -->
+  <path d="M 882 205 L 882 270 L 110 270" stroke="#0284C7" stroke-width="2" fill="none"/>
+  <circle cx="882" cy="270" r="4" fill="#0284C7"/>
+
+  <!-- BRANCH 1: Evidential Head -->
+  <g transform="translate(35, 300)">
+    <path d="M 110 270 L 110 300" class="arrow-branch"/>
+    <rect width="210" height="170" class="node" stroke="#D97706" fill="#FFFBEB"/>
+    <text x="105" y="24" text-anchor="middle" class="header-text" fill="#B45309">1. EvidentialHead</text>
+    <text x="15" y="46" class="body-text">Linear projection + softplus:</text>
+    <rect x="15" y="55" width="180" height="24" fill="#FFFFFF" stroke="#FED7AA" rx="3"/>
+    <text x="105" y="71" text-anchor="middle" class="dim-badge" fill="#C2410C">Evidence e: [B, 100]</text>
+    <text x="15" y="98" class="body-text">Dirichlet Alpha parameters:</text>
+    <rect x="15" y="106" width="180" height="24" fill="#FFFFFF" stroke="#FED7AA" rx="3"/>
+    <text x="105" y="122" text-anchor="middle" class="dim-badge" fill="#C2410C">Alpha α: [B, 100] (α≥1)</text>
+    <text x="105" y="152" text-anchor="middle" class="header-text" fill="#B45309">Uncertainty U_t: [B, 1]</text>
+  </g>
+
+  <!-- BRANCH 2: Shared Glimpse Predictor -->
+  <g transform="translate(265, 300)">
+    <path d="M 370 270 L 370 300" class="arrow-branch"/>
+    <rect width="215" height="170" class="node" stroke="#D97706"/>
+    <text x="107" y="24" text-anchor="middle" class="header-text" fill="#B45309">2. Glimpse Predictor</text>
+    <text x="15" y="46" class="body-text">Input: [z_t, a_{next}] = [B, 386]</text>
+    <rect x="15" y="55" width="185" height="24" fill="#FDF9F6" stroke="#FED7AA" rx="3"/>
+    <text x="107" y="71" text-anchor="middle" class="dim-badge" fill="#C2410C">Shared MLP (~2.8M)</text>
+    <text x="15" y="98" class="body-text">Projects anticipated tokens:</text>
+    <rect x="15" y="106" width="185" height="24" fill="#FEF3C7" stroke="#FDE047" rx="3"/>
+    <text x="107" y="122" text-anchor="middle" class="dim-badge" fill="#B45309">ĝ_t: [B, 16, 384]</text>
+    <text x="107" y="152" text-anchor="middle" class="body-text" font-size="10.5px">Consumed by E_t &amp; AIS-v2</text>
+  </g>
+
+  <!-- BRANCH 3: AIS-v2 Gaze Policy -->
+  <g transform="translate(500, 300)">
+    <path d="M 610 270 L 610 300" class="arrow-branch"/>
+    <rect width="220" height="170" class="node" stroke="#0D9488" fill="#F0FDFA"/>
+    <text x="110" y="24" text-anchor="middle" class="header-text" fill="#0F766E">3. AIS-v2 Gaze Policy</text>
+    <text x="15" y="46" class="body-text">Samples K candidates in [-1, 1]²:</text>
+    <rect x="15" y="55" width="190" height="24" fill="#FFFFFF" stroke="#99F6E4" rx="3"/>
+    <text x="110" y="71" text-anchor="middle" class="dim-badge" fill="#0D9488">a_cand: [B, K, 2]</text>
+    <text x="15" y="98" class="body-text">Scores Dirichlet entropy drop:</text>
+    <rect x="15" y="106" width="190" height="24" fill="#FFFFFF" stroke="#99F6E4" rx="3"/>
+    <text x="110" y="122" text-anchor="middle" class="dim-badge" fill="#0D9488">Scores: [B, K]</text>
+    <text x="110" y="152" text-anchor="middle" class="header-text" fill="#0F766E">Selected Gaze: a_{t+1} [B, 2]</text>
+  </g>
+
+  <!-- BRANCH 4: UpdateNet & Prediction Error -->
+  <g transform="translate(740, 300)">
+    <path d="M 850 270 L 850 300" class="arrow-branch"/>
+    <rect width="215" height="170" class="node" stroke="#2563EB" fill="#EFF6FF"/>
+    <text x="107" y="24" text-anchor="middle" class="header-text" fill="#1D4ED8">4. UpdateNet Fusion</text>
+    <text x="15" y="46" class="body-text">Realized Error E_t^pooled: [B, 384]</text>
+    <text x="15" y="66" class="body-text">Precision Π_t: [B, 1]</text>
+    <rect x="15" y="76" width="185" height="24" fill="#DBEAFE" stroke="#93C5FD" rx="3"/>
+    <text x="107" y="92" text-anchor="middle" class="dim-badge">Input [z || ΠE]: [B, 768]</text>
+    <text x="15" y="118" class="body-text">Bounded State Update:</text>
+    <rect x="15" y="126" width="185" height="26" fill="#2563EB" rx="3"/>
+    <text x="107" y="143" text-anchor="middle" class="dim-badge" fill="#FFFFFF">Δz_t: [B, 384] (|Δz|≤0.1)</text>
+  </g>
+
+  <!-- Bottom Legend & Invariants -->
+  <g transform="translate(35, 490)">
+    <rect width="920" height="70" fill="#FFFFFF" stroke="#E2E8F0" rx="6"/>
+    <text x="20" y="22" class="header-text" font-size="12px">Architectural Invariants &amp; Boundary Rules:</text>
+    <text x="20" y="42" class="body-text">• Boundary Invariant (t=0): z_0 = 0 [B, 384], U_0 = 1.0 [B, 1], E_0 := 0 [B, 384], a_1 = (0, 0) [B, 2].</text>
+    <text x="20" y="58" class="body-text">• None-Propagating Rule: S_t = None throughout Gen-1 Core. All tensor operations execute without S_t.</text>
+  </g>
+</svg>

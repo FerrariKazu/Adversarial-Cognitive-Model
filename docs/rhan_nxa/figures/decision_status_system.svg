@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 19px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 500; fill: #64748B; }
+      .header-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 13.5px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 11px; fill: #334155; }
+      .badge-label { font-family: 'Liberation Mono', monospace; font-size: 11px; font-weight: 800; }
+    </style>
+  </defs>
+
+  <rect width="960" height="520" class="bg" rx="12"/>
+  <rect x="15" y="15" width="930" height="490" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <text x="35" y="45" class="title">Figure 10. The Epistemic Decision Status Visual System</text>
+  <text x="35" y="66" class="subtitle">Six Non-Subjective Status Categories Differentiated by Shape, Border Geometry, and Iconographic Motifs</text>
+
+  <!-- GRID: 2 Rows of 3 Cards -->
+
+  <!-- 1. LOCKED -->
+  <g transform="translate(35, 95)">
+    <rect width="275" height="180" fill="#FFFFFF" stroke="#0F172A" stroke-width="2.5" rx="8"/>
+    <!-- Double border accent -->
+    <rect x="5" y="5" width="265" height="170" fill="none" stroke="#0F172A" stroke-width="1" rx="6"/>
+    <!-- Lock Motif Icon -->
+    <rect x="20" y="18" width="18" height="14" fill="#0F172A" rx="2"/>
+    <path d="M 23 18 L 23 13 C 23 9 35 9 35 13 L 35 18" fill="none" stroke="#0F172A" stroke-width="2"/>
+    <text x="48" y="30" class="badge-label" fill="#0F172A">LOCKED</text>
+    <text x="20" y="56" class="header-text">Architectural Constant</text>
+    <text x="20" y="76" class="body-text">• Invariant design choice; no change permitted.</text>
+    <text x="20" y="94" class="body-text">• Verified and frozen across codebase.</text>
+    <text x="20" y="112" class="body-text">• Visual Rule: Heavy double solid line.</text>
+    <text x="20" y="136" class="body-text" font-weight="700">Examples:</text>
+    <text x="20" y="154" class="body-text" font-size="10px">D_z = 384, T = 4, Option C tied recurrence, E_0 := 0</text>
+  </g>
+
+  <!-- 2. REQUIRED -->
+  <g transform="translate(340, 95)">
+    <rect width="275" height="180" fill="#FFFFFF" stroke="#0284C7" stroke-width="2.2" rx="8"/>
+    <!-- Checkmark Motif Icon -->
+    <circle cx="28" cy="25" r="9" fill="#0284C7"/>
+    <path d="M 23 25 L 27 29 L 34 21" fill="none" stroke="#FFFFFF" stroke-width="2"/>
+    <text x="45" y="30" class="badge-label" fill="#0284C7">REQUIRED</text>
+    <text x="20" y="56" class="header-text" fill="#0369A1">Mandatory Core Module</text>
+    <text x="20" y="76" class="body-text">• Mandatory component for Gen-1 operation.</text>
+    <text x="20" y="94" class="body-text">• Fully implemented under strict ABC contract.</text>
+    <text x="20" y="112" class="body-text">• Visual Rule: Clean solid primary border.</text>
+    <text x="20" y="136" class="body-text" font-weight="700">Examples:</text>
+    <text x="20" y="154" class="body-text" font-size="10px">BeliefState ABC, EvidentialHead, Shared Predictor</text>
+  </g>
+
+  <!-- 3. EXPERIMENTAL CANDIDATE -->
+  <g transform="translate(645, 95)">
+    <rect width="275" height="180" fill="#FDFEFE" stroke="#D97706" stroke-width="2" stroke-dasharray="7,4" rx="8"/>
+    <!-- Compass / Flask Motif Icon -->
+    <circle cx="28" cy="25" r="9" fill="none" stroke="#D97706" stroke-width="1.8"/>
+    <polygon points="28,19 32,25 28,31 24,25" fill="#D97706"/>
+    <text x="45" y="30" class="badge-label" fill="#D97706">EXPERIMENTAL CANDIDATE</text>
+    <text x="20" y="56" class="header-text" fill="#B45309">Hypothesis Under DAG Validation</text>
+    <text x="20" y="76" class="body-text">• Formally specified mechanism undergoing evaluation.</text>
+    <text x="20" y="94" class="body-text">• Empirical benefit is a hypothesis, NOT a fact.</text>
+    <text x="20" y="112" class="body-text">• Visual Rule: Dashed border with compass motif.</text>
+    <text x="20" y="136" class="body-text" font-weight="700">Examples:</text>
+    <text x="20" y="154" class="body-text" font-size="10px">Latent E_t UpdateNet, V1 Gabor Bank (Step 9)</text>
+  </g>
+
+  <!-- 4. DEFERRED -->
+  <g transform="translate(35, 295)">
+    <rect width="275" height="180" fill="#F8FAFC" stroke="#64748B" stroke-width="1.8" stroke-dasharray="3,3" rx="8"/>
+    <!-- Clock / Pause Motif Icon -->
+    <circle cx="28" cy="25" r="9" fill="none" stroke="#64748B" stroke-width="1.8"/>
+    <path d="M 28 20 L 28 25 L 32 25" fill="none" stroke="#64748B" stroke-width="1.8"/>
+    <text x="45" y="30" class="badge-label" fill="#64748B">DEFERRED</text>
+    <text x="20" y="56" class="header-text" fill="#475569">Postponed Architecture Idea</text>
+    <text x="20" y="76" class="body-text">• Idea accepted in concept but withheld from Gen-1.</text>
+    <text x="20" y="94" class="body-text">• Awaits validated clean core baseline (Step 6).</text>
+    <text x="20" y="112" class="body-text">• Visual Rule: Muted dotted border with clock motif.</text>
+    <text x="20" y="136" class="body-text" font-weight="700">Examples:</text>
+    <text x="20" y="154" class="body-text" font-size="10px">Structural S_t (2–4 slots), Adaptive Halting, Video Memory</text>
+  </g>
+
+  <!-- 5. REJECTED -->
+  <g transform="translate(340, 295)">
+    <rect width="275" height="180" fill="#FEF2F2" stroke="#DC2626" stroke-width="2" rx="8"/>
+    <!-- Crossed / Prohibition Motif Icon -->
+    <circle cx="28" cy="25" r="9" fill="none" stroke="#DC2626" stroke-width="1.8"/>
+    <line x1="22" y1="31" x2="34" y2="19" stroke="#DC2626" stroke-width="2"/>
+    <text x="45" y="30" class="badge-label" fill="#DC2626">REJECTED OUTRIGHT</text>
+    <text x="20" y="56" class="header-text" fill="#991B1B">Banned From Codebase</text>
+    <text x="20" y="76" class="body-text">• Dismissed on empirical or theoretical grounds.</text>
+    <text x="20" y="94" class="body-text">• Prohibited from entering code, even as fallback.</text>
+    <text x="20" y="112" class="body-text">• Visual Rule: Red crossed icon &amp; diagonal slash.</text>
+    <text x="20" y="136" class="body-text" font-weight="700">Examples:</text>
+    <text x="20" y="154" class="body-text" font-size="10px">16-slot SBR code, Pixel reconstruction, External RAG</text>
+  </g>
+
+  <!-- 6. UNKNOWN -->
+  <g transform="translate(645, 295)">
+    <rect width="275" height="180" fill="#FDF4FF" stroke="#A855F7" stroke-width="2" stroke-dasharray="5,3,1,3" rx="8"/>
+    <!-- Question Mark Motif Icon -->
+    <circle cx="28" cy="25" r="9" fill="none" stroke="#A855F7" stroke-width="1.8"/>
+    <text x="28" y="29" text-anchor="middle" font-size="12px" font-weight="800" fill="#A855F7">?</text>
+    <text x="45" y="30" class="badge-label" fill="#9333EA">UNKNOWN</text>
+    <text x="20" y="56" class="header-text" fill="#7E22CE">Scientifically Unresolved Claim</text>
+    <text x="20" y="76" class="body-text">• Evidence was confounded or never gathered.</text>
+    <text x="20" y="94" class="body-text">• Must NOT be turned into a fact or dismissed.</text>
+    <text x="20" y="112" class="body-text">• Visual Rule: Purple dash-dot border with ? motif.</text>
+    <text x="20" y="136" class="body-text" font-weight="700">Examples:</text>
+    <text x="20" y="154" class="body-text" font-size="10px">AIS-v2 isolated robustness contribution, D3 vs Null</text>
+  </g>
+</svg>

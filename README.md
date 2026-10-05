@@ -1,12 +1,13 @@
 # Adversarial Cognition Divergence
+
 **A 12-model + human psychophysics study of adversarial robustness**
 
-> Does adversarial robustness scale with global visual processing —
-> and is it determined by architecture, training objective, or recurrence?
+> Does adversarial robustness scale with global visual processing — and is it
+> determined by architecture, training objective, or recurrence?
 
 ---
 
-## CURRENT RESEARCH GENERATION — RHAN-NXA / Gen-1
+## CURRENT RESEARCH GENERATION: RHAN-NXA / Gen-1
 
 The active system on branch `feature/rhan-next` is **RHAN-NXA (Generation 1)**,
 packaged as `noesis_vision/` and trained by the six-phase foundation ladder
@@ -20,7 +21,7 @@ with the TRADES/PGD adversarial curriculum as the **default** objective.
 | Current training | `training/train_generation1_foundation.py` (+ `training/adv_curriculum.py`) |
 | Current evaluation | `evaluation/clean_and_robust.py` via `scripts/generate_full_sweep.py` |
 | Tests | `tests/` — run `python3 -m pytest tests/ -q` |
-| Cloud launcher | `cloud_setup/Kaggle_J1_FOUNDATION.py` |
+| Cloud launcher | `cloud/gen1/Kaggle_J1_FOUNDATION.py` |
 | Repository map (authoritative) | `docs/REPOSITORY_MAP.md` |
 | Contributor guide | `CONTRIBUTING.md` |
 
@@ -29,7 +30,7 @@ with the TRADES/PGD adversarial curriculum as the **default** objective.
 ```text
 RHAN historical lineage (CIFAR-10 12-model study, RHAN v1–v7, STL-10 scale-up)
         ↓
-Gen-0 / RHAN-Next  (rhan_core/ — frozen reference generation)
+Gen-0 / RHAN-Next  (archive/gen0/ — frozen reference generation)
         ↓
 Gen-1 / RHAN-NXA   (noesis_vision/ — CURRENT)
         ↓
@@ -39,270 +40,211 @@ future RHAN generations
 ### Naming contract
 
 - **RHAN** — the research lineage / architecture family (all generations).
-- **RHAN-Next** — the Generation-0 model + package (`rhan_core/`); frozen,
+- **RHAN-Next** — the Generation-0 model + package (`archive/gen0/`); frozen,
   kept as the comparison reference. Formerly marked "Current" in this README.
 - **RHAN-NXA** — the Generation-1 architecture (`noesis_vision/`); current.
 - **NOESIS** — the umbrella research/software identity used by the Gen-1
   documentation (`docs/NOESIS_FOUNDATION.md`, `noesis_vision/RHAN_NXA/`):
   "RHAN-NXA" names the architecture, "NOESIS" names the framework.
 - **RHANvN** (v1–v12) — the pre-Gen-0 CIFAR/STL-10 lineage in
-  `phase1_training/` (historical).
-
-### Scientific provenance: the two Gen-1 arms
-
-The first Gen-1 foundation run (2026-09-25→26) trained with **pure
-cross-entropy** — an owned planning gap. It is preserved as the **historical
-control arm** (`report/GEN1_RESULTS_MASTER.md`; archived on the HF rolling
-repo under `archive/gen1_pure_ce_<stamp>/`). The **corrected adversarial
-run** (TRADES/PGD curriculum: ε 0.031→0.062→0.094, β 2.0→2.5, PGD-4,
-`w_trades` 0.55) is a separate arm. Result tables are never merged; every
-run's manifest records its objective (`adv_curriculum.clean_only`), so the
-question **"which training objective produced this number?" always has an
-auditable answer.**
+  `archive/gen-1-cifar12/` (historical).
 
 ---
 
-## RHAN-Next (Gen-0) — Historical / Reference Generation
+## HOW TO WORK: WHERE DO I GO?
 
-> Status: **frozen reference**, superseded by RHAN-NXA above. Kept because
-> Gen-1's results are compared against Gen-0's. `rhan_core/` and its
-> entrypoints must not be "upgraded" to Gen-1 abstractions.
-> The section below is preserved verbatim from the Gen-0 era
-> (its "Running/Pending" rows describe 2026-07 state, not current state).
-
-The latest generation (**RHAN-Next**, branch `feature/rhan-next`) composes two biologically-inspired pillars into a single architecture:
-
-- **AIS (Active Inference Suite)**: Entropy-gated halting, information-gain gaze policy, precision-modulated reconstruction — reformulates visual perception as a temporal control loop over discrete foraging steps.
-- **HPC (Hierarchical Predictive Coding)**: Single-level edge-map prediction error loss — the brain's own unsupervised learning signal, regularizing the backbone without labels.
-
-### Three-Stage Experimental Protocol
-
-| Stage | Config | Clean Acc | PGD-50 @ ε=0.094 | PGD-100 @ ε=0.094 | Verdict |
-|---|---|---|---|---|---|
-| **1** | AIS-v1 (halting-only) | 49.40±3.47% | 32.21±2.74% | 32.17±2.65% | ✅ Genuine robustness, +8.5pp vs baseline (not significant at 8-seed) |
-| **2** | HPC-only | 55.20±3.67% | 27.87±1.95% | 27.40±2.22% | ✅ Genuine robustness, +7.5pp vs baseline (significant) |
-| **3** | **D = AIS + HPC** | **56.16%** (1 seed) | *Running* | *Pending* | 8-seed eval in progress |
-| ref | TRADES-Large baseline | 53.47±2.87% | 20.40±1.21% | 19.87±1.07% | Baseline |
-
-**Key findings so far:**
-- Both AIS and HPC individually produce **genuine** adversarial robustness (PGD-50→100 gaps well below masking threshold)
-- HPC adds **+5.8 pp clean accuracy** over AIS alone, at the cost of some robustness
-- The combined model D achieves **56.16% clean** (best single seed), exceeding both components
-- All evals use the Finding-17 matched norm-space convention, 5–8 seeds, n=300/seed
-
-### Architecture
-
-```
-RHANNext (76.7M params)
-  ├── RHANv12 backbone (frozen subclass)
-  │     ├── Ventral stream (Transformer encoder)
-  │     ├── Dorsal stream (Transformer encoder)
-  │     ├── ParafovealStream (96×96 blurred)
-  │     ├── FovealStream (48×48 STN crop)
-  │     └── FovealParafovealGate (α blending)
-  ├── AIS pillar (toggleable)
-  │     ├── InformationGainGazePolicy (select_action → gaze coordinates)
-  │     ├── EntropyGatedHalting (soft continuation weights)
-  │     ├── PrecisionModulator (Π_D, Kalman-style)
-  │     └── GenerativePrior (reconstruction loss)
-  └── HPC pillar (toggleable)
-        └── HierarchicalPredictiveStack (edge_map prediction, 1 level)
-```
-
-### Key Files
-
-| Component | Path |
+| I want to… | → Path |
 |---|---|
-| RHANNext model | `rhan_core/model.py` |
-| RHANNext config | `rhan_core/config/pillar_config.py` |
-| AIS gaze policy | `rhan_core/gaze/` |
-| HPC predictor | `rhan_core/predictive_coding/` |
-| Trainer | `phase1_training/train_rhan_next.py` |
-| Frozen eval entrypoint | `phase2_attacks/eval_rhan.py` |
-| Stage 1-3 notebooks | `cloud_setup/colab_notebook_noesis.py`, `cloud_setup/Kaggle_NOESIS.py` |
-| Roadmap | `docs/rhan_next_roadmap.json` |
+| Modify the current model / package | `noesis_vision/` |
+| Modify the canonical Gen-1 trainer | `training/train_generation1_foundation.py` |
+| Modify the training curriculum | `training/adv_curriculum.py` |
+| Modify the phase state machine | `training/stage_state_machine.py` |
+| Modify Stage-2 pipeline / DAG | `training/stage2_pipeline.py` |
+| Modify evaluation harness | `evaluation/` |
+| Add an experiment (future) | `experiments/` |
+| Run diagnostics / forensics | `diagnostics/` |
+| Reproduce current six-phase ladder | `training/train_generation1_foundation.py --smoke` |
+| Inspect historical RHAN v1–v7 | `archive/rhan-v1-v7/` |
+| Inspect Gen-0 RHAN-Next | `archive/gen0/` |
+| Reproduce pre-Gen-1 CIFAR/STL pipeline | `archive/gen-1-cifar12/` |
+| Inspect frozen Gen-0 eval entrypoint | `archive/legacy-evals/phase2_attacks/eval_rhan.py` |
+| Launch cloud training (Gen-1) | `cloud/gen1/` |
 
-### Reproduce
+---
 
-```bash
-# Stage 3 training (D = AIS-v1 + HPC, 60 epochs)
-python3 phase1_training/train_rhan_next.py \
-  --enable-ais --no-ais-precision-recon \
-  --enable-hpc --hpc-num-levels 1 --w-hpc 0.10 \
-  --ckpt-name rhan_next_ais_hpc --max-epochs 60 \
-  --target-ckpt checkpoints/rhan_next_ais_v1_halting_only_best.pth
+## REPOSITORY MAP
 
-# 8-seed eval (PGD-50 + PGD-100)
-python3 phase2_attacks/eval_rhan.py \
-  --ckpt-specs "trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large" \
-              "rhan_next_ais_hpc:checkpoints/rhan_next_ais_hpc_best.pth:next" \
-  --seeds 41 42 43 44 45 46 47 48 \
-  --eps-list 0.0 0.094 --eps-norm-space \
-  --pgd-steps 50 --n-samples 300 --batch-size 32
+```
+README.md
+CONTRIBUTING.md
+docs/
+  ├── REPOSITORY_MAP.md                       # implemented map
+  ├── repository_reorganization.md            # this refactor's changelog
+  ├── RHAN_NXA_ARCHITECTURE.md
+  ├── STAGE2_REFACTOR_PLAN.md
+  ├── rhan_next_roadmap.json                  # authoritative orchestration state
+  ├── research/                               # experiment registry, literature corpus, lessons
+  ├── historical/                             # pre-Gen-1 lineage docs
+  └── (Gen-1 docs live in noesis_vision/RHAN_NXA/docs/)
+noesis_vision/             # ★ CANONICAL Gen-1 package (RHAN-NXA) + docs
+training/                  # ★ CANONICAL Gen-1 training
+evaluation/                # ★ CANONICAL Gen-1 evaluation
+scripts/                   # ★ Gen-1 tooling (data, gates, verifier, sweep)
+tests/                     # ★ test suite (24 mechanism-seam green + more)
+archive/
+  ├── gen-1-cifar12/       # ALL pre-Gen-1 models/trainers (from phase1_training)
+  │   └── checkpoints/     # historical checkpoints (gitignored *.pth)
+  ├── rhan-v1-v7/          # RHAN v1-v7 lineage
+  ├── stl10-scaleup/       # STL-10 UNIFIED / TDV / RHAN-Large
+  ├── gen0/                # frozen Gen-0 RHAN-Next (rhan_core + legacy checkpoints)
+  ├── legacy-evals/        # ALL eval/check/debug/examine tooling
+  ├── gen3-human/          # phase3 human psychophysics (n=18)
+  ├── gen4-analysis/       # phase4 analysis
+  ├── gen5-sdt/            # phase5 SDT
+  ├── pkg-rhan-math/       # rhan_math
+  ├── pkg-tier1/           # tier1
+  ├── working-scratch/     # scratch/ working scripts
+  └── historical-report/   # Paper/, RHANv12/, RHANv10Report/, presentational/, competition/
+cloud/
+  ├── canonical/           # symlink → cloud/gen1/Kaggle_J1_FOUNDATION.py (Gen-1 canonical)
+  ├── gen1/                # Gen-1 cloud launchers + notebooks
+  ├── gen0/                # Gen-0 cloud launchers
+  └── misc/                # misc cloud scripts
+diagnostics/               # measurement/forensic tooling (from diagnosis_artifacts)
+experiments/               # future research variants (empty at implementation time)
+checkpoints/               # GENERATED weights (gitignored *.pth)
+runs/                      # GENERATED per-run manifests/logs (gitignored)
+report/                    # GENERATED reports (gitignored, but key files tracked)
+data/                        # downloaded datasets (gitignored)
+images.png notes.txt
+```
+
+### Generation classification (final)
+
+- **Canonical current (active):** `noesis_vision/`, `training/`,
+  `evaluation/`, `scripts/`, `tests/`, `cloud/canonical/`, `docs/` (gen1 docs)
+- **Historical (read-only, scientifically preserved):** `archive/*` — every
+  pre-Gen-1 generation is fully intact
+- **Experimental (future):** `experiments/` (empty at implementation time)
+- **Generated artifacts (documented at schema level):** `checkpoints/`,
+  `runs/`, `report/`
+
+---
+
+## CURRENT ARCHITECTURE
+
+### Six-phase foundation ladder (training/stage_state_machine.py)
+
+```text
+backbone_only  →  recurrence_only  →  belief_no_f  →  belief_with_f
+      ↓                    ↓                   ↓                ↓
+AIS-v2 swap → gen1_core (frozen reference)
+```
+
+Each phase adds exactly one mechanism:
+- **backbone_only** — substrate + one fixed center fixation + classifier head
+  (no refinement, no recurrence, no belief, no uncertainty)
+- **recurrence_only** — + T=4 fixed-schedule glimpse loop + tied refinement
+- **belief_no_f** — + belief carrier with U_t (S=None VectorBeliefState,
+  EvidentialHead); identity update
+- **belief_with_f** — + Agent E belief dynamics (UpdateNet + precision)
+- **ais_v2_swap** — + Agent F AIS-v2 gaze (policy-driven)
+- **gen1_core** — + integrated system as frozen reference
+
+### Data / model / training flow
+
+```text
+CLI: python3 training/train_generation1_foundation.py
+     [--smoke | --phase <p>] [--clean-only] [--force-fresh]
+     [--data-root …] [--epochs N] [--batch-size 48] …
+
+→ FoundationConfig (in-file) ∪ RHANNXAConfig (core/schema.py)
+→ stage_state_machine.py (six-phase orchestration)
+→ FoundationModel (CompactViT substrate + per-phase composition)
+→ adv_curriculum.py (TRADES/PGD default objective)
+→ multi_group_optimizer.py (per-group optimizer)
+→ checkpoints/*.pth (best + rolling), runs/*/manifest.json
+→ report/foundation_{phase}_result.json + _compactness.json
+→ HF sync (FerrariKazu/rhan-nxa-checkpoints)
 ```
 
 ---
 
-## Legacy: CIFAR-10 & STL-10 Model Comparison (13/13 Systems Complete)
+## HISTORICAL GENERATIONS (PRESERVED — read-only)
 
-### Robustness & Sensitivity Overview
-| System | Clean Acc | PGD 50% Threshold | d′=1.0 Threshold | Status |
-|--------|-----------|-------------------|-------------------|--------|
-| Human | 74.15% | >0.30 | >0.30 | ✅ Complete |
-| **RHAN-Large (Ours)** ★ | **85.20%** | **ε≈0.230** | **ε≈0.2500** | ✅ Complete |
-| **RHAN-trades-curriculum** ★ | **78.12%** | **ε≈0.113** | **ε≈0.1850** | ✅ Complete |
-| **RHAN-UNIFIED** | **74.30%** | **ε≈0.111** | **ε≈0.0760** | ✅ Complete |
-| **RHAN-Self-Alignment** ⚠️ | **77.10%** | — | — | ⚠️ Obfuscated (AA: 21.60%) |
-| **RHAN-Feature-Scatter** ⚠️ | **77.10%** | — | — | ⚠️ Obfuscated (AA: 22.30%) |
-| **RHAN-TRADES-Hardened** | **86.33%** | **ε≈0.086** | **ε≈0.1246** | ✅ Complete |
-| **RHAN-v5-TRADES** | **87.30%** | **ε≈0.078** | **ε≈0.1113** | ✅ Complete |
-| **RHAN-v5 (Freq-Separated)** | **84.57%** | **ε≈0.071** | **ε≈0.1030** | ✅ Complete |
-| **RHAN-v3 (Unified Recurrent)** | **91.41%** | **ε≈0.066** | **ε≈0.0900** | ✅ Complete |
-| **RHAN-v4 (Multi-Scale)** | **89.65%** | **ε≈0.056** | **ε≈0.0800** | ✅ Complete |
-| **RHAN-adv (Recurrent)** | **83.79%** | **ε≈0.053** | **ε≈0.0764** | ✅ Complete |
-| RHAN-clean | 89.06% | ε≈0.023 | ε≈0.0330 | ✅ Complete |
-| ResNet-18 | 95.82% | ε≈0.024 | ε≈0.0300 | ✅ Complete |
-| ViT-Small | 97.80% | ε≈0.014 | ε≈0.0264 | ✅ Complete |
-| BagNet-33 | 87.67% | ε≈0.010 | ε≈0.0170 | ✅ Complete |
-| CORnet-S | 91.48% | ε≈0.006 | ε≈0.0090 | ✅ Complete |
-| Shape-ResNet-50 | 91.47% | ε≈0.006 | ε≈0.0080 | ✅ Complete |
-| EfficientNet-B0 | 96.81% | ε≈0.005 | ε≈0.0060 | ✅ Complete |
-| RHAN-v6 (Dynamic Gating) | 82.03% | — | — | ⚠️ Regressed |
-| **RHAN-TDV (STL-10)** | **78.50%** | **ε≈0.004** | **ε≈0.0043** | ✅ Complete |
-| CLIP ViT-B/32 | — | — | — | 🔄 Pending |
+### archive/gen-1-cifar12/
+All pre-Gen-1 models, trainers, and datasets:
+- ~45 `train_*.py` teams: RHAN v1-v12, TRADES, CBM, self-alignment, etc.
+- STL-10 scaleup: `model_rhan_stl10*.py`, `train_rhan_stl10_tdv.py`,
+  `train_rhan_large_pseudolabel.py`
+- CIFAR-10 baselines: ResNet, ViT, EfficientNet, BagNet, CORnet, ShapeResNet
 
-**Headline:** All standard feedforward AI models collapse before ε=0.03. The curriculum-trained TRADES model, `RHAN-trades-curriculum`, extends visual robustness to **ε≈0.1850** (a **6.3× improvement** over ResNet-18). On higher-resolution STL-10 ($96\times96$), scaling model capacity to 55.6M parameters and expanding the training set 9.3× via mined pseudo-labels (**RHAN-Large**) successfully lifts clean accuracy by **+11.50 pp** (to **52.60%**) and certified AutoAttack robustness by **+1.30 pp** (to **10.60%**).
+### archive/rhan-v1-v7/
+RHAN recurrent lineage: `model_rhan.py`, `_v3_adaptive`, `_v4` … `_v7`,
+`train_rhan*.py`
 
-**STL-10 Scaling Success:** We have successfully integrated self-supervised causal Temporal Difference in Vision (TDV) pretraining on UCF-101 with large-scale semi-supervised pseudo-labeling on 100,000 unlabeled STL-10 images. Under the 120-epoch curriculum, this resolves the representational collapse of similar vehicle classes (Car vs. Truck) on clean images and significantly expands category margins under attack.
+### archive/stl10-scaleup/
+STL-10 UNIFIED / TDV / RHAN-Large: `model_rhan_unified.py`,
+`model_rhan_stl10*.py`, `train_rhan_unified.py`, `train_rhan_stl10_tdv.py`,
+`train_rhan_large_pseudolabel.py`, `dataset_stl10.py`
 
----
+### archive/gen0/
+Frozen Gen-0 RHAN-Next: `rhan_core/` package, legacy checkpoints,
+`eval_rhan.py` (frozen Gen-0 eval) — preserved for scientific provenance.
 
-### Signal Detection Theory (Sensitivity)
-| System | d'(0.00) | d'(0.01) | d'(0.05) | d'(0.10) | d'(0.20) | d'(0.30) | ε threshold |
-|--------|----------|----------|----------|----------|----------|----------|-------------|
-| Human  | 4.790 | 4.567 | 3.985 | 3.368 | 2.440 | 1.769 | >0.30 |
-| **RHAN-Large (Ours)** ★ | **3.240** | **2.950** | **2.010** | **1.260** | **0.480** | **0.190** | **ε≈0.250** |
-| **RHAN-trades-curriculum** ★ | **2.748** | **2.589** | **2.159** | **1.696** | **0.877** | **0.010** | **ε≈0.185** |
-| **RHAN-UNIFIED** | **2.395** | **2.100** | **1.300** | **0.800** | **0.100** | **-0.500** | **ε≈0.076** |
-| **RHAN-TRADES-Hardened** | **3.260** | **3.032** | **2.238** | **1.357** | **-0.094** | **-1.664** | **ε≈0.125** |
-| **RHAN-v5-TRADES** | **3.383** | **3.186** | **2.230** | **1.231** | **-0.291** | **-1.602** | **ε≈0.111** |
-| **RHAN-v5** | **3.083** | **2.905** | **2.071** | **1.104** | **-1.132** | **-1.808** | **ε≈0.103** |
-| **RHAN-v3** | **3.710** | **3.189** | **1.983** | **0.753** | **-1.039** | **-3.044** | **ε≈0.090** |
-| **RHAN-adv** | **3.083** | **2.738** | **1.662** | **0.408** | **-1.294** | **-3.044** | **ε≈0.076** |
-| **RHAN-TDV (STL-10)** | **2.860** | **-0.597** | **-3.705** | **<0.000** | **<0.000** | **<0.000** | **ε≈0.004** |
-| ResNet-18 | 4.426 | 2.687 | -0.771 | -1.707 | -1.913 | -1.880 | ε≈0.030 |
-| ViT-Small | 4.931 | 1.814 | -0.154 | -0.909 | -1.242 | -1.469 | ε≈0.026 |
+### archive/legacy-evals/
+- `phase2_attacks/` — attack generation + frozen `eval_rhan.py` Gen-0 eval
+- Root-level eval scripts: `eval_*.py`, `inspect_*.py`, `demo.py`,
+  `concept_ablation.py`, `check_parquet.py`, `bench_pgd.py`, etc.
 
-### PGD Accuracy Collapse
-| Epsilon | RHAN-Large | RHAN-UNIFIED | RHAN-TDV | Curriculum | Hardened | TRADES | RHAN-v5 | RHAN-v3 | RHAN-adv | ResNet | ViT | EfficientNet | ShapeResNet | BagNet | Human |
-|---------|------------|--------------|----------|------------|----------|--------|---------|---------|----------|--------|-----|--------------|-------------|--------|-------|
-| 0.00 | 85.20% | 74.30% | 78.50% | 78.12% | 86.33% | 87.30% | 84.57% | 91.41% | 83.79% | 95.82% | 97.80% | 96.81% | 91.47% | 87.67% | 73.33% |
-| 0.01 | 82.10% | 63.80% | 5.20% | 75.00% | 83.01% | 84.77% | 80.66% | 85.35% | 77.93% | 75.57% | 55.18% | 0.93%  | 18.11% | 48.04% | N/A |
-| 0.05 | 70.30% | 34.60% | <2.00% | 65.23% | 67.19% | 65.82% | 61.13% | 60.74% | 51.95% | 2.84%  | 8.80%  | 0.00%  | 0.01%  | 0.12%  | 69.17% |
-| 0.10 | 57.50% | 15.60% | <2.00% | 52.93% | 43.16% | 37.89% | 34.38% | 26.17% | 17.77% | 0.21%  | 2.78%  | 0.00%  | 0.00%  | 0.00%  | 59.17% |
-| 0.20 | 38.00% | 3.20% | <2.00% | 29.49% | 8.59%  | 5.47%  | 2.73%  | 1.17%  | 0.59%  | 0.02%  | 1.12%  | 0.00%  | 0.00%  | 0.00%  | 62.22% |
-| 0.30 | 25.10% | 0.60% | <2.00% | 10.16% | 0.20%  | 0.20%  | 0.20%  | 0.00%  | 0.00%  | 0.00%  | 0.58%  | 0.00%  | 0.00%  | 0.00%  | 58.61% |
+### archive/gen3-human/
+n=18 human psychophysics data (form responses, manifest, stimuli).
+
+### archive/gen4-analysis/
+Pre-Gen-1 interpretability suite: divergence/confidence curves, Grad-CAM,
+ViT attention, SIS, alignment analysis.
+
+### archive/gen5-sdt/
+Signal Detection Theory: `sdt_analysis.py`, `sdt_core.py`,
+`results/sdt_results*.csv`.
+
+### archive/pkg-rhan-math/
+Mathematical proof reports (`phase1_proofs.md` … `phase5_proofs.md`),
+`generate_proof_figures.py`, assets.
+
+### archive/pkg-tier1/
+ScientificValidationReport LaTeX v1/v2 + per-seed results JSONs,
+`validate_rhan.py`.
+
+### archive/working-scratch/
+`scratch/` working scripts (HF checks, PGD debugging, diagnostics,
+roadmap surgery, verification).
+
+### archive/historical-report/
+Paper/ (ACD paper v1/v2), RHANv12, RHANv10Report, presentational/,
+competition/.
 
 ---
 
-## Overconfidence Finding
-BagNet-33 and EfficientNet-B0 reach ~100% model confidence at ε=0.30 while accuracy is 0.00% — the maximum possible "confident but wrong" state. Humans show the opposite: declining confidence tracks declining accuracy, demonstrating intact metacognitive calibration absent in all tested CNNs.
+## EXPERIMENTAL (future)
 
-## Semantic Confusion Structure
-Adversarial errors are not random — they are semantically structured:
-- **ResNet-18:** DOG→CAT (+37.2%), AUTOMOBILE→TRUCK (+34.1%)
-- **ViT-Small:** TRUCK→SHIP (+59.0%)
-- **Shape-ResNet:** HORSE→DEER (+35.4%) — most semantically coherent errors
+`experiments/` — reserved for future scientific variants (Kimi K3
+implementations will land here as isolated experiments).
 
-## Generated Figures (phase4_analysis/figures/)
-- `combined/partial_divergence_curve.png` — 5-model accuracy vs epsilon
-- `combined/confidence_collapse.png` — confidence degradation curves
-- `combined/confidence_accuracy_gap.png` — overconfidence gap per model
-- `combined/perturbation_atlas.png` — 10-class perturbation difference maps
-- `combined/hero_perturbation.png` — single high-impact perturbation example
-- `combined/sufficient_input_subsets.png` — minimal evidence per model (SIS)
-- `combined/vit_attention_entropy.png` — ViT attention scatter vs epsilon
-- `combined/threshold_summary/` — accuracy and SDT ranking figures
-- `combined/latent_space/` — t-SNE embeddings (ResNet + ViT)
-- `vit/attention/` — per-class ViT attention maps (20 images)
-- `{model}/confusion/` — confusion matrices clean vs adversarial
+---
 
-## RHAN Evolutionary Timeline
+## GENERATED ARTIFACTS (documented at schema level)
 
-```
-RHAN-clean → RHAN-adv → Trial branches (Split, PredCoding, Aligned)
-                              ↓
-                         RHAN-v2 (Unified Fine-tuning)
-                              ↓
-                         RHAN-v3 (Joint Scratch Training) ← εthresh=0.090
-                              ↓
-                     ┌─────────┴─────────┐
-                  RHAN-v4            RHAN-v5 ← εthresh=0.1030
-               (Multi-Scale,       (Frequency Separation,
-                Active CLIP)       Phase 0 CLIP)
-                  ↓ regressed          ↓
-               RHAN-v6              RHAN-v5-TRADES ← εthresh=0.1113
-            (Dynamic Gating,           ↓
-             ACT Pondering)         RHAN-TRADES-Hardened ← εthresh=0.1246
-              ↓ regressed              ↓
-                                    RHAN-trades-curriculum ← εthresh=0.1850 (BEST CIFAR)
-                                               │
-                                  ┌────────────┴────────────┐
-                        [Concept Bottlenecks]      [Feature Invariance]
-                           (RHAN-CBM v1-v2)     (Self-Align / Feat Scatter)
-                                  │                         │
-                        (Irreducible at 32x32)     (Gradient Masking Theorem)
-                                  └────────────┬────────────┘
-                                               ▼
-                                       [CIFAR-10 CLOSED]
-                                               │
-                                               ▼
-                                     [TDV (Temporal Difference)]
-                                                │
-                                                ▼
-                                         RHAN-TDV (STL-10) ← εthresh=0.0043 (Run 1: 13.3% Truck Robustness, Collapse Mitigated)
-```
+- `checkpoints/` — model weights (`*.pth`, gitignored), ~100+ files across all
+  generations. Canonical weights live on HuggingFace.
+- `runs/` — per-run manifests/logs (gitignored).
+- `report/` — result reports (gitignored, but `GEN1_RESULTS_MASTER.md` and
+  `rhan_nx_generation1_report.md` are tracked).
 
-## Model Spectrum
-| Model | Processing Style | Owner | Branch |
-|-------|-----------------|-------|--------|
-| BagNet-33 | Pure local patches (33×33) | Eyad | phase/1-bagnet |
-| ResNet-18 | Local CNN, texture-biased | Mina | phase/1-resnet |
-| EfficientNet-B0 | Compound scaled CNN (BIM attack) | Mina | phase/1-efficientnet |
-| Shape-ResNet-50 | Shape-biased SIN training | Sandy | phase/1-shaperesnet |
-| ViT-Small | Global patch attention | Mina | phase/1-vit |
-| CORnet-S | Recurrent visual cortex model | Youssef + Eyad | phase/1-cornet |
-| CLIP ViT-B/32 | Vision-language contrastive | Mariam | phase/1-clip |
-| **RHAN-clean** | **Recurrent top-down feedback (clean)** | **Mina** | **dev** |
-| **RHAN-adv** | **Recurrent top-down + adversarial curriculum** | **Mina** | **dev** |
-| **RHAN-v3** | **Ventral/Dorsal split + adversarial alignment** | **Mina** | **phase/rhan-v2** |
-| **RHAN-v4** | **Multi-scale gated feedback + active CLIP** | **Mina** | **phase/rhan-v4** |
-| **RHAN-v5** | **Frequency separation + Phase 0 CLIP init** | **Mina** | **phase/rhan-v5** |
-| **RHAN-v6** | **Dynamic gating + predictive coding + ACT** | **Mina** | **phase/rhan-v6** |
-| **RHAN-v5-TRADES** | **Standard TRADES adversarial training** | **Mina** | **phase/rhan-trades** |
-| **RHAN-TRADES-Hardened** | **Class-hardened TRADES with margin loss** | **Mina** | **phase/rhan-trades** |
-| **RHAN-trades-curriculum** | **TRADES 3-Phase Extended Curriculum** | **Mina** | **phase/rhan-trades-curriculum** |
-| **RHAN-Self-Alignment** | **Feature-space cosine distance fine-tuning** | **Mina** | **phase/rhan-self-alignment** |
-| **RHAN-Feature-Scatter** | **Feature-space scatter mapping with corrected bounds** | **Mina** | **phase/rhan-feature-scatter** |
-| **RHAN-CBM v1-v2** | **Concept Bottleneck Models with straight-through estimator** | **Mina** | **phase/rhan-cbm** |
-| **RHAN-v7** | **Generative World-Model (VAE + TRADES)** | **Mina** | **dev** |
-| **RHAN-UNIFIED** | **Unified architecture, STL-10 96×96, from scratch** | **Mina** | **dev** |
-| **RHAN-TDV-Clean** | **Temporal Difference pretrained backbone (clean consistency)** | **Mina** | **phase/rhan-tdv** |
-| **RHAN-TDV-Adv** | **Temporal Difference pretrained backbone (adv consistency)** | **Mina** | **phase/rhan-tdv** |
-| **RHAN-Large (Ours)** | **55.6M parameter model + semi-supervised pseudo-labeling** | **Mina** | **main** |
-| Human | Biological vision (n=18) | All | — |
+---
 
-## Team
+## SETUP
 
-| Contributor | GitHub | Role |
-|-------------|--------|------|
-| **Mina Magdy (FerrariKazu)** | [@FerrariKazu](https://github.com/FerrariKazu) | ResNet ✅, ViT ✅, EfficientNet ✅, RHAN (all versions), pipeline, human study, Phase 4+5 |
-| **Sandy Antonius** | [@SandyAntonius](https://github.com/SandyAntonius) | Shape-ResNet ✅, final report, slides |
-| **Eyad Saleh Ali** | [@eyadsalehali07-coder](https://github.com/eyadsalehali07-coder) | BagNet ✅, CORnet-S (co-owner) |
-| **Youssef Ayman (Mekky)** | [@Mekky2](https://github.com/Mekky2) | CORnet-S (co-owner) |
-| **Mariam Mohammed** | [@Mariam-203](https://github.com/Mariam-203) | CLIP ViT-B/32 |
-
-## Setup
 ```bash
 git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git
 cd Adversarial-Cognitive-Model
@@ -310,127 +252,12 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Reproduce Results
-# Phase 2: Generate adversarial arrays (memory-safe, one model at a time)
+## Tests
+
 ```bash
-python phase2_attacks/generate_adv_all_models.py --model [resnet|vit|efficientnet|shaperesnet|bagnet]
+# Mechanism-seam suite (24/24 passing)
+python3 -m pytest tests/test_stage2_mechanism_seam.py -v
+
+# Full suite
+python3 -m pytest tests/ -q
 ```
-
-# Phase 4: Run all analysis
-```bash
-python phase4_analysis/generate_all_figures.py
-```
-
-# Phase 5: SDT analysis
-```bash
-python phase5_sdt/sdt_analysis.py
-```
-
-# RHAN-UNIFIED Training (STL-10 96x96)
-```bash
-# Phase 0: Semantic initialization with unlabeled data (50 epochs)
-python phase1_training/train_rhan_unified.py --phase 0
-
-# Phases 1-8: TRADES adversarial curriculum (160 epochs)
-python phase1_training/train_rhan_unified.py --phase 1-6
-
-# Everything at once
-python phase1_training/train_rhan_unified.py --phase all
-```
-
-# RHAN-TDV Training & Evaluation (STL-10 96x96)
-```bash
-# Phase 1: Self-supervised TDV pretraining (unlabeled data, 30 epochs)
-python phase1_training/train_rhan_stl10_tdv.py --phase tdv --unlabeled-batch-size 32
-
-# Phase 2: Classification head label calibration (5K labeled images, 10 epochs)
-python phase1_training/train_rhan_stl10_tdv.py --phase label --batch-size 64
-
-# Phase 3: TRADES curriculum fine-tuning with TDV consistency (60 epochs)
-python phase1_training/train_rhan_stl10_tdv.py --phase trades --batch-size 16 --unlabeled-batch-size 16
-
-# Run PGD-100 & SDT Evaluation Sweep
-python phase1_training/eval_pgd_sdt_stl10.py --checkpoint ../checkpoints/rhan_stl10_tdv_trades_clean_consistency.pth --samples 1000 --batch-size 64
-```
-
-# RHAN-Large + Pseudo-Label Curriculum (STL-10 96x96)
-```bash
-# Launch optimized DDP training on dual T4 GPUs (batch size 32, 8 accumulation steps)
-torchrun --nproc_per_node=2 phase1_training/train_rhan_large_pseudolabel.py --batch-size 32 --accum-steps 8
-
-# Launch via pipeline automation script (automatically manages environment, keys, and GPU setup)
-python3 cloud_setup/kaggle_run_pseudolabel_pipeline.py --batch-size 32
-
-# Run full evaluation sweep (AutoAttack + PGD-20 sweeps) on 1000 samples
-python3 run_eval_stl10.py --model-size large --checkpoint checkpoints/rhan_stl10_large_pseudolabel_rolling.pth --samples 1000
-```
-
-## Human Study
-n=18 participants, 1,800 trials, 5 epsilon blocks.
-Data: `phase3_human_study/data/responses_mapped.csv`
-Mapping: `phase3_human_study/manifest.csv`
-
-## Repository Structure (2026-05 snapshot — see `docs/REPOSITORY_MAP.md` for the current, complete map)
-```text
-.
-├── config/                 # Attack and training configuration (YAML)
-├── phase1_training/        # Model architectures and training scripts
-│   ├── model.py            # Modified ResNet-18 for CIFAR
-│   ├── model_vit.py        # ViT-Small architecture
-│   ├── model_efficientnet.py
-│   ├── model_shaperesnet.py
-│   ├── model_bagnet.py
-│   ├── model_rhan.py       # RHAN base architecture (clean/adv/v2/v3)
-│   ├── model_rhan_v5.py    # Frequency-separated biologically-grounded model
-│   ├── model_rhan_v6.py    # Dynamic gating + predictive coding + ACT
-│   ├── model_rhan_v7.py    # Generative World-Model (VAE + TRADES)
-│   ├── model_rhan_unified.py  # Unified architecture for STL-10 96x96
-│   ├── model_rhan_stl10.py    # STL-10 adaptation (predecessor)
-│   ├── dataset_stl10.py       # STL-10 data loaders (labeled + unlabeled)
-│   ├── train.py            # Standard training loop
-│   ├── train_rhan_v5.py    # Phase 1 epsilon curriculum training
-│   ├── train_rhan_v5_trades.py  # TRADES adversarial training
-│   ├── train_rhan_v7.py    # v7 generative world-model training
-│   ├── train_rhan_unified.py  # UNIFIED: Phase 0 + Phases 1-8 (STL-10)
-│   ├── pretrain_rhan_v5_clip.py # Phase 0 CLIP semantic initialization
-│   └── pretrain_rhan_v6_clip.py # Phase 0 for v6
-├── phase2_attacks/         # FGSM/PGD attack generation
-│   ├── generate_adv_all_models.py
-│   ├── pgd.py              # Multi-step PGD implementation
-│   └── fgsm.py             # Single-step FGSM
-├── phase3_human_study/     # Human behavioral data
-│   ├── data/               # Mapped human responses
-│   └── stimuli/            # Exported adversarial stimuli
-├── phase4_analysis/        # Interpretability & Divergence
-│   ├── figures/            # All generated plots and heatmaps
-│   ├── divergence_curves.py
-│   ├── confidence_curves.py
-│   ├── confusion_matrices.py
-│   ├── latent_space_embeddings.py
-│   ├── vit_attention_maps.py
-│   ├── alignment_analysis.py  # CORnet IT alignment metrics
-│   └── perturbation_visuals.py
-├── phase5_sdt/             # Signal Detection Theory (SDT)
-│   ├── sdt_analysis.py     # Main d' and criterion calculation
-│   └── sdt_core.py         # SDT mathematical primitives
-├── checkpoints/            # Model weights (git-ignored)
-├── scratch/                # Evaluation and debugging scripts
-└── utils/                  # Shared metrics and logging
-```
-
-## References
-1. Brendel, W., & Bethge, M. (2019). Approximating CNNs with Bag-of-local-Features models works surprisingly well on ImageNet. ICLR 2019.
-2. Geirhos, R., et al. (2019). ImageNet-trained CNNs are biased towards texture; increasing shape bias improves accuracy and robustness. ICLR 2019.
-3. Goodfellow, I. J., Shlens, J., & Szegedy, C. (2015). Explaining and harnessing adversarial examples. ICLR 2015.
-4. Tan, M., & Le, Q. V. (2019). EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks. ICML 2019.
-5. Dosovitskiy, A., et al. (2021). An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.
-6. Green, D. M., & Swets, J. A. (1966). Signal detection theory and psychophysics. Wiley.
-7. Kubilius, J., et al. (2019). Brain-Like Object Recognition with High-Performing Shallow Recurrent ANNs (CORnet). bioRxiv.
-8. Radford, A., et al. (2021). Learning Transferable Visual Models From Natural Language Supervision (CLIP). ICML 2021.
-9. He, K., Zhang, X., Ren, S., & Sun, J. (2016). Deep Residual Learning for Image Recognition. CVPR 2016.
-10. Madry, A., et al. (2018). Towards Deep Learning Models Resistant to Adversarial Attacks. ICLR 2018.
-11. Carlini, N., & Wagner, D. (2017). Towards Evaluating the Robustness of Neural Networks. IEEE S&P 2017.
-12. Macmillan, N. A., & Creelman, C. D. (2005). Detection theory: A user's guide (2nd ed.). Lawrence Erlbaum Associates.
-13. Ilyas, A., et al. (2019). Adversarial Examples Are Not Bugs, They Are Features. NeurIPS 2019.
-14. Carter, B., et al. (2019). Exploring Statistical and Structural Properties of Feedforward and Recurrent Neural Networks. arXiv.
-15. Zhang, H., et al. (2019). Theoretically Principled Trade-off between Robustness and Accuracy (TRADES). ICML 2019.

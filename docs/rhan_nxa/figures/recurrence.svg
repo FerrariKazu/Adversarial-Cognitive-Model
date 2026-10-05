@@ -1,0 +1,185 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 580" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 19px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 500; fill: #64748B; }
+      .step-card { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 1.8; rx: 8px; }
+      .step-header { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 13.5px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 11px; fill: #334155; }
+      .dim-badge { font-family: 'Liberation Mono', monospace; font-size: 10px; fill: #2563EB; font-weight: 600; }
+      .formula-text { font-family: 'Liberation Mono', monospace; font-size: 10px; fill: #92400E; }
+      .time-label { font-family: 'Liberation Sans', sans-serif; font-size: 14px; font-weight: 800; fill: #0369A1; }
+      .arrow { stroke: #334155; stroke-width: 1.8; fill: none; marker-end: url(#arrow-head); }
+      .arrow-blue { stroke: #0284C7; stroke-width: 2.2; fill: none; marker-end: url(#arrow-blue-head); }
+      .inner-loop { fill: #EFF6FF; stroke: #3B82F6; stroke-width: 1.5; stroke-dasharray: 4,3; rx: 6px; }
+      .callout { fill: #FFFBEB; stroke: #F59E0B; stroke-width: 1.2; rx: 6px; }
+    </style>
+    <marker id="arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-blue-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#0284C7"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="580" class="bg" rx="12"/>
+  <rect x="15" y="15" width="970" height="550" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <text x="35" y="45" class="title">Figure 4. Computational vs. Perceptual Recurrence: Option C Hybrid Architecture</text>
+  <text x="35" y="66" class="subtitle">Two Orthogonal Recurrence Axes: Fast Within-Glimpse Token Iterations vs. Slow Across-Glimpse Belief Trajectory</text>
+
+  <!-- TOP SECTION: Across-Glimpse Perceptual Trajectory (T = 4) -->
+  <g transform="translate(35, 95)">
+    <!-- Time Axis -->
+    <line x1="10" y1="20" x2="920" y2="20" stroke="#0284C7" stroke-width="2.5"/>
+    <polygon points="925,20 915,15 915,25" fill="#0284C7"/>
+    <text x="925" y="38" text-anchor="end" class="dim-badge" fill="#0284C7">Glimpse Steps t = 0 .. 3</text>
+
+    <!-- STEP 0: t = 0 -->
+    <g transform="translate(10, 45)">
+      <rect width="205" height="235" class="step-card" stroke="#0284C7" fill="#F0F9FF"/>
+      <circle cx="20" cy="20" r="10" fill="#0284C7"/>
+      <text x="20" y="24" text-anchor="middle" font-size="10px" font-weight="700" fill="#FFFFFF">0</text>
+      <text x="36" y="24" class="time-label">t = 0 : Prior State</text>
+      
+      <rect x="12" y="38" width="180" height="50" fill="#FFFFFF" stroke="#BAE6FD" rx="4"/>
+      <text x="20" y="54" class="body-text" font-weight="700">Initial Belief B_0:</text>
+      <text x="20" y="70" class="dim-badge">z_0 = 0 ∈ ℝ^[B, 384]</text>
+      <text x="20" y="82" class="dim-badge">U_0 = 1.0 (Max entropy)</text>
+
+      <rect x="12" y="96" width="180" height="42" fill="#FFFFFF" stroke="#BAE6FD" rx="4"/>
+      <text x="20" y="112" class="body-text" font-weight="700">Initial Fixation a_1:</text>
+      <text x="20" y="128" class="formula-text">a_1 = (0.0, 0.0) [Center]</text>
+
+      <rect x="12" y="146" width="180" height="42" fill="#FFFFFF" stroke="#BAE6FD" rx="4"/>
+      <text x="20" y="162" class="body-text" font-weight="700">Boundary Condition:</text>
+      <text x="20" y="178" class="dim-badge" fill="#DC2626">E_0 := 0 (No prior error)</text>
+
+      <text x="100" y="215" text-anchor="middle" class="body-text" font-size="10.5px" fill="#0369A1">Uncommitted Prior</text>
+    </g>
+
+    <!-- Arrow 0 -> 1 -->
+    <path d="M 220 160 L 245 160" class="arrow-blue"/>
+
+    <!-- STEP 1: t = 1 -->
+    <g transform="translate(250, 45)">
+      <rect width="205" height="235" class="step-card"/>
+      <circle cx="20" cy="20" r="10" fill="#0D9488"/>
+      <text x="20" y="24" text-anchor="middle" font-size="10px" font-weight="700" fill="#FFFFFF">1</text>
+      <text x="36" y="24" class="time-label" fill="#0D9488">t = 1 : Initial Acuity</text>
+      
+      <rect x="12" y="38" width="180" height="50" fill="#F8FAFC" stroke="#E2E8F0" rx="4"/>
+      <text x="20" y="54" class="body-text" font-weight="700">Foveal Patch g_1:</text>
+      <text x="20" y="70" class="dim-badge">STN Crop: [B, 3, 56, 56]</text>
+      <text x="20" y="82" class="body-text">Center glimpse observed</text>
+
+      <rect x="12" y="96" width="180" height="52" fill="#F8FAFC" stroke="#E2E8F0" rx="4"/>
+      <text x="20" y="112" class="body-text" font-weight="700">Tied Refinement (2 iters):</text>
+      <text x="20" y="126" class="dim-badge">CLS pool → z_1^raw</text>
+      <text x="20" y="140" class="formula-text">UpdateNet → z_1</text>
+
+      <rect x="12" y="156" width="180" height="42" fill="#F0FDFA" stroke="#99F6E4" rx="4"/>
+      <text x="20" y="172" class="body-text" font-weight="700" fill="#0D9488">AIS-v2 Planning:</text>
+      <text x="20" y="188" class="dim-badge" fill="#0D9488">Proposes Gaze a_2</text>
+
+      <text x="100" y="222" text-anchor="middle" class="body-text" font-size="10.5px" fill="#0F766E">Context Formed</text>
+    </g>
+
+    <!-- Arrow 1 -> 2 -->
+    <path d="M 460 160 L 485 160" class="arrow-blue"/>
+
+    <!-- STEP 2: t = 2 -->
+    <g transform="translate(490, 45)">
+      <rect width="205" height="235" class="step-card"/>
+      <circle cx="20" cy="20" r="10" fill="#D97706"/>
+      <text x="20" y="24" text-anchor="middle" font-size="10px" font-weight="700" fill="#FFFFFF">2</text>
+      <text x="36" y="24" class="time-label" fill="#D97706">t = 2 : Targeted Saccade</text>
+      
+      <rect x="12" y="38" width="180" height="50" fill="#FDF9F6" stroke="#FED7AA" rx="4"/>
+      <text x="20" y="54" class="body-text" font-weight="700">Predict vs Observe:</text>
+      <text x="20" y="70" class="formula-text">ĝ_2 = Predict(z_1, a_2)</text>
+      <text x="20" y="82" class="dim-badge" fill="#DC2626">Error E_2 computed</text>
+
+      <rect x="12" y="96" width="180" height="52" fill="#FDF9F6" stroke="#FED7AA" rx="4"/>
+      <text x="20" y="112" class="body-text" font-weight="700">Precision Modulation:</text>
+      <text x="20" y="126" class="formula-text">Π_2 = 1 - U_1</text>
+      <text x="20" y="140" class="dim-badge">Δz_2 = UpdateNet(E_2, Π_2)</text>
+
+      <rect x="12" y="156" width="180" height="42" fill="#FEF3C7" stroke="#FDE047" rx="4"/>
+      <text x="20" y="172" class="body-text" font-weight="700" fill="#B45309">Uncertainty Drops:</text>
+      <text x="20" y="188" class="dim-badge" fill="#B45309">U_2 &lt; U_1 (Entropy ↓)</text>
+
+      <text x="100" y="222" text-anchor="middle" class="body-text" font-size="10.5px" fill="#B45309">Hypothesis Disambiguation</text>
+    </g>
+
+    <!-- Arrow 2 -> 3 -->
+    <path d="M 700 160 L 725 160" class="arrow-blue"/>
+
+    <!-- STEP 3: t = 3 -->
+    <g transform="translate(730, 45)">
+      <rect width="200" height="235" class="step-card" stroke="#16A34A" fill="#F0FDF4"/>
+      <circle cx="20" cy="20" r="10" fill="#16A34A"/>
+      <text x="20" y="24" text-anchor="middle" font-size="10px" font-weight="700" fill="#FFFFFF">3</text>
+      <text x="36" y="24" class="time-label" fill="#16A34A">t = 3 : Final Belief</text>
+      
+      <rect x="12" y="38" width="175" height="50" fill="#FFFFFF" stroke="#BBF7D0" rx="4"/>
+      <text x="20" y="54" class="body-text" font-weight="700">Verification Glimpse:</text>
+      <text x="20" y="70" class="formula-text">Fixation a_3 checks boundary</text>
+      <text x="20" y="82" class="dim-badge">E_3 approaches noise floor</text>
+
+      <rect x="12" y="96" width="175" height="52" fill="#FFFFFF" stroke="#BBF7D0" rx="4"/>
+      <text x="20" y="112" class="body-text" font-weight="700">Converged State B_3:</text>
+      <text x="20" y="126" class="dim-badge">z_3 robust to perturbations</text>
+      <text x="20" y="140" class="dim-badge" fill="#15803D">U_3 minimal (High confidence)</text>
+
+      <rect x="12" y="156" width="175" height="42" fill="#DCFCE7" stroke="#86EFAC" rx="4"/>
+      <text x="20" y="172" class="body-text" font-weight="700" fill="#166534">Readout Head:</text>
+      <text x="20" y="188" class="dim-badge" fill="#166534">Final Class Prediction ŷ</text>
+
+      <text x="100" y="222" text-anchor="middle" class="body-text" font-size="10.5px" fill="#166534">Stable Perceptual Fixed Point</text>
+    </g>
+  </g>
+
+  <!-- BOTTOM SECTION: Computational Recurrence Detail (Within-Glimpse) -->
+  <g transform="translate(35, 400)">
+    <rect width="930" height="150" class="inner-loop"/>
+    <text x="20" y="25" class="header-text" fill="#1D4ED8" font-size="14px">Within-Glimpse Computational Recurrence (Tied Refinement Block — Option C)</text>
+    <text x="800" y="25" class="dim-badge" font-size="11px">Weight Sharing: θ_refine</text>
+    
+    <!-- Iteration 1 -->
+    <g transform="translate(30, 42)">
+      <rect width="240" height="85" fill="#FFFFFF" stroke="#93C5FD" rx="6"/>
+      <text x="15" y="20" class="body-text" font-weight="700">Iteration 1 (k = 1):</text>
+      <text x="15" y="38" class="formula-text">H^(1) = LayerNorm(H^(0) + Attn_θ(H^(0)))</text>
+      <text x="15" y="56" class="formula-text">H^(1) = LayerNorm(H^(1) + MLP_θ(H^(1)))</text>
+      <text x="15" y="74" class="dim-badge">Tokens: [B, 16, 384]</text>
+    </g>
+
+    <!-- Arrow k1 -> k2 -->
+    <path d="M 275 85 L 325 85" class="arrow"/>
+    <text x="300" y="75" text-anchor="middle" class="dim-badge">H^(1)</text>
+
+    <!-- Iteration 2 -->
+    <g transform="translate(330, 42)">
+      <rect width="240" height="85" fill="#FFFFFF" stroke="#93C5FD" rx="6"/>
+      <text x="15" y="20" class="body-text" font-weight="700">Iteration 2 (k = 2) [Shared θ]:</text>
+      <text x="15" y="38" class="formula-text">H^(2) = LayerNorm(H^(1) + Attn_θ(H^(1)))</text>
+      <text x="15" y="56" class="formula-text">H^(2) = LayerNorm(H^(2) + MLP_θ(H^(2)))</text>
+      <text x="15" y="74" class="dim-badge">Non-linear token refinement</text>
+    </g>
+
+    <!-- Arrow k2 -> Pool -->
+    <path d="M 575 85 L 625 85" class="arrow"/>
+    <text x="600" y="75" text-anchor="middle" class="dim-badge">H^(2)</text>
+
+    <!-- Pooling & Summary -->
+    <g transform="translate(630, 42)">
+      <rect width="270" height="85" fill="#DBEAFE" stroke="#60A5FA" rx="6"/>
+      <text x="15" y="20" class="body-text" font-weight="700" fill="#1E40AF">Spatial Pooling &amp; CLS Extraction:</text>
+      <text x="15" y="38" class="body-text">Mean token pool across 16 patches:</text>
+      <text x="15" y="54" class="dim-badge">z_raw = Mean(H^(2)[:, 1:, :], dim=1)</text>
+      <text x="15" y="72" class="body-text" font-weight="700" fill="#1E40AF">Scales FLOPs with ZERO added params</text>
+    </g>
+  </g>
+</svg>

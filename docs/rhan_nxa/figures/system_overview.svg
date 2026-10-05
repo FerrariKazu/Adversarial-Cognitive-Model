@@ -1,0 +1,234 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 590" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 20px; font-weight: 800; fill: #1E293B; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 12.5px; font-weight: 500; fill: #64748B; }
+      .box-bg { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 1.5; }
+      .box-active { fill: #FFFFFF; stroke: #2563EB; stroke-width: 2; }
+      .box-belief { fill: #F8FAFC; stroke: #0284C7; stroke-width: 2; }
+      .box-gaze { fill: #FDFEFE; stroke: #0D9488; stroke-width: 2; }
+      .box-pred { fill: #FDF9F6; stroke: #D97706; stroke-width: 2; }
+      .header-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 13.5px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 11px; fill: #334155; }
+      .dim-badge { font-family: 'Liberation Mono', monospace; font-size: 10.5px; fill: #2563EB; font-weight: 600; }
+      .tensor-shape { font-family: 'Liberation Mono', monospace; font-size: 10px; fill: #64748B; }
+      .arrow { stroke: #334155; stroke-width: 1.8; fill: none; marker-end: url(#arrow-head); }
+      .arrow-blue { stroke: #0284C7; stroke-width: 2; fill: none; marker-end: url(#arrow-blue-head); }
+      .arrow-teal { stroke: #0D9488; stroke-width: 2; stroke-dasharray: 5,4; fill: none; marker-end: url(#arrow-teal-head); }
+      .arrow-amber { stroke: #D97706; stroke-width: 1.8; fill: none; marker-end: url(#arrow-amber-head); }
+      .callout { fill: #FFFBEB; stroke: #F59E0B; stroke-width: 1.2; }
+      .callout-title { font-family: 'Liberation Sans', sans-serif; font-size: 11px; font-weight: 700; fill: #B45309; }
+      .callout-body { font-family: 'Liberation Sans', sans-serif; font-size: 10px; fill: #78350F; }
+    </style>
+    <marker id="arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-blue-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#0284C7"/>
+    </marker>
+    <marker id="arrow-teal-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#0D9488"/>
+    </marker>
+    <marker id="arrow-amber-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#D97706"/>
+    </marker>
+    <!-- clip paths to prevent any text overflowing boxes -->
+    <clipPath id="clip-world">
+      <rect x="0" y="0" width="130" height="155"/>
+    </clipPath>
+    <clipPath id="clip-fov">
+      <rect x="0" y="0" width="145" height="155"/>
+    </clipPath>
+    <clipPath id="clip-vit">
+      <rect x="0" y="0" width="195" height="175"/>
+    </clipPath>
+    <clipPath id="clip-belief">
+      <rect x="0" y="0" width="320" height="205"/>
+    </clipPath>
+    <clipPath id="clip-pred">
+      <rect x="0" y="0" width="320" height="195"/>
+    </clipPath>
+    <clipPath id="clip-ais">
+      <rect x="0" y="0" width="358" height="195"/>
+    </clipPath>
+    <clipPath id="clip-callout">
+      <rect x="0" y="0" width="145" height="195"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1000" height="590" class="bg" rx="12"/>
+  <rect x="15" y="15" width="970" height="558" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <!-- Title -->
+  <text x="35" y="48" class="title">Figure 1. RHAN-NXA System Overview: The Active Investigation Architecture</text>
+  <text x="35" y="68" class="subtitle">Generation-1 Visual Core: Differentiable Foveation + Recurrent CompactViT + Latent Predictive Coding + AIS-v2 Gaze</text>
+
+  <!-- Stage 1: World Scene -->
+  <g transform="translate(35, 105)">
+    <rect width="130" height="155" class="box-bg" rx="8"/>
+    <g clip-path="url(#clip-world)">
+      <text x="65" y="24" text-anchor="middle" class="header-text">Visual World</text>
+      <rect x="20" y="38" width="90" height="70" fill="#E2E8F0" stroke="#94A3B8" rx="4"/>
+      <circle cx="55" cy="73" r="16" fill="#CBD5E1"/>
+      <circle cx="70" cy="65" r="14" fill="none" stroke="#0D9488" stroke-width="1.8" stroke-dasharray="3,2"/>
+      <circle cx="70" cy="65" r="2.5" fill="#0D9488"/>
+      <text x="65" y="126" text-anchor="middle" class="tensor-shape">Image x</text>
+      <text x="65" y="142" text-anchor="middle" class="dim-badge">[B, 3, 224, 224]</text>
+    </g>
+  </g>
+
+  <!-- Connector: World -> Foveation -->
+  <path d="M 165 182 L 204 182" class="arrow"/>
+
+  <!-- Stage 2: Differentiable Foveation -->
+  <g transform="translate(204, 105)">
+    <rect width="145" height="155" fill="#F0FDF4" stroke="#16A34A" stroke-width="2" rx="8"/>
+    <g clip-path="url(#clip-fov)">
+      <text x="72" y="24" text-anchor="middle" class="header-text">Differentiable</text>
+      <text x="72" y="40" text-anchor="middle" class="header-text">Foveation</text>
+      <text x="72" y="62" text-anchor="middle" class="body-text">STN Bilinear Crop</text>
+      <text x="72" y="78" text-anchor="middle" class="body-text">Affine Grid Sample</text>
+      <rect x="22" y="90" width="101" height="22" fill="#DCFCE7" stroke="#86EFAC" rx="4"/>
+      <text x="72" y="105" text-anchor="middle" class="tensor-shape">Glimpse Patch g_t</text>
+      <text x="72" y="140" text-anchor="middle" class="dim-badge">[B, 3, 56, 56]</text>
+    </g>
+  </g>
+
+  <!-- Connector: Foveation -> Substrate -->
+  <path d="M 349 182 L 388 182" class="arrow"/>
+
+  <!-- Stage 3: CompactViT Substrate -->
+  <g transform="translate(388, 95)">
+    <rect width="195" height="175" fill="#EFF6FF" stroke="#2563EB" stroke-width="2" rx="8"/>
+    <g clip-path="url(#clip-vit)">
+      <text x="97" y="24" text-anchor="middle" class="header-text">CompactViT Substrate</text>
+      <text x="97" y="42" text-anchor="middle" class="body-text">Patch Embed (14×14) → 16 tokens</text>
+      <rect x="15" y="52" width="165" height="60" fill="#DBEAFE" stroke="#93C5FD" rx="6"/>
+      <text x="97" y="70" text-anchor="middle" class="body-text" font-weight="700">Tied Refinement Block</text>
+      <text x="97" y="86" text-anchor="middle" class="body-text">2–3 Iterations (Option C)</text>
+      <text x="97" y="102" text-anchor="middle" class="tensor-shape">Weights Shared (Universal ViT)</text>
+      <text x="97" y="128" text-anchor="middle" class="body-text">Parameter Band: ~23.3M</text>
+      <text x="97" y="150" text-anchor="middle" class="dim-badge">Tokens: [B, 16, 384]</text>
+    </g>
+  </g>
+
+  <!-- Connector: Substrate -> Belief State -->
+  <path d="M 583 182 L 633 182" class="arrow-blue"/>
+  <text x="608" y="174" text-anchor="middle" class="tensor-shape">CLS Pool</text>
+
+  <!-- Stage 4: Tripartite Belief State B_t -->
+  <g transform="translate(633, 80)">
+    <rect width="320" height="205" class="box-belief" rx="8"/>
+    <g clip-path="url(#clip-belief)">
+      <text x="160" y="26" text-anchor="middle" class="header-text" fill="#0369A1" font-size="14.5px">Belief State B_t = (z_t, S_t, U_t)</text>
+
+      <!-- z_t -->
+      <rect x="15" y="42" width="290" height="44" fill="#FFFFFF" stroke="#BAE6FD" rx="5"/>
+      <text x="24" y="60" class="header-text" font-size="12px">z_t (Global Perceptual State):</text>
+      <text x="24" y="76" class="body-text">Holistic scene vector  [B, 384]</text>
+      <text x="294" y="68" text-anchor="end" class="dim-badge">LOCKED</text>
+
+      <!-- S_t -->
+      <rect x="15" y="92" width="290" height="44" fill="#F8FAFC" stroke="#E2E8F0" rx="5"/>
+      <text x="24" y="110" class="header-text" font-size="12px" fill="#64748B">S_t (Structure / Slots):</text>
+      <text x="24" y="126" class="body-text" fill="#64748B">S_t = None in Gen-1 Core</text>
+      <text x="294" y="118" text-anchor="end" class="dim-badge" fill="#94A3B8">DEFERRED</text>
+
+      <!-- U_t -->
+      <rect x="15" y="142" width="290" height="50" fill="#FEFCE8" stroke="#FEF08A" rx="5"/>
+      <text x="24" y="160" class="header-text" font-size="12px" fill="#A16207">U_t (Dirichlet Epistemic Uncertainty):</text>
+      <text x="24" y="176" class="body-text">EvidentialHead readout</text>
+      <text x="24" y="190" class="body-text">[B, 1]  ∈ (0, 1]</text>
+      <text x="294" y="170" text-anchor="end" class="dim-badge" fill="#D97706">REQUIRED</text>
+    </g>
+  </g>
+
+  <!-- LOWER HALF -->
+
+  <!-- Predictive Coding & UpdateNet Stack -->
+  <g transform="translate(633, 335)">
+    <rect width="320" height="195" class="box-pred" rx="8"/>
+    <g clip-path="url(#clip-pred)">
+      <text x="160" y="24" text-anchor="middle" class="header-text" fill="#B45309">Predictive Stack &amp; UpdateNet</text>
+
+      <!-- Shared Predictor -->
+      <rect x="15" y="38" width="290" height="46" fill="#FFFFFF" stroke="#FDE68A" rx="4"/>
+      <text x="24" y="56" class="header-text" font-size="11.5px">Shared Predictor (~2.8M):</text>
+      <text x="24" y="71" class="body-text">Projects (z_{t-1}, a_t) →</text>
+      <text x="24" y="84" class="body-text">Predicted tokens  [B, 16, 384]</text>
+
+      <!-- Error & Precision -->
+      <rect x="15" y="90" width="290" height="46" fill="#FFFFFF" stroke="#FDE68A" rx="4"/>
+      <text x="24" y="108" class="header-text" font-size="11.5px">Prediction Error E_t &amp; Precision Π_t:</text>
+      <text x="24" y="122" class="body-text">E_t = ||g_t^obs - ĝ_t||_2</text>
+      <text x="24" y="135" class="body-text">Π_t = 1 - U_t  (Floor: 1e-4)</text>
+
+      <!-- UpdateNet -->
+      <rect x="15" y="142" width="290" height="44" fill="#FEF3C7" stroke="#F59E0B" rx="4"/>
+      <text x="24" y="160" class="header-text" font-size="11.5px" fill="#92400E">UpdateNet (DELTA_BOUND = 0.1):</text>
+      <text x="24" y="176" class="body-text" fill="#92400E">Δz_t = 0.1·tanh(MLP([z_{t-1}, Π_t ⊙ E_t]))</text>
+    </g>
+  </g>
+
+  <!-- Upward Update Connector: UpdateNet -> Belief State z_t -->
+  <path d="M 793 335 L 793 285" class="arrow-amber"/>
+  <text x="812" y="315" class="tensor-shape" fill="#D97706">Δz Update</text>
+
+  <!-- Active Sensing: AIS-v2 Policy -->
+  <g transform="translate(204, 335)">
+    <rect width="358" height="195" class="box-gaze" rx="8"/>
+    <g clip-path="url(#clip-ais)">
+      <text x="179" y="24" text-anchor="middle" class="header-text" fill="#0F766E" font-size="13.5px">AIS-v2 Active Information Sampling</text>
+
+      <rect x="15" y="38" width="328" height="40" fill="#F0FDFA" stroke="#CCFBF1" rx="4"/>
+      <text x="24" y="54" class="body-text" font-weight="700">1. Propose K Candidates:</text>
+      <text x="24" y="70" class="body-text">Sample {a^(1)..a^(K)} ∈ [-1, 1]² (Coverage + Prior)</text>
+
+      <rect x="15" y="84" width="328" height="40" fill="#F0FDFA" stroke="#CCFBF1" rx="4"/>
+      <text x="24" y="100" class="body-text" font-weight="700">2. Predict via Shared Predictor:</text>
+      <text x="24" y="116" class="body-text">Forecast anticipated features &amp; Dirichlet uncertainty</text>
+
+      <rect x="15" y="130" width="328" height="50" fill="#CCFBF1" stroke="#5EEAD4" rx="4"/>
+      <text x="24" y="148" class="body-text" font-weight="700" fill="#115E59">3. Score by Information Gain (r = 0.706):</text>
+      <text x="24" y="164" class="body-text" fill="#115E59">Select a_{t+1} = argmax ΔH(U_t, a^(k))</text>
+      <text x="24" y="178" class="body-text" fill="#115E59">(Softmax selection during training)</text>
+    </g>
+  </g>
+
+  <!-- Connector: Belief State -> AIS-v2 -->
+  <path d="M 633 220 C 560 250 500 290 430 335" class="arrow-blue"/>
+  <text x="540" y="280" text-anchor="middle" class="tensor-shape" fill="#0284C7">B_t conditioning</text>
+
+  <!-- Connector: AIS-v2 -> Next Glimpse -> Foveation -->
+  <path d="M 276 335 L 276 260" class="arrow-teal"/>
+  <text x="216" y="305" class="tensor-shape" fill="#0D9488">Next Gaze a_{t+1}</text>
+
+  <!-- Callout box -->
+  <g transform="translate(35, 335)">
+    <rect width="145" height="195" class="callout" rx="6"/>
+    <g clip-path="url(#clip-callout)">
+      <text x="14" y="24" class="callout-title">Core Discipline:</text>
+      <text x="14" y="44" class="callout-body">• T = 4 Glimpses (Locked)</text>
+      <text x="14" y="62" class="callout-body">• Tied within-glimpse loops</text>
+      <text x="14" y="80" class="callout-body">• E_0 := 0 (Boundary inv.)</text>
+      <text x="14" y="98" class="callout-body">• S_t = None in core</text>
+      <text x="14" y="116" class="callout-body">• One shared predictor</text>
+      <text x="14" y="134" class="callout-body">• Bounded |Δz| ≤ 0.1</text>
+      <text x="14" y="154" class="callout-title" fill="#047857">Status:</text>
+      <text x="14" y="172" class="callout-body" fill="#065F46">AIS-v2 Mech: r=0.706</text>
+      <text x="14" y="188" class="callout-body" fill="#065F46">AIS-v2 Iso-Rob: UNKNOWN</text>
+    </g>
+  </g>
+
+  <!-- Bottom Timeline -->
+  <line x1="35" y1="555" x2="965" y2="555" stroke="#CBD5E1" stroke-width="1.5"/>
+  <circle cx="50" cy="555" r="4" fill="#2563EB"/>
+  <text x="60" y="559" class="tensor-shape" font-size="10.5px">t=0  Prior B_0, Center a_1</text>
+  <circle cx="340" cy="555" r="4" fill="#0D9488"/>
+  <text x="350" y="559" class="tensor-shape" font-size="10.5px">t=1  First Saccade, E_1, B_1</text>
+  <circle cx="640" cy="555" r="4" fill="#D97706"/>
+  <text x="650" y="559" class="tensor-shape" font-size="10.5px">t=2..3  Active Inquiry, Update B_t</text>
+  <circle cx="940" cy="555" r="4" fill="#059669"/>
+  <text x="910" y="549" text-anchor="end" class="tensor-shape" font-size="10px">Decision</text>
+</svg>

@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 19px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 12px; font-weight: 500; fill: #64748B; }
+      .header-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 12.5px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 10.5px; fill: #334155; }
+      .dim-badge { font-family: 'Liberation Mono', monospace; font-size: 10px; fill: #0284C7; font-weight: 600; }
+      .code-badge { font-family: 'Liberation Mono', monospace; font-size: 10px; fill: #0F172A; }
+      .badge-locked { fill: #0284C7; font-family: 'Liberation Sans', sans-serif; font-size: 9px; font-weight: 700; }
+      .badge-deferred { fill: #64748B; font-family: 'Liberation Sans', sans-serif; font-size: 9px; font-weight: 700; }
+      .badge-required { fill: #D97706; font-family: 'Liberation Sans', sans-serif; font-size: 9px; font-weight: 700; }
+      .note-box { fill: #FFFBEB; stroke: #FCD34D; stroke-width: 1.2; }
+    </style>
+    <!-- clip paths for each card column -->
+    <clipPath id="clip-col1"><rect x="0" y="0" width="166" height="195"/></clipPath>
+    <clipPath id="clip-col2"><rect x="0" y="0" width="166" height="195"/></clipPath>
+    <clipPath id="clip-col3"><rect x="0" y="0" width="166" height="195"/></clipPath>
+    <clipPath id="clip-col4"><rect x="0" y="0" width="166" height="195"/></clipPath>
+    <clipPath id="clip-col5"><rect x="0" y="0" width="166" height="195"/></clipPath>
+    <clipPath id="clip-methods"><rect x="0" y="0" width="555" height="150"/></clipPath>
+    <clipPath id="clip-note"><rect x="0" y="0" width="325" height="150"/></clipPath>
+  </defs>
+
+  <rect width="960" height="540" class="bg" rx="12"/>
+  <rect x="15" y="15" width="930" height="510" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <text x="35" y="46" class="title">Figure 2. The Canonical Perceptual Belief State B_t = (z_t, S_t, U_t, E_t, A_t)</text>
+  <text x="35" y="66" class="subtitle">Authoritative Schema: 5-Tuple Container with None-Propagating Structural Contract and Sample-Wise Drift Differentiability</text>
+
+  <!-- Container Box representing BeliefState B_t -->
+  <rect x="35" y="86" width="890" height="258" fill="#FFFFFF" stroke="#0284C7" stroke-width="2.2" rx="10"/>
+  <rect x="35" y="86" width="890" height="32" fill="#F0F9FF" stroke="#0284C7" stroke-width="1.2" rx="10"/>
+  <text x="48" y="107" class="header-text" fill="#0369A1" font-size="13px">class BeliefState(ABC) — 5-Tuple Immutable State Container</text>
+  <text x="912" y="107" text-anchor="end" class="dim-badge" font-size="10.5px">Frozen Dataclass • None-Safe</text>
+
+  <!-- Column 1: z_t -->
+  <g transform="translate(47, 128)">
+    <rect width="166" height="204" fill="#FFFFFF" stroke="#0284C7" stroke-width="1.8" rx="6"/>
+    <rect x="8" y="8" width="52" height="18" fill="#E0F2FE" rx="3"/>
+    <text x="34" y="21" text-anchor="middle" class="badge-locked">LOCKED</text>
+    <text x="66" y="21" class="header-text" font-size="11.5px">z_t : Global</text>
+    <g clip-path="url(#clip-col1)">
+      <text x="10" y="46" class="body-text">• Holistic visual vector</text>
+      <text x="10" y="63" class="body-text">• Dimension: D_z = 384</text>
+      <text x="10" y="80" class="body-text">• CompactViT CLS-pool</text>
+      <text x="10" y="97" class="body-text">• Refined by UpdateNet</text>
+      <text x="10" y="114" class="body-text">• Bounded step: |Δz| ≤ 0.1</text>
+      <text x="10" y="131" class="body-text">• Gradients active</text>
+    </g>
+    <rect x="8" y="168" width="150" height="26" fill="#F0F9FF" stroke="#BAE6FD" rx="4"/>
+    <text x="83" y="184" text-anchor="middle" class="dim-badge">[B, 384] float32</text>
+  </g>
+
+  <!-- Column 2: S_t -->
+  <g transform="translate(223, 128)">
+    <rect width="166" height="204" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="5,3" rx="6"/>
+    <rect x="8" y="8" width="62" height="18" fill="#F1F5F9" rx="3"/>
+    <text x="39" y="21" text-anchor="middle" class="badge-deferred">DEFERRED</text>
+    <text x="76" y="21" class="header-text" font-size="11.5px" fill="#475569">S_t : Slots</text>
+    <g clip-path="url(#clip-col2)">
+      <text x="10" y="46" class="body-text" fill="#64748B">• Object slot graphs</text>
+      <text x="10" y="63" class="body-text" fill="#64748B">• Gen-1 Core: S_t = None</text>
+      <text x="10" y="80" class="body-text" fill="#64748B">• None-propagation rule</text>
+      <text x="10" y="97" class="body-text" fill="#64748B">• 16-slot SBR: REJECTED</text>
+      <text x="10" y="114" class="body-text" fill="#64748B">• No silent zero-tensor</text>
+      <text x="10" y="131" class="body-text" fill="#64748B">• Re-entry: post-Step 6</text>
+    </g>
+    <rect x="8" y="168" width="150" height="26" fill="#F8FAFC" stroke="#E2E8F0" rx="4"/>
+    <text x="83" y="184" text-anchor="middle" class="dim-badge" fill="#64748B">Value: None</text>
+  </g>
+
+  <!-- Column 3: U_t -->
+  <g transform="translate(399, 128)">
+    <rect width="166" height="204" fill="#FFFFFF" stroke="#7C3AED" stroke-width="1.8" rx="6"/>
+    <rect x="8" y="8" width="62" height="18" fill="#F5F3FF" rx="3"/>
+    <text x="39" y="21" text-anchor="middle" class="badge-required" fill="#7C3AED">REQUIRED</text>
+    <text x="76" y="21" class="header-text" font-size="11.5px" fill="#6D28D9">U_t : Uncert</text>
+    <g clip-path="url(#clip-col3)">
+      <text x="10" y="46" class="body-text">• Dirichlet epistemic</text>
+      <text x="10" y="63" class="body-text">• Evidence: e_c ≥ 0</text>
+      <text x="10" y="80" class="body-text">• α_c = e_c + 1</text>
+      <text x="10" y="97" class="body-text">• U_t = C / Σ α_c</text>
+      <text x="10" y="114" class="body-text">• Precision: Π_t = 1 - U_t</text>
+      <text x="10" y="131" class="body-text">• Prior U_0 = 1.0 (pure)</text>
+    </g>
+    <rect x="8" y="168" width="150" height="26" fill="#F5F3FF" stroke="#DDD6FE" rx="4"/>
+    <text x="83" y="184" text-anchor="middle" class="dim-badge" fill="#7C3AED">[B, 1] ∈ (0, 1]</text>
+  </g>
+
+  <!-- Column 4: E_t -->
+  <g transform="translate(575, 128)">
+    <rect width="166" height="204" fill="#FFFFFF" stroke="#DC2626" stroke-width="1.8" rx="6"/>
+    <rect x="8" y="8" width="52" height="18" fill="#FEF2F2" rx="3"/>
+    <text x="34" y="21" text-anchor="middle" class="badge-locked" fill="#DC2626">LOCKED</text>
+    <text x="66" y="21" class="header-text" font-size="11.5px" fill="#B91C1C">E_t : Error</text>
+    <g clip-path="url(#clip-col4)">
+      <text x="10" y="46" class="body-text">• Latent prediction error</text>
+      <text x="10" y="63" class="body-text">• F_obs - F_pred tokens</text>
+      <text x="10" y="80" class="body-text">• LOCKED: E_0 := 0 at t=0</text>
+      <text x="10" y="97" class="body-text">• Preserved autograd</text>
+      <text x="10" y="114" class="body-text">• Feeds UpdateNet MLP</text>
+      <text x="10" y="131" class="body-text">• Modulated by Π_t</text>
+    </g>
+    <rect x="8" y="168" width="150" height="26" fill="#FEF2F2" stroke="#FECACA" rx="4"/>
+    <text x="83" y="184" text-anchor="middle" class="dim-badge" fill="#DC2626">[B, 16, 384]</text>
+  </g>
+
+  <!-- Column 5: A_t -->
+  <g transform="translate(751, 128)">
+    <rect width="166" height="204" fill="#FFFFFF" stroke="#0D9488" stroke-width="1.8" rx="6"/>
+    <rect x="8" y="8" width="62" height="18" fill="#F0FDFA" rx="3"/>
+    <text x="39" y="21" text-anchor="middle" class="badge-required" fill="#0D9488">REQUIRED</text>
+    <text x="76" y="21" class="header-text" font-size="11.5px" fill="#0F766E">A_t : Gaze</text>
+    <g clip-path="url(#clip-col5)">
+      <text x="10" y="46" class="body-text">• Gaze fixation history</text>
+      <text x="10" y="63" class="body-text">• A_{t+1} = A_t ∪ {a_{t+1}}</text>
+      <text x="10" y="80" class="body-text">• Center start a_1 = (0,0)</text>
+      <text x="10" y="97" class="body-text">• AIS-v2 selected fixations</text>
+      <text x="10" y="114" class="body-text">• Spatial STN coordinates</text>
+      <text x="10" y="131" class="body-text">• Coordinate trace list</text>
+    </g>
+    <rect x="8" y="168" width="150" height="26" fill="#F0FDFA" stroke="#99F6E4" rx="4"/>
+    <text x="83" y="184" text-anchor="middle" class="dim-badge" fill="#0D9488">list[(B, 2)], len≤T</text>
+  </g>
+
+  <!-- LOWER PANEL: Method Contracts & Operations -->
+  <g transform="translate(35, 355)">
+    <rect width="556" height="162" fill="#FFFFFF" stroke="#64748B" stroke-width="1.5" rx="8"/>
+    <text x="15" y="22" class="header-text" font-size="12px">Mandatory Interface Methods (noesis_vision/beliefs/interfaces.py)</text>
+
+    <g clip-path="url(#clip-methods)">
+      <text x="15" y="44" class="code-badge">drift_to(other, weights, distance="l2") → Tensor[B]</text>
+      <text x="15" y="60" class="body-text">Evaluates trajectory divergence. Differentiable w.r.t. z_t for L_stab diagnostics.</text>
+
+      <text x="15" y="82" class="code-badge">detached_copy() → BeliefState</text>
+      <text x="15" y="98" class="body-text">Severed autograd graph for historical trace logging without GPU memory leaks.</text>
+
+      <text x="15" y="120" class="code-badge">updated(delta_z, delta_s=None, new_u=None, new_e=None, new_a=None) → BeliefState</text>
+      <text x="15" y="136" class="body-text">Functional immutable state update. B_t is never mutated in place.</text>
+    </g>
+  </g>
+
+  <!-- Callout on S_t None-Contract and Boundary Invariants -->
+  <g transform="translate(605, 355)">
+    <rect width="320" height="162" class="note-box" rx="8"/>
+    <text x="15" y="22" class="header-text" font-size="11.5px" fill="#B45309">Boundary &amp; Invariant Contracts</text>
+    <g clip-path="url(#clip-note)">
+      <text x="15" y="42" class="body-text" fill="#78350F">• None-Propagating Rule: Every BeliefState method</text>
+      <text x="15" y="58" class="body-text" fill="#78350F">  must execute validly when S_t is None.</text>
+      <text x="15" y="76" class="body-text" fill="#78350F">• Locked First-Glimpse Convention (t=0):</text>
+      <text x="15" y="92" class="body-text" fill="#78350F">  E_0 := 0 [B, 16, 384], U_0 = 1.0, a_1 = (0, 0).</text>
+      <text x="15" y="110" class="body-text" fill="#78350F">• Sample-wise Differentiability: Trajectory drift</text>
+      <text x="15" y="126" class="body-text" fill="#78350F">  must retain valid backward paths to parameters.</text>
+    </g>
+  </g>
+</svg>

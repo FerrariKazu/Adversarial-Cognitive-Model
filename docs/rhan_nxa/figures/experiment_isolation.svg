@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 500" width="100%" height="100%">
+  <defs>
+    <style>
+      .title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 16px; font-weight: bold; fill: #0f172a; }
+      .subtitle { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; fill: #475569; }
+      .col-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13.5px; font-weight: 700; }
+      .cell-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 12px; font-weight: 700; fill: #0f172a; }
+      .cell-desc { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 10.5px; fill: #334155; }
+      .tag-good { font-family: ui-monospace, monospace; font-size: 9.5px; font-weight: 700; fill: #166534; }
+      .tag-bad { font-family: ui-monospace, monospace; font-size: 9.5px; font-weight: 700; fill: #991b1b; }
+    </style>
+    <filter id="shadow9" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="1" dy="2" stdDeviation="3" flood-opacity="0.08" />
+    </filter>
+  </defs>
+
+  <rect width="960" height="500" fill="#f8fafc" rx="8" />
+  <rect x="15" y="15" width="930" height="470" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" rx="6" />
+
+  <text x="35" y="48" class="title">Figure 9: The Gen-0 SBR Confound — Intended vs Actual Isolation</text>
+  <text x="35" y="68" class="subtitle">Infrastructure Audit: `_nx_trainer` Hardcoded Legacy SBR, Confounding D2 (AIS-v2) and D3 (HPC-Belief)</text>
+
+  <!-- Left Column: Intended Isolation -->
+  <g transform="translate(35, 100)" filter="url(#shadow9)">
+    <rect width="435" height="260" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5" />
+    <text x="20" y="26" class="col-title" fill="#166534">INTENDED ISOLATION (Experimental Design)</text>
+
+    <!-- Arm D -->
+    <rect x="20" y="45" width="395" height="45" rx="4" fill="#ffffff" stroke="#cbd5e1" />
+    <text x="32" y="66" class="cell-title">Model D (Baseline Core)</text>
+    <text x="32" y="80" class="cell-desc">AIS-v1 + HPC</text>
+    <rect x="300" y="55" width="105" height="22" rx="3" fill="#dcfce7" />
+    <text x="352" y="70" text-anchor="middle" class="tag-good">SBR: OFF (Clean)</text>
+
+    <!-- Arm D2 -->
+    <rect x="20" y="100" width="395" height="45" rx="4" fill="#ffffff" stroke="#cbd5e1" />
+    <text x="32" y="121" class="cell-title">Arm D2 (AIS-v2 Alone)</text>
+    <text x="32" y="135" class="cell-desc">Swap AIS-v1 → AIS-v2</text>
+    <rect x="300" y="110" width="105" height="22" rx="3" fill="#dcfce7" />
+    <text x="352" y="125" text-anchor="middle" class="tag-good">SBR: OFF (Intended)</text>
+
+    <!-- Arm D3 -->
+    <rect x="20" y="155" width="395" height="45" rx="4" fill="#ffffff" stroke="#cbd5e1" />
+    <text x="32" y="176" class="cell-title">Arm D3 (HPC-Belief Alone)</text>
+    <text x="32" y="190" class="cell-desc">Swap HPC-STEM → HPC-Belief</text>
+    <rect x="300" y="165" width="105" height="22" rx="3" fill="#dcfce7" />
+    <text x="352" y="180" text-anchor="middle" class="tag-good">SBR: OFF (Intended)</text>
+
+    <!-- Arm E2 -->
+    <rect x="20" y="210" width="395" height="40" rx="4" fill="#ffffff" stroke="#cbd5e1" />
+    <text x="32" y="230" class="cell-title">Arm E2 (SBR Alone)</text>
+    <text x="32" y="242" class="cell-desc">Test SBR representation</text>
+    <rect x="300" y="218" width="105" height="22" rx="3" fill="#dbeafe" />
+    <text x="352" y="233" text-anchor="middle" font-size="9.5px" font-weight="700" fill="#1e40af">SBR: ON (Intended)</text>
+  </g>
+
+  <!-- Right Column: Actual Execution -->
+  <g transform="translate(490, 100)" filter="url(#shadow9)">
+    <rect width="455" height="260" rx="6" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5" />
+    <text x="20" y="26" class="col-title" fill="#991b1b">ACTUAL EXECUTION (_nx_trainer Hardcoding)</text>
+
+    <!-- Arm D -->
+    <rect x="20" y="45" width="415" height="45" rx="4" fill="#ffffff" stroke="#cbd5e1" />
+    <text x="32" y="66" class="cell-title">Model D (sweep_stage3_d runner)</text>
+    <text x="32" y="80" class="cell-desc">Clean Acc: 54.96 ± 2.37%</text>
+    <rect x="310" y="55" width="115" height="22" rx="3" fill="#dcfce7" />
+    <text x="367" y="70" text-anchor="middle" class="tag-good">SBR: OFF (Valid)</text>
+
+    <!-- Arm D2 -->
+    <rect x="20" y="100" width="415" height="45" rx="4" fill="#ffffff" stroke="#f87171" stroke-width="1.5" />
+    <text x="32" y="121" class="cell-title" fill="#b91c1c">Arm D2 (_nx_trainer runner)</text>
+    <text x="32" y="135" class="cell-desc">Carried SBR unintentionally!</text>
+    <rect x="310" y="110" width="115" height="22" rx="3" fill="#fee2e2" />
+    <text x="367" y="125" text-anchor="middle" class="tag-bad">SBR: ON (CONFOUND)</text>
+
+    <!-- Arm D3 -->
+    <rect x="20" y="155" width="415" height="45" rx="4" fill="#ffffff" stroke="#f87171" stroke-width="1.5" />
+    <text x="32" y="176" class="cell-title" fill="#b91c1c">Arm D3 (_nx_trainer runner)</text>
+    <text x="32" y="190" class="cell-desc">Acc: 45.06±2.64% (Identical to E2!)</text>
+    <rect x="310" y="165" width="115" height="22" rx="3" fill="#fee2e2" />
+    <text x="367" y="180" text-anchor="middle" class="tag-bad">SBR: ON (CONFOUND)</text>
+
+    <!-- Arm E2 -->
+    <rect x="20" y="210" width="415" height="40" rx="4" fill="#ffffff" stroke="#cbd5e1" />
+    <text x="32" y="230" class="cell-title">Arm E2 (sweep_stage4 runner)</text>
+    <text x="32" y="242" class="cell-desc">Acc: 45.06±3.30% (SBR signature)</text>
+    <rect x="310" y="218" width="115" height="22" rx="3" fill="#dbeafe" />
+    <text x="367" y="233" text-anchor="middle" font-size="9.5px" font-weight="700" fill="#1e40af">SBR: ON (Valid)</text>
+  </g>
+
+  <!-- Bottom Audit Box -->
+  <g transform="translate(35, 380)">
+    <rect width="910" height="95" rx="6" fill="#f8fafc" stroke="#cbd5e1" />
+    <text x="20" y="24" class="col-title" fill="#b91c1c">THE TELL &amp; SCIENTIFIC CONCLUSION:</text>
+    <text x="20" y="44" class="cell-desc">
+      D3 clean accuracy (45.06±2.64%) and clean delta vs D (-9.90 pp) are identical to two decimal places with E2 (45.06±3.30%, -9.90 pp).
+    </text>
+    <text x="20" y="62" class="cell-desc">
+      CONSEQUENCE: Isolated 16-seed effects of AIS-v2 and belief-HPC on accuracy/robustness are strictly <tspan font-weight="700" fill="#dc2626">UNKNOWN</tspan>.
+    </text>
+    <text x="20" y="80" class="cell-desc" font-weight="600" fill="#15803d">
+      SALVAGED FACT: AIS-v2 smoke-gate correlation r ≈ 0.706 (512 samples) is targeted mechanism evidence, independent of SBR confound.
+    </text>
+  </g>
+</svg>

@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 19px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 500; fill: #64748B; }
+      .panel { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 1.8; rx: 8px; }
+      .header-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 13.5px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 11.5px; fill: #334155; }
+      .dim-badge { font-family: 'Liberation Mono', monospace; font-size: 10.5px; fill: #2563EB; font-weight: 600; }
+      .param-badge { font-family: 'Liberation Mono', monospace; font-size: 11px; fill: #0F766E; font-weight: 700; }
+    </style>
+  </defs>
+
+  <rect width="960" height="540" class="bg" rx="12"/>
+  <rect x="15" y="15" width="930" height="510" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <text x="35" y="45" class="title">Figure 15. CompactViT Architecture and Exact Parameter Budget Breakdown</text>
+  <text x="35" y="66" class="subtitle">Backbone Parameter Footprint: ~23.3M Trainable Parameters (Operating Strictly Within the 20M–25M Budget Band)</text>
+
+  <!-- LEFT: Architecture Block Diagram -->
+  <g transform="translate(45, 95)">
+    <rect width="430" height="340" class="panel"/>
+    <text x="215" y="26" text-anchor="middle" class="header-text" fill="#1D4ED8">CompactViT Layer Pipeline</text>
+
+    <!-- 1. Patch Embedder -->
+    <g transform="translate(25, 45)">
+      <rect width="380" height="65" fill="#EFF6FF" stroke="#93C5FD" rx="5"/>
+      <text x="15" y="22" class="header-text" font-size="12px">Patch Embedder (14×14 Convolution):</text>
+      <text x="15" y="40" class="body-text">Input: Foveal patch [B, 3, 56, 56]</text>
+      <text x="15" y="55" class="dim-badge">Output: 16 patch tokens + CLS token → [B, 17, 384]</text>
+    </g>
+
+    <!-- 2. Transformer Trunk -->
+    <g transform="translate(25, 120)">
+      <rect width="380" height="75" fill="#F8FAFC" stroke="#CBD5E1" rx="5"/>
+      <text x="15" y="22" class="header-text" font-size="12px">DINOv2-Small Derived Trunk (11 Layers):</text>
+      <text x="15" y="40" class="body-text">• Hidden dim D_z = 384 | 6 Attention Heads</text>
+      <text x="15" y="55" class="body-text">• MLP expansion dim = 1536 (4×) | LayerNorm</text>
+      <text x="365" y="45" text-anchor="end" class="param-badge">~21.5M params</text>
+    </g>
+
+    <!-- 3. Tied Refinement Block -->
+    <g transform="translate(25, 205)">
+      <rect width="380" height="75" fill="#DBEAFE" stroke="#3B82F6" stroke-width="2" rx="5"/>
+      <text x="15" y="22" class="header-text" font-size="12px" fill="#1E40AF">Tied Refinement Block (Option C):</text>
+      <text x="15" y="40" class="body-text">• 1 Shared Universal Transformer block</text>
+      <text x="15" y="55" class="body-text">• Executed 2–3 iterations per glimpse</text>
+      <text x="365" y="45" text-anchor="end" class="param-badge" fill="#1E40AF">~1.8M params</text>
+    </g>
+
+    <!-- 4. Spatial Pooling -->
+    <g transform="translate(25, 290)">
+      <rect width="380" height="35" fill="#EFF6FF" stroke="#BFDBFE" rx="4"/>
+      <text x="190" y="22" text-anchor="middle" class="dim-badge">CLS Token Extraction → Global State z_t: [B, 384]</text>
+    </g>
+  </g>
+
+  <!-- RIGHT: System-Wide Parameter Budget Table -->
+  <g transform="translate(495, 95)">
+    <rect width="420" height="340" class="panel"/>
+    <text x="210" y="26" text-anchor="middle" class="header-text" fill="#0F766E">System-Wide Parameter Accounting</text>
+
+    <!-- Table of Parameters -->
+    <g transform="translate(20, 45)">
+      <!-- Table Header -->
+      <rect width="380" height="30" fill="#F1F5F9" rx="4"/>
+      <text x="15" y="20" class="header-text" font-size="11.5px">Subsystem / Module</text>
+      <text x="250" y="20" class="header-text" font-size="11.5px">Parameter Count</text>
+      <text x="365" y="20" text-anchor="end" class="header-text" font-size="11.5px">Status</text>
+
+      <!-- Row 1: CompactViT Trunk -->
+      <g transform="translate(0, 35)">
+        <rect width="380" height="32" fill="#FFFFFF" stroke="#E2E8F0" rx="3"/>
+        <text x="15" y="20" class="body-text">CompactViT Trunk</text>
+        <text x="250" y="20" class="dim-badge" fill="#0F766E">~21.5 M</text>
+        <text x="365" y="20" text-anchor="end" font-size="10px" font-weight="700" fill="#0284C7">LOCKED</text>
+      </g>
+
+      <!-- Row 2: Tied Refinement -->
+      <g transform="translate(0, 70)">
+        <rect width="380" height="32" fill="#FFFFFF" stroke="#E2E8F0" rx="3"/>
+        <text x="15" y="20" class="body-text">Tied Refinement Block</text>
+        <text x="250" y="20" class="dim-badge" fill="#0F766E">~1.8 M</text>
+        <text x="365" y="20" text-anchor="end" font-size="10px" font-weight="700" fill="#0284C7">LOCKED</text>
+      </g>
+
+      <!-- Subtotal Box -->
+      <g transform="translate(0, 105)">
+        <rect width="380" height="32" fill="#F0FDFA" stroke="#99F6E4" rx="3"/>
+        <text x="15" y="20" class="body-text" font-weight="700" fill="#115E59">Total Backbone Substrate</text>
+        <text x="250" y="20" class="dim-badge" fill="#0D9488">~23.3 M</text>
+        <text x="365" y="20" text-anchor="end" font-size="10px" font-weight="700" fill="#0D9488">Target 20–25M</text>
+      </g>
+
+      <!-- Row 3: Shared Predictor -->
+      <g transform="translate(0, 140)">
+        <rect width="380" height="32" fill="#FFFFFF" stroke="#E2E8F0" rx="3"/>
+        <text x="15" y="20" class="body-text">Shared Glimpse Predictor</text>
+        <text x="250" y="20" class="dim-badge" fill="#B45309">~2.8 M</text>
+        <text x="365" y="20" text-anchor="end" font-size="10px" font-weight="700" fill="#D97706">REQUIRED</text>
+      </g>
+
+      <!-- Row 4: UpdateNet -->
+      <g transform="translate(0, 175)">
+        <rect width="380" height="32" fill="#FFFFFF" stroke="#E2E8F0" rx="3"/>
+        <text x="15" y="20" class="body-text">UpdateNet (MLP, Bound=0.1)</text>
+        <text x="250" y="20" class="dim-badge" fill="#B45309">~0.3 M</text>
+        <text x="365" y="20" text-anchor="end" font-size="10px" font-weight="700" fill="#D97706">REQUIRED</text>
+      </g>
+
+      <!-- Row 5: EvidentialHead -->
+      <g transform="translate(0, 210)">
+        <rect width="380" height="32" fill="#FFFFFF" stroke="#E2E8F0" rx="3"/>
+        <text x="15" y="20" class="body-text">EvidentialHead (Linear Readout)</text>
+        <text x="250" y="20" class="dim-badge" fill="#B45309">~0.04 M</text>
+        <text x="365" y="20" text-anchor="end" font-size="10px" font-weight="700" fill="#D97706">NEW (Req)</text>
+      </g>
+
+      <!-- Grand Total -->
+      <g transform="translate(0, 245)">
+        <rect width="380" height="36" fill="#EFF6FF" stroke="#3B82F6" rx="4"/>
+        <text x="15" y="23" class="header-text" fill="#1D4ED8">Grand Total (Full Engine)</text>
+        <text x="250" y="23" class="dim-badge" font-size="12px" fill="#1D4ED8">~26.4 M</text>
+        <text x="365" y="23" text-anchor="end" font-size="10.5px" font-weight="700" fill="#1D4ED8">VALIDATED</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- BOTTOM METHODOLOGY NOTE -->
+  <g transform="translate(45, 455)">
+    <rect width="870" height="50" fill="#F8FAFC" stroke="#E2E8F0" rx="6"/>
+    <text x="20" y="22" class="body-text" font-weight="700">Compute Accounting Rule:</text>
+    <text x="20" y="38" class="body-text">• FLOPs account for all T=4 glimpses and tied refinement passes; parameter counts reflect only unique stored weights.</text>
+  </g>
+</svg>

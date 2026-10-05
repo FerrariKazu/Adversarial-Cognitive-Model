@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 480" width="100%" height="100%">
+  <defs>
+    <style>
+      .title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 16px; font-weight: bold; fill: #0f172a; }
+      .subtitle { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; fill: #475569; }
+      .box-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 12.5px; font-weight: 700; fill: #0f172a; }
+      .box-desc { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 10px; fill: #334155; }
+      .tag { font-family: ui-monospace, monospace; font-size: 9.5px; font-weight: 600; fill: #2563eb; }
+      .arrow { stroke: #2563eb; stroke-width: 2; fill: none; marker-end: url(#arrow10); }
+      .fail-arrow { stroke: #dc2626; stroke-width: 2; fill: none; marker-end: url(#arrow-red); stroke-dasharray: 4,3; }
+      .restore-arrow { stroke: #16a34a; stroke-width: 2; fill: none; marker-end: url(#arrow-green); stroke-dasharray: 4,3; }
+    </style>
+    <marker id="arrow10" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#2563eb" />
+    </marker>
+    <marker id="arrow-red" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#dc2626" />
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#16a34a" />
+    </marker>
+    <filter id="shadow10" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="1" dy="2" stdDeviation="3" flood-opacity="0.08" />
+    </filter>
+  </defs>
+
+  <rect width="960" height="480" fill="#f8fafc" rx="8" />
+  <rect x="15" y="15" width="930" height="450" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" rx="6" />
+
+  <text x="35" y="48" class="title">Figure 10: Checkpoint, Durability Verification, and Resumption Lifecycle</text>
+  <text x="35" y="68" class="subtitle">Atomic Two-Phase Saves with Best/Rolling Key Parity Checks and Cloud Durability Synchronization</text>
+
+  <!-- Step 1: Training Iteration -->
+  <g transform="translate(35, 110)" filter="url(#shadow10)">
+    <rect width="160" height="150" rx="6" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5" />
+    <text x="80" y="26" text-anchor="middle" class="box-title">1. Training Epoch</text>
+    <text x="20" y="55" class="box-desc">• Multi-group opt</text>
+    <text x="20" y="73" class="box-desc">• Momentum buffers</text>
+    <text x="20" y="91" class="box-desc">• Running stats</text>
+    <text x="20" y="109" class="box-desc">• Best acc metric</text>
+    <text x="80" y="136" text-anchor="middle" class="tag">state_dict assembled</text>
+  </g>
+  <path d="M 195 185 L 225 185" class="arrow" />
+
+  <!-- Step 2: Atomic Write -->
+  <g transform="translate(225, 110)" filter="url(#shadow10)">
+    <rect width="165" height="150" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5" />
+    <text x="82" y="26" text-anchor="middle" class="box-title">2. Atomic Write</text>
+    <text x="18" y="55" class="box-desc">• Write to .tmp.pth</text>
+    <text x="18" y="73" class="box-desc">• Flush and fsync</text>
+    <text x="18" y="91" class="box-desc">• Atomic os.replace()</text>
+    <text x="18" y="109" class="box-desc">• Never partial write</text>
+    <text x="82" y="136" text-anchor="middle" class="tag" fill="#15803d">Zero Corruption</text>
+  </g>
+  <path d="M 390 185 L 420 185" class="arrow" />
+
+  <!-- Step 3: Parity Verification -->
+  <g transform="translate(420, 110)" filter="url(#shadow10)">
+    <rect width="165" height="150" rx="6" fill="#fefce8" stroke="#fde047" stroke-width="1.5" />
+    <text x="82" y="26" text-anchor="middle" class="box-title">3. Parity Check</text>
+    <text x="18" y="55" class="box-desc">• verify_parity()</text>
+    <text x="18" y="73" class="box-desc">• Compare best vs roll</text>
+    <text x="18" y="91" class="box-desc">• Key set identical</text>
+    <text x="18" y="109" class="box-desc">• No missing keys</text>
+    <text x="82" y="136" text-anchor="middle" class="tag" fill="#a16207">Assert Keys 1:1</text>
+  </g>
+  <path d="M 585 185 L 615 185" class="arrow" />
+
+  <!-- Step 4: Durable Copy -->
+  <g transform="translate(615, 110)" filter="url(#shadow10)">
+    <rect width="165" height="150" rx="6" fill="#fdf4ff" stroke="#f0abfc" stroke-width="1.5" />
+    <text x="82" y="26" text-anchor="middle" class="box-title">4. Remote Sync</text>
+    <text x="18" y="55" class="box-desc">• Cloud copy sync</text>
+    <text x="18" y="73" class="box-desc">• Drive / S3 / GCP</text>
+    <text x="18" y="91" class="box-desc">• Checksum verified</text>
+    <text x="18" y="109" class="box-desc">• Preempt-safe</text>
+    <text x="82" y="136" text-anchor="middle" class="tag" fill="#86198f">Durable Storage</text>
+  </g>
+
+  <!-- Step 5: Failure & Restoration Loop -->
+  <g transform="translate(810, 110)" filter="url(#shadow10)">
+    <rect width="115" height="150" rx="6" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5" />
+    <text x="57" y="26" text-anchor="middle" class="box-title" fill="#dc2626">5. Failure</text>
+    <text x="14" y="55" class="box-desc">• Preemption</text>
+    <text x="14" y="73" class="box-desc">• GPU OOM</text>
+    <text x="14" y="91" class="box-desc">• Network drop</text>
+    <text x="57" y="136" text-anchor="middle" class="tag" fill="#dc2626">Process Dies</text>
+  </g>
+
+  <path d="M 780 185 L 810 185" class="fail-arrow" />
+  <path d="M 867 260 L 867 340 L 115 340 L 115 260" class="restore-arrow" />
+  <rect x="400" y="325" width="200" height="30" rx="4" fill="#dcfce7" stroke="#16a34a" />
+  <text x="500" y="344" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11px" font-weight="700" fill="#15803d">
+    Restore from Rolling + Resume Epoch
+  </text>
+
+  <!-- Bottom Panel -->
+  <g transform="translate(35, 380)">
+    <rect width="890" height="75" rx="6" fill="#f8fafc" stroke="#cbd5e1" />
+    <text x="20" y="20" class="box-title">Why Atomic Renames and Parity Verification are Mandatory</text>
+    <text x="20" y="37" class="box-desc">• Directly writing torch.save(..., "model.pth") leaves a corrupted 0-byte file if killed during serialization.</text>
+    <text x="20" y="51" class="box-desc">• Atomic saves write to model.pth.tmp first and use filesystem-level atomic os.replace() to guarantee zero corruption.</text>
+    <text x="20" y="65" class="box-desc">• Parity checking verifies best.pth and rolling.pth share identical architecture keys and parameter dimensions.</text>
+  </g>
+</svg>

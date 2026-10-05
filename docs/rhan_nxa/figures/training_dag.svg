@@ -1,0 +1,195 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 20px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 500; fill: #64748B; }
+      .step-box { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 1.8; rx: 6px; }
+      .step-gate { fill: #EFF6FF; stroke: #2563EB; stroke-width: 2.2; rx: 6px; }
+      .header-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 12.5px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 10.5px; fill: #334155; }
+      .dim-badge { font-family: 'Liberation Mono', monospace; font-size: 10px; fill: #2563EB; font-weight: 600; }
+      .arrow { stroke: #334155; stroke-width: 1.8; fill: none; marker-end: url(#arrow-head); }
+      .arrow-gate { stroke: #2563EB; stroke-width: 2.2; fill: none; marker-end: url(#arrow-blue-head); }
+    </style>
+    <marker id="arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-blue-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#2563EB"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="620" class="bg" rx="12"/>
+  <rect x="15" y="15" width="970" height="590" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <text x="35" y="45" class="title">Figure 16. The 10-Step Experimental DAG and Isolation Protocol</text>
+  <text x="35" y="66" class="subtitle">Phased Sequential Execution Graph: Gating Dependencies, Control Baselines, and Frozen Step 6 Benchmark</text>
+
+  <!-- PHASE 1: Core Clean Loop Development (Steps 1 to 6) -->
+  <g transform="translate(35, 95)">
+    <rect width="930" height="235" fill="#F8FAFC" stroke="#93C5FD" stroke-width="1.5" stroke-dasharray="6,4" rx="8"/>
+    <text x="20" y="24" class="header-text" fill="#1E40AF" font-size="13.5px">PHASE 1: Core Clean Recurrent Architecture Build (ImageNet-100)</text>
+
+    <!-- Step 1 -->
+    <g transform="translate(20, 40)">
+      <rect width="135" height="170" class="step-box"/>
+      <circle cx="18" cy="20" r="10" fill="#64748B"/>
+      <text x="18" y="24" text-anchor="middle" font-size="10px" font-weight="700" fill="#FFFFFF">1</text>
+      <text x="34" y="24" class="header-text">Pre-Flight</text>
+      <text x="12" y="50" class="body-text">Gradient Isolation</text>
+      <text x="12" y="68" class="body-text">Check |∇W| == 0</text>
+      <text x="12" y="86" class="body-text">for frozen groups.</text>
+      <rect x="10" y="130" width="115" height="24" fill="#F1F5F9" rx="3"/>
+      <text x="67" y="146" text-anchor="middle" class="dim-badge" fill="#64748B">Pre-Flight Suite</text>
+    </g>
+
+    <!-- Arrow 1 -> 2 -->
+    <path d="M 155 125 L 175 125" class="arrow"/>
+
+    <!-- Step 2 -->
+    <g transform="translate(175, 40)">
+      <rect width="135" height="170" class="step-box"/>
+      <circle cx="18" cy="20" r="10" fill="#0284C7"/>
+      <text x="18" y="24" text-anchor="middle" font-size="10px" font-weight="700" fill="#FFFFFF">2</text>
+      <text x="34" y="24" class="header-text">Single-Pass</text>
+      <text x="12" y="50" class="body-text">Standard ViT Base</text>
+      <text x="12" y="68" class="body-text">Establishes substrate</text>
+      <text x="12" y="86" class="body-text">capacity (no recur).</text>
+      <rect x="10" y="130" width="115" height="24" fill="#E0F2FE" rx="3"/>
+      <text x="67" y="146" text-anchor="middle" class="dim-badge">CompactViT</text>
+    </g>
+
+    <!-- Arrow 2 -> 3 -->
+    <path d="M 310 125 L 330 125" class="arrow"/>
+
+    <!-- Step 3 -->
+    <g transform="translate(330, 40)">
+      <rect width="135" height="170" class="step-box"/>
+      <circle cx="18" cy="20" r="10" fill="#0284C7"/>
+      <text x="18" y="24" text-anchor="middle" font-size="10px" font-weight="700" fill="#FFFFFF">3</text>
+      <text x="34" y="24" class="header-text">Recurrent ViT</text>
+      <text x="12" y="50" class="body-text">Option C Tied Loops</text>
+      <text x="12" y="68" class="body-text">Fixed Center Gaze</text>
+      <text x="12" y="86" class="body-text">(Null gaze control).</text>
+      <rect x="10" y="130" width="115" height="24" fill="#E0F2FE" rx="3"/>
+      <text x="67" y="146" text-anchor="middle" class="dim-badge">T = 4 Recur</text>
+    </g>
+
+    <!-- Arrow 3 -> 4 -->
+    <path d="M 465 125 L 485 125" class="arrow"/>
+
+    <!-- Step 4 -->
+    <g transform="translate(485, 40)">
+      <rect width="135" height="170" class="step-box"/>
+      <circle cx="18" cy="20" r="10" fill="#D97706"/>
+      <text x="18" y="24" text-anchor="middle" font-size="10px" font-weight="700" fill="#FFFFFF">4</text>
+      <text x="34" y="24" class="header-text">Predictor &amp; Err</text>
+      <text x="12" y="50" class="body-text">Train Predictor</text>
+      <text x="12" y="68" class="body-text">E_t + UpdateNet</text>
+      <text x="12" y="86" class="body-text">integration test.</text>
+      <rect x="10" y="130" width="115" height="24" fill="#FEF3C7" rx="3"/>
+      <text x="67" y="146" text-anchor="middle" class="dim-badge" fill="#B45309">Pred ~2.8M</text>
+    </g>
+
+    <!-- Arrow 4 -> 5 -->
+    <path d="M 620 125 L 640 125" class="arrow"/>
+
+    <!-- Step 5 -->
+    <g transform="translate(640, 40)">
+      <rect width="135" height="170" class="step-box"/>
+      <circle cx="18" cy="20" r="10" fill="#0D9488"/>
+      <text x="18" y="24" text-anchor="middle" font-size="10px" font-weight="700" fill="#FFFFFF">5</text>
+      <text x="34" y="24" class="header-text">AIS-v2 Integration</text>
+      <text x="12" y="50" class="body-text">Full Active Sensing</text>
+      <text x="12" y="68" class="body-text">Dirichlet entropy</text>
+      <text x="12" y="86" class="body-text">candidate policy.</text>
+      <rect x="10" y="130" width="115" height="24" fill="#CCFBF1" rx="3"/>
+      <text x="67" y="146" text-anchor="middle" class="dim-badge" fill="#0F766E">Full Loop Smoke</text>
+    </g>
+
+    <!-- Arrow 5 -> 6 -->
+    <path d="M 775 125 L 795 125" class="arrow-gate"/>
+
+    <!-- Step 6 (FROZEN KEYSTONE) -->
+    <g transform="translate(795, 30)">
+      <rect width="120" height="190" class="step-gate" fill="#EFF6FF"/>
+      <circle cx="18" cy="20" r="10" fill="#1D4ED8"/>
+      <text x="18" y="24" text-anchor="middle" font-size="10px" font-weight="700" fill="#FFFFFF">6</text>
+      <text x="34" y="24" class="header-text" fill="#1E40AF">STEP 6</text>
+      <text x="12" y="48" class="body-text" font-weight="700" fill="#1E40AF">Validated Core</text>
+      <text x="12" y="66" class="body-text">16-Seed Array</text>
+      <text x="12" y="82" class="body-text">ImageNet-100</text>
+      <text x="12" y="100" class="body-text">Clean &amp; PGD</text>
+      <rect x="8" y="125" width="104" height="48" fill="#1E40AF" rx="4"/>
+      <text x="60" y="144" text-anchor="middle" font-size="10px" font-weight="800" fill="#FFFFFF">FROZEN</text>
+      <text x="60" y="160" text-anchor="middle" font-size="9px" fill="#DBEAFE">BASELINE REF</text>
+    </g>
+  </g>
+
+  <!-- PHASE 2: Isolated Extensions Gated on Step 6 (Bottom Half) -->
+  <g transform="translate(35, 355)">
+    <rect width="930" height="235" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5" rx="8"/>
+    <text x="20" y="24" class="header-text" fill="#334155" font-size="13.5px">PHASE 2: Controlled Ablations &amp; Staged Extensions (Gated Strictly on Step 6 Validation)</text>
+
+    <!-- Branching Downward from Step 6 -->
+    <path d="M 855 330 L 855 375 L 100 375" stroke="#1D4ED8" stroke-width="2" fill="none"/>
+    <circle cx="855" cy="375" r="4" fill="#1D4ED8"/>
+
+    <!-- Step 7: Structural State S_t Re-entry -->
+    <g transform="translate(40, 395)">
+      <path d="M 100 375 L 100 395" class="arrow"/>
+      <rect width="200" height="145" class="step-box" stroke="#94A3B8"/>
+      <circle cx="20" cy="20" r="10" fill="#64748B"/>
+      <text x="20" y="24" text-anchor="middle" font-size="10px" font-weight="700" fill="#FFFFFF">7</text>
+      <text x="36" y="24" class="header-text" fill="#475569">Step 7: S_t Re-entry</text>
+      <text x="15" y="48" class="body-text">• Compact 2–4 slot variant.</text>
+      <text x="15" y="66" class="body-text">• Gated on Gate 1 slot probes.</text>
+      <text x="15" y="84" class="body-text">• Must avoid clean collapse.</text>
+      <rect x="15" y="105" width="170" height="26" fill="#F1F5F9" rx="4"/>
+      <text x="100" y="122" text-anchor="middle" class="dim-badge" fill="#64748B">DEFERRED → Step 7</text>
+    </g>
+
+    <!-- Step 8: L_stab Training Promotion -->
+    <g transform="translate(270, 395)">
+      <path d="M 340 375 L 340 395" class="arrow"/>
+      <rect width="210" height="145" class="step-box" stroke="#D97706"/>
+      <circle cx="20" cy="20" r="10" fill="#D97706"/>
+      <text x="20" y="24" text-anchor="middle" font-size="10px" font-weight="700" fill="#FFFFFF">8</text>
+      <text x="36" y="24" class="header-text" fill="#B45309">Step 8: +L_stab Arm</text>
+      <text x="15" y="48" class="body-text">• Staged training objective (λ &gt; 0).</text>
+      <text x="15" y="66" class="body-text">• Evaluated vs Step 6 baseline.</text>
+      <text x="15" y="84" class="body-text">• Gate 9 Responsiveness Guard.</text>
+      <rect x="15" y="105" width="180" height="26" fill="#FEF3C7" rx="4"/>
+      <text x="105" y="122" text-anchor="middle" class="dim-badge" fill="#B45309">STAGED → Step 8</text>
+    </g>
+
+    <!-- Step 9: V1 Gabor Frontend -->
+    <g transform="translate(510, 395)">
+      <path d="M 580 375 L 580 395" class="arrow"/>
+      <rect width="200" height="145" class="step-box" stroke="#16A34A"/>
+      <circle cx="20" cy="20" r="10" fill="#16A34A"/>
+      <text x="20" y="24" text-anchor="middle" font-size="10px" font-weight="700" fill="#FFFFFF">9</text>
+      <text x="36" y="24" class="header-text" fill="#15803D">Step 9: +V1 Frontend</text>
+      <text x="15" y="48" class="body-text">• Fixed Gabor convolution bank.</text>
+      <text x="15" y="66" class="body-text">• Sequenced LAST (attribution).</text>
+      <text x="15" y="84" class="body-text">• Standalone 8-seed ablation.</text>
+      <rect x="15" y="105" width="170" height="26" fill="#DCFCE7" rx="4"/>
+      <text x="100" y="122" text-anchor="middle" class="dim-badge" fill="#15803D">LAST → Step 9</text>
+    </g>
+
+    <!-- Step 10: Final ImageNet-1K Verification -->
+    <g transform="translate(740, 395)">
+      <path d="M 830 375 L 830 395" class="arrow-gate"/>
+      <rect width="170" height="145" class="step-box" stroke="#2563EB" fill="#EFF6FF"/>
+      <circle cx="20" cy="20" r="10" fill="#1D4ED8"/>
+      <text x="20" y="24" text-anchor="middle" font-size="10px" font-weight="700" fill="#FFFFFF">10</text>
+      <text x="36" y="24" class="header-text" fill="#1D4ED8">Step 10: ImageNet-1K</text>
+      <text x="15" y="48" class="body-text">• Run-Once Full Scale.</text>
+      <text x="15" y="66" class="body-text">• Frozen winning config.</text>
+      <text x="15" y="84" class="body-text">• Final benchmark test.</text>
+      <rect x="15" y="105" width="140" height="26" fill="#2563EB" rx="4"/>
+      <text x="85" y="122" text-anchor="middle" class="dim-badge" fill="#FFFFFF">Full Verification</text>
+    </g>
+  </g>
+</svg>

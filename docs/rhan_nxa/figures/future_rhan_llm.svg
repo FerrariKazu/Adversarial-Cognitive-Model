@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 580" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 20px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 500; fill: #64748B; }
+      .panel { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 1.8; rx: 8px; }
+      .header-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 13.5px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 11px; fill: #334155; }
+      .dim-badge { font-family: 'Liberation Mono', monospace; font-size: 10.5px; fill: #2563EB; font-weight: 600; }
+      .formula-text { font-family: 'Liberation Mono', monospace; font-size: 10.5px; fill: #0F766E; }
+      .arrow { stroke: #334155; stroke-width: 1.8; fill: none; marker-end: url(#arrow-head); }
+      .arrow-blue { stroke: #2563EB; stroke-width: 2.2; fill: none; marker-end: url(#arrow-blue-head); }
+      .arrow-teal { stroke: #0D9488; stroke-width: 2; stroke-dasharray: 5,4; fill: none; marker-end: url(#arrow-teal-head); }
+    </style>
+    <marker id="arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-blue-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrow-teal-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#0D9488"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="580" class="bg" rx="12"/>
+  <rect x="15" y="15" width="970" height="550" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <text x="35" y="45" class="title">Figure 17. The Multi-Modal Horizon: RHAN-LLM Cognitive Architecture</text>
+  <text x="35" y="66" class="subtitle">Post-Generation-1 Evolution: Active Visual Belief Trajectory as a Dynamic Cognitive Prefix for Large Language Models</text>
+
+  <!-- LEFT: Visual Perception Engine (RHAN-NXA Core) -->
+  <g transform="translate(35, 95)">
+    <rect width="360" height="340" class="panel" stroke="#0284C7" fill="#F0F9FF"/>
+    <text x="180" y="26" text-anchor="middle" class="header-text" fill="#0369A1">RHAN-NXA Active Visual Engine</text>
+
+    <!-- Recurrent Glimpse Loop -->
+    <g transform="translate(25, 45)">
+      <rect width="310" height="115" fill="#FFFFFF" stroke="#BAE6FD" rx="6"/>
+      <text x="15" y="22" class="header-text" font-size="12px">Sequential Visual Inquiry (T = 4):</text>
+      <text x="15" y="42" class="body-text">• Image x → Foveate(a_t) → CompactViT</text>
+      <text x="15" y="60" class="body-text">• Prediction Error E_t → UpdateNet → z_t</text>
+      <text x="15" y="78" class="body-text">• Evidential Head → Uncertainty U_t</text>
+      <text x="15" y="96" class="dim-badge" fill="#0284C7">Produces Trajectory: B_1 → B_2 → B_3 → B_4</text>
+    </g>
+
+    <!-- Cognitive Token Output -->
+    <g transform="translate(25, 175)">
+      <rect width="310" height="135" fill="#FFFFFF" stroke="#BAE6FD" rx="6"/>
+      <text x="15" y="22" class="header-text" font-size="12px" fill="#0369A1">Cognitive Vision Prefix Tokens:</text>
+      <text x="15" y="42" class="body-text">1. Final Belief State: z_4 [B, 384]</text>
+      <text x="15" y="60" class="body-text">2. Epistemic Confidence: U_4 [B, 1]</text>
+      <text x="15" y="78" class="body-text">3. Gaze Fixation History: A_4 [B, 4, 2]</text>
+      <text x="15" y="98" class="body-text">4. Surprising Anomalies: max(E_t)</text>
+      <text x="15" y="118" class="dim-badge" fill="#0369A1">Robust against adversarial visual jailbreaks</text>
+    </g>
+  </g>
+
+  <!-- Arrow Left -> Center -->
+  <path d="M 395 265 L 455 265" class="arrow-blue"/>
+  <text x="425" y="255" text-anchor="middle" class="dim-badge">Adapter</text>
+
+  <!-- CENTER: Multi-Modal Adapter & Cross-Attention Bridge -->
+  <g transform="translate(455, 135)">
+    <rect width="180" height="260" class="panel" stroke="#0D9488" fill="#F0FDFA"/>
+    <text x="90" y="26" text-anchor="middle" class="header-text" fill="#0F766E">Cross-Attention</text>
+    <text x="90" y="42" text-anchor="middle" class="header-text" fill="#0F766E">Cognitive Bridge</text>
+
+    <rect x="15" y="55" width="150" height="85" fill="#FFFFFF" stroke="#99F6E4" rx="4"/>
+    <text x="75" y="22" text-anchor="middle" class="body-text" font-weight="700">Learned Projection:</text>
+    <text x="75" y="40" text-anchor="middle" class="formula-text">W_proj · z_4</text>
+    <text x="75" y="58" text-anchor="middle" class="body-text">Maps visual dim 384</text>
+    <text x="75" y="74" text-anchor="middle" class="dim-badge" fill="#0D9488">→ LLM d_model</text>
+
+    <!-- Active Gaze Feedback Path Back to Vision -->
+    <path d="M 15 200 L -30 200" class="arrow-teal"/>
+    <text x="75" y="180" text-anchor="middle" font-size="10px" font-weight="700" fill="#0D9488">Language-Guided Gaze:</text>
+    <text x="75" y="196" text-anchor="middle" font-size="9.5px" fill="#115E59">LLM queries focus saccade</text>
+    <text x="75" y="212" text-anchor="middle" font-size="9.5px" fill="#115E59">on ambiguous regions</text>
+  </g>
+
+  <!-- Arrow Center -> Right -->
+  <path d="M 635 265 L 695 265" class="arrow-blue"/>
+
+  <!-- RIGHT: Large Language Model & Grounded Reasoning -->
+  <g transform="translate(695, 95)">
+    <rect width="270" height="340" class="panel" stroke="#D97706" fill="#FFFBEB"/>
+    <text x="135" y="26" text-anchor="middle" class="header-text" fill="#B45309">Large Language Model (LLM)</text>
+
+    <!-- Query Box -->
+    <g transform="translate(15, 45)">
+      <rect width="240" height="50" fill="#FFFFFF" stroke="#FED7AA" rx="4"/>
+      <text x="15" y="20" class="body-text" font-weight="700">User Query Prompt:</text>
+      <text x="15" y="36" class="body-text" font-style="italic">"Is there a predator in the bushes?"</text>
+    </g>
+
+    <!-- Uncertainty Conditioning Logic -->
+    <g transform="translate(15, 105)">
+      <rect width="240" height="135" fill="#FFFFFF" stroke="#FED7AA" rx="4"/>
+      <text x="15" y="22" class="header-text" font-size="11.5px" fill="#B45309">Uncertainty-Grounded Reasoning:</text>
+      <text x="15" y="42" class="body-text">• If U_4 &lt; 0.15 (Confident):</text>
+      <text x="25" y="58" class="body-text" font-weight="700" fill="#15803D">Asserts detection with evidence.</text>
+      <text x="15" y="78" class="body-text">• If U_4 &gt; 0.50 (Uncertain):</text>
+      <text x="25" y="94" class="body-text" font-weight="700" fill="#B45309">Abstains from hallucination;</text>
+      <text x="25" y="110" class="body-text" font-weight="700" fill="#B45309">Requests targeted extra saccades!</text>
+    </g>
+
+    <!-- Grounded Text Output -->
+    <g transform="translate(15, 250)">
+      <rect width="240" height="70" fill="#FEF3C7" stroke="#F59E0B" rx="4"/>
+      <text x="15" y="20" class="body-text" font-weight="700" fill="#92400E">Grounded Explanation Output:</text>
+      <text x="15" y="38" class="body-text" font-size="10.5px">"A snow leopard is detected at (x=0.3, y=0.4)</text>
+      <text x="15" y="52" class="body-text" font-size="10.5px">verified by targeted eye/ear contour saccades."</text>
+    </g>
+  </g>
+
+  <!-- BOTTOM CONCEPTUAL PRINCIPLE -->
+  <g transform="translate(35, 455)">
+    <rect width="930" height="110" fill="#F8FAFC" stroke="#E2E8F0" rx="6"/>
+    <text x="20" y="24" class="header-text" font-size="12.5px">Core Conceptual Advance Over Standard Vision-Language Models (VLMs):</text>
+    <text x="20" y="44" class="body-text">1. Standard VLMs feed passive, unverified spatial tokens into text models, making them</text>
+    <text x="20" y="58" class="body-text">   vulnerable to hallucinations and adversarial visual jailbreaks.</text>
+    <text x="20" y="76" class="body-text">2. RHAN-LLM feeds a stateful belief trajectory where hypotheses are verified through</text>
+    <text x="20" y="90" class="body-text">   active foveal saccades before language generation begins.</text>
+    <text x="20" y="106" class="dim-badge" fill="#0284C7">Status: Post-Gen-1 Conceptual Horizon (Preserved in MASTER_PLAN.md Part 6)</text>
+  </g>
+</svg>

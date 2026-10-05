@@ -1,0 +1,161 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 20px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 500; fill: #64748B; }
+      .stage-box { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 1.8; rx: 8px; }
+      .stage-num { font-family: 'Liberation Sans', sans-serif; font-size: 11px; font-weight: 800; fill: #FFFFFF; }
+      .header-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 13.5px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 11px; fill: #334155; }
+      .dim-badge { font-family: 'Liberation Mono', monospace; font-size: 10px; fill: #2563EB; font-weight: 600; }
+      .formula-text { font-family: 'Liberation Mono', monospace; font-size: 10.5px; fill: #92400E; }
+      .arrow { stroke: #334155; stroke-width: 2; fill: none; marker-end: url(#arrow-head); }
+      .arrow-cycle { stroke: #0D9488; stroke-width: 2.2; stroke-dasharray: 6,4; fill: none; marker-end: url(#arrow-cycle-head); }
+      .center-badge { fill: #FEF3C7; stroke: #F59E0B; stroke-width: 2; rx: 50%; }
+    </style>
+    <marker id="arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-cycle-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#0D9488"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="620" class="bg" rx="12"/>
+  <rect x="15" y="15" width="970" height="590" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <text x="35" y="45" class="title">Figure 3. The Complete Perceptual Investigation Loop (HERO)</text>
+  <text x="35" y="66" class="subtitle">Perception as Sequential Inquiry: Prediction Error Updating + Evidential Epistemic Guidance Across T=4 Glimpses</text>
+
+  <!-- Central Visual Anchor: The Recurrent Core Motif -->
+  <g transform="translate(500, 315)">
+    <circle cx="0" cy="0" r="85" fill="#F8FAFC" stroke="#0284C7" stroke-width="2.5" stroke-dasharray="6,4"/>
+    <text x="0" y="-22" text-anchor="middle" class="header-text" fill="#0369A1" font-size="14px">RECURRENT</text>
+    <text x="0" y="-4" text-anchor="middle" class="header-text" fill="#0369A1" font-size="14px">INQUIRY CORE</text>
+    <text x="0" y="18" text-anchor="middle" class="dim-badge">Depth T = 4</text>
+    <text x="0" y="36" text-anchor="middle" class="body-text" font-size="10px">Shared Weights θ</text>
+  </g>
+
+  <!-- STAGE 1: Current Belief State (Top Left) -->
+  <g transform="translate(60, 95)">
+    <rect width="210" height="110" class="stage-box" stroke="#0284C7"/>
+    <circle cx="20" cy="20" r="12" fill="#0284C7"/>
+    <text x="20" y="24" text-anchor="middle" class="stage-num">1</text>
+    <text x="40" y="24" class="header-text">Current Belief B_t</text>
+    <text x="15" y="48" class="body-text">Tripartite latent hypothesis:</text>
+    <text x="15" y="66" class="dim-badge">z_t: [B, 384] | S_t: None</text>
+    <text x="15" y="84" class="dim-badge">U_t: Dirichlet Uncertainty [B, 1]</text>
+    <text x="15" y="100" class="body-text" font-size="9.5px" fill="#64748B">Init: z_0=0, U_0=1.0, a_1=(0,0)</text>
+  </g>
+
+  <!-- Arrow 1 -> 2 -->
+  <path d="M 270 150 L 375 150" class="arrow"/>
+  <text x="322" y="142" text-anchor="middle" class="dim-badge">z_t, a_{t+1}</text>
+
+  <!-- STAGE 2: Prospective Feature Prediction (Top Center) -->
+  <g transform="translate(375, 95)">
+    <rect width="230" height="110" class="stage-box" stroke="#D97706"/>
+    <circle cx="20" cy="20" r="12" fill="#D97706"/>
+    <text x="20" y="24" text-anchor="middle" class="stage-num">2</text>
+    <text x="40" y="24" class="header-text">Feature Predictor</text>
+    <text x="15" y="48" class="body-text">Shared MLP projects:</text>
+    <text x="15" y="66" class="formula-text">ĝ_t = Predictor(z_{t-1}, a_t)</text>
+    <text x="15" y="84" class="body-text">Forecasts patch features:</text>
+    <text x="15" y="100" class="dim-badge">ĝ_t shape: [B, 16, 384]</text>
+  </g>
+
+  <!-- Arrow 2 -> 3 -->
+  <path d="M 605 150 L 710 150" class="arrow"/>
+
+  <!-- STAGE 3: Foveated Saccade Observation (Top Right) -->
+  <g transform="translate(710, 95)">
+    <rect width="230" height="110" class="stage-box" stroke="#16A34A"/>
+    <circle cx="20" cy="20" r="12" fill="#16A34A"/>
+    <text x="20" y="24" text-anchor="middle" class="stage-num">3</text>
+    <text x="40" y="24" class="header-text">Foveated Observation</text>
+    <text x="15" y="48" class="body-text">Differentiable STN sampling:</text>
+    <text x="15" y="66" class="formula-text">g_t = Foveate(x, a_t)</text>
+    <text x="15" y="84" class="body-text">Encoded via ViT patch embedder:</text>
+    <text x="15" y="100" class="dim-badge">g_t^obs shape: [B, 16, 384]</text>
+  </g>
+
+  <!-- Arrow 3 -> 4 (Down Right) -->
+  <path d="M 825 205 L 825 260" class="arrow"/>
+
+  <!-- STAGE 4: Realized Prediction Error (Mid Right) -->
+  <g transform="translate(710, 260)">
+    <rect width="230" height="110" class="stage-box" stroke="#DC2626"/>
+    <circle cx="20" cy="20" r="12" fill="#DC2626"/>
+    <text x="20" y="24" text-anchor="middle" class="stage-num">4</text>
+    <text x="40" y="24" class="header-text">Prediction Error E_t</text>
+    <text x="15" y="48" class="body-text">Mismatch between expected &amp; seen:</text>
+    <text x="15" y="66" class="formula-text">E_t = ||g_t^obs - ĝ_t||_2</text>
+    <text x="15" y="84" class="body-text">Boundary condition: E_0 := 0</text>
+    <text x="15" y="100" class="dim-badge">E_t: [B, 16, 384] → pool [B, 384]</text>
+  </g>
+
+  <!-- Arrow 4 -> 5 (Down) -->
+  <path d="M 825 370 L 825 425" class="arrow"/>
+
+  <!-- STAGE 5: Precision Weighting (Bottom Right) -->
+  <g transform="translate(710, 425)">
+    <rect width="230" height="110" class="stage-box" stroke="#D97706"/>
+    <circle cx="20" cy="20" r="12" fill="#D97706"/>
+    <text x="20" y="24" text-anchor="middle" class="stage-num">5</text>
+    <text x="40" y="24" class="header-text">Precision Scaling Π_t</text>
+    <text x="15" y="48" class="body-text">Inverse epistemic uncertainty:</text>
+    <text x="15" y="66" class="formula-text">Π_t = max(1 - U_t, 1e-4)</text>
+    <text x="15" y="84" class="body-text">Protects state against noise:</text>
+    <text x="15" y="100" class="dim-badge">Weighted Error: Π_t ⊙ E_t</text>
+  </g>
+
+  <!-- Arrow 5 -> 6 (Left) -->
+  <path d="M 710 480 L 605 480" class="arrow"/>
+
+  <!-- STAGE 6: Bounded UpdateNet (Bottom Center) -->
+  <g transform="translate(375, 425)">
+    <rect width="230" height="110" class="stage-box" stroke="#2563EB"/>
+    <circle cx="20" cy="20" r="12" fill="#2563EB"/>
+    <text x="20" y="24" text-anchor="middle" class="stage-num">6</text>
+    <text x="40" y="24" class="header-text">UpdateNet Integration</text>
+    <text x="15" y="48" class="body-text">Bounded non-linear state update:</text>
+    <text x="15" y="66" class="formula-text">Δz_t = 0.1 · tanh(MLP([z, ΠE]))</text>
+    <text x="15" y="84" class="body-text">Invariant: ||Δz_t||_∞ ≤ 0.1</text>
+    <text x="15" y="100" class="dim-badge">New State: z_{t+1} = z_t + Δz_t</text>
+  </g>
+
+  <!-- Arrow 6 -> 7 (Left) -->
+  <path d="M 375 480 L 270 480" class="arrow"/>
+
+  <!-- STAGE 7: Evidential Head & Uncertainty (Bottom Left) -->
+  <g transform="translate(60, 425)">
+    <rect width="210" height="110" class="stage-box" stroke="#0D9488"/>
+    <circle cx="20" cy="20" r="12" fill="#0D9488"/>
+    <text x="20" y="24" text-anchor="middle" class="stage-num">7</text>
+    <text x="40" y="24" class="header-text">Evidential Readout</text>
+    <text x="15" y="48" class="body-text">Dirichlet Evidence Head:</text>
+    <text x="15" y="66" class="formula-text">e = softplus(W · z_{t+1})</text>
+    <text x="15" y="84" class="body-text">Epistemic Uncertainty:</text>
+    <text x="15" y="100" class="dim-badge">U_{t+1} = K / ∑ (e_k + 1)</text>
+  </g>
+
+  <!-- Arrow 7 -> 8 (Up Left) -->
+  <path d="M 165 425 L 165 370" class="arrow"/>
+
+  <!-- STAGE 8: AIS-v2 Active Gaze Selection (Mid Left) -->
+  <g transform="translate(60, 260)">
+    <rect width="210" height="110" class="stage-box" stroke="#0D9488" fill="#F0FDFA"/>
+    <circle cx="20" cy="20" r="12" fill="#0D9488"/>
+    <text x="20" y="24" text-anchor="middle" class="stage-num">8</text>
+    <text x="40" y="24" class="header-text">AIS-v2 Gaze Policy</text>
+    <text x="15" y="48" class="body-text">Sample K candidates in [-1, 1]²</text>
+    <text x="15" y="66" class="formula-text">Score = ΔH(U_t, a^(k))</text>
+    <text x="15" y="84" class="body-text">Mechanism Valid: r = 0.706</text>
+    <text x="15" y="100" class="dim-badge" fill="#0D9488">Selects Next Gaze: a_{t+1}</text>
+  </g>
+
+  <!-- Arrow 8 -> 1 (Cycle Close) -->
+  <path d="M 165 260 L 165 205" class="arrow-cycle"/>
+  <text x="145" y="235" text-anchor="end" class="dim-badge" fill="#0D9488">Next Step t+1</text>
+</svg>

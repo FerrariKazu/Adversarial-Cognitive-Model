@@ -150,9 +150,43 @@ copies are caches. Don't hand-edit them to change what runs next.
 ## 14. Git branches
 
 `feature/rhan-next` = active. `main` = STL-10-era tip (frozen until
-validation). `phase/*`, `dev`, `backup-pre-rewrite` = historical provenance.
+validation). Historical provenance: `phase/*`, `dev`, `backup-pre-rewrite`.
 Branch deletion is a separate, explicit, audited operation — never part of a
 refactor commit.
+
+**Branch inventory after audit & cleanup (2026-10-05):**
+- KEEP active: `main`, `feature/rhan-next` (plus current working branch
+  `stage2/nxa-pipeline-refactor`, and `diagnosis/nxa-forensic-2026-10-03`).
+- DELETED (22 local, 16 remote): `backup-pre-rewrite`, `dev`, `docs/report`,
+  `eyad-pr`, `phase/1-bagnet`, `phase/1-clip`, `phase/1-cornets`,
+  `phase/1-efficientnet`, `phase/1-shaperesnet` (remote only — deleted there),
+  `phase/1-vit`, `phase/2-bagnet-attacks`, `phase/2-efficientnet-attacks`,
+  `phase/2-shaperesnet-attacks`, `phase/2-vit-attacks`, `phase/4-analysis`,
+  `phase/5-sdt`, `phase/rhan-trades`, `phase/rhan-trades-curriculum`,
+  `phase/rhan-v2`, `phase/rhan-v3-adaptive`, `phase/rhan-v4`,
+  `phase/rhan-v5`, `phase/rhan-v6`, `phase/trial-1-clip`,
+  `phase/trial-2-adaptive`.
+- KEEP historical (1): `phase/1-shaperesnet` — retained because it carries
+  unique research content (ShapeResNet50 model, checkpoints, adversarial
+  arrays, attack scripts) not present elsewhere.
+- 1 tag preserved: `forensic-nxa-2026-10-03-final`.
+
+**Branch inventory after audit & cleanup (2026-10-05):**
+- KEEP active: `main`, `feature/rhan-next` (plus current working branch
+  `stage2/nxa-pipeline-refactor`, and `diagnosis/nxa-forensic-2026-10-03`).
+- DELETED (22 local, 16 remote): `backup-pre-rewrite`, `dev`, `docs/report`,
+  `eyad-pr`, `phase/1-bagnet`, `phase/1-clip`, `phase/1-cornets`,
+  `phase/1-efficientnet`, `phase/1-shaperesnet` (remote only — deleted there),
+  `phase/1-vit`, `phase/2-bagnet-attacks`, `phase/2-efficientnet-attacks`,
+  `phase/2-shaperesnet-attacks`, `phase/2-vit-attacks`, `phase/4-analysis`,
+  `phase/5-sdt`, `phase/rhan-trades`, `phase/rhan-trades-curriculum`,
+  `phase/rhan-v2`, `phase/rhan-v3-adaptive`, `phase/rhan-v4`,
+  `phase/rhan-v5`, `phase/rhan-v6`, `phase/trial-1-clip`,
+  `phase/trial-2-adaptive`.
+- KEEP historical (1): `phase/1-shaperesnet` — retained because it carries
+  unique research content (ShapeResNet50 model, checkpoints, adversarial
+  arrays, attack scripts) not present elsewhere.
+- 1 tag preserved: `forensic-nxa-2026-10-03-final`.
 
 ## 15. Where to start (reading order)
 

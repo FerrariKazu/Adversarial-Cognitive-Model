@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 19px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 500; fill: #64748B; }
+      .panel { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 1.8; rx: 8px; }
+      .header-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 13.5px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 11px; fill: #334155; }
+      .dim-badge { font-family: 'Liberation Mono', monospace; font-size: 10.5px; fill: #2563EB; font-weight: 600; }
+      .formula-text { font-family: 'Liberation Mono', monospace; font-size: 10.5px; fill: #B45309; }
+      .arrow { stroke: #334155; stroke-width: 1.8; fill: none; marker-end: url(#arrow-head); }
+    </style>
+    <marker id="arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#334155"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="540" class="bg" rx="12"/>
+  <rect x="15" y="15" width="930" height="510" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <text x="35" y="45" class="title">Figure 13. L_stab Stability Protocol and Gate 9 Responsiveness Guard</text>
+  <text x="35" y="66" class="subtitle">Staged Evaluation: Phase A (Diagnostic Only) vs. Gate 9 Two-Sided Falsification Rule</text>
+
+  <!-- TOP LEFT: Trajectory Divergence Measurement -->
+  <g transform="translate(35, 95)">
+    <rect width="430" height="225" class="panel"/>
+    <text x="20" y="26" class="header-text" fill="#0369A1">1. Trajectory Drift Metric (drift_to)</text>
+    
+    <!-- Clean Trajectory -->
+    <path d="M 30 75 Q 120 55 210 65 T 390 60" fill="none" stroke="#16A34A" stroke-width="3"/>
+    <circle cx="30" cy="75" r="5" fill="#16A34A"/>
+    <text x="30" y="95" text-anchor="middle" font-size="10px" font-weight="700" fill="#16A34A">B_0(x)</text>
+    <circle cx="210" cy="65" r="5" fill="#16A34A"/>
+    <circle cx="390" cy="60" r="5" fill="#16A34A"/>
+    <text x="390" y="80" text-anchor="middle" font-size="10px" font-weight="700" fill="#16A34A">Clean B_T(x)</text>
+
+    <!-- Perturbed Trajectory -->
+    <path d="M 30 75 Q 120 120 210 135 T 390 145" fill="none" stroke="#DC2626" stroke-width="2.5" stroke-dasharray="5,3"/>
+    <circle cx="210" cy="135" r="5" fill="#DC2626"/>
+    <circle cx="390" cy="145" r="5" fill="#DC2626"/>
+    <text x="390" y="165" text-anchor="middle" font-size="10px" font-weight="700" fill="#DC2626">Attacked B_T(x+δ)</text>
+
+    <!-- Drift Measurement Lines between trajectories -->
+    <line x1="210" y1="65" x2="210" y2="135" stroke="#F59E0B" stroke-width="2" stroke-dasharray="3,2"/>
+    <line x1="390" y1="60" x2="390" y2="145" stroke="#F59E0B" stroke-width="2" stroke-dasharray="3,2"/>
+    <rect x="230" y="90" width="130" height="22" fill="#FEF3C7" stroke="#F59E0B" rx="3"/>
+    <text x="295" y="105" text-anchor="middle" class="dim-badge" fill="#B45309">drift_to(B_t, B'_t)</text>
+
+    <text x="20" y="195" class="body-text">Evaluated in noesis_vision/beliefs/drift.py:</text>
+    <text x="20" y="210" class="formula-text">L_stab = (1/T) ∑_{t=1}^T ||z_t(x+δ) - z_t(x)||_2</text>
+  </g>
+
+  <!-- TOP RIGHT: Staged Promotion Protocol (LOCKED) -->
+  <g transform="translate(495, 95)">
+    <rect width="430" height="225" class="panel"/>
+    <text x="20" y="26" class="header-text" fill="#B45309">2. Staged Promotion Protocol (LOCKED)</text>
+
+    <!-- Phase A -->
+    <g transform="translate(20, 42)">
+      <rect width="390" height="65" fill="#F8FAFC" stroke="#94A3B8" rx="5"/>
+      <text x="15" y="22" class="header-text" font-size="12px" fill="#475569">PHASE A: Diagnostic Only (Steps 1–6)</text>
+      <text x="15" y="40" class="body-text">• Computed and logged across all epochs; λ_stab = 0.0.</text>
+      <text x="15" y="55" class="body-text">• Zero gradient backpropagation. Core baseline validated first.</text>
+    </g>
+
+    <!-- Promotion Gate -->
+    <path d="M 215 107 L 215 125" class="arrow"/>
+    <rect x="135" y="112" width="160" height="20" fill="#E0F2FE" rx="4"/>
+    <text x="215" y="126" text-anchor="middle" font-size="10px" font-weight="700" fill="#0284C7">Step 6 Baseline Frozen</text>
+
+    <!-- Phase B -->
+    <g transform="translate(20, 137)">
+      <rect width="390" height="75" fill="#FFFBEB" stroke="#F59E0B" rx="5"/>
+      <text x="15" y="22" class="header-text" font-size="12px" fill="#B45309">PHASE B: Training Objective (Step 8 Arm Only)</text>
+      <text x="15" y="40" class="body-text">• Activated as an isolated ablation arm with λ_stab &gt; 0.</text>
+      <text x="15" y="55" class="body-text">• Penalizes adversarial divergence during training.</text>
+      <text x="15" y="70" class="body-text" font-weight="700" fill="#B45309">• Must pass Gate 9 Responsiveness Guard before acceptance.</text>
+    </g>
+  </g>
+
+  <!-- BOTTOM: Gate 9 Responsiveness Guard (Two-Sided Rule) -->
+  <g transform="translate(35, 335)">
+    <rect width="890" height="195" class="panel" stroke="#EF4444" rx="8"/>
+    <text x="25" y="26" class="header-text" fill="#B91C1C">3. Gate 9: The Responsiveness Guard (Pre-Registered Two-Sided Rule)</text>
+    <text x="25" y="45" class="body-text" font-weight="700">"A model minimizing adversarial drift by becoming insensitive to ALL</text>
+    <text x="25" y="60" class="body-text" font-weight="700">new evidence is a FAILURE, not a success."</text>
+
+    <!-- 2x2 Outcome Matrix -->
+    <g transform="translate(25, 72)">
+      <!-- Quadrant 1: True Success -->
+      <g transform="translate(0, 0)">
+        <rect width="400" height="50" fill="#F0FDF4" stroke="#86EFAC" rx="5"/>
+        <text x="15" y="20" class="body-text" font-weight="700" fill="#166534">Low Adversarial Drift + High OOD Sensitivity</text>
+        <text x="15" y="38" class="body-text" font-size="10.5px" fill="#15803D">✔ PASSED: Stable vs. perturbations; responsive to genuine evidence.</text>
+      </g>
+
+      <!-- Quadrant 2: Degenerate Failure -->
+      <g transform="translate(435, 0)">
+        <rect width="400" height="50" fill="#FEF2F2" stroke="#FCA5A5" rx="5"/>
+        <text x="15" y="20" class="body-text" font-weight="700" fill="#991B1B">Low Adversarial Drift + Low OOD Sensitivity</text>
+        <text x="15" y="38" class="body-text" font-size="10.5px" fill="#B91C1C">✖ FAILED (TERMINAL): Representation collapsed into indifference.</text>
+      </g>
+
+      <!-- Bottom Principle Text -->
+      <g transform="translate(0, 60)">
+        <rect width="835" height="52" fill="#F8FAFC" stroke="#E2E8F0" rx="4"/>
+        <text x="15" y="18" class="body-text" font-size="10.5px">• Evaluated on a strictly disjoint out-of-distribution (OOD) novel-evidence probe set.</text>
+        <text x="15" y="34" class="body-text" font-size="10.5px">• A model that freezes belief states across all inputs achieves zero drift trivially</text>
+        <text x="15" y="48" class="body-text" font-size="10.5px">  — and is rejected immediately.</text>
+      </g>
+    </g>
+  </g>
+</svg>
+

@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 19px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 500; fill: #64748B; }
+      .node { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 1.8; rx: 8px; }
+      .node-grad { fill: #EFF6FF; stroke: #2563EB; stroke-width: 2; rx: 8px; }
+      .node-nograd { fill: #F8FAFC; stroke: #94A3B8; stroke-width: 1.8; stroke-dasharray: 5,4; rx: 8px; }
+      .header-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 13.5px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 11px; fill: #334155; }
+      .dim-badge { font-family: 'Liberation Mono', monospace; font-size: 10.5px; fill: #2563EB; font-weight: 600; }
+      .arrow-grad { stroke: #2563EB; stroke-width: 2.5; fill: none; marker-end: url(#arrow-blue-head); }
+      .arrow-nograd { stroke: #DC2626; stroke-width: 2; stroke-dasharray: 6,4; fill: none; }
+      .arrow-diag { stroke: #D97706; stroke-width: 2; stroke-dasharray: 3,3; fill: none; }
+    </style>
+    <marker id="arrow-blue-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#2563EB"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="600" class="bg" rx="12"/>
+  <rect x="15" y="15" width="970" height="570" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <text x="35" y="45" class="title">Figure 12. Multi-Group Gradient Flow and Parameter Isolation</text>
+  <text x="35" y="66" class="subtitle">Backpropagation Paths vs. Severed/Detached Records and Diagnostic Tracking in RHAN-NXA</text>
+
+  <!-- TOP LEGEND: The 3 Flow Categories -->
+  <g transform="translate(35, 95)">
+    <rect width="930" height="50" fill="#FFFFFF" stroke="#CBD5E1" rx="6"/>
+    
+    <!-- Legend Item 1: Active Gradient -->
+    <line x1="30" y1="25" x2="80" y2="25" stroke="#2563EB" stroke-width="3"/>
+    <polygon points="85,25 75,21 75,29" fill="#2563EB"/>
+    <text x="95" y="29" class="body-text" font-weight="700" fill="#1D4ED8">Active Gradient Flow (Backpropagation into Parameter Group θ)</text>
+
+    <!-- Legend Item 2: Detached / Blocked -->
+    <line x1="450" y1="25" x2="500" y2="25" stroke="#DC2626" stroke-width="2" stroke-dasharray="6,4"/>
+    <line x1="470" y1="18" x2="480" y2="32" stroke="#DC2626" stroke-width="2.5"/>
+    <text x="515" y="29" class="body-text" font-weight="700" fill="#DC2626">Explicitly Detached (.detach() — Zero Gradient Leakage)</text>
+
+    <!-- Legend Item 3: Diagnostic Only -->
+    <line x1="750" y1="25" x2="800" y2="25" stroke="#D97706" stroke-width="2" stroke-dasharray="3,3"/>
+    <circle cx="805" cy="25" r="4" fill="#D97706"/>
+    <text x="818" y="29" class="body-text" font-weight="700" fill="#B45309">Diagnostic Only (λ = 0)</text>
+  </g>
+
+  <!-- MAIN DIAGRAM: Backprop Path from Losses to Parameters -->
+  <g transform="translate(35, 170)">
+    
+    <!-- ROW 1: Objective Losses -->
+    <g transform="translate(0, 0)">
+      <!-- Task Loss L_task -->
+      <g transform="translate(50, 0)">
+        <rect width="200" height="75" class="node" stroke="#2563EB" fill="#EFF6FF"/>
+        <text x="100" y="24" text-anchor="middle" class="header-text" fill="#1D4ED8">Task Loss L_task</text>
+        <text x="100" y="44" text-anchor="middle" class="body-text">Dirichlet Evidential Loss</text>
+        <text x="100" y="62" text-anchor="middle" class="dim-badge">L_task = L_nll + λ_kl · L_kl</text>
+      </g>
+
+      <!-- Auxiliary Prediction Loss L_pred -->
+      <g transform="translate(380, 0)">
+        <rect width="200" height="75" class="node" stroke="#D97706" fill="#FFFBEB"/>
+        <text x="100" y="24" text-anchor="middle" class="header-text" fill="#B45309">Predictor Loss L_pred</text>
+        <text x="100" y="44" text-anchor="middle" class="body-text">Auxiliary MSE Loss</text>
+        <text x="100" y="62" text-anchor="middle" class="dim-badge" fill="#C2410C">L_pred = ||g_t^obs - ĝ_t||_2^2</text>
+      </g>
+
+      <!-- Stability Loss L_stab (Diagnostic) -->
+      <g transform="translate(700, 0)">
+        <rect width="200" height="75" class="node" stroke="#D97706" stroke-dasharray="5,4" fill="#FEFCE8"/>
+        <text x="100" y="24" text-anchor="middle" class="header-text" fill="#B45309">Diagnostic L_stab</text>
+        <text x="100" y="44" text-anchor="middle" class="body-text">Belief Trajectory Drift</text>
+        <text x="100" y="62" text-anchor="middle" class="dim-badge" fill="#B45309">λ_stab = 0.0 (Phase A: NO GRAD)</text>
+      </g>
+    </g>
+
+    <!-- ROW 2: Intermediate Modules & Gradients -->
+    
+    <!-- Flow: L_task -> EvidentialHead -->
+    <path d="M 150 75 L 150 140" class="arrow-grad"/>
+
+    <g transform="translate(50, 140)">
+      <rect width="200" height="85" class="node-grad"/>
+      <text x="100" y="24" text-anchor="middle" class="header-text">Group 5: EvidentialHead</text>
+      <text x="100" y="44" text-anchor="middle" class="body-text">Parameters θ_evid</text>
+      <text x="100" y="62" text-anchor="middle" class="dim-badge">∂L_task / ∂θ_evid</text>
+      <text x="100" y="78" text-anchor="middle" class="body-text" font-size="10px">Backprop into z_t state</text>
+    </g>
+
+    <!-- Flow: L_pred -> Glimpse Predictor -->
+    <path d="M 480 75 L 480 140" class="arrow-grad"/>
+
+    <g transform="translate(380, 140)">
+      <rect width="200" height="85" class="node-grad" stroke="#D97706"/>
+      <text x="100" y="24" text-anchor="middle" class="header-text" fill="#B45309">Group 3: Predictor (~2.8M)</text>
+      <text x="100" y="44" text-anchor="middle" class="body-text">Parameters θ_pred</text>
+      <text x="100" y="62" text-anchor="middle" class="dim-badge" fill="#C2410C">∂L_pred / ∂θ_pred</text>
+      <text x="100" y="78" text-anchor="middle" class="body-text" font-size="10px">Predicts ĝ_t for E_t &amp; AIS-v2</text>
+    </g>
+
+    <!-- Detach Marker between Observed Patch and Predictor Target -->
+    <g transform="translate(600, 155)">
+      <rect width="70" height="50" fill="#FEF2F2" stroke="#DC2626" stroke-width="1.2" rx="4"/>
+      <text x="35" y="22" text-anchor="middle" font-size="10px" font-weight="700" fill="#DC2626">Target g_t</text>
+      <text x="35" y="38" text-anchor="middle" font-size="9px" font-weight="800" fill="#991B1B">.detach()</text>
+    </g>
+    <path d="M 580 180 L 600 180" class="arrow-nograd"/>
+    <line x1="588" y1="172" x2="594" y2="188" stroke="#DC2626" stroke-width="2.5"/>
+
+    <!-- Detached Gaze History Record -->
+    <g transform="translate(700, 140)">
+      <rect width="200" height="85" class="node-nograd"/>
+      <text x="100" y="24" text-anchor="middle" class="header-text" fill="#64748B">Gaze History A_t</text>
+      <text x="100" y="44" text-anchor="middle" class="body-text">Non-learned coordinate record</text>
+      <text x="100" y="62" text-anchor="middle" class="body-text" font-weight="700" fill="#DC2626">Zero Gradient (Detached)</text>
+      <text x="100" y="78" text-anchor="middle" class="body-text" font-size="10px">Used for AIS-v2 repulsion</text>
+    </g>
+
+    <!-- ROW 3: State Integration (UpdateNet) & Substrate -->
+    
+    <!-- Flow from EvidentialHead into z_t and UpdateNet -->
+    <path d="M 150 225 L 150 280" class="arrow-grad"/>
+
+    <g transform="translate(50, 280)">
+      <rect width="200" height="85" class="node-grad"/>
+      <text x="100" y="24" text-anchor="middle" class="header-text">Group 4: UpdateNet</text>
+      <text x="100" y="44" text-anchor="middle" class="body-text">Parameters θ_update</text>
+      <text x="100" y="62" text-anchor="middle" class="dim-badge">∂L_task / ∂θ_update</text>
+      <text x="100" y="78" text-anchor="middle" class="body-text" font-size="10px">Updates z_{t-1} via bounded Δz</text>
+    </g>
+
+    <!-- Flow into Recurrent Backbone -->
+    <path d="M 250 322 L 380 322" class="arrow-grad"/>
+
+    <g transform="translate(380, 280)">
+      <rect width="200" height="85" class="node-grad"/>
+      <text x="100" y="24" text-anchor="middle" class="header-text">Group 2: Tied Refine</text>
+      <text x="100" y="44" text-anchor="middle" class="body-text">Parameters θ_refine</text>
+      <text x="100" y="62" text-anchor="middle" class="dim-badge">∂L_task / ∂θ_refine</text>
+      <text x="100" y="78" text-anchor="middle" class="body-text" font-size="10px">Universal ViT block (Option C)</text>
+    </g>
+
+    <!-- Flow into Backbone Trunk -->
+    <path d="M 580 322 L 700 322" class="arrow-grad"/>
+
+    <g transform="translate(700, 280)">
+      <rect width="200" height="85" class="node-grad"/>
+      <text x="100" y="24" text-anchor="middle" class="header-text">Group 1: CompactViT</text>
+      <text x="100" y="44" text-anchor="middle" class="body-text">Parameters θ_backbone</text>
+      <text x="100" y="62" text-anchor="middle" class="dim-badge">∂L_task / ∂θ_backbone</text>
+      <text x="100" y="78" text-anchor="middle" class="body-text" font-size="10px">Patch embedder &amp; early layers</text>
+    </g>
+  </g>
+
+  <!-- BOTTOM PANEL: Pre-Flight Isolation Check -->
+  <g transform="translate(35, 490)">
+    <rect width="930" height="75" fill="#F8FAFC" stroke="#E2E8F0" rx="6"/>
+    <text x="20" y="24" class="header-text" font-size="12.5px">Standing Pre-Flight Leakage Test (|∇W| == 0.0):</text>
+    <text x="20" y="44" class="body-text">• Before any experiment is trusted, the MultiGroupOptimizer verifies that backward</text>
+    <text x="20" y="59" class="body-text">  passes on auxiliary losses inject zero gradient into frozen groups.</text>
+    <text x="20" y="76" class="body-text">• When training the predictor (Group 3), backbone gradient norm must be exactly 0.0:</text>
+    <text x="20" y="89" class="body-text">  max(|∇W_backbone|) == 0.0.</text>
+  </g>
+</svg>

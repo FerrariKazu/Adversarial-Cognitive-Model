@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 20px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 500; fill: #64748B; }
+      .panel-ok { fill: #F0FDF4; stroke: #22C55E; stroke-width: 1.8; rx: 8px; }
+      .panel-err { fill: #FEF2F2; stroke: #EF4444; stroke-width: 1.8; rx: 8px; }
+      .header-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 14px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 11.5px; fill: #334155; }
+      .dim-badge { font-family: 'Liberation Mono', monospace; font-size: 10.5px; fill: #0F172A; font-weight: 600; }
+      .code-leak { font-family: 'Liberation Mono', monospace; font-size: 11px; fill: #B91C1C; font-weight: 700; background: #FEE2E2; }
+      .arrow { stroke: #334155; stroke-width: 1.8; fill: none; marker-end: url(#arrow-head); }
+      .arrow-red { stroke: #EF4444; stroke-width: 2.2; fill: none; marker-end: url(#arrow-red-head); }
+      .arrow-green { stroke: #16A34A; stroke-width: 2.2; fill: none; marker-end: url(#arrow-green-head); }
+    </style>
+    <marker id="arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-red-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#EF4444"/>
+    </marker>
+    <marker id="arrow-green-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#16A34A"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="620" class="bg" rx="12"/>
+  <rect x="15" y="15" width="970" height="590" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <text x="35" y="45" class="title">Figure 8. The Generation-0 Confound: Intended Design vs. The SBR Flag Contamination</text>
+  <text x="35" y="66" class="subtitle">Forensic Audit of Configurations D2 &amp; D3: How an Infrastructure Script Bug Created Scientific Uncertainty</text>
+
+  <!-- TOP COMPARISON: Left (Intended) vs Right (Actual) -->
+
+  <!-- LEFT: Intended Experimental Design -->
+  <g transform="translate(35, 95)">
+    <rect width="430" height="280" class="panel-ok"/>
+    <text x="20" y="26" class="header-text" fill="#15803D">INTENDED EXPERIMENTAL DESIGN</text>
+    <text x="20" y="44" class="body-text" font-size="11px">Strict Single-Mechanism Isolation Protocol</text>
+
+    <!-- Intended D2 Branch -->
+    <g transform="translate(20, 60)">
+      <rect width="390" height="90" fill="#FFFFFF" stroke="#86EFAC" rx="6"/>
+      <text x="15" y="22" class="header-text" font-size="12.5px" fill="#166534">Experiment D2 (Active Sensing Arm):</text>
+      <text x="15" y="40" class="body-text">• Evaluates AIS-v2 against fixed gaze</text>
+      <text x="15" y="58" class="body-text" font-weight="700" fill="#15803D">• SBR Flag: Disabled (--enable-sbr OFF)</text>
+      <text x="15" y="76" class="dim-badge" fill="#166534">Expected Goal: Isolated AIS-v2 Attribution</text>
+    </g>
+
+    <!-- Intended D3 Branch -->
+    <g transform="translate(20, 165)">
+      <rect width="390" height="90" fill="#FFFFFF" stroke="#86EFAC" rx="6"/>
+      <text x="15" y="22" class="header-text" font-size="12.5px" fill="#166534">Experiment D3 (Predictive Coding Arm):</text>
+      <text x="15" y="40" class="body-text">• Evaluates Glimpse Feature Error E_t + UpdateNet</text>
+      <text x="15" y="58" class="body-text" font-weight="700" fill="#15803D">• SBR Flag: Disabled (--enable-sbr OFF)</text>
+      <text x="15" y="76" class="dim-badge" fill="#166534">Expected Goal: Isolated Belief-HPC Attribution</text>
+    </g>
+  </g>
+
+  <!-- RIGHT: Actual Execution Path (The Confound) -->
+  <g transform="translate(495, 95)">
+    <rect width="470" height="280" class="panel-err"/>
+    <text x="20" y="26" class="header-text" fill="#B91C1C">ACTUAL CODE EXECUTION PATH</text>
+    <text x="20" y="44" class="body-text" font-size="11px">Silent Script Bug in runner (_nx_trainer)</text>
+
+    <!-- The Bug Box -->
+    <g transform="translate(20, 55)">
+      <rect width="430" height="55" fill="#FFFFFF" stroke="#FCA5A5" rx="5"/>
+      <text x="15" y="22" class="code-leak">_nx_trainer.py: hardcoded --enable-sbr</text>
+      <text x="15" y="42" class="body-text" font-size="11px">The runner script unconditionally injected the legacy SBR flag.</text>
+    </g>
+
+    <!-- Pathological Cascade -->
+    <g transform="translate(20, 120)">
+      <rect width="430" height="140" fill="#FFFFFF" stroke="#FCA5A5" rx="5"/>
+      <text x="15" y="22" class="header-text" font-size="12px" fill="#991B1B">What Actually Ran in D2 and D3:</text>
+      <text x="15" y="42" class="body-text" fill="#7F1D1D">1. The dysfunctional 16-slot SBR module was activated.</text>
+      <text x="15" y="60" class="body-text" fill="#7F1D1D">2. SBR induced its signature ~10 pp clean accuracy collapse.</text>
+      <text x="15" y="78" class="body-text" fill="#7F1D1D">3. AIS-v2 and Predictive Coding were entangled with SBR noise.</text>
+      <text x="15" y="100" class="body-text" font-weight="700" fill="#B91C1C">Result: Cannot separate AIS-v2 value from SBR degradation!</text>
+      <text x="15" y="122" class="dim-badge" fill="#991B1B">System-level AIS-v2 effect is CONFOUNDED</text>
+    </g>
+  </g>
+
+  <!-- BOTTOM SECTION: Scientific Epistemic Status Matrix -->
+  <g transform="translate(35, 395)">
+    <rect width="930" height="195" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.8" rx="8"/>
+    <text x="25" y="26" class="header-text" font-size="15px">The Resulting Scientific Epistemic Boundaries (Authoritative)</text>
+
+    <!-- Matrix Column 1: KNOWN & VERIFIED -->
+    <g transform="translate(20, 40)">
+      <rect width="280" height="140" fill="#F0FDF4" stroke="#86EFAC" rx="6"/>
+      <text x="15" y="24" class="header-text" fill="#166534">1. VERIFIED FACTS</text>
+      <text x="15" y="46" class="body-text" font-weight="700">• Model D vs TRADES:</text>
+      <text x="25" y="62" class="body-text">+9.79 pp robust gain on STL-10 (16-seed)</text>
+      <text x="15" y="82" class="body-text" font-weight="700">• 16-Slot SBR is Dysfunctional:</text>
+      <text x="25" y="98" class="body-text">Chance slot decoding (0.44–0.51),</text>
+      <text x="25" y="112" class="body-text">slot-zeroing improves accuracy (1.0157)</text>
+      <text x="15" y="130" class="dim-badge" fill="#15803D">Status: VERIFIED &amp; LOCKED</text>
+    </g>
+
+    <!-- Matrix Column 2: TARGETED MECHANISM EVIDENCE -->
+    <g transform="translate(325, 40)">
+      <rect width="280" height="140" fill="#FEF3C7" stroke="#FDE047" rx="6"/>
+      <text x="15" y="24" class="header-text" fill="#B45309">2. TARGETED MECHANISM</text>
+      <text x="15" y="46" class="body-text" font-weight="700">• AIS-v2 Correlation: r = 0.706</text>
+      <text x="25" y="62" class="body-text">Predicted uncertainty reduction strongly</text>
+      <text x="25" y="76" class="body-text">correlates with realized error drop.</text>
+      <text x="15" y="98" class="body-text">• Confound-independent:</text>
+      <text x="25" y="112" class="body-text">Mechanism holds regardless of SBR flag.</text>
+      <text x="15" y="130" class="dim-badge" fill="#B45309">Status: REQUIRED DESIGN RULE</text>
+    </g>
+
+    <!-- Matrix Column 3: UNKNOWN & UNDER RE-EVALUATION -->
+    <g transform="translate(630, 40)">
+      <rect width="280" height="140" fill="#FEF2F2" stroke="#FCA5A5" rx="6"/>
+      <text x="15" y="24" class="header-text" fill="#991B1B">3. SCIENTIFICALLY UNKNOWN</text>
+      <text x="15" y="46" class="body-text" font-weight="700">• AIS-v2 Isolated Robustness:</text>
+      <text x="25" y="62" class="body-text">Does AIS-v2 beat fixed gaze on ImageNet?</text>
+      <text x="25" y="76" class="body-text" font-weight="700" fill="#DC2626">UNKNOWN (Confounded in Gen-0)</text>
+      <text x="15" y="98" class="body-text" font-weight="700">• Belief-HPC Isolated Robustness:</text>
+      <text x="25" y="112" class="body-text">Does E_t beat null prediction? UNKNOWN</text>
+      <text x="15" y="130" class="dim-badge" fill="#991B1B">Status: EXPERIMENTAL CANDIDATE</text>
+    </g>
+  </g>
+</svg>

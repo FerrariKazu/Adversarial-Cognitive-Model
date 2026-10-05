@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #FAF9F5; }
+      .title { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 19px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: 'Liberation Sans', -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 500; fill: #64748B; }
+      .card { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 1.8; rx: 8px; }
+      .header-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 13.5px; font-weight: 700; fill: #0F172A; }
+      .body-text { font-family: 'Liberation Sans', system-ui, sans-serif; font-size: 11.5px; fill: #334155; }
+      .dim-badge { font-family: 'Liberation Mono', monospace; font-size: 10.5px; fill: #B45309; font-weight: 600; }
+      .formula-text { font-family: 'Liberation Mono', monospace; font-size: 11px; fill: #B45309; }
+      .arrow { stroke: #334155; stroke-width: 1.8; fill: none; marker-end: url(#arrow-head); }
+    </style>
+    <marker id="arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#334155"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="520" class="bg" rx="12"/>
+  <rect x="15" y="15" width="930" height="490" fill="none" stroke="#E2E8F0" stroke-width="1" rx="8"/>
+
+  <text x="35" y="45" class="title">Figure 7. Dirichlet Evidential Epistemic Uncertainty U_t in RHAN-NXA</text>
+  <text x="35" y="66" class="subtitle">Decoupling Aleatoric Conflict from Epistemic Ignorance via the Evidential Head (Sensoy et al., 2018)</text>
+
+  <!-- Step 1: Input Latent State -->
+  <g transform="translate(35, 95)">
+    <rect width="180" height="150" class="card" stroke="#0284C7"/>
+    <text x="90" y="24" text-anchor="middle" class="header-text" fill="#0369A1">Latent State z_t</text>
+    <text x="90" y="44" text-anchor="middle" class="dim-badge">Shape: [B, 384]</text>
+    <text x="90" y="70" text-anchor="middle" class="body-text">Linear Evidential Head:</text>
+    <text x="90" y="90" text-anchor="middle" class="formula-text">o_k = W · z_t + b</text>
+    <text x="90" y="115" text-anchor="middle" class="body-text">Non-negative evidence:</text>
+    <text x="90" y="132" text-anchor="middle" class="formula-text">e_k = softplus(o_k) ≥ 0</text>
+  </g>
+
+  <!-- Arrow 1 -> 2 -->
+  <path d="M 215 170 L 265 170" class="arrow"/>
+
+  <!-- Step 2: Dirichlet Prior Density -->
+  <g transform="translate(265, 95)">
+    <rect width="250" height="150" class="card" stroke="#D97706" fill="#FFFBEB"/>
+    <text x="125" y="24" text-anchor="middle" class="header-text" fill="#B45309">Dirichlet Distribution Dir(α)</text>
+    <text x="125" y="44" text-anchor="middle" class="dim-badge">Parameters α_k = e_k + 1 ≥ 1</text>
+    <text x="125" y="70" text-anchor="middle" class="body-text">Total Dirichlet Strength:</text>
+    <text x="125" y="90" text-anchor="middle" class="formula-text">S = ∑_{k=1}^K α_k</text>
+    <text x="125" y="115" text-anchor="middle" class="body-text">Expected Class Probabilities:</text>
+    <text x="125" y="132" text-anchor="middle" class="formula-text">p_k = α_k / S</text>
+  </g>
+
+  <!-- Arrow 2 -> 3 -->
+  <path d="M 515 170 L 565 170" class="arrow"/>
+
+  <!-- Step 3: Analytical Epistemic Uncertainty U_t -->
+  <g transform="translate(565, 95)">
+    <rect width="360" height="150" class="card" stroke="#B45309" fill="#FEF3C7"/>
+    <text x="180" y="24" text-anchor="middle" class="header-text" fill="#78350F">Analytical Epistemic Uncertainty U_t</text>
+    <rect x="25" y="38" width="310" height="34" fill="#FFFFFF" stroke="#FDE68A" rx="4"/>
+    <text x="180" y="60" text-anchor="middle" class="formula-text" font-size="13px" font-weight="700">U_t = K / S = K / ∑_{k=1}^K (e_k + 1)</text>
+    <text x="25" y="92" class="body-text">• Bounded analytically: U_t ∈ (0, 1]</text>
+    <text x="25" y="112" class="body-text">• Zero evidence (e_k = 0 ∀ k) ⇒ S = K ⇒ U_t = 1.0 (Total Ignorance)</text>
+    <text x="25" y="132" class="body-text">• Infinite evidence (e_k → ∞) ⇒ S → ∞ ⇒ U_t → 0.0 (Total Certainty)</text>
+  </g>
+
+  <!-- BOTTOM COMPARISON: Standard Softmax vs Evidential Head -->
+  <g transform="translate(35, 275)">
+    <rect width="890" height="205" class="card"/>
+    <text x="25" y="28" class="header-text">Why Evidential Deep Learning Matters for Perception and Robustness</text>
+
+    <!-- Subpanel A: The Softmax Pathology -->
+    <g transform="translate(25, 45)">
+      <rect width="400" height="140" fill="#FEF2F2" stroke="#FCA5A5" rx="6"/>
+      <text x="15" y="24" class="header-text" fill="#991B1B">Standard Softmax (The Pathology)</text>
+      <text x="15" y="46" class="body-text" fill="#7F1D1D">• Forces output vector to sum to 1 via normalization.</text>
+      <text x="15" y="66" class="body-text" fill="#7F1D1D">• Out-of-distribution or perturbed inputs still produce</text>
+      <text x="25" y="82" class="body-text" fill="#7F1D1D">arbitrarily high Softmax confidence (e.g. 99.8% on noise).</text>
+      <text x="15" y="104" class="body-text" fill="#7F1D1D">• Conflates "conflicted" (50/50) with "completely unseen".</text>
+      <text x="15" y="124" class="body-text" font-weight="700" fill="#991B1B">Result: Model cannot detect when it needs to look again.</text>
+    </g>
+
+    <!-- Subpanel B: The Evidential Solution -->
+    <g transform="translate(465, 45)">
+      <rect width="400" height="140" fill="#F0FDF4" stroke="#86EFAC" rx="6"/>
+      <text x="15" y="24" class="header-text" fill="#166534">RHAN-NXA EvidentialHead (The Solution)</text>
+      <text x="15" y="46" class="body-text" fill="#14532D">• Outputs unnormalized non-negative evidence e_k.</text>
+      <text x="15" y="66" class="body-text" fill="#14532D">• When an unfamiliar or attacked foveal patch appears,</text>
+      <text x="25" y="82" class="body-text" fill="#14532D">no class accumulates evidence → U_t spikes toward 1.0.</text>
+      <text x="15" y="104" class="body-text" fill="#14532D">• High U_t dampens update precision (Π_t = 1 - U_t)</text>
+      <text x="25" y="120" class="body-text" fill="#14532D">and guides AIS-v2 to saccade to informative regions.</text>
+    </g>
+  </g>
+</svg>
