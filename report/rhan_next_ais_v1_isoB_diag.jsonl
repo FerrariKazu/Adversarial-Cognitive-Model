@@ -1,0 +1,1 @@
+{"epoch": 12, "eps": 0.031, "pi_d_per_class": {"car": 0.5149, "truck": 0.4842}, "reconstructed": true, "reconstruction_note": "Reconstructed 2026-08-10 from the carried-forward isolation verdict record (final-epoch Pi_D top-2 only). The original per-epoch JSONL predates the HF durability fix and was lost to a session wipe; only the final-epoch top-2 survives."}

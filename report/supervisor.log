@@ -1,0 +1,1726 @@
+[2026-09-25T01:17:47Z] === supervisor pass 1/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='start')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    not_started   
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[backbone_only] STOP — resume gate refused: could not verify HF rolling checkpoint 'foundation_backbone_only_rolling.pth' in 'FerrariKazu/rhan-nxa-checkpoints-rolling' and no local copy exists at /home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth — aborting rather than silently restarting
+[W925 04:17:51.512761398 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:17:51Z] launcher exited rc=1
+[2026-09-25T01:17:51Z] crash/exit detected; resuming via the established path  (restart 1/60) after 60s cooldown
+[2026-09-25T01:18:51Z] === supervisor pass 2/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[backbone_only] STOP — resume gate refused: could not verify HF rolling checkpoint 'foundation_backbone_only_rolling.pth' in 'FerrariKazu/rhan-nxa-checkpoints-rolling' and no local copy exists at /home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth — aborting rather than silently restarting
+[W925 04:18:55.396747783 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:18:55Z] launcher exited rc=1
+[2026-09-25T01:18:55Z] crash/exit detected; resuming via the established path  (restart 2/60) after 60s cooldown
+[2026-09-25T01:23:53Z] === supervisor pass 1/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[backbone_only] cold start (provenance manifest written)
+[backbone_only] gradient reach OK for ('classifier',)
+[backbone_only] epoch 1/60 loss=4.1757 val_acc=0.1080 best=0.1080
+[backbone_only] epoch 2/60 loss=3.9129 val_acc=0.1430 best=0.1430
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 798, in run_phase
+    save_best(best_path, model=model, config=cfg.to_dict(),
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 171, in save_best
+    atomic_torch_save(path, state)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 107, in atomic_torch_save
+    torch.save(obj, tmp_path)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/serialization.py", line 967, in save
+    _save(
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/serialization.py", line 1266, in _save
+    storage = storage.cpu()
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/storage.py", line 266, in cpu
+    return torch.UntypedStorage(self.size()).copy_(self, False)
+torch.AcceleratorError: CUDA error: unknown error
+Search for `cudaErrorUnknown' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W925 04:35:26.592591598 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:35:26Z] launcher exited rc=1
+[2026-09-25T01:35:26Z] crash/exit detected; resuming via the established path  (restart 1/60) after 60s cooldown
+[2026-09-25T01:36:26Z] === supervisor pass 2/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 682, in run_phase
+    state = resume_or_abort(
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 252, in resume_or_abort
+    shutil.copy(remote_path, rolling_path)
+  File "/usr/lib/python3.10/shutil.py", line 417, in copy
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+  File "/usr/lib/python3.10/shutil.py", line 234, in copyfile
+    raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+shutil.SameFileError: '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' and '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' are the same file
+[W925 04:36:31.122917701 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:36:31Z] launcher exited rc=1
+[2026-09-25T01:36:31Z] crash/exit detected; resuming via the established path  (restart 2/60) after 60s cooldown
+[2026-09-25T01:37:31Z] === supervisor pass 3/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 682, in run_phase
+    state = resume_or_abort(
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 252, in resume_or_abort
+    shutil.copy(remote_path, rolling_path)
+  File "/usr/lib/python3.10/shutil.py", line 417, in copy
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+  File "/usr/lib/python3.10/shutil.py", line 234, in copyfile
+    raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+shutil.SameFileError: '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' and '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' are the same file
+[W925 04:37:35.143761951 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:37:35Z] launcher exited rc=1
+[2026-09-25T01:37:35Z] crash/exit detected; resuming via the established path  (restart 3/60) after 60s cooldown
+[2026-09-25T01:38:35Z] === supervisor pass 4/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 682, in run_phase
+    state = resume_or_abort(
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 252, in resume_or_abort
+    shutil.copy(remote_path, rolling_path)
+  File "/usr/lib/python3.10/shutil.py", line 417, in copy
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+  File "/usr/lib/python3.10/shutil.py", line 234, in copyfile
+    raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+shutil.SameFileError: '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' and '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' are the same file
+[W925 04:38:38.022197652 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:38:39Z] launcher exited rc=1
+[2026-09-25T01:38:39Z] crash/exit detected; resuming via the established path  (restart 4/60) after 60s cooldown
+[2026-09-25T01:39:39Z] === supervisor pass 5/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 682, in run_phase
+    state = resume_or_abort(
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 252, in resume_or_abort
+    shutil.copy(remote_path, rolling_path)
+  File "/usr/lib/python3.10/shutil.py", line 417, in copy
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+  File "/usr/lib/python3.10/shutil.py", line 234, in copyfile
+    raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+shutil.SameFileError: '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' and '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' are the same file
+[W925 04:39:43.130188686 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:39:43Z] launcher exited rc=1
+[2026-09-25T01:39:43Z] crash/exit detected; resuming via the established path  (restart 5/60) after 60s cooldown
+[2026-09-25T01:40:43Z] === supervisor pass 6/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 682, in run_phase
+    state = resume_or_abort(
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 252, in resume_or_abort
+    shutil.copy(remote_path, rolling_path)
+  File "/usr/lib/python3.10/shutil.py", line 417, in copy
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+  File "/usr/lib/python3.10/shutil.py", line 234, in copyfile
+    raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+shutil.SameFileError: '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' and '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' are the same file
+[W925 04:40:47.278279286 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:40:47Z] launcher exited rc=1
+[2026-09-25T01:40:47Z] crash/exit detected; resuming via the established path  (restart 6/60) after 60s cooldown
+[2026-09-25T01:41:47Z] === supervisor pass 7/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 682, in run_phase
+    state = resume_or_abort(
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 252, in resume_or_abort
+    shutil.copy(remote_path, rolling_path)
+  File "/usr/lib/python3.10/shutil.py", line 417, in copy
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+  File "/usr/lib/python3.10/shutil.py", line 234, in copyfile
+    raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+shutil.SameFileError: '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' and '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' are the same file
+[W925 04:41:51.527511197 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:41:51Z] launcher exited rc=1
+[2026-09-25T01:41:51Z] crash/exit detected; resuming via the established path  (restart 7/60) after 60s cooldown
+[2026-09-25T01:42:51Z] === supervisor pass 8/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 682, in run_phase
+    state = resume_or_abort(
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 252, in resume_or_abort
+    shutil.copy(remote_path, rolling_path)
+  File "/usr/lib/python3.10/shutil.py", line 417, in copy
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+  File "/usr/lib/python3.10/shutil.py", line 234, in copyfile
+    raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+shutil.SameFileError: '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' and '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' are the same file
+[W925 04:42:55.839409634 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:42:55Z] launcher exited rc=1
+[2026-09-25T01:42:55Z] crash/exit detected; resuming via the established path  (restart 8/60) after 60s cooldown
+[2026-09-25T01:47:36Z] === supervisor pass 1/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 682, in run_phase
+    state = resume_or_abort(
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 252, in resume_or_abort
+    shutil.copy(remote_path, rolling_path)
+  File "/usr/lib/python3.10/shutil.py", line 417, in copy
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+  File "/usr/lib/python3.10/shutil.py", line 234, in copyfile
+    raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+shutil.SameFileError: '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' and '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' are the same file
+[W925 04:47:40.841159738 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:47:40Z] launcher exited rc=1
+[2026-09-25T01:47:40Z] crash/exit detected; resuming via the established path  (restart 1/60) after 60s cooldown
+[2026-09-25T01:48:40Z] === supervisor pass 2/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 682, in run_phase
+    state = resume_or_abort(
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 252, in resume_or_abort
+    shutil.copy(remote_path, rolling_path)
+  File "/usr/lib/python3.10/shutil.py", line 417, in copy
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+  File "/usr/lib/python3.10/shutil.py", line 234, in copyfile
+    raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+shutil.SameFileError: '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' and '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' are the same file
+[W925 04:48:45.125172410 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:48:45Z] launcher exited rc=1
+[2026-09-25T01:48:45Z] crash/exit detected; resuming via the established path  (restart 2/60) after 60s cooldown
+[2026-09-25T01:49:45Z] === supervisor pass 3/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 682, in run_phase
+    state = resume_or_abort(
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 252, in resume_or_abort
+    shutil.copy(remote_path, rolling_path)
+  File "/usr/lib/python3.10/shutil.py", line 417, in copy
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+  File "/usr/lib/python3.10/shutil.py", line 234, in copyfile
+    raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+shutil.SameFileError: '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' and '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' are the same file
+[W925 04:49:49.814708334 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:49:49Z] launcher exited rc=1
+[2026-09-25T01:49:49Z] crash/exit detected; resuming via the established path  (restart 3/60) after 60s cooldown
+[2026-09-25T01:50:49Z] === supervisor pass 4/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 682, in run_phase
+    state = resume_or_abort(
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 252, in resume_or_abort
+    shutil.copy(remote_path, rolling_path)
+  File "/usr/lib/python3.10/shutil.py", line 417, in copy
+    copyfile(src, dst, follow_symlinks=follow_symlinks)
+  File "/usr/lib/python3.10/shutil.py", line 234, in copyfile
+    raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+shutil.SameFileError: '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' and '/home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth' are the same file
+[W925 04:50:53.866970125 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:50:53Z] launcher exited rc=1
+[2026-09-25T01:50:53Z] crash/exit detected; resuming via the established path  (restart 4/60) after 60s cooldown
+[2026-09-25T01:51:53Z] === supervisor pass 5/61 ===
+WARNING: uncommitted changes in protocol code (training/, 
+noesis_vision/, evaluation/, tests/) — provenance manifests 
+record the code commit; dirty trees make resumes ambiguous.
+Proceeding anyway (10s to Ctrl-C)...
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[backbone_only] STOP — resume gate refused: refusing to resume /home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth: checkpoint written by commit a4444db, current code is cf6ce8a — refusing to resume across a training-code change — resuming across a code change silently invalidates the run. Delete the stale rolling/best artifacts (locally and on HF) for a genuine cold start.
+[W925 04:52:09.881140299 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:52:09Z] launcher exited rc=1
+[2026-09-25T01:52:09Z] crash/exit detected; resuming via the established path  (restart 5/60) after 60s cooldown
+[2026-09-25T01:53:09Z] === supervisor pass 6/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[backbone_only] STOP — resume gate refused: refusing to resume /home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth: checkpoint written by commit a4444db, current code is cf6ce8a — refusing to resume across a training-code change — resuming across a code change silently invalidates the run. Delete the stale rolling/best artifacts (locally and on HF) for a genuine cold start.
+[W925 04:53:13.005483830 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:53:14Z] launcher exited rc=1
+[2026-09-25T01:53:14Z] crash/exit detected; resuming via the established path  (restart 6/60) after 60s cooldown
+[2026-09-25T01:54:14Z] === supervisor pass 7/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[backbone_only] STOP — resume gate refused: refusing to resume /home/ferrarikazu/Adversarial Cognitive Model/checkpoints/foundation_backbone_only_rolling.pth: checkpoint written by commit a4444db, current code is cf6ce8a — refusing to resume across a training-code change — resuming across a code change silently invalidates the run. Delete the stale rolling/best artifacts (locally and on HF) for a genuine cold start.
+[W925 04:54:18.082845644 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T01:54:18Z] launcher exited rc=1
+[2026-09-25T01:54:18Z] crash/exit detected; resuming via the established path  (restart 7/60) after 60s cooldown
+[2026-09-25T01:59:03Z] === supervisor pass 1/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[backbone_only] provenance manifest already exists with an IDENTICAL config hash — keeping the original (crash-restart of the same experiment)
+[backbone_only] gradient reach OK for ('classifier',)
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 786, in run_phase
+    tr_loss = train_one_epoch(model, loaders["train"], optimizer,
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 631, in train_one_epoch
+    loss = F.cross_entropy(model(x), y)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 408, in forward
+    pooled, _ = self._glimpse(x, torch.zeros(B, 2, device=device))
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 390, in _glimpse
+    x = self.backbone._trunk_forward(x)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/models/backbone.py", line 139, in _trunk_forward
+    x_prep = blk(x_prep)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/models/recurrent_block.py", line 77, in forward
+    h = self.mlp["fc2"](self.mlp_drop(
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/linear.py", line 134, in forward
+    return F.linear(input, self.weight, self.bias)
+KeyboardInterrupt
+[2026-09-25T02:00:53Z] === supervisor pass 1/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[backbone_only] cold start (provenance manifest written)
+[backbone_only] gradient reach OK for ('classifier',)
+[backbone_only] epoch 1/60 loss=4.1757 val_acc=0.1080 best=0.1080
+[backbone_only] epoch 2/60 loss=3.9129 val_acc=0.1430 best=0.1430
+[backbone_only] epoch 3/60 loss=3.7878 val_acc=0.1704 best=0.1704
+[backbone_only] epoch 4/60 loss=3.7113 val_acc=0.1686 best=0.1704
+[backbone_only] epoch 5/60 loss=3.6493 val_acc=0.1814 best=0.1814
+[backbone_only] epoch 6/60 loss=3.6016 val_acc=0.1902 best=0.1902
+[backbone_only] epoch 7/60 loss=3.5576 val_acc=0.1980 best=0.1980
+[backbone_only] epoch 8/60 loss=3.5209 val_acc=0.2046 best=0.2046
+[backbone_only] epoch 9/60 loss=3.4847 val_acc=0.2066 best=0.2066
+[backbone_only] epoch 10/60 loss=3.4556 val_acc=0.2102 best=0.2102
+[backbone_only] epoch 11/60 loss=3.4283 val_acc=0.2158 best=0.2158
+[backbone_only] epoch 12/60 loss=3.4047 val_acc=0.2242 best=0.2242
+[backbone_only] epoch 13/60 loss=3.3752 val_acc=0.2210 best=0.2242
+[backbone_only] epoch 14/60 loss=3.3518 val_acc=0.2266 best=0.2266
+[backbone_only] epoch 15/60 loss=3.3283 val_acc=0.2288 best=0.2288
+[backbone_only] epoch 16/60 loss=3.3051 val_acc=0.2368 best=0.2368
+[backbone_only] epoch 17/60 loss=3.2885 val_acc=0.2404 best=0.2404
+[backbone_only] epoch 18/60 loss=3.2621 val_acc=0.2408 best=0.2408
+[backbone_only] epoch 19/60 loss=3.2493 val_acc=0.2458 best=0.2458
+[backbone_only] epoch 20/60 loss=3.2353 val_acc=0.2434 best=0.2458
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 786, in run_phase
+    tr_loss = train_one_epoch(model, loaders["train"], optimizer,
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 628, in train_one_epoch
+    x, y = x.to(device), y.to(device)
+torch.AcceleratorError: CUDA error: unknown error
+Search for `cudaErrorUnknown' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W925 06:07:15.591367591 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T03:07:15Z] launcher exited rc=1
+[2026-09-25T03:07:15Z] crash/exit detected; resuming via the established path  (restart 1/60) after 60s cooldown
+[2026-09-25T03:08:15Z] === supervisor pass 2/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[backbone_only] resumed from epoch 20 (code 'cf6ce8a')
+[backbone_only] epoch 21/60 loss=3.2159 val_acc=0.2544 best=0.2544
+[backbone_only] epoch 22/60 loss=3.1999 val_acc=0.2540 best=0.2544
+[backbone_only] epoch 23/60 loss=3.1754 val_acc=0.2530 best=0.2544
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 786, in run_phase
+    tr_loss = train_one_epoch(model, loaders["train"], optimizer,
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 628, in train_one_epoch
+    x, y = x.to(device), y.to(device)
+torch.AcceleratorError: CUDA error: unknown error
+Search for `cudaErrorUnknown' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W925 06:19:09.223089584 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T03:19:09Z] launcher exited rc=1
+[2026-09-25T03:19:09Z] crash/exit detected; resuming via the established path  (restart 2/60) after 60s cooldown
+[2026-09-25T03:20:09Z] === supervisor pass 3/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[backbone_only] resumed from epoch 23 (code 'cf6ce8a')
+[backbone_only] epoch 24/60 loss=3.1328 val_acc=0.2606 best=0.2606
+[backbone_only] epoch 25/60 loss=3.1188 val_acc=0.2640 best=0.2640
+[backbone_only] epoch 26/60 loss=3.0977 val_acc=0.2622 best=0.2640
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 798, in run_phase
+    save_best(best_path, model=model, config=cfg.to_dict(),
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 171, in save_best
+    atomic_torch_save(path, state)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 107, in atomic_torch_save
+    torch.save(obj, tmp_path)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/serialization.py", line 967, in save
+    _save(
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/serialization.py", line 1266, in _save
+    storage = storage.cpu()
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/storage.py", line 266, in cpu
+    return torch.UntypedStorage(self.size()).copy_(self, False)
+torch.AcceleratorError: CUDA error: unknown error
+Search for `cudaErrorUnknown' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W925 06:35:11.421657684 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T03:35:11Z] launcher exited rc=1
+[2026-09-25T03:35:11Z] crash/exit detected; resuming via the established path  (restart 3/60) after 60s cooldown
+[2026-09-25T03:36:11Z] === supervisor pass 4/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[backbone_only] resumed from epoch 27 (code 'cf6ce8a')
+[backbone_only] epoch 28/60 loss=3.0519 val_acc=0.2694 best=0.2694
+[backbone_only] epoch 29/60 loss=3.0384 val_acc=0.2700 best=0.2700
+[backbone_only] epoch 30/60 loss=3.0187 val_acc=0.2764 best=0.2764
+[backbone_only] epoch 31/60 loss=3.0399 val_acc=0.2700 best=0.2764
+[backbone_only] epoch 32/60 loss=3.0597 val_acc=0.2758 best=0.2764
+[backbone_only] epoch 33/60 loss=3.0489 val_acc=0.2800 best=0.2800
+[backbone_only] epoch 34/60 loss=3.0298 val_acc=0.2824 best=0.2824
+[backbone_only] epoch 35/60 loss=3.0150 val_acc=0.2828 best=0.2828
+[backbone_only] epoch 36/60 loss=3.0139 val_acc=0.2850 best=0.2850
+[backbone_only] epoch 37/60 loss=2.9935 val_acc=0.2912 best=0.2912
+[backbone_only] epoch 38/60 loss=2.9833 val_acc=0.2918 best=0.2918
+[backbone_only] epoch 39/60 loss=2.9730 val_acc=0.2916 best=0.2918
+[backbone_only] epoch 40/60 loss=2.9660 val_acc=0.2954 best=0.2954
+[backbone_only] epoch 41/60 loss=2.9588 val_acc=0.2998 best=0.2998
+[backbone_only] epoch 42/60 loss=2.9462 val_acc=0.2978 best=0.2998
+[backbone_only] epoch 43/60 loss=2.9365 val_acc=0.3024 best=0.3024
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 798, in run_phase
+    save_best(best_path, model=model, config=cfg.to_dict(),
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 171, in save_best
+    atomic_torch_save(path, state)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 107, in atomic_torch_save
+    torch.save(obj, tmp_path)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/serialization.py", line 967, in save
+    _save(
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/serialization.py", line 1266, in _save
+    storage = storage.cpu()
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/storage.py", line 266, in cpu
+    return torch.UntypedStorage(self.size()).copy_(self, False)
+torch.AcceleratorError: CUDA error: unknown error
+Search for `cudaErrorUnknown' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W925 07:37:15.555110712 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T04:37:15Z] launcher exited rc=1
+[2026-09-25T04:37:15Z] crash/exit detected; resuming via the established path  (restart 4/60) after 60s cooldown
+[2026-09-25T04:38:15Z] === supervisor pass 5/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='backbone_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    running       
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[backbone_only] resumed from epoch 44 (code 'cf6ce8a')
+[backbone_only] epoch 45/60 loss=2.8641 val_acc=0.3038 best=0.3038
+[backbone_only] epoch 46/60 loss=2.8537 val_acc=0.3044 best=0.3044
+[backbone_only] epoch 47/60 loss=2.8407 val_acc=0.3034 best=0.3044
+[backbone_only] epoch 48/60 loss=2.8559 val_acc=0.3068 best=0.3068
+[backbone_only] epoch 49/60 loss=2.8743 val_acc=0.3064 best=0.3068
+[backbone_only] epoch 50/60 loss=2.8726 val_acc=0.3094 best=0.3094
+[backbone_only] epoch 51/60 loss=2.8620 val_acc=0.3084 best=0.3094
+[backbone_only] epoch 52/60 loss=2.8549 val_acc=0.3096 best=0.3096
+[backbone_only] epoch 53/60 loss=2.8609 val_acc=0.3108 best=0.3108
+[backbone_only] epoch 54/60 loss=2.8498 val_acc=0.3108 best=0.3108
+[backbone_only] epoch 55/60 loss=2.8487 val_acc=0.3120 best=0.3120
+[backbone_only] epoch 56/60 loss=2.8471 val_acc=0.3130 best=0.3130
+[backbone_only] epoch 57/60 loss=2.8489 val_acc=0.3100 best=0.3130
+[backbone_only] epoch 58/60 loss=2.8502 val_acc=0.3116 best=0.3130
+[backbone_only] epoch 59/60 loss=2.8461 val_acc=0.3104 best=0.3130
+[backbone_only] epoch 60/60 loss=2.8446 val_acc=0.3116 best=0.3130
+[backbone_only] parity: parity ok (code_commit 'cf6ce8a', rolling at epoch 60)
+[backbone_only] DONE — best_val_acc=0.3130 params=23,341,156
+  ✓ foundation roadmap synced to HF
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  not_started   
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[recurrence_only] cold start (provenance manifest written)
+[recurrence_only] gradient reach OK for ('classifier',)
+[recurrence_only] epoch 1/60 loss=4.1340 val_acc=0.1072 best=0.1072
+[recurrence_only] epoch 2/60 loss=3.8327 val_acc=0.1348 best=0.1348
+[recurrence_only] epoch 3/60 loss=3.6719 val_acc=0.1574 best=0.1574
+[recurrence_only] epoch 4/60 loss=3.5652 val_acc=0.1692 best=0.1692
+[recurrence_only] epoch 5/60 loss=3.4836 val_acc=0.1960 best=0.1960
+[recurrence_only] epoch 6/60 loss=3.4164 val_acc=0.2042 best=0.2042
+[recurrence_only] epoch 7/60 loss=3.3549 val_acc=0.2136 best=0.2136
+[recurrence_only] epoch 8/60 loss=3.3072 val_acc=0.2218 best=0.2218
+[recurrence_only] epoch 9/60 loss=3.2583 val_acc=0.2320 best=0.2320
+[recurrence_only] epoch 10/60 loss=3.2175 val_acc=0.2402 best=0.2402
+[recurrence_only] epoch 11/60 loss=3.1830 val_acc=0.2438 best=0.2438
+[recurrence_only] epoch 12/60 loss=3.1454 val_acc=0.2482 best=0.2482
+[recurrence_only] epoch 13/60 loss=3.1080 val_acc=0.2574 best=0.2574
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 798, in run_phase
+    save_best(best_path, model=model, config=cfg.to_dict(),
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 171, in save_best
+    atomic_torch_save(path, state)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 107, in atomic_torch_save
+    torch.save(obj, tmp_path)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/serialization.py", line 967, in save
+    _save(
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/serialization.py", line 1266, in _save
+    storage = storage.cpu()
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/storage.py", line 266, in cpu
+    return torch.UntypedStorage(self.size()).copy_(self, False)
+torch.AcceleratorError: CUDA error: unknown error
+Search for `cudaErrorUnknown' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W925 09:58:32.947565556 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T06:58:33Z] launcher exited rc=1
+[2026-09-25T06:58:33Z] crash/exit detected; resuming via the established path  (restart 5/60) after 60s cooldown
+[2026-09-25T06:59:33Z] === supervisor pass 6/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='recurrence_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  running       
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[recurrence_only] resumed from epoch 14 (code 'cf6ce8a')
+[recurrence_only] epoch 15/60 loss=3.0544 val_acc=0.2626 best=0.2626
+[recurrence_only] epoch 16/60 loss=3.0243 val_acc=0.2708 best=0.2708
+[recurrence_only] epoch 17/60 loss=2.9932 val_acc=0.2726 best=0.2726
+[recurrence_only] epoch 18/60 loss=2.9723 val_acc=0.2854 best=0.2854
+[recurrence_only] epoch 19/60 loss=2.9514 val_acc=0.2886 best=0.2886
+[recurrence_only] epoch 20/60 loss=2.9300 val_acc=0.2892 best=0.2892
+[recurrence_only] epoch 21/60 loss=2.9054 val_acc=0.2898 best=0.2898
+[recurrence_only] epoch 22/60 loss=2.8933 val_acc=0.2944 best=0.2944
+[recurrence_only] epoch 23/60 loss=2.8732 val_acc=0.2974 best=0.2974
+[recurrence_only] epoch 24/60 loss=2.8457 val_acc=0.3054 best=0.3054
+[recurrence_only] epoch 25/60 loss=2.8304 val_acc=0.3104 best=0.3104
+[recurrence_only] epoch 26/60 loss=2.8156 val_acc=0.3126 best=0.3126
+[recurrence_only] epoch 27/60 loss=2.7984 val_acc=0.3136 best=0.3136
+[recurrence_only] epoch 28/60 loss=2.7810 val_acc=0.3180 best=0.3180
+[recurrence_only] epoch 29/60 loss=2.7727 val_acc=0.3186 best=0.3186
+[recurrence_only] epoch 30/60 loss=2.7505 val_acc=0.3218 best=0.3218
+[recurrence_only] epoch 31/60 loss=2.7377 val_acc=0.3202 best=0.3218
+[recurrence_only] epoch 32/60 loss=2.7242 val_acc=0.3246 best=0.3246
+[recurrence_only] epoch 33/60 loss=2.7091 val_acc=0.3282 best=0.3282
+[recurrence_only] epoch 34/60 loss=2.6934 val_acc=0.3358 best=0.3358
+[recurrence_only] epoch 35/60 loss=2.6760 val_acc=0.3318 best=0.3358
+[recurrence_only] epoch 36/60 loss=2.6680 val_acc=0.3388 best=0.3388
+[recurrence_only] epoch 37/60 loss=2.6564 val_acc=0.3318 best=0.3388
+[recurrence_only] epoch 38/60 loss=2.6390 val_acc=0.3376 best=0.3388
+[recurrence_only] epoch 39/60 loss=2.6253 val_acc=0.3414 best=0.3414
+[recurrence_only] epoch 40/60 loss=2.6224 val_acc=0.3390 best=0.3414
+[recurrence_only] epoch 41/60 loss=2.6097 val_acc=0.3494 best=0.3494
+[recurrence_only] epoch 42/60 loss=2.5932 val_acc=0.3414 best=0.3494
+[recurrence_only] epoch 43/60 loss=2.5891 val_acc=0.3486 best=0.3494
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 786, in run_phase
+    tr_loss = train_one_epoch(model, loaders["train"], optimizer,
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 631, in train_one_epoch
+    loss = F.cross_entropy(model(x), y)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 416, in forward
+    feats = [self._glimpse(x, sched[:, t, :])[0] for t in range(T)]
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 416, in <listcomp>
+    feats = [self._glimpse(x, sched[:, t, :])[0] for t in range(T)]
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 388, in _glimpse
+    crop = foveal_sample(x_image, gaze, fovea_size=self.cfg.fovea_size)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/models/foveation.py", line 64, in foveal_sample
+    if bool((gaze_coords.abs() > 1.0 + 1e-6).any()):
+torch.AcceleratorError: CUDA error: unknown error
+Search for `cudaErrorUnknown' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W925 12:46:55.518864126 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T09:46:55Z] launcher exited rc=1
+[2026-09-25T09:46:55Z] crash/exit detected; resuming via the established path  (restart 6/60) after 60s cooldown
+[2026-09-25T09:47:55Z] === supervisor pass 7/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='recurrence_only', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  running       
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[recurrence_only] resumed from epoch 43 (code 'cf6ce8a')
+[recurrence_only] epoch 44/60 loss=2.5716 val_acc=0.3534 best=0.3534
+[recurrence_only] epoch 45/60 loss=2.5599 val_acc=0.3480 best=0.3534
+[recurrence_only] epoch 46/60 loss=2.5424 val_acc=0.3548 best=0.3548
+[recurrence_only] epoch 47/60 loss=2.5392 val_acc=0.3514 best=0.3548
+[recurrence_only] epoch 48/60 loss=2.5323 val_acc=0.3598 best=0.3598
+[recurrence_only] epoch 49/60 loss=2.5242 val_acc=0.3556 best=0.3598
+[recurrence_only] epoch 50/60 loss=2.5150 val_acc=0.3584 best=0.3598
+[recurrence_only] epoch 51/60 loss=2.5162 val_acc=0.3600 best=0.3600
+[recurrence_only] epoch 52/60 loss=2.5128 val_acc=0.3612 best=0.3612
+[recurrence_only] epoch 53/60 loss=2.4952 val_acc=0.3630 best=0.3630
+[recurrence_only] epoch 54/60 loss=2.4981 val_acc=0.3654 best=0.3654
+[recurrence_only] epoch 55/60 loss=2.4942 val_acc=0.3640 best=0.3654
+[recurrence_only] epoch 56/60 loss=2.4935 val_acc=0.3646 best=0.3654
+[recurrence_only] epoch 57/60 loss=2.4877 val_acc=0.3634 best=0.3654
+[recurrence_only] epoch 58/60 loss=2.4930 val_acc=0.3656 best=0.3656
+[recurrence_only] epoch 59/60 loss=2.4845 val_acc=0.3668 best=0.3668
+[recurrence_only] epoch 60/60 loss=2.4852 val_acc=0.3666 best=0.3668
+[recurrence_only] parity: parity ok (code_commit 'cf6ce8a', rolling at epoch 60)
+[recurrence_only] DONE — best_val_acc=0.3668 params=23,341,156
+  ✓ foundation roadmap synced to HF
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  done           best_val_acc=0.3668
+    belief_no_f      not_started   
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[belief_no_f] cold start (provenance manifest written)
+[belief_no_f] gradient reach OK for ('evidential_head',)
+[belief_no_f] epoch 1/60 loss=4.3029 val_acc=0.0820 best=0.0820
+[belief_no_f] epoch 2/60 loss=4.0909 val_acc=0.1068 best=0.1068
+[belief_no_f] epoch 3/60 loss=3.9763 val_acc=0.1212 best=0.1212
+[belief_no_f] epoch 4/60 loss=3.8939 val_acc=0.1338 best=0.1338
+[belief_no_f] epoch 5/60 loss=3.8339 val_acc=0.1454 best=0.1454
+[belief_no_f] epoch 6/60 loss=3.7844 val_acc=0.1540 best=0.1540
+[belief_no_f] epoch 7/60 loss=3.7450 val_acc=0.1622 best=0.1622
+[belief_no_f] epoch 8/60 loss=3.7116 val_acc=0.1706 best=0.1706
+[belief_no_f] epoch 9/60 loss=3.6780 val_acc=0.1716 best=0.1716
+[belief_no_f] epoch 10/60 loss=3.6459 val_acc=0.1766 best=0.1766
+[belief_no_f] epoch 11/60 loss=3.6229 val_acc=0.1796 best=0.1796
+[belief_no_f] epoch 12/60 loss=3.5945 val_acc=0.1824 best=0.1824
+[belief_no_f] epoch 13/60 loss=3.5759 val_acc=0.1924 best=0.1924
+[belief_no_f] epoch 14/60 loss=3.5538 val_acc=0.1888 best=0.1924
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 786, in run_phase
+    tr_loss = train_one_epoch(model, loaders["train"], optimizer,
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 628, in train_one_epoch
+    x, y = x.to(device), y.to(device)
+torch.AcceleratorError: CUDA error: unknown error
+Search for `cudaErrorUnknown' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W925 15:36:11.516364047 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T12:36:13Z] launcher exited rc=1
+[2026-09-25T12:36:13Z] crash/exit detected; resuming via the established path  (restart 7/60) after 60s cooldown
+[2026-09-25T12:37:13Z] === supervisor pass 8/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='belief_no_f', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  done           best_val_acc=0.3668
+    belief_no_f      running       
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[belief_no_f] resumed from epoch 14 (code 'cf6ce8a')
+[belief_no_f] epoch 15/60 loss=3.5277 val_acc=0.1978 best=0.1978
+[belief_no_f] epoch 16/60 loss=3.5142 val_acc=0.2034 best=0.2034
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 798, in run_phase
+    save_best(best_path, model=model, config=cfg.to_dict(),
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 171, in save_best
+    atomic_torch_save(path, state)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/core/checkpoint.py", line 107, in atomic_torch_save
+    torch.save(obj, tmp_path)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/serialization.py", line 967, in save
+    _save(
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/serialization.py", line 1266, in _save
+    storage = storage.cpu()
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/storage.py", line 266, in cpu
+    return torch.UntypedStorage(self.size()).copy_(self, False)
+torch.AcceleratorError: CUDA error: unknown error
+Search for `cudaErrorUnknown' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W925 15:51:45.909520103 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T12:51:46Z] launcher exited rc=1
+[2026-09-25T12:51:46Z] crash/exit detected; resuming via the established path  (restart 8/60) after 60s cooldown
+[2026-09-25T12:52:46Z] === supervisor pass 9/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='belief_no_f', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  done           best_val_acc=0.3668
+    belief_no_f      running       
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[belief_no_f] resumed from epoch 17 (code 'cf6ce8a')
+[belief_no_f] epoch 18/60 loss=3.4453 val_acc=0.2102 best=0.2102
+[belief_no_f] epoch 19/60 loss=3.4368 val_acc=0.2116 best=0.2116
+[belief_no_f] epoch 20/60 loss=3.4185 val_acc=0.2106 best=0.2116
+[belief_no_f] epoch 21/60 loss=3.4271 val_acc=0.2100 best=0.2116
+[belief_no_f] epoch 22/60 loss=3.4145 val_acc=0.2204 best=0.2204
+[belief_no_f] epoch 23/60 loss=3.4032 val_acc=0.2236 best=0.2236
+[belief_no_f] epoch 24/60 loss=3.3875 val_acc=0.2262 best=0.2262
+[belief_no_f] epoch 25/60 loss=3.3729 val_acc=0.2214 best=0.2262
+[belief_no_f] epoch 26/60 loss=3.3585 val_acc=0.2280 best=0.2280
+[belief_no_f] epoch 27/60 loss=3.3492 val_acc=0.2280 best=0.2280
+[belief_no_f] epoch 28/60 loss=3.3351 val_acc=0.2292 best=0.2292
+[belief_no_f] epoch 29/60 loss=3.3218 val_acc=0.2242 best=0.2292
+[belief_no_f] epoch 30/60 loss=3.3185 val_acc=0.2340 best=0.2340
+[belief_no_f] epoch 31/60 loss=3.3041 val_acc=0.2394 best=0.2394
+[belief_no_f] epoch 32/60 loss=3.2930 val_acc=0.2378 best=0.2394
+[belief_no_f] epoch 33/60 loss=3.2830 val_acc=0.2384 best=0.2394
+[belief_no_f] epoch 34/60 loss=3.2710 val_acc=0.2400 best=0.2400
+[belief_no_f] epoch 35/60 loss=3.2596 val_acc=0.2442 best=0.2442
+[belief_no_f] epoch 36/60 loss=3.2579 val_acc=0.2426 best=0.2442
+[belief_no_f] epoch 37/60 loss=3.2437 val_acc=0.2494 best=0.2494
+[belief_no_f] epoch 38/60 loss=3.2378 val_acc=0.2476 best=0.2494
+[belief_no_f] epoch 39/60 loss=3.2307 val_acc=0.2532 best=0.2532
+[belief_no_f] epoch 40/60 loss=3.2204 val_acc=0.2584 best=0.2584
+[belief_no_f] epoch 41/60 loss=3.2127 val_acc=0.2554 best=0.2584
+[belief_no_f] epoch 42/60 loss=3.2088 val_acc=0.2606 best=0.2606
+[belief_no_f] epoch 43/60 loss=3.2000 val_acc=0.2570 best=0.2606
+[belief_no_f] epoch 44/60 loss=3.1878 val_acc=0.2600 best=0.2606
+[belief_no_f] epoch 45/60 loss=3.1774 val_acc=0.2586 best=0.2606
+[belief_no_f] epoch 46/60 loss=3.1718 val_acc=0.2628 best=0.2628
+[belief_no_f] epoch 47/60 loss=3.1703 val_acc=0.2610 best=0.2628
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 786, in run_phase
+    tr_loss = train_one_epoch(model, loaders["train"], optimizer,
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 631, in train_one_epoch
+    loss = F.cross_entropy(model(x), y)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 447, in forward
+    dp_t = self.evidential_head(tokens_t)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/uncertainty/evidential_head.py", line 151, in forward
+    return DirichletParams(evidence=evidence)
+  File "<string>", line 4, in __init__
+  File "/home/ferrarikazu/Adversarial Cognitive Model/noesis_vision/uncertainty/evidential_head.py", line 71, in __post_init__
+    if bool((self.evidence < 0).any()):
+torch.AcceleratorError: CUDA error: unknown error
+Search for `cudaErrorUnknown' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W925 18:16:56.713120430 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T15:16:56Z] launcher exited rc=1
+[2026-09-25T15:16:56Z] crash/exit detected; resuming via the established path  (restart 9/60) after 60s cooldown
+[2026-09-25T15:17:56Z] === supervisor pass 10/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='belief_no_f', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  done           best_val_acc=0.3668
+    belief_no_f      running       
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[belief_no_f] resumed from epoch 47 (code 'cf6ce8a')
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 786, in run_phase
+    tr_loss = train_one_epoch(model, loaders["train"], optimizer,
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 642, in train_one_epoch
+    total_loss += float(loss.item())
+torch.AcceleratorError: CUDA error: unknown error
+Search for `cudaErrorUnknown' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W925 18:18:57.637693136 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T15:18:57Z] launcher exited rc=1
+[2026-09-25T15:18:57Z] crash/exit detected; resuming via the established path  (restart 10/60) after 60s cooldown
+[2026-09-25T15:19:57Z] === supervisor pass 11/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='belief_no_f', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  done           best_val_acc=0.3668
+    belief_no_f      running       
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[belief_no_f] resumed from epoch 47 (code 'cf6ce8a')
+[belief_no_f] epoch 48/60 loss=3.1388 val_acc=0.2626 best=0.2628
+[belief_no_f] epoch 49/60 loss=3.1416 val_acc=0.2680 best=0.2680
+[belief_no_f] epoch 50/60 loss=3.1316 val_acc=0.2642 best=0.2680
+[belief_no_f] epoch 51/60 loss=3.1362 val_acc=0.2638 best=0.2680
+[belief_no_f] epoch 52/60 loss=3.1306 val_acc=0.2668 best=0.2680
+[belief_no_f] epoch 53/60 loss=3.1318 val_acc=0.2636 best=0.2680
+[belief_no_f] epoch 54/60 loss=3.1271 val_acc=0.2670 best=0.2680
+[belief_no_f] epoch 55/60 loss=3.1211 val_acc=0.2678 best=0.2680
+[belief_no_f] epoch 56/60 loss=3.1177 val_acc=0.2668 best=0.2680
+[belief_no_f] epoch 57/60 loss=3.1167 val_acc=0.2668 best=0.2680
+[belief_no_f] epoch 58/60 loss=3.1168 val_acc=0.2682 best=0.2682
+[belief_no_f] epoch 59/60 loss=3.1136 val_acc=0.2682 best=0.2682
+[belief_no_f] epoch 60/60 loss=3.1187 val_acc=0.2684 best=0.2684
+[belief_no_f] parity: parity ok (code_commit 'cf6ce8a', rolling at epoch 60)
+[belief_no_f] DONE — best_val_acc=0.2684 params=23,485,516
+  ✓ foundation roadmap synced to HF
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  done           best_val_acc=0.3668
+    belief_no_f      done           best_val_acc=0.2684
+    belief_with_f    not_started   
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[belief_with_f] cold start (provenance manifest written)
+[belief_with_f] gradient reach OK for ('update_net', 'precision', 'predictor')
+[belief_with_f] epoch 1/60 loss=4.2589 val_acc=0.0908 best=0.0908
+[belief_with_f] epoch 2/60 loss=3.9877 val_acc=0.1206 best=0.1206
+[belief_with_f] epoch 3/60 loss=3.8282 val_acc=0.1508 best=0.1508
+[belief_with_f] epoch 4/60 loss=3.7204 val_acc=0.1658 best=0.1658
+[belief_with_f] epoch 5/60 loss=3.6316 val_acc=0.1784 best=0.1784
+[belief_with_f] epoch 6/60 loss=3.5718 val_acc=0.1912 best=0.1912
+[belief_with_f] epoch 7/60 loss=3.5060 val_acc=0.1974 best=0.1974
+[belief_with_f] epoch 8/60 loss=3.4599 val_acc=0.2132 best=0.2132
+[belief_with_f] epoch 9/60 loss=3.4175 val_acc=0.2144 best=0.2144
+[belief_with_f] epoch 10/60 loss=3.3754 val_acc=0.2274 best=0.2274
+[belief_with_f] epoch 11/60 loss=3.3425 val_acc=0.2264 best=0.2274
+[belief_with_f] epoch 12/60 loss=3.3125 val_acc=0.2408 best=0.2408
+[belief_with_f] epoch 13/60 loss=3.2784 val_acc=0.2480 best=0.2480
+[belief_with_f] epoch 14/60 loss=3.2538 val_acc=0.2492 best=0.2492
+[belief_with_f] epoch 15/60 loss=3.2308 val_acc=0.2540 best=0.2540
+[belief_with_f] epoch 16/60 loss=3.2078 val_acc=0.2586 best=0.2586
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 788, in run_phase
+    val_acc = evaluate_val(model, loaders["val"], device)
+  File "/home/ferrarikazu/.local/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 615, in evaluate_val
+    x, y = x.to(device), y.to(device)
+torch.AcceleratorError: CUDA error: unknown error
+Search for `cudaErrorUnknown' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W925 21:17:08.501276966 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T18:17:11Z] launcher exited rc=1
+[2026-09-25T18:17:11Z] crash/exit detected; resuming via the established path  (restart 11/60) after 60s cooldown
+[2026-09-25T18:18:11Z] === supervisor pass 12/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='belief_with_f', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  done           best_val_acc=0.3668
+    belief_no_f      done           best_val_acc=0.2684
+    belief_with_f    running       
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[belief_with_f] resumed from epoch 16 (code 'cf6ce8a')
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 786, in run_phase
+    tr_loss = train_one_epoch(model, loaders["train"], optimizer,
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 642, in train_one_epoch
+    total_loss += float(loss.item())
+torch.AcceleratorError: CUDA error: unknown error
+Search for `cudaErrorUnknown' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W925 21:18:56.353414268 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T18:18:56Z] launcher exited rc=1
+[2026-09-25T18:18:56Z] crash/exit detected; resuming via the established path  (restart 12/60) after 60s cooldown
+[2026-09-25T18:19:56Z] === supervisor pass 13/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='belief_with_f', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  done           best_val_acc=0.3668
+    belief_no_f      done           best_val_acc=0.2684
+    belief_with_f    running       
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[belief_with_f] resumed from epoch 16 (code 'cf6ce8a')
+[belief_with_f] epoch 17/60 loss=3.1873 val_acc=0.2570 best=0.2586
+[belief_with_f] epoch 18/60 loss=3.1627 val_acc=0.2662 best=0.2662
+[belief_with_f] epoch 19/60 loss=3.1469 val_acc=0.2624 best=0.2662
+[belief_with_f] epoch 20/60 loss=3.1298 val_acc=0.2668 best=0.2668
+[belief_with_f] epoch 21/60 loss=3.1154 val_acc=0.2738 best=0.2738
+[belief_with_f] epoch 22/60 loss=3.0937 val_acc=0.2796 best=0.2796
+[belief_with_f] epoch 23/60 loss=3.0796 val_acc=0.2802 best=0.2802
+[belief_with_f] epoch 24/60 loss=3.0662 val_acc=0.2834 best=0.2834
+[belief_with_f] epoch 25/60 loss=3.0502 val_acc=0.2922 best=0.2922
+[belief_with_f] epoch 26/60 loss=3.0360 val_acc=0.2892 best=0.2922
+[belief_with_f] epoch 27/60 loss=3.0193 val_acc=0.2846 best=0.2922
+[belief_with_f] epoch 28/60 loss=3.0057 val_acc=0.2874 best=0.2922
+[belief_with_f] epoch 29/60 loss=2.9916 val_acc=0.2950 best=0.2950
+[belief_with_f] epoch 30/60 loss=2.9760 val_acc=0.2994 best=0.2994
+[belief_with_f] epoch 31/60 loss=2.9697 val_acc=0.2946 best=0.2994
+[belief_with_f] epoch 32/60 loss=2.9517 val_acc=0.3012 best=0.3012
+[belief_with_f] epoch 33/60 loss=2.9437 val_acc=0.3000 best=0.3012
+[belief_with_f] epoch 34/60 loss=2.9320 val_acc=0.3010 best=0.3012
+[belief_with_f] epoch 35/60 loss=2.9223 val_acc=0.3044 best=0.3044
+[belief_with_f] epoch 36/60 loss=2.9069 val_acc=0.3088 best=0.3088
+[belief_with_f] epoch 37/60 loss=2.9027 val_acc=0.3048 best=0.3088
+[belief_with_f] epoch 38/60 loss=2.8895 val_acc=0.3084 best=0.3088
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1025, in <module>
+    sys.exit(main())
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 1005, in main
+    result = run_phase(phase, cfg, loaders, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 786, in run_phase
+    tr_loss = train_one_epoch(model, loaders["train"], optimizer,
+  File "/home/ferrarikazu/Adversarial Cognitive Model/training/train_generation1_foundation.py", line 628, in train_one_epoch
+    x, y = x.to(device), y.to(device)
+torch.AcceleratorError: CUDA error: unknown error
+Search for `cudaErrorUnknown' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W926 01:09:09.093422447 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-25T22:09:13Z] launcher exited rc=1
+[2026-09-25T22:09:13Z] crash/exit detected; resuming via the established path  (restart 13/60) after 60s cooldown
+[2026-09-25T22:10:13Z] === supervisor pass 14/61 ===
+== Data pre-flight OK: /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (structure re-validated 
+   inside the trainer) ==
+== Launch: train_generation1_foundation.py --data-root /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 --batch-size 48 --num-workers 4  ==
+== ONE run per invocation. Killed mid-run? Re-run this script — it
+   resumes from the last completed epoch (local rolling ckpt first,
+   then HF). Never pass --force-restart; phases already done are
+   skipped via the HF-synced roadmap. ==
+device=cuda  smoke=False  hf=True
+gaze: steps 1-4 = PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)
+      steps 5-6 = AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)
+  ✓ foundation roadmap restored from HF
+  ImageNet-100 verified at /home/ferrarikazu/Adversarial Cognitive Model/data/imagenet100 (train classes=100, val classes=100)
+  machine next action: Action(phase='belief_with_f', substep='running')
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  done           best_val_acc=0.3668
+    belief_no_f      done           best_val_acc=0.2684
+    belief_with_f    running       
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[belief_with_f] resumed from epoch 38 (code 'cf6ce8a')
+[belief_with_f] epoch 39/60 loss=2.8678 val_acc=0.3084 best=0.3088
+[belief_with_f] epoch 40/60 loss=2.8583 val_acc=0.3158 best=0.3158
+[belief_with_f] epoch 41/60 loss=2.8501 val_acc=0.3200 best=0.3200
+[belief_with_f] epoch 42/60 loss=2.8420 val_acc=0.3198 best=0.3200
+[belief_with_f] epoch 43/60 loss=2.8366 val_acc=0.3142 best=0.3200
+[belief_with_f] epoch 44/60 loss=2.8229 val_acc=0.3156 best=0.3200
+[belief_with_f] epoch 45/60 loss=2.8183 val_acc=0.3152 best=0.3200
+[belief_with_f] epoch 46/60 loss=2.8137 val_acc=0.3196 best=0.3200
+[belief_with_f] epoch 47/60 loss=2.8044 val_acc=0.3226 best=0.3226
+[belief_with_f] epoch 48/60 loss=2.7982 val_acc=0.3258 best=0.3258
+[belief_with_f] epoch 49/60 loss=2.7905 val_acc=0.3228 best=0.3258
+[belief_with_f] epoch 50/60 loss=2.7860 val_acc=0.3280 best=0.3280
+[belief_with_f] epoch 51/60 loss=2.7775 val_acc=0.3264 best=0.3280
+[belief_with_f] epoch 52/60 loss=2.7736 val_acc=0.3256 best=0.3280
+[belief_with_f] epoch 53/60 loss=2.7741 val_acc=0.3312 best=0.3312
+[belief_with_f] epoch 54/60 loss=2.7652 val_acc=0.3290 best=0.3312
+[belief_with_f] epoch 55/60 loss=2.7653 val_acc=0.3316 best=0.3316
+[belief_with_f] epoch 56/60 loss=2.7627 val_acc=0.3282 best=0.3316
+[belief_with_f] epoch 57/60 loss=2.7624 val_acc=0.3314 best=0.3316
+[belief_with_f] epoch 58/60 loss=2.7557 val_acc=0.3298 best=0.3316
+[belief_with_f] epoch 59/60 loss=2.7612 val_acc=0.3292 best=0.3316
+[belief_with_f] epoch 60/60 loss=2.7570 val_acc=0.3298 best=0.3316
+[belief_with_f] parity: parity ok (code_commit 'cf6ce8a', rolling at epoch 60)
+[belief_with_f] DONE — best_val_acc=0.3316 params=27,730,509
+  ✓ foundation roadmap synced to HF
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  done           best_val_acc=0.3668
+    belief_no_f      done           best_val_acc=0.2684
+    belief_with_f    done           best_val_acc=0.3316
+    ais_v2_swap      not_started   
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[ais_v2_swap] cold start (provenance manifest written)
+[ais_v2_swap] gradient reach OK for ('predictor', 'evidential_head', 'gaze_policy')
+[ais_v2_swap] epoch 1/60 loss=4.1928 val_acc=0.1138 best=0.1138
+[ais_v2_swap] epoch 2/60 loss=3.9153 val_acc=0.1424 best=0.1424
+[ais_v2_swap] epoch 3/60 loss=3.7557 val_acc=0.1732 best=0.1732
+[ais_v2_swap] epoch 4/60 loss=3.6564 val_acc=0.1872 best=0.1872
+[ais_v2_swap] epoch 5/60 loss=3.5843 val_acc=0.1882 best=0.1882
+[ais_v2_swap] epoch 6/60 loss=3.5295 val_acc=0.2056 best=0.2056
+[ais_v2_swap] epoch 7/60 loss=3.4742 val_acc=0.2192 best=0.2192
+[ais_v2_swap] epoch 8/60 loss=3.4292 val_acc=0.2186 best=0.2192
+[ais_v2_swap] epoch 9/60 loss=3.3950 val_acc=0.2170 best=0.2192
+[ais_v2_swap] epoch 10/60 loss=3.3556 val_acc=0.2350 best=0.2350
+[ais_v2_swap] epoch 11/60 loss=3.3303 val_acc=0.2410 best=0.2410
+[ais_v2_swap] epoch 12/60 loss=3.2990 val_acc=0.2436 best=0.2436
+[ais_v2_swap] epoch 13/60 loss=3.2638 val_acc=0.2556 best=0.2556
+[ais_v2_swap] epoch 14/60 loss=3.2417 val_acc=0.2554 best=0.2556
+[ais_v2_swap] epoch 15/60 loss=3.2196 val_acc=0.2580 best=0.2580
+[ais_v2_swap] epoch 16/60 loss=3.1995 val_acc=0.2592 best=0.2592
+[ais_v2_swap] epoch 17/60 loss=3.1782 val_acc=0.2538 best=0.2592
+[ais_v2_swap] epoch 18/60 loss=3.1534 val_acc=0.2606 best=0.2606
+[ais_v2_swap] epoch 19/60 loss=3.1371 val_acc=0.2690 best=0.2690
+[ais_v2_swap] epoch 20/60 loss=3.1204 val_acc=0.2708 best=0.2708
+[ais_v2_swap] epoch 21/60 loss=3.1036 val_acc=0.2790 best=0.2790
+[ais_v2_swap] epoch 22/60 loss=3.0859 val_acc=0.2812 best=0.2812
+[ais_v2_swap] epoch 23/60 loss=3.0677 val_acc=0.2818 best=0.2818
+[ais_v2_swap] epoch 24/60 loss=3.0547 val_acc=0.2798 best=0.2818
+[ais_v2_swap] epoch 25/60 loss=3.0416 val_acc=0.2862 best=0.2862
+[ais_v2_swap] epoch 26/60 loss=3.0272 val_acc=0.2880 best=0.2880
+[ais_v2_swap] epoch 27/60 loss=3.0091 val_acc=0.2944 best=0.2944
+[ais_v2_swap] epoch 28/60 loss=3.0010 val_acc=0.2960 best=0.2960
+[ais_v2_swap] epoch 29/60 loss=2.9837 val_acc=0.2928 best=0.2960
+[ais_v2_swap] epoch 30/60 loss=2.9727 val_acc=0.3000 best=0.3000
+[ais_v2_swap] epoch 31/60 loss=2.9687 val_acc=0.2946 best=0.3000
+[ais_v2_swap] epoch 32/60 loss=2.9482 val_acc=0.2992 best=0.3000
+[ais_v2_swap] epoch 33/60 loss=2.9352 val_acc=0.3096 best=0.3096
+[ais_v2_swap] epoch 34/60 loss=2.9270 val_acc=0.3046 best=0.3096
+[ais_v2_swap] epoch 35/60 loss=2.9121 val_acc=0.3028 best=0.3096
+[ais_v2_swap] epoch 36/60 loss=2.9021 val_acc=0.3074 best=0.3096
+[ais_v2_swap] epoch 37/60 loss=2.8958 val_acc=0.3072 best=0.3096
+[ais_v2_swap] epoch 38/60 loss=2.8785 val_acc=0.3086 best=0.3096
+[ais_v2_swap] epoch 39/60 loss=2.8737 val_acc=0.3102 best=0.3102
+[ais_v2_swap] epoch 40/60 loss=2.8656 val_acc=0.3158 best=0.3158
+[ais_v2_swap] epoch 41/60 loss=2.8520 val_acc=0.3118 best=0.3158
+[ais_v2_swap] epoch 42/60 loss=2.8480 val_acc=0.3164 best=0.3164
+[ais_v2_swap] epoch 43/60 loss=2.8311 val_acc=0.3122 best=0.3164
+[ais_v2_swap] epoch 44/60 loss=2.8255 val_acc=0.3200 best=0.3200
+[ais_v2_swap] epoch 45/60 loss=2.8205 val_acc=0.3228 best=0.3228
+[ais_v2_swap] epoch 46/60 loss=2.8105 val_acc=0.3228 best=0.3228
+[ais_v2_swap] epoch 47/60 loss=2.8095 val_acc=0.3268 best=0.3268
+[ais_v2_swap] epoch 48/60 loss=2.7996 val_acc=0.3310 best=0.3310
+[ais_v2_swap] epoch 49/60 loss=2.7962 val_acc=0.3238 best=0.3310
+[ais_v2_swap] epoch 50/60 loss=2.7866 val_acc=0.3294 best=0.3310
+[ais_v2_swap] epoch 51/60 loss=2.7791 val_acc=0.3334 best=0.3334
+[ais_v2_swap] epoch 52/60 loss=2.7802 val_acc=0.3272 best=0.3334
+[ais_v2_swap] epoch 53/60 loss=2.7788 val_acc=0.3252 best=0.3334
+[ais_v2_swap] epoch 54/60 loss=2.7725 val_acc=0.3310 best=0.3334
+[ais_v2_swap] epoch 55/60 loss=2.7740 val_acc=0.3276 best=0.3334
+[ais_v2_swap] epoch 56/60 loss=2.7631 val_acc=0.3314 best=0.3334
+[ais_v2_swap] epoch 57/60 loss=2.7642 val_acc=0.3294 best=0.3334
+[ais_v2_swap] epoch 58/60 loss=2.7617 val_acc=0.3314 best=0.3334
+[ais_v2_swap] epoch 59/60 loss=2.7630 val_acc=0.3334 best=0.3334
+[ais_v2_swap] epoch 60/60 loss=2.7579 val_acc=0.3326 best=0.3334
+[ais_v2_swap] parity: parity ok (code_commit 'cf6ce8a', rolling at epoch 60)
+[ais_v2_swap] DONE — best_val_acc=0.3334 params=27,730,510
+  ✓ foundation roadmap synced to HF
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  done           best_val_acc=0.3668
+    belief_no_f      done           best_val_acc=0.2684
+    belief_with_f    done           best_val_acc=0.3316
+    ais_v2_swap      done           best_val_acc=0.3334
+    gen1_core        not_started   
+  ✓ foundation roadmap synced to HF
+[gen1_core] cold start (provenance manifest written)
+[gen1_core] gradient reach OK for ('predictor', 'evidential_head', 'gaze_policy', 'update_net', 'precision')
+[gen1_core] epoch 1/60 loss=4.1928 val_acc=0.1138 best=0.1138
+[gen1_core] epoch 2/60 loss=3.9153 val_acc=0.1424 best=0.1424
+[gen1_core] epoch 3/60 loss=3.7557 val_acc=0.1732 best=0.1732
+[gen1_core] epoch 4/60 loss=3.6564 val_acc=0.1872 best=0.1872
+[gen1_core] epoch 5/60 loss=3.5843 val_acc=0.1882 best=0.1882
+[gen1_core] epoch 6/60 loss=3.5295 val_acc=0.2056 best=0.2056
+[gen1_core] epoch 7/60 loss=3.4742 val_acc=0.2192 best=0.2192
+[gen1_core] epoch 8/60 loss=3.4292 val_acc=0.2186 best=0.2192
+[gen1_core] epoch 9/60 loss=3.3950 val_acc=0.2170 best=0.2192
+[gen1_core] epoch 10/60 loss=3.3556 val_acc=0.2350 best=0.2350
+[gen1_core] epoch 11/60 loss=3.3303 val_acc=0.2410 best=0.2410
+[gen1_core] epoch 12/60 loss=3.2990 val_acc=0.2436 best=0.2436
+[gen1_core] epoch 13/60 loss=3.2638 val_acc=0.2556 best=0.2556
+[gen1_core] epoch 14/60 loss=3.2417 val_acc=0.2554 best=0.2556
+[gen1_core] epoch 15/60 loss=3.2196 val_acc=0.2580 best=0.2580
+[gen1_core] epoch 16/60 loss=3.1995 val_acc=0.2592 best=0.2592
+[gen1_core] epoch 17/60 loss=3.1782 val_acc=0.2538 best=0.2592
+[gen1_core] epoch 18/60 loss=3.1534 val_acc=0.2606 best=0.2606
+[gen1_core] epoch 19/60 loss=3.1371 val_acc=0.2690 best=0.2690
+[gen1_core] epoch 20/60 loss=3.1204 val_acc=0.2708 best=0.2708
+[gen1_core] epoch 21/60 loss=3.1036 val_acc=0.2790 best=0.2790
+[gen1_core] epoch 22/60 loss=3.0859 val_acc=0.2812 best=0.2812
+[gen1_core] epoch 23/60 loss=3.0677 val_acc=0.2818 best=0.2818
+[gen1_core] epoch 24/60 loss=3.0547 val_acc=0.2798 best=0.2818
+[gen1_core] epoch 25/60 loss=3.0416 val_acc=0.2862 best=0.2862
+[gen1_core] epoch 26/60 loss=3.0272 val_acc=0.2880 best=0.2880
+[gen1_core] epoch 27/60 loss=3.0091 val_acc=0.2944 best=0.2944
+[gen1_core] epoch 28/60 loss=3.0010 val_acc=0.2960 best=0.2960
+[gen1_core] epoch 29/60 loss=2.9837 val_acc=0.2928 best=0.2960
+[gen1_core] epoch 30/60 loss=2.9727 val_acc=0.3000 best=0.3000
+[gen1_core] epoch 31/60 loss=2.9687 val_acc=0.2946 best=0.3000
+[gen1_core] epoch 32/60 loss=2.9482 val_acc=0.2992 best=0.3000
+[gen1_core] epoch 33/60 loss=2.9352 val_acc=0.3096 best=0.3096
+[gen1_core] epoch 34/60 loss=2.9270 val_acc=0.3046 best=0.3096
+[gen1_core] epoch 35/60 loss=2.9121 val_acc=0.3028 best=0.3096
+[gen1_core] epoch 36/60 loss=2.9021 val_acc=0.3074 best=0.3096
+[gen1_core] epoch 37/60 loss=2.8958 val_acc=0.3072 best=0.3096
+[gen1_core] epoch 38/60 loss=2.8785 val_acc=0.3086 best=0.3096
+[gen1_core] epoch 39/60 loss=2.8737 val_acc=0.3102 best=0.3102
+[gen1_core] epoch 40/60 loss=2.8656 val_acc=0.3158 best=0.3158
+[gen1_core] epoch 41/60 loss=2.8520 val_acc=0.3118 best=0.3158
+[gen1_core] epoch 42/60 loss=2.8480 val_acc=0.3164 best=0.3164
+[gen1_core] epoch 43/60 loss=2.8311 val_acc=0.3122 best=0.3164
+[gen1_core] epoch 44/60 loss=2.8255 val_acc=0.3200 best=0.3200
+[gen1_core] epoch 45/60 loss=2.8205 val_acc=0.3228 best=0.3228
+[gen1_core] epoch 46/60 loss=2.8105 val_acc=0.3228 best=0.3228
+[gen1_core] epoch 47/60 loss=2.8095 val_acc=0.3268 best=0.3268
+[gen1_core] epoch 48/60 loss=2.7996 val_acc=0.3310 best=0.3310
+[gen1_core] epoch 49/60 loss=2.7962 val_acc=0.3238 best=0.3310
+[gen1_core] epoch 50/60 loss=2.7866 val_acc=0.3294 best=0.3310
+[gen1_core] epoch 51/60 loss=2.7791 val_acc=0.3334 best=0.3334
+[gen1_core] epoch 52/60 loss=2.7802 val_acc=0.3272 best=0.3334
+[gen1_core] epoch 53/60 loss=2.7788 val_acc=0.3252 best=0.3334
+[gen1_core] epoch 54/60 loss=2.7725 val_acc=0.3310 best=0.3334
+[gen1_core] epoch 55/60 loss=2.7740 val_acc=0.3276 best=0.3334
+[gen1_core] epoch 56/60 loss=2.7631 val_acc=0.3314 best=0.3334
+[gen1_core] epoch 57/60 loss=2.7642 val_acc=0.3294 best=0.3334
+[gen1_core] epoch 58/60 loss=2.7617 val_acc=0.3314 best=0.3334
+[gen1_core] epoch 59/60 loss=2.7630 val_acc=0.3334 best=0.3334
+[gen1_core] epoch 60/60 loss=2.7579 val_acc=0.3326 best=0.3334
+[gen1_core] parity: parity ok (code_commit 'cf6ce8a', rolling at epoch 60)
+[gen1_core] DONE — best_val_acc=0.3334 params=27,730,510
+  ✓ foundation roadmap synced to HF
+  ✓ foundation roadmap restored from HF
+  generation1_foundation (Part 2 steps 1-6: J1 = 1-4, J2 = 5-6; steps 7+ are NOT this machine)
+    backbone_only    done           best_val_acc=0.3130
+    recurrence_only  done           best_val_acc=0.3668
+    belief_no_f      done           best_val_acc=0.2684
+    belief_with_f    done           best_val_acc=0.3316
+    ais_v2_swap      done           best_val_acc=0.3334
+    gen1_core        done           best_val_acc=0.3334
+[W926 16:18:14.207470202 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[2026-09-26T13:18:18Z] launcher exited rc=0
+[2026-09-26T13:18:18Z] ALL SIX PHASES DONE — running Phase-11 completion verification.
+VERIFICATION FAILED (1 problems) — report: /home/ferrarikazu/Adversarial Cognitive Model/report/run_completion_report.json
+  - config hash CHANGED since the freeze (902bf0c1757a… vs 4fb94efb7a74…)
+[2026-09-26T13:18:30Z] VERIFICATION rc=2 — HUMAN ATTENTION REQUIRED (see  report/run_completion_report.json).
