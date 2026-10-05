@@ -220,7 +220,8 @@ class AISv2GazePolicy(nn.Module):
         B = candidates.shape[0]
         reductions = []
         for k in range(K):
-            dp_k: DirichletParams = self.evidential_head(pred_k)
+            pk = self.predictor.predict_features(belief, candidates[:, k, :])
+            dp_k: DirichletParams = self.evidential_head(pk)
             reductions.append(dp_k.entropy())             # (B,)
         h_pred = torch.stack(reductions, dim=1)           # (B, K), attached
         h_current = DirichletParams(evidence=belief.evidence).entropy() \

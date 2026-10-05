@@ -145,6 +145,10 @@ from noesis_vision.predictive_coding.precision import PrecisionFunction  # noqa:
 from noesis_vision.predictive_coding.spatial_error_pool import (
     SpatialErrorPool,
 )  # noqa: E402
+from noesis_vision.predictive_coding.update_net import (  # noqa: E402
+    ConcreteUpdateNet,
+    belief_update,
+)
 from noesis_vision.uncertainty.evidential_head import (  # noqa: E402
     DirichletParams,
     EvidentialHead,
@@ -458,6 +462,10 @@ class FoundationModel(nn.Module):
             # Precision gate: learned (default) or fixed (ablation arm),
             # selected by the PrecisionSelector placed before the model.
             self.precision = PrecisionSelector(cfg)
+        # Agent F's policy — the ONE candidate scorer. Only created for
+        # AIS-v2 phases (steps 5-6). For non-AIS-v2 phases, gaze_policy
+        # is None (placeholder) to avoid AttributeError on direct access.
+        self.gaze_policy = None
         if self.use_ais_v2:
             # Agent F's policy — the ONE candidate scorer. The predictor
             # and evidential head are the SAME instances built above
@@ -545,7 +553,14 @@ class FoundationModel(nn.Module):
         # (Doc FORENSIC_REPORT_NXA_GENERATION1.md §K records this result.)
         ref = F.interpolate(x, size=(self.cfg.fovea_size, self.cfg.fovea_size),
                             mode="bilinear", align_corners=False)
-        x0 = ref[:, 0]                                   # (B, 3, 56, 56)
+        # NOTE: the preserved trainer's intent (per its own comment) is a
+        # (B, 3, 56, 56) grayscale-preserving crop: ref[:, 0] would drop
+        # the channel dim and produce (B, 56, 56), which makes the
+        # backbone's patch embed receive 2-D input instead of 3-D.  Keep
+        # the channel dimension so the trunk's Conv2d(3 -> 384) receives
+        # the documented (B, 3, 56, 56) input.  This is a bug fix in the
+        # preserved trainer path (not a mechanism implementation change).
+        x0 = ref
         x0 = self.backbone._prep(x0)
         x0 = self.backbone._trunk_forward(x0)
         if self.use_refinement:
@@ -586,10 +601,33 @@ class FoundationModel(nn.Module):
             dp_t = self.evidential_head(tokens_t)
             # The belief OBJECT, rebuilt per step (canonical GazeState; the
             # LOCKED t=0 boundary — E_0 := 0 — holds by construction).
+            # belief_e is the 3-D token-feature error surface (B, N, D_feat)
+            # required by populate_belief (Part 1.B). For t = 0, a zero
+            # tensor. For t >= 1, if belief_dynamics is active, this is
+            # tokens_t.detach() - pred_t (the prediction error surface);
+            # otherwise, structurally zero (no prediction exists).
+            if t == 0:
+                _grid_size = (
+                    self.gaze_policy.sampler.grid_size
+                    if self.gaze_policy is not None
+                    else 4)
+                belief_e = torch.zeros(B, _grid_size**2, cfg.d_z,
+                                       device=device)
+            elif self.belief_dynamics:
+                belief_e = tokens_t.detach() - pred_t
+            else:
+                # No learned dynamics -> no prediction -> no error signal.
+                # E_t structurally zero, same as E_0 but for t >= 1.
+                _grid_size = (
+                    self.gaze_policy.sampler.grid_size
+                    if self.gaze_policy is not None
+                    else 4)
+                belief_e = torch.zeros(B, _grid_size**2, cfg.d_z,
+                                       device=device)
             belief_t = populate_belief(
                 z=z_t,
                 U=DirichletParams(evidence=dp_t.evidence),
-                E=(zero_tok if t == 0 else err),
+                E=belief_e,
                 A=GazeState(gaze_history=list(hist), current_glimpse_idx=t))
             if self.belief_dynamics and t + 1 < T:
                 # Predict the NEXT glimpse's features from the CURRENT
@@ -661,13 +699,37 @@ class FoundationModel(nn.Module):
                 err = self.error_pool(err_map, pred_t)
                 Pi_t = self.precision(dp_t)
                 z_t = belief_update(z_t, err, Pi_t, self.update_net)
+            # Agent D's head on the OBSERVED tokens -> the ONE U-carrier.
             dp_t = self.evidential_head(tokens_t)
-            # Per-step SNAPSHOT of the live GazeState (record() mutates the
-            # live object; beliefs must each see the history as it was).
+            # The belief OBJECT, rebuilt per step (canonical GazeState; the
+            # LOCKED t=0 boundary — E_0 := 0 — holds by construction).
+            # belief_e is the 3-D token-feature error surface (B, N, D_feat)
+            # required by populate_belief (Part 1.B). For t = 0, a zero
+            # tensor. For t >= 1, if belief_dynamics is active, this is
+            # tokens_t.detach() - pred_t (the prediction error surface);
+            # otherwise, structurally zero (no prediction exists).
+            if t == 0:
+                _grid_size = (
+                    self.gaze_policy.sampler.grid_size
+                    if self.gaze_policy is not None
+                    else 4)
+                belief_e = torch.zeros(B, _grid_size**2, cfg.d_z,
+                                       device=device)
+            elif self.belief_dynamics:
+                belief_e = tokens_t.detach() - pred_t
+            else:
+                # No learned dynamics -> no prediction -> no error signal.
+                # E_t structurally zero, same as E_0 but for t >= 1.
+                _grid_size = (
+                    self.gaze_policy.sampler.grid_size
+                    if self.gaze_policy is not None
+                    else 4)
+                belief_e = torch.zeros(B, _grid_size**2, cfg.d_z,
+                                       device=device)
             belief_t = populate_belief(
                 z=z_t,
                 U=DirichletParams(evidence=dp_t.evidence),
-                E=(zero_tok if t == 0 else err),
+                E=belief_e,
                 A=GazeState(gaze_history=list(gaze_state.gaze_history),
                             current_glimpse_idx=t))
             if t + 1 < T:
