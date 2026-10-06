@@ -1,0 +1,1372 @@
+"""
+train_generation1_foundation.py — Agent J1 (Part 2 steps 1-4), extended
+by Agent J2 (Part 2 steps 5-6: the AIS-v2 integration). One trainer.
+================================================================================
+
+Wires Agents A/B/C/D/E (+ I's harness) into the foundation sequence.
+J2 wires Agent F's POLICY (AISv2GazePolicy) for steps 5-6, exactly as
+the Part 2 ladder specifies: step 5 = first end-to-end AIS-v2 loop;
+step 6 = the integrated system, the frozen Gen-1 reference. Steps 7+
+(S_t arm, L_stab arm, ablation matrix) are NOT in this trainer.
+
+Phases (training/stage_state_machine.py is the orchestration truth):
+  backbone_only    step 1 — substrate + ONE fixed center fixation +
+                   classifier head. NO tied refinement, NO T=4 loop.
+                   Establishes the param/FLOP baseline (Part 3): Agent
+                   I's compactness_report runs after EVERY step.
+  recurrence_only  step 2 — + the T=4 fixed-schedule glimpse loop and
+                   the tied within-glimpse refinement. NO belief, NO
+                   uncertainty (the plan's explicit "NO F" step).
+  belief_no_f      step 3 — + belief carrier with U_t (Agent B's
+                   S=None VectorBeliefState, Agent D's EvidentialHead);
+                   IDENTITY update: each glimpse's pooled observation
+                   seeds/refreshes z_t unchanged — belief and
+                   uncertainty live, no learned dynamics.
+  belief_with_f    step 4 — + Agent E's belief dynamics: the shared
+                   predictor predicts the NEXT glimpse's features
+                   (error_target = latent_next_glimpse, LOCKED default),
+                   precision from U_t, z_{t+1} = z_t + Pi*UpdateNet(z,E)
+                   — still fixed/heuristic gaze.
+  ais_v2_swap      step 5 — + Agent F's AIS-v2 gaze: the full predict ->
+                   observe -> error -> precision -> update -> GAZE-SELECT
+                   cycle. The shared predictor/head are THE SAME modules
+                   (F's reuse boundary); soft selection in training,
+                   hard argmax at inference; t=0 saliency boundary
+                   untouched. K=4 candidates (LOCKED range 4-8).
+  gen1_core        step 6 — the integrated system, S_t=None, L_stab
+                   diagnostic-only. The Generation-1 core result.
+
+GAZE SCHEME: steps 1-4 use the PLACEHOLDER fixed schedule and every
+artifact labels it PLACEHOLDER_FIXED_GAZE (never "AIS-v2"); steps 5-6
+use Agent F's policy and every artifact labels it AIS_V2.
+
+ADVERSARIAL RECIPE (2026-09-29 correction): the ported Gen-0 TRADES/PGD
+curriculum (eps 0.031->0.062->0.094, beta 2.0->2.5, PGD-4, w_trades 0.55
+-- training/adv_curriculum.py) is now the DEFAULT training objective.
+The 2026-09-25->26 Gen-1 run trained PURE cross-entropy (no adversarial
+term anywhere in the loop — a planning gap, owned in the plan).
+--clean-only reproduces that old behavior EXPLICITLY (it changes the
+config hash and is recorded in the manifest); smoke mode sets it
+automatically so the orchestration proof stays seconds-cheap.
+
+Resume discipline (Gen-0 rules, carried): mandatory HF rolling resume
+via Agent A's resume_or_abort (never a silent restart); best/rolling
+parity verified before any artifact is cited; provenance manifest per
+cold start (Agent A's write_manifest); checkpoints go to the DEDICATED
+Gen-1 namespace (FerrariKazu/rhan-nxa-checkpoints[-rolling]) — writing
+into Gen-0's rhan-checkpoints repos is structurally impossible here.
+
+Platform portability (local RTX 4060 / Kaggle / Colab — same file):
+  * single-process, single-GPU-first (CUDA if available, else CPU);
+  * no platform-specific imports; HF token resolved from --hf-token,
+    $HF_TOKEN, or .env (python-dotenv if present);
+  * --smoke runs the ENTIRE six-phase chain on Agent I's synthetic
+    loaders (tiny subset, CPU-able, NO HF writes, artifacts quarantined
+    under smoke/) — the orchestration proof that costs seconds, run
+    before spending any GPU-hours;
+  * real launches REQUIRE a structurally valid ImageNet-100 root
+    (Agent I's validate_imagenet100_root) — checked BEFORE training.
+
+Launch examples:
+  # the orchestration proof (seconds, CPU-able):
+  python3 training/train_generation1_foundation.py --smoke
+  # one phase, real data, 8 seeds (local/Kaggle/Colab identical):
+  python3 training/train_generation1_foundation.py --phase backbone_only \
+      --data-root data/imagenet100 --epochs 60 --batch-size 64
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import DataLoader, Subset
+
+# Repo root on sys.path whether run as a script or imported as a module.
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from evaluation.clean_and_robust import run_clean_and_robust  # noqa: E402
+from evaluation.compactness_report import compactness_report  # noqa: E402
+from training.adv_curriculum import (  # noqa: E402
+    W_TRADES_DEFAULT,
+    curriculum_for_epoch,
+    pgd_kl_attack,
+    phase_curriculum,
+    trades_loss,
+)
+from evaluation.imagenet100_loader import (  # noqa: E402
+    IMAGENET100_IMG_SIZE,
+    IMAGENET100_NUM_CLASSES,
+    make_imagenet100_loaders,
+    make_synthetic_loaders,
+    validate_imagenet100_root,
+)
+from noesis_vision.beliefs.factory import populate_belief  # noqa: E402
+from noesis_vision.core.checkpoint import (  # noqa: E402
+    CheckpointResumeError,
+    resume_or_abort,
+    save_best,
+    save_rolling,
+    verify_best_rolling_parity,
+)
+from noesis_vision.core.multi_group_optimizer import (  # noqa: E402
+    OptimizerGroupRegistry,
+)
+from noesis_vision.core.provenance import (  # noqa: E402
+    config_sha256, write_manifest)
+from noesis_vision.gaze.ais_v2_policy import AISv2GazePolicy  # noqa: E402
+from noesis_vision.gaze.gaze_state import GazeState  # noqa: E402 (canonical A_t)
+from noesis_vision.models.backbone import CompactViT  # noqa: E402
+from noesis_vision.models.foveation import foveal_sample  # noqa: E402
+from noesis_vision.predictive_coding.glimpse_predictor import (  # noqa: E402
+    ConcreteGlimpseFeaturePredictor,
+)
+from noesis_vision.predictive_coding.precision import PrecisionFunction  # noqa: E402
+from noesis_vision.predictive_coding.ema_predictor import (
+    PredictorTarget,
+)  # noqa: E402
+from noesis_vision.predictive_coding.precision import PrecisionFunction  # noqa: E402
+from noesis_vision.predictive_coding.spatial_error_pool import (
+    SpatialErrorPool,
+)  # noqa: E402
+from noesis_vision.predictive_coding.ema_predictor import (
+    PredictorTarget,
+)  # noqa: E402
+from noesis_vision.predictive_coding.precision import PrecisionFunction  # noqa: E402
+from noesis_vision.predictive_coding.spatial_error_pool import (
+    SpatialErrorPool,
+)  # noqa: E402
+from noesis_vision.predictive_coding.update_net import (  # noqa: E402
+    ConcreteUpdateNet,
+    belief_update,
+)
+from noesis_vision.uncertainty.evidential_head import (  # noqa: E402
+    DirichletParams,
+    EvidentialHead,
+)
+from training.stage_state_machine import (  # noqa: E402
+    DEPENDENCIES,
+    FOUNDATION_PHASES,
+    GRADIENT_REQUIRED,
+    advance,
+    ensure_foundation_state,
+    get_next_action,
+    report_state,
+)
+
+# ── HF namespace: Gen-1 DEDICATED repos (never Gen-0's rhan-checkpoints) ────
+HF_REPO = "FerrariKazu/rhan-nxa-checkpoints"
+HF_REPO_ROLLING = "FerrariKazu/rhan-nxa-checkpoints-rolling"
+ROADMAP_NAME = "generation1_foundation_roadmap.json"
+
+PLACEHOLDER_GAZE_LABEL = "PLACEHOLDER_FIXED_GAZE (not AIS-v2; AIS-v2 is J2/step 5)"
+#: Steps 5-6: the policy IS Agent F's AIS-v2 — recorded as such everywhere.
+AIS_V2_GAZE_LABEL = "AIS_V2 (Agent F AISv2GazePolicy; Part 2 step 5-6)"
+
+
+def gaze_scheme_for_phase(phase: str) -> str:
+    """The TRUE gaze scheme per phase — never mislabel a placeholder as
+    AIS-v2, and never label the AIS-v2 phases as a placeholder."""
+    if phase == "backbone_only":
+        return "single_center_fixation"
+    if phase in ("ais_v2_swap", "gen1_core"):
+        return AIS_V2_GAZE_LABEL
+    return PLACEHOLDER_GAZE_LABEL
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HF sync helpers (per-file upload; roadmap rev-guarded down/up)
+# ═══════════════════════════════════════════════════════════════════════════
+def _resolve_hf_token(explicit: Optional[str]) -> Optional[str]:
+    if explicit:
+        return explicit
+    tok = os.environ.get("HF_TOKEN")
+    if tok:
+        return tok
+    try:  # optional local .env (never required on Kaggle/Colab)
+        from dotenv import load_dotenv
+        load_dotenv(os.path.join(REPO_ROOT, ".env"))
+        return os.environ.get("HF_TOKEN")
+    except Exception:
+        return None
+
+
+_HF_QUOTA_EXHAUSTED = False
+
+
+def _hf_quota_exhausted(message: str) -> bool:
+    """A 403 'storage limit reached' body means EVERY future checkpoint
+    upload will fail too. Training could keep marching on, but the
+    durability contract would be broken: a session death at that point
+    orphans the run. This is fatal, not a warning."""
+    m = message.lower()
+    return ("storage limit" in m or "storage quota" in m
+            or ("403" in m and "forbidden" in m))
+
+
+def _hf_fail_closed(what: str) -> None:
+    raise SystemExit(
+        f"STOP — HF storage quota still exhausted; refusing to keep "
+        f"training without checkpoint durability ({what}). Free private "
+        f"storage on the HF account (squash history, delete stale repos, "
+        f"or upgrade), then re-run the dispatch — it resumes from the "
+        f"last durable rolling epoch.")
+
+
+def _hf_free_private_history(repo_id: str, token: Optional[str]) -> bool:
+    """Squash repo history so overwritten files stop holding stale LFS
+    revisions (per-epoch overwrites accumulate quota). The tip survives:
+    archive/, roadmap, manifests, results."""
+    try:
+        from huggingface_hub import HfApi
+        HfApi(token=token).super_squash_history(
+            repo_id=repo_id, repo_type="dataset",
+            commit_message="durability: squash history to reclaim storage quota")
+        print(f"  ✓ squashed history on {repo_id} (tip preserved)",
+              flush=True)
+        return True
+    except Exception as e:  # noqa: BLE001 — caller aborts either way
+        print(f"  WARNING: history squash failed for {repo_id}: {e}",
+              flush=True)
+        return False
+
+
+def _hf_upload(local_path: str, repo_path: str, repo_id: str,
+               token: Optional[str]) -> bool:
+    global _HF_QUOTA_EXHAUSTED
+    if _HF_QUOTA_EXHAUSTED:
+        _hf_fail_closed(repo_path)
+    try:
+        from huggingface_hub import HfApi
+        HfApi(token=token).upload_file(
+            path_or_fileobj=local_path, path_in_repo=repo_path,
+            repo_id=repo_id, repo_type="dataset", token=token)
+        return True
+    except Exception as e:  # noqa: BLE001 — quota 403 below is fatal,
+        # every other failure stays warn-and-continue (transient network
+        # errors must not kill a 6-hour phase; the next epoch retries).
+        msg = str(e)
+        if _hf_quota_exhausted(msg):
+            _HF_QUOTA_EXHAUSTED = True
+            print(f"\n{'='*70}\nFATAL (durability): HF storage quota "
+                  f"exhausted ({repo_path}).\n{msg}\n"
+                  "Squashing repo history to reclaim quota, then aborting — "
+                  "a run whose checkpoints cannot reach HF is a "
+                  "silent-restart hazard. Training stops AFTER the squash; "
+                  "the next dispatch resumes from the last durable rolling "
+                  f"epoch.\n{'='*70}", flush=True)
+            for _r in (HF_REPO_ROLLING, HF_REPO):
+                _hf_free_private_history(_r, token)
+            raise SystemExit(3) from e
+        print(f"  WARNING: HF upload failed ({repo_path}): {e}", flush=True)
+        return False
+
+
+def _hf_download(repo_id: str, filename: str, token: Optional[str]) -> str:
+    from huggingface_hub import hf_hub_download
+    return hf_hub_download(repo_id=repo_id, filename=filename,
+                           repo_type="dataset", token=token,
+                           local_dir=os.path.join(REPO_ROOT, "checkpoints"))
+
+
+def _hf_roadmap_rev(path: str) -> int:
+    try:
+        with open(path) as f:
+            return int(json.load(f).get("roadmap_rev", 0))
+    except Exception:
+        return 0
+
+
+def sync_roadmap_down(roadmap_path: str, token: Optional[str]) -> bool:
+    """Restore the HF roadmap over the local copy (rev-guarded: a stale HF
+    copy never clobbers newer local state — the Gen-0 convention)."""
+    try:
+        p = _hf_download(HF_REPO_ROLLING, ROADMAP_NAME, token)
+    except Exception:
+        return False
+    if _hf_roadmap_rev(p) < _hf_roadmap_rev(roadmap_path):
+        print("  roadmap: HF copy older than local — keeping local", flush=True)
+        return False
+    import shutil
+    os.makedirs(os.path.dirname(roadmap_path) or ".", exist_ok=True)
+    shutil.copy(p, roadmap_path)
+    print("  ✓ foundation roadmap restored from HF", flush=True)
+    return True
+
+
+def sync_roadmap_up(roadmap_path: str, token: Optional[str]) -> None:
+    if _hf_upload(roadmap_path, ROADMAP_NAME, HF_REPO_ROLLING, token):
+        print("  ✓ foundation roadmap synced to HF", flush=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# The placeholder gaze schedule (NEVER "AIS-v2")
+# ═══════════════════════════════════════════════════════════════════════════
+def build_fixed_gaze_schedule(batch: int, num_glimpses: int,
+                              device: torch.device,
+                              reach: float = 0.6) -> torch.Tensor:
+    """(B, T, 2) deterministic 4-point 'corner-ish' schedule, clamped to
+    +/-`reach` (stays inside the frame with margin at any fovea size).
+    T > 4 tiles the base grid row-major. No parameters, no randomness,
+    no learned selection — the J1 placeholder, in every log/ckpt label.
+    """
+    base = [(-reach, -reach), (reach, -reach), (-reach, reach), (reach, reach)]
+    pts = [base[i % 4] for i in range(num_glimpses)]
+    sched = torch.tensor(pts, dtype=torch.float32, device=device)  # (T, 2)
+    return sched.unsqueeze(0).expand(batch, num_glimpses, 2)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Config
+# ═══════════════════════════════════════════════════════════════════════════
+@dataclass
+class FoundationConfig:
+    # data
+    data_root: str = os.path.join("data", "imagenet100")
+    batch_size: int = 64
+    num_workers: int = 4
+    num_classes: int = IMAGENET100_NUM_CLASSES
+    # substrate / loop (schema-locked shapes)
+    img_size: int = IMAGENET100_IMG_SIZE      # loader operating point (96)
+    fovea_size: int = 56                      # the crop the trunk sees (4x14)
+    d_z: int = 384
+    num_glimpses: int = 4                     # LOCKED T=4 (Part 1.C)
+    within_glimpse_iters: int = 2             # LOCKED range 2-3 (Part 1.C)
+    num_candidates: int = 4                   # LOCKED range 4-8 (Part 1.E)
+    # optimization
+    epochs: int = 60
+    lr: float = 0.003
+    momentum: float = 0.9
+    weight_decay: float = 1e-4
+    # Gen-0 TRADES/PGD curriculum (ported 2026-09-29; was MISSING from the
+    # frozen Gen-1 contract — the 2026-09-25->26 run trained pure-CE):
+    # eps 0.031->0.062->0.094 ramp over each phase's window, beta
+    # 2.0->2.0->2.5, PGD-4 attack, w_trades 0.55. --clean-only is an
+    # explicit, LOUD deviation (SBR-0/1 semantics). All of this enters
+    # cfg.to_dict(), hence the provenance config hash.
+    w_trades: float = W_TRADES_DEFAULT
+    clean_only: bool = False
+    recipe_version: str = "gen1-adv-curriculum-v1"
+    seed: int = 41
+    amp: bool = True
+    # Precision mode (Adjustment / ablation): 'learned' (default, the
+    # PrecisionFunction MLP over Dirichlet evidence) or 'fixed' (a constant
+    # 1.0 floor, no learned path — the baseline arm). Config-flagged so
+    # the A/B arm can be run from a single dispatch with identical seeds.
+    precision_mode: str = "learned"
+    # Rolling uploads every 5 epochs, not every epoch: each .pth overwrite
+    # is a NEW LFS revision on HF until history is squashed, so per-epoch
+    # rolls burned the account's private storage quota mid-run (2026-10-01).
+    # Resume granularity drops from ~6 min to ~30 min — the acceptable trade
+    # for never losing an entire phase to an invisible quota wall.
+    roll_every: int = 5
+    # eval (Agent I harness; 8-seed floor per Part 3 policy)
+    eval_seeds: Tuple[int, ...] = tuple(range(41, 49))
+    n_eval_samples: int = 300
+    pgd_steps: int = 10
+    eps_list: Tuple[float, ...] = (0.0, 0.031, 0.062, 0.094)
+    # infra
+    ckpt_dir: str = os.path.join(REPO_ROOT, "checkpoints")
+    report_dir: str = os.path.join(REPO_ROOT, "report")
+    runs_dir: str = os.path.join(REPO_ROOT, "runs")
+    hf_token: Optional[str] = None
+    use_hf: bool = True
+    force_fresh: bool = False
+    # smoke mode (set by --smoke; synthetic loaders, quick eval, NO HF)
+    smoke: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["eval_seeds"] = list(self.eval_seeds)
+        d["eps_list"] = list(self.eps_list)
+        d["hf_token"] = None            # never serialized
+        # The config alone is phase-agnostic; the per-phase scheme is
+        # recorded by the model (model.gaze_scheme) and in the manifests.
+        d["gaze_scheme"] = ("phase-dependent: single_center_fixation | "
+                            "PLACEHOLDER_FIXED_GAZE | AIS_V2")
+        return d
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# The foundation model. forward(x) -> logits (Agent I harness contract:
+# the model takes the IMAGE and returns class logits; the fixed-gaze loop
+# and the belief mechanics live inside, per phase).
+# ═══════════════════════════════════════════════════════════════════════════
+class FoundationModel(nn.Module):
+    """Phase-parameterized RHAN-NXA foundation (steps 1-4 only).
+
+    Phase flags (fixed at construction; never toggled mid-run):
+      use_refinement  — tied within-glimpse refinement (step 2+)
+      use_recurrence  — T=4 fixed-schedule glimpse loop (step 2+)
+      carry_belief    — belief carrier + EvidentialHead (step 3+)
+      belief_dynamics — predictor + precision + UpdateNet (step 4)
+    """
+
+    def __init__(self, cfg: FoundationConfig, phase: str):
+        super().__init__()
+        if phase not in FOUNDATION_PHASES:
+            raise ValueError(f"unknown phase {phase!r}")
+        self.cfg = cfg
+        self.phase = phase
+        self.use_refinement = phase != "backbone_only"
+        self.use_recurrence = phase in ("recurrence_only", "belief_no_f",
+                                        "belief_with_f", "ais_v2_swap",
+                                        "gen1_core")
+        self.carry_belief = phase in ("belief_no_f", "belief_with_f",
+                                      "ais_v2_swap", "gen1_core")
+        self.belief_dynamics = phase in ("belief_with_f", "ais_v2_swap",
+                                         "gen1_core")
+        # Steps 5-6 ONLY: Agent F's policy drives the glimpse loop.
+        self.use_ais_v2 = phase in ("ais_v2_swap", "gen1_core")
+        if not self.use_recurrence:
+            self.gaze_scheme = "single_center_fixation"
+        elif self.use_ais_v2:
+            self.gaze_scheme = AIS_V2_GAZE_LABEL
+        else:
+            self.gaze_scheme = PLACEHOLDER_GAZE_LABEL
+
+        # Agent C's substrate — the ONLY backbone (shared, never duplicated).
+        self.backbone = CompactViT(img_size=cfg.fovea_size)
+        # Readout width is PHASE-appropriate: belief phases concatenate the
+        # ONE uncertainty representation (content d_z + evidence
+        # num_classes); steps 1-2 have no evidence yet and read out pooled
+        # features (d_z). Each phase trains from scratch with its own
+        # checkpoint layout, so the differing shapes are intentional
+        # (resume_guard checks layout).
+        self.cls_head = nn.Linear(
+            (cfg.d_z + cfg.num_classes) if self.carry_belief else cfg.d_z,
+            cfg.num_classes)
+        if self.carry_belief:
+            # Agent D's head — the ONE uncertainty representation.
+            self.evidential_head = EvidentialHead(
+                input_dim=cfg.d_z, num_classes=cfg.num_classes)
+            # Evidential training readout (the head's own classifier readout;
+            # ECE is evaluated by Agent I, never trained against).
+            self.ev_readout = nn.Linear(cfg.num_classes, cfg.num_classes)
+        if self.belief_dynamics:
+            # Agent E's shared predictor (the ONE module that receives
+            # gradients). Its BYOL/DINO EMA target copy is owned by the
+            # policy (AISv2GazePolicy.predictor_ema) — never re-claimed here.
+            self.predictor = ConcreteGlimpseFeaturePredictor(
+                d_z=cfg.d_z, d_feat=cfg.d_z, n_tokens=16)
+            self.update_net = ConcreteUpdateNet(d_z=cfg.d_z)
+            # Precision gate: learned (default) or fixed (ablation arm),
+            # selected by the PrecisionSelector placed before the model.
+            self.precision = PrecisionSelector(cfg)
+        # Agent F's policy — the ONE candidate scorer. Only created for
+        # AIS-v2 phases (steps 5-6). For non-AIS-v2 phases, gaze_policy
+        # is None (placeholder) to avoid AttributeError on direct access.
+        self.gaze_policy = None
+        if self.use_ais_v2:
+            # Agent F's policy — the ONE candidate scorer. The predictor
+            # and evidential head are the SAME instances built above
+            # (F's reuse boundary: injected, never re-implemented;
+            # identity is asserted by the J2 tests).
+            self.gaze_policy = AISv2GazePolicy(
+                predictor=self.predictor,
+                evidential_head=self.evidential_head,
+                num_candidates=cfg.num_candidates)
+        # Error pooling (Adjustment 1, Part 4): the spatial candidate-
+        # anchoring error surface (token_error_map, produced by
+        # HeuristicCandidateSampler in the policy) is NOT flat-meaned;
+        # it is pooled through a small LEARNED attention layer (SpatialErrorPool)
+        # so E_t's local token-feature space maps to z_t's global space via
+        # a learned mapping. Own optimizer group 'error_pool'.
+        self.error_pool = SpatialErrorPool(d_z=cfg.d_z, n_tokens=16)
+
+    # ── optimizer-group surfaces (Agent A registry; per-phase layout) ───────
+    def group_params(self) -> Dict[str, List[nn.Parameter]]:
+        groups: Dict[str, List[nn.Parameter]] = {
+            "backbone": list(self.backbone.parameters()),
+            "classifier": list(self.cls_head.parameters()),
+        }
+        if self.carry_belief:
+            groups["evidential_head"] = (
+                list(self.evidential_head.parameters())
+                + list(self.ev_readout.parameters()))
+        if self.belief_dynamics:
+            groups["predictor"] = list(self.predictor.parameters())
+            groups["update_net"] = list(self.update_net.parameters())
+            groups["precision"] = list(self.precision.parameters())
+        if self.use_ais_v2:
+            # ONLY the policy's own learned state (logit_scale). The shared
+            # predictor/head already have their own groups; F's
+            # register_optimizer_group() would recursively re-claim them
+            # here and the registry's double-claim guard raises loudly.
+            groups["gaze_policy"] = [self.gaze_policy.logit_scale]
+        # Adjustment 1 Group: pooled error-map projection (SpatialErrorPool).
+        # Own optimizer group so the standing |dW| pre-flight can measure it.
+        groups["error_pool"] = list(self.error_pool.parameters())
+        return groups
+
+    # ── one glimpse: crop -> trunk -> (optional refinement) -> parts ────────
+    def _glimpse(self, x_image: torch.Tensor, gaze: torch.Tensor
+                 ) -> Tuple[torch.Tensor, torch.Tensor]:
+        crop = foveal_sample(x_image, gaze, fovea_size=self.cfg.fovea_size)
+        x = self.backbone._prep(crop)
+        x = self.backbone._trunk_forward(x)
+        if self.use_refinement:
+            x = self.backbone.refinement(x, self.cfg.within_glimpse_iters)
+        pooled = x[:, 0]                                   # (B, D_z)
+        tokens = x[:, self.backbone.num_prefix_tokens:]    # (B, 16, D_z)
+        return pooled, tokens
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """(B, 3, 96, 96) images -> (B, C) logits."""
+        cfg = self.cfg
+        B, T = x.shape[0], cfg.num_glimpses
+        device = x.device
+
+        if self.use_ais_v2:
+            return self._forward_ais_v2(x, B, T, device)
+
+        if not self.use_recurrence:
+            # ── step 1: ONE fixed center fixation, no refinement ──────────
+            pooled, _ = self._glimpse(x, torch.zeros(B, 2, device=device))
+            return self.cls_head(pooled)
+
+        # ── steps 2-4: the T=4 fixed-schedule placeholder loop ─────────────
+        sched = build_fixed_gaze_schedule(B, T, device)
+
+        if not self.carry_belief:
+            # ── step 2: mean-pooled glimpse features, no belief ───────────
+            feats = [self._glimpse(x, sched[:, t, :])[0] for t in range(T)]
+            return self.cls_head(torch.stack(feats, dim=1).mean(dim=1))
+
+        # ── steps 3-4: belief carrier with U_t ─────────────────────────────
+        # glance 0: Agent E / Agent F just changed. Grayscale the full
+        # image to a 4x14 patch grid and run it through the SAME backbone
+        # path (_prep -> _trunk_forward -> refinement) so B_0 lives in the
+        # EXACT token space the foveal glimpses use, with a non-trivial
+        # z_0 (|z_0| ~ 66-72, believed_update -> z_1, policy first
+        # decision at t=1 sees it). 56 % 14 == 0 -> Conv2d grid 4x4 ->
+        # 16 tokens -> pos_embed shape 18 = n^2 + 2, no reshape forced.
+        # (Doc FORENSIC_REPORT_NXA_GENERATION1.md §K records this result.)
+        ref = F.interpolate(x, size=(self.cfg.fovea_size, self.cfg.fovea_size),
+                            mode="bilinear", align_corners=False)
+        # NOTE: the preserved trainer's intent (per its own comment) is a
+        # (B, 3, 56, 56) grayscale-preserving crop: ref[:, 0] would drop
+        # the channel dim and produce (B, 56, 56), which makes the
+        # backbone's patch embed receive 2-D input instead of 3-D.  Keep
+        # the channel dimension so the trunk's Conv2d(3 -> 384) receives
+        # the documented (B, 3, 56, 56) input.  This is a bug fix in the
+        # preserved trainer path (not a mechanism implementation change).
+        x0 = ref
+        x0 = self.backbone._prep(x0)
+        x0 = self.backbone._trunk_forward(x0)
+        if self.use_refinement:
+            x0 = self.backbone.refinement(x0, self.cfg.within_glimpse_iters)
+        z0 = x0[:, 0]                                    # (B, D_z)
+        tokens0 = x0[:, self.backbone.num_prefix_tokens:]  # (B, 16, D_z)
+        z_t = z0
+        zero_ev = torch.zeros(B, cfg.num_classes, device=device)
+        zero_tok = torch.zeros(B, 16, cfg.d_z, device=device)
+        dp_t: Optional[DirichletParams] = None
+        pred_t: Optional[torch.Tensor] = None
+        err: Optional[torch.Tensor] = None
+        hist: List[torch.Tensor] = []
+
+        for t in range(T):
+            a_t = sched[:, t, :]
+            pooled_t, tokens_t = self._glimpse(x, a_t)
+            if t == 0:
+                # glance 0 -> B_0 from the downsampled FULL image (z_0,
+                # non-trivial); every later glimpse still uses the
+                # foveal crop + the same trunk path.
+                z_t = z0
+                err = torch.zeros_like(tokens_t)   # LOCKED boundary E_0 := 0
+            elif self.belief_dynamics:
+                # z_{t+1} = z_t + Pi_t * UpdateNet(z_t, E_t); the OBSERVED
+                # tokens are detached here (target convention, Part 1.A);
+                # pred_t was made last step and carries the predictor's
+                # gradient.
+                err = tokens_t.detach() - pred_t
+                Pi_t = self.precision(dp_t)
+                z_t = belief_update(z_t, err, Pi_t, self.update_net)
+            else:
+                z_t = pooled_t              # IDENTITY update (step 3)
+                # No learned dynamics -> no prediction -> no error signal:
+                # E_t is STRUCTURALLY zero (not a trained quantity here).
+                err = torch.zeros_like(tokens_t)
+            # Agent D's head on the OBSERVED tokens -> the ONE U-carrier.
+            dp_t = self.evidential_head(tokens_t)
+            # The belief OBJECT, rebuilt per step (canonical GazeState; the
+            # LOCKED t=0 boundary — E_0 := 0 — holds by construction).
+            # belief_e is the 3-D token-feature error surface (B, N, D_feat)
+            # required by populate_belief (Part 1.B). For t = 0, a zero
+            # tensor. For t >= 1, if belief_dynamics is active, this is
+            # tokens_t.detach() - pred_t (the prediction error surface);
+            # otherwise, structurally zero (no prediction exists).
+            if t == 0:
+                _grid_size = (
+                    self.gaze_policy.sampler.grid_size
+                    if self.gaze_policy is not None
+                    else 4)
+                belief_e = torch.zeros(B, _grid_size**2, cfg.d_z,
+                                       device=device)
+            elif self.belief_dynamics:
+                belief_e = tokens_t.detach() - pred_t
+            else:
+                # No learned dynamics -> no prediction -> no error signal.
+                # E_t structurally zero, same as E_0 but for t >= 1.
+                _grid_size = (
+                    self.gaze_policy.sampler.grid_size
+                    if self.gaze_policy is not None
+                    else 4)
+                belief_e = torch.zeros(B, _grid_size**2, cfg.d_z,
+                                       device=device)
+            belief_t = populate_belief(
+                z=z_t,
+                U=DirichletParams(evidence=dp_t.evidence),
+                E=belief_e,
+                A=GazeState(gaze_history=list(hist), current_glimpse_idx=t))
+            if self.belief_dynamics and t + 1 < T:
+                # Predict the NEXT glimpse's features from the CURRENT
+                # belief (error_target = latent_next_glimpse, LOCKED).
+                pred_t = self.predictor.predict_features(
+                    belief_t, sched[:, t + 1, :])
+            hist.append(a_t.detach())
+
+        # Readout: content + the ONE uncertainty representation.
+        feats = torch.cat([z_t, dp_t.evidence], dim=-1)
+        return self.cls_head(feats) + self.ev_readout(dp_t.evidence)
+
+    # ── steps 5-6: the AIS-v2 loop (Agent F's policy drives the gaze) ──────
+    def _forward_ais_v2(self, x: torch.Tensor, B: int, T: int,
+                        device: torch.device) -> torch.Tensor:
+        """predict -> observe -> error -> precision -> update -> gaze-select.
+
+        Gaze chronology (Agent F's API, used exactly as contracted):
+          t = 0: the fixed first fixation seeds the record; the policy's
+                 t=0 branch is STRUCTURAL (no U_0-conditioned prediction
+                 exists; E_0 := 0) and scores candidates on the heuristic
+                 saliency surface; it selects gaze for t = 1.
+          t = 1..T-1: observe at the selected a_t (pred_t was made last
+                 step AT a_t); dynamics step; the policy scores candidates
+                 against belief_t (+ the prediction at the CURRENT gaze,
+                 for the anchor's error map) and selects a_{t+1} while
+                 t + 1 < T.
+        Exactly T records enter the GazeState (LOCKED cap — record()
+        raises loudly at capacity); selections are detached when recorded
+        (A_t is a coordinate record, Part 1.A). Soft selection during
+        training (the motor Jacobian flows into the shared stack through
+        foveal_sample); hard argmax, no Gumbel noise, under no_grad at
+        inference (F's phase rule).
+        """
+        cfg = self.cfg
+        zero_tok = torch.zeros(B, 16, cfg.d_z, device=device)
+        training = self.training
+        # Inference determinism (the preserve-list's "deterministic seeded
+        # behavior"): the candidate jitter (anchor + Gaussian, Gen-0's
+        # validated sigma) is SEEDED per forward at eval so two eval passes
+        # — and evals resumed from the same checkpoint — select
+        # identically. Training keeps the global RNG (exploration is
+        # stochastic, seeded at run level by seed_everything).
+        gen = None
+        if not training:
+            gen = torch.Generator(device=device)
+            gen.manual_seed(int(cfg.seed))
+        a_t = torch.zeros(B, 2, device=device)      # fixed first fixation
+        gaze_state = GazeState(gaze_history=[a_t], current_glimpse_idx=0)
+
+        z_t: Optional[torch.Tensor] = None
+        dp_t: Optional[DirichletParams] = None
+        pred_t: Optional[torch.Tensor] = None       # prediction AT a_t
+        err: Optional[torch.Tensor] = None
+
+        for t in range(T):
+            pooled_t, tokens_t = self._glimpse(x, a_t)
+            obs = tokens_t.detach()                 # target convention
+            if t == 0:
+                z_t = pooled_t                      # observation seeds content
+                err = torch.zeros_like(tokens_t)    # LOCKED boundary E_0 := 0
+            else:
+                # E_t goes through the learned error pool (Adjustment 1,
+                # Part 4): err_map = token_error_map(obs, pred_t) ->
+                # SpatialErrorPool -> (B, D_z) in the global space,
+                # then the UPDATE NET's local-to-global mapping.
+                err_map = self.gaze_policy.token_error_map(
+                    obs, pred_t, self.gaze_policy.sampler.grid_size)
+                err = self.error_pool(err_map, pred_t)
+                Pi_t = self.precision(dp_t)
+                z_t = belief_update(z_t, err, Pi_t, self.update_net)
+            # Agent D's head on the OBSERVED tokens -> the ONE U-carrier.
+            dp_t = self.evidential_head(tokens_t)
+            # The belief OBJECT, rebuilt per step (canonical GazeState; the
+            # LOCKED t=0 boundary — E_0 := 0 — holds by construction).
+            # belief_e is the 3-D token-feature error surface (B, N, D_feat)
+            # required by populate_belief (Part 1.B). For t = 0, a zero
+            # tensor. For t >= 1, if belief_dynamics is active, this is
+            # tokens_t.detach() - pred_t (the prediction error surface);
+            # otherwise, structurally zero (no prediction exists).
+            if t == 0:
+                _grid_size = (
+                    self.gaze_policy.sampler.grid_size
+                    if self.gaze_policy is not None
+                    else 4)
+                belief_e = torch.zeros(B, _grid_size**2, cfg.d_z,
+                                       device=device)
+            elif self.belief_dynamics:
+                belief_e = tokens_t.detach() - pred_t
+            else:
+                # No learned dynamics -> no prediction -> no error signal.
+                # E_t structurally zero, same as E_0 but for t >= 1.
+                _grid_size = (
+                    self.gaze_policy.sampler.grid_size
+                    if self.gaze_policy is not None
+                    else 4)
+                belief_e = torch.zeros(B, _grid_size**2, cfg.d_z,
+                                       device=device)
+            belief_t = populate_belief(
+                z=z_t,
+                U=DirichletParams(evidence=dp_t.evidence),
+                E=belief_e,
+                A=GazeState(gaze_history=list(gaze_state.gaze_history),
+                            current_glimpse_idx=t))
+            if t + 1 < T:
+                sel = self.gaze_policy.select_next_location(
+                    belief_t, obs, a_t,
+                    predicted_tokens=(pred_t if t >= 1 else None),
+                    training=training, generator=gen)
+                a_next = sel.selected               # (B, 2); carries the
+                # selection gradient in training (soft weights), detached
+                # coordinates at inference.
+                # Predict the NEXT glimpse's features from the CURRENT
+                # belief AT the selected location (error_target =
+                # latent_next_glimpse, LOCKED) — the motor Jacobian
+                # df_stem(a)/da enters here through foveal_sample.
+                pred_t = self.gaze_policy.predictor_ema.predict_features(
+                    belief_t, a_next)
+                gaze_state = self.gaze_policy.record(gaze_state, sel)
+                a_t = a_next
+
+        # Readout: content + the ONE uncertainty representation.
+        feats = torch.cat([z_t, dp_t.evidence], dim=-1)
+        return self.cls_head(feats) + self.ev_readout(dp_t.evidence)
+
+
+class PrecisionSelector(nn.Module):
+    """Precision-mode selector: 'learned' -> PrecisionFunction; 'fixed' ->
+    a frozen constant-1.0 node. Positioned before FoundationModel so the
+    precision gate can be swapped from config without touching the
+    FoundationModel internals.
+    """
+
+    def __init__(self, cfg: FoundationConfig) -> None:
+        super().__init__()
+        self.mode = cfg.precision_mode
+        if self.mode == "learned":
+            self.fn = PrecisionFunction()
+        elif self.mode == "fixed":
+            self.fn = ConstantOne()
+        else:
+            raise ValueError(
+                f"precision_mode must be 'learned' or 'fixed'; got "
+                f"{cfg.precision_mode!r}"
+            )
+
+    def forward(self, U) -> torch.Tensor:
+        """DirichletParams -> Pi_t, (B,), positive."""
+        return self.fn(U)
+
+
+class ConstantOne(nn.Module):
+    """Frozen constant-1.0 precision node (fixed precision_mode state)."""
+
+    def __init__(self):
+        super().__init__()
+        self.register_buffer("one", torch.ones(1))
+
+    def forward(self, U):
+        return self.one.expand(U.uncertainty.shape[0])
+
+
+def build_model(cfg: FoundationConfig, phase: str) -> FoundationModel:
+    return FoundationModel(cfg, phase)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Gradient reachability — the standing rule, checked EXPLICITLY per phase
+# (the single most repeated Gen-0 failure; a zero-gradient newly-active
+# component is a FAILURE CONDITION, not a note).
+# ═══════════════════════════════════════════════════════════════════════════
+def _component_params(model: FoundationModel, name: str) -> List[nn.Parameter]:
+    if name == "classifier":
+        return list(model.cls_head.parameters())
+    if name == "evidential_head":
+        return (list(model.evidential_head.parameters())
+                + list(model.ev_readout.parameters()))
+    if name == "predictor":
+        return list(model.predictor.parameters())
+    if name == "update_net":
+        return list(model.update_net.parameters())
+    if name == "precision":
+        return list(model.precision.parameters())
+    if name == "gaze_policy":
+        return [model.gaze_policy.logit_scale]
+    raise ValueError(f"unknown gradient component {name!r}")
+
+
+def check_gradient_reach(model: FoundationModel, x: torch.Tensor,
+                         y: torch.Tensor) -> None:
+    """One forward/backward; every component required by THIS phase must
+    receive a nonzero gradient. Raises RuntimeError otherwise (STOP)."""
+    required = GRADIENT_REQUIRED[model.phase]
+    model.zero_grad(set_to_none=True)
+    loss = F.cross_entropy(model(x), y)
+    loss.backward()
+    failures = []
+    for comp in required:
+        params = _component_params(model, comp)
+        got = [p for p in params
+               if p.grad is not None and p.grad.abs().sum().item() > 0.0]
+        if not got:
+            failures.append(comp)
+    model.zero_grad(set_to_none=True)
+    if failures:
+        raise RuntimeError(
+            f"[{model.phase}] FAILURE CONDITION — gradient did not reach "
+            f"newly-active component(s) {failures} (required: "
+            f"{list(required)}). The standing non-detached-gradient rule "
+            f"is violated; STOP, do not train.")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Train / eval loops
+# ═══════════════════════════════════════════════════════════════════════════
+def seed_everything(seed: int) -> None:
+    import random
+    random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+@torch.no_grad()
+def evaluate_val(model: FoundationModel, loader, device) -> float:
+    model.eval()
+    correct = total = 0
+    for x, y in loader:
+        x, y = x.to(device), y.to(device)
+        pred = model(x).argmax(dim=1)
+        correct += (pred == y).sum().item()
+        total += y.numel()
+    model.train()
+    return correct / max(total, 1)
+
+
+def train_one_epoch(model, loader, optimizer, registry, device,
+                    scaler, epoch: int = 1, total_epochs: int = 1,
+                    clean_only: bool = False,
+                    w_trades: float = W_TRADES_DEFAULT) -> float:
+    """One epoch under the ported Gen-0 recipe (training/adv_curriculum.py).
+
+    clean_only=False (default): TRADES — x_adv is built by Gen-0's PGD-KL
+    attack at the epoch's curriculum (eps, steps), then the loss is
+    w_trades * (CE(clean) + beta * KL(adv || clean)). clean_only=True:
+    pure CE (SBR-0/1 semantics — an explicit, recorded deviation).
+    """
+    model.train()
+    point = curriculum_for_epoch(epoch, total_epochs)
+    total_loss, n_batches = 0.0, 0
+    for x, y in loader:
+        x, y = x.to(device), y.to(device)
+        optimizer.zero_grad(set_to_none=True)
+        with torch.autocast("cuda", enabled=scaler is not None):
+            if clean_only:
+                loss = F.cross_entropy(model(x), y)
+            else:
+                # Gen-0 order: attack under eval/no-grad, then train-step
+                # (the attack re-enables train() on exit).
+                x_adv = pgd_kl_attack(model, x, eps=point.eps,
+                                      steps=point.pgd_steps)
+                loss, _ = trades_loss(model, x, y, x_adv, beta=point.beta)
+                loss = w_trades * loss
+        if scaler is not None:
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            registry.clip_grad_per_group()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            registry.clip_grad_per_group()
+            optimizer.step()
+        total_loss += float(loss.item())
+        n_batches += 1
+    return total_loss / max(n_batches, 1)
+
+
+def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
+              device: torch.device) -> Dict[str, Any]:
+    """One phase end to end: resume-or-abort -> train -> eval -> artifacts."""
+    tag = f"[{phase}]"
+    rolling_path = os.path.join(cfg.ckpt_dir,
+                                f"foundation_{phase}_rolling.pth")
+    best_path = os.path.join(cfg.ckpt_dir, f"foundation_{phase}_best.pth")
+    hf_roll_name = f"foundation_{phase}_rolling.pth"
+    hf_best_name = f"foundation_{phase}_best.pth"
+
+    def up_rolling(p: str) -> None:
+        if cfg.use_hf and cfg.hf_token:
+            _hf_upload(p, hf_roll_name, HF_REPO_ROLLING, cfg.hf_token)
+
+    def up_best(p: str) -> None:
+        if cfg.use_hf and cfg.hf_token:
+            _hf_upload(p, hf_best_name, HF_REPO, cfg.hf_token)
+
+    # --force-fresh: an AUDIBLE cold start (never a silent restart).
+    if cfg.force_fresh:
+        victims = [rolling_path, best_path,
+                   os.path.join(cfg.runs_dir, f"foundation_{phase}",
+                                "manifest.json")]
+        for p in victims:
+            if os.path.exists(p):
+                os.remove(p)
+                print(f"{tag} [force-fresh] removed {p}", flush=True)
+
+    # ── mandatory-resume gate (Agent A; NEVER a silent restart) ────────────
+    # --force-fresh is an AUDIBLE LOCAL cold start: the local rolling/best
+    # artifacts were just deleted, and the HF rolling copy must NOT be
+    # silently re-downloaded (that would resurrect the run force-fresh just
+    # destroyed — a silent restart wearing a loud flag). The next
+    # save_rolling OVERWRITES the HF copy; until then HF is stale, loudly.
+    try:
+        state = resume_or_abort(
+            rolling_path,
+            hf_repo_id=(None if cfg.force_fresh else
+                        (HF_REPO_ROLLING if cfg.use_hf else None)),
+            hf_filename=(None if cfg.force_fresh else
+                         (hf_roll_name if cfg.use_hf else None)),
+            hf_token=cfg.hf_token,
+            downloader=_hf_download if (cfg.use_hf and not cfg.force_fresh)
+            else None)
+    except CheckpointResumeError as e:
+        raise SystemExit(f"{tag} STOP — resume gate refused: {e}") from e
+
+    # ── genuine-training-difference gate (the §11 gen1_core fix) ───────────
+    # The ladder is a from-scratch matched-compute chain (stage_state_machine
+    # DEPENDENCIES): no phase is weight-initialized from its parent, so a
+    # phase that starts with NO rolling state (local or HF) must not already
+    # possess a best checkpoint whose model payload is bitwise-identical to
+    # its parent's — that is exactly the silent-inheritance signature of the
+    # 2026-09-25->26 gen1_core artifact (206/206 tensors, state-dict hash
+    # 4814d7c70bfce254 shared with ais_v2_swap). --force-fresh deletes the
+    # best file too, so it passes; smoke is quarantined and skipped.
+    if state is None and phase != FOUNDATION_PHASES[0] and not cfg.smoke:
+        parent = DEPENDENCIES[phase]
+        own_best = os.path.join(cfg.ckpt_dir,
+                                f"foundation_{phase}_best.pth")
+        parent_best = os.path.join(cfg.ckpt_dir,
+                                   f"foundation_{parent}_best.pth")
+        if os.path.exists(own_best) and os.path.exists(parent_best):
+            try:
+                own = torch.load(own_best, map_location="cpu",
+                                 weights_only=False)
+                par = torch.load(parent_best, map_location="cpu",
+                                 weights_only=False)
+                own_sd, par_sd = own.get("model", {}), par.get("model", {})
+                overlap = [k for k in own_sd if k in par_sd]
+                same = (len(overlap) == len(own_sd) == len(par_sd)
+                        and all(torch.equal(own_sd[k], par_sd[k])
+                                for k in overlap))
+                if same and own_sd:
+                    raise SystemExit(
+                        f"{tag} STOP — silent-inheritance guard: "
+                        f"foundation_{phase}_best.pth is bitwise-identical "
+                        f"(all {len(own_sd)} tensors) to its parent "
+                        f"{parent}'s best, while NO rolling state exists "
+                        f"for this phase. That is the 2026-09-25->26 "
+                        f"gen1_core failure mode: a best checkpoint with "
+                        f"no genuine training behind it. Delete the best "
+                        f"checkpoint explicitly if you intend a real cold "
+                        f"start.")
+            except SystemExit:
+                raise
+            except Exception as e:  # noqa: BLE001 — a broken guard must
+                # never kill a legitimate run; parity/eval checks still run.
+                print(f"{tag} WARNING: inheritance guard skipped ({e})",
+                      flush=True)
+
+    seed_everything(cfg.seed)
+    model = build_model(cfg, phase).to(device)
+    registry = OptimizerGroupRegistry()
+    groups = model.group_params()
+    registry.register_backbone(groups["backbone"])
+    for name in ("classifier", "evidential_head", "predictor", "update_net",
+                 "precision", "gaze_policy"):
+        if name in groups:
+            registry.register(name, groups[name])
+    optimizer = registry.build_optimizer(cfg.lr, cfg.momentum,
+                                         cfg.weight_decay)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=cfg.epochs)
+    scaler = torch.amp.GradScaler("cuda") if (
+        cfg.amp and device.type == "cuda") else None
+
+    start_epoch = 0
+    if state is not None:
+        start_epoch = int(state.get("epoch", 0))
+        model.load_state_dict(state["model"])
+        opt_state = state.get("optimizer")
+        if opt_state is not None:
+            if not registry.resume_guard(opt_state, state.get("scheduler")):
+                raise SystemExit(
+                    f"{tag} STOP — optimizer resume guard refused the saved "
+                    f"state (group layout changed?)")
+            optimizer.load_state_dict(opt_state)
+        if state.get("scheduler") is not None:
+            scheduler.load_state_dict(state["scheduler"])
+        else:
+            for _ in range(start_epoch):
+                scheduler.step()
+        print(f"{tag} resumed from epoch {start_epoch} "
+              f"(code {state.get('code_commit')!r})", flush=True)
+    else:
+        # Cold start: provenance manifest (Agent A; refuses silent
+        # overwrite). A crash-restart with the SAME config hash is the
+        # SAME experiment — keep the original manifest audibly; a
+        # DIFFERENT hash under the same id is a genuine conflict: STOP.
+        manifest_path = os.path.join(cfg.runs_dir, f"foundation_{phase}",
+                                     "manifest.json")
+        if os.path.exists(manifest_path):
+            with open(manifest_path) as f:
+                _old = json.load(f)
+            if _old.get("config_sha256") != config_sha256(cfg.to_dict()):
+                raise SystemExit(
+                    f"{tag} STOP — provenance manifest for "
+                    f"foundation_{phase} exists with a DIFFERENT config "
+                    f"hash (existing {_old.get('config_sha256', '')[:12]}… "
+                    f"vs attempted "
+                    f"{config_sha256(cfg.to_dict())[:12]}…). The config "
+                    f"changed; delete runs/foundation_{phase}/ explicitly "
+                    "to re-run under a new manifest — never overwrite "
+                    "provenance silently.")
+            print(f"{tag} provenance manifest already exists with an "
+                  f"IDENTICAL config hash — keeping the original "
+                  f"(crash-restart of the same experiment)", flush=True)
+        else:
+            write_manifest(
+                experiment_id=f"foundation_{phase}",
+                config=cfg.to_dict(),
+                seed=cfg.seed,
+                dataset_version=("synthetic-smoke" if cfg.smoke
+                                 else "imagenet100-structural-check-passed"),
+                root_dir=cfg.runs_dir,
+                optimizer_config={"base_lr": cfg.lr,
+                                  "momentum": cfg.momentum,
+                                  "weight_decay": cfg.weight_decay,
+                                  "groups": registry.group_names},
+                extra={"phase": phase,
+                       "gaze_scheme": gaze_scheme_for_phase(phase),
+                       "part2_steps": ("1-4" if phase in FOUNDATION_PHASES[:4]
+                                       else "5-6"),
+                       "ais_v2": phase in ("ais_v2_swap", "gen1_core"),
+                       "adv_curriculum": {
+                           "recipe_version": cfg.recipe_version,
+                           "w_trades": cfg.w_trades,
+                           "clean_only": cfg.clean_only,
+                           "eps_ramp": [0.031, 0.062, 0.094],
+                           "beta_ramp": [2.0, 2.0, 2.5],
+                           "pgd_steps": 4,
+                       }})
+            print(f"{tag} cold start (provenance manifest written)",
+                  flush=True)
+
+    best_acc = -1.0
+    if os.path.exists(best_path):
+        best_acc = float(torch.load(best_path, map_location="cpu",
+                                    weights_only=False)
+                         .get("metric_value", -1.0))
+
+    # ── train ───────────────────────────────────────────────────────────────
+    grad_checked = state is not None   # re-check on cold starts only
+    for epoch in range(start_epoch, cfg.epochs):
+        if not grad_checked:
+            x0, y0 = next(iter(loaders["train"]))
+            check_gradient_reach(model, x0.to(device)[:8], y0.to(device)[:8])
+            print(f"{tag} gradient reach OK for "
+                  f"{GRADIENT_REQUIRED[phase]}", flush=True)
+            grad_checked = True
+        point = phase_curriculum(phase, epoch + 1, cfg.epochs)
+        tr_loss = train_one_epoch(model, loaders["train"], optimizer,
+                                  registry, device, scaler,
+                                  epoch=epoch + 1, total_epochs=cfg.epochs,
+                                  clean_only=cfg.clean_only,
+                                  w_trades=cfg.w_trades)
+        val_acc = evaluate_val(model, loaders["val"], device)
+        scheduler.step()
+        if (epoch + 1) % cfg.roll_every == 0 or epoch + 1 == cfg.epochs:
+            save_rolling(rolling_path, epoch=epoch + 1, model=model,
+                         optimizer=optimizer, scheduler=scheduler,
+                         extra={"phase": phase,
+                                "gaze_scheme": gaze_scheme_for_phase(phase)},
+                         uploader=up_rolling)
+        if val_acc > best_acc:
+            best_acc = val_acc
+            save_best(best_path, model=model, config=cfg.to_dict(),
+                      metric_value=val_acc, uploader=up_best)
+        adv = ("clean-only" if cfg.clean_only else
+               f"eps={point.eps:.3f} beta={point.beta:.1f} "
+               f"pgd={point.pgd_steps}")
+        print(f"{tag} epoch {epoch + 1}/{cfg.epochs} "
+              f"loss={tr_loss:.4f} val_acc={val_acc:.4f} "
+              f"best={best_acc:.4f} [{adv}]", flush=True)
+
+    # ── parity check BEFORE anything cites the artifacts (Agent A rule) ────
+    if os.path.exists(best_path) and os.path.exists(rolling_path):
+        ok, why = verify_best_rolling_parity(best_path, rolling_path)
+        if not ok:
+            raise SystemExit(f"{tag} STOP — best/rolling parity FAILED: {why}")
+        print(f"{tag} parity: {why}", flush=True)
+
+    # ── eval leg (Agent I's harness; consistency-asserted summary) ──────────
+    def loader_factory(seed: int):
+        # Fresh subset per seed (the Gen-0 convention) on REAL data.
+        ds = loaders["val"].dataset
+        g = torch.Generator().manual_seed(int(seed))
+        idx = torch.randperm(len(ds), generator=g)[:cfg.n_eval_samples]
+        return DataLoader(Subset(ds, idx.tolist()), batch_size=cfg.batch_size)
+
+    model.eval()
+    eval_out = run_clean_and_robust(
+        model=model,
+        loader_factory=loader_factory,
+        seeds=list(cfg.eval_seeds),
+        eps_list=list(cfg.eps_list),
+        n_samples=cfg.n_eval_samples,
+        ckpt_path=best_path if os.path.exists(best_path) else None,
+        out_dir=os.path.join(cfg.report_dir, f"foundation_{phase}_eval"),
+        ckpt_label=f"foundation_{phase}",
+        device=str(device),
+        pgd_steps=cfg.pgd_steps,
+        allow_quick=cfg.smoke,
+    )
+    comp = compactness_report(
+        model, input_size=cfg.img_size,
+        out_json=os.path.join(cfg.report_dir,
+                              f"foundation_{phase}_compactness.json"))
+
+    result = {
+        "phase": phase,
+        "best_val_acc": best_acc,
+        "eval": {"per_seed_csv": eval_out["per_seed_csv"],
+                 "summary_csv": eval_out["summary_csv"]},
+        "compactness": {k: comp[k] for k in
+                        ("params_total", "params_trainable",
+                         "est_macs_per_image")},
+        "gaze_scheme": model.gaze_scheme,
+    }
+    with open(os.path.join(cfg.report_dir,
+                           f"foundation_{phase}_result.json"), "w") as f:
+        json.dump(result, f, indent=2, sort_keys=True)
+    print(f"{tag} DONE — best_val_acc={best_acc:.4f} "
+          f"params={comp['params_total']:,}", flush=True)
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Orchestration
+# ═══════════════════════════════════════════════════════════════════════════
+def load_or_init_roadmap(roadmap_path: str, hf_token: Optional[str],
+                         use_hf: bool) -> Dict[str, Any]:
+    if os.path.exists(roadmap_path) and use_hf:
+        sync_roadmap_down(roadmap_path, hf_token)
+    roadmap: Dict[str, Any] = {}
+    if os.path.exists(roadmap_path):
+        with open(roadmap_path) as f:
+            roadmap = json.load(f)
+    ensure_foundation_state(roadmap)
+    if not os.path.exists(roadmap_path):
+        # Cold start: persist the scaffold IMMEDIATELY so the first
+        # advance() finds it (the roadmap FILE is the single source of
+        # truth on disk, never in-memory state).
+        os.makedirs(os.path.dirname(roadmap_path) or ".", exist_ok=True)
+        with open(roadmap_path, "w") as f:
+            json.dump(roadmap, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+    return roadmap
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    ap = argparse.ArgumentParser(
+        description="Agent J1 — Part 2 steps 1-4 foundation trainer "
+                    "(placeholder fixed gaze; AIS-v2 is J2/step 5)")
+    ap.add_argument("--phase", default="all",
+                    help="all | backbone_only | recurrence_only | "
+                         "belief_no_f | belief_with_f")
+    ap.add_argument("--data-root", default=None)
+    ap.add_argument("--epochs", type=int, default=None)
+    ap.add_argument("--batch-size", type=int, default=None)
+    ap.add_argument("--lr", type=float, default=None)
+    ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--num-workers", type=int, default=None)
+    ap.add_argument("--within-glimpse-iters", type=int, default=None,
+                    choices=(2, 3))
+    ap.add_argument("--eval-seeds", type=int, nargs="+", default=None)
+    ap.add_argument("--n-eval-samples", type=int, default=None)
+    ap.add_argument("--pgd-steps", type=int, default=None)
+    ap.add_argument("--w-trades", type=float, default=None,
+                    help="TRADES weight (Gen-0 default 0.55)")
+    ap.add_argument("--clean-only", action="store_true",
+                    help="SBR-0/1 semantics: NO adversarial term (pure CE) "
+                         "— a loud, recorded deviation from the default "
+                         "ported Gen-0 TRADES/PGD curriculum")
+    ap.add_argument("--device", default=None, help="cuda | cpu (default auto)")
+    ap.add_argument("--no-amp", action="store_true")
+    ap.add_argument("--no-hf", action="store_true",
+                    help="disable HF sync (offline local runs)")
+    ap.add_argument("--hf-token", default=None)
+    ap.add_argument("--smoke", action="store_true",
+                    help="synthetic tiny-data chain — the orchestration "
+                         "proof; numbers are NOT results (no HF writes)")
+    ap.add_argument("--skip-halt-guard", action="store_true",
+                    help="2026-10-03: real-data training is cancelled; the "
+                         "halt guard documents this flag but the J1_ALLOW_TRAINING=1 "
+                         "env override is the ONLY way past the guard")
+    ap.add_argument("--precision-mode", type=str, default=None,
+                    choices=("learned", "fixed"),
+                    help="precision objective (Part 4 Adjustment / A/B arm): "
+                         "'learned' = PrecisionFunction (default); 'fixed' = "
+                         "constant 1.0 (no learned path). The A/B arm runs the "
+                         "SAME script with identical seeds under these two "
+                         "flags.")
+    ap.add_argument("--force-fresh", action="store_true",
+                    help="LOUDLY delete this run's rolling/best/manifest "
+                         "artifacts before starting (audible cold start)")
+    args = ap.parse_args(argv)
+
+    cfg = FoundationConfig()
+    if args.data_root:
+        cfg.data_root = args.data_root
+    if args.epochs:
+        cfg.epochs = args.epochs
+    if args.batch_size:
+        cfg.batch_size = args.batch_size
+    if args.lr:
+        cfg.lr = args.lr
+    if args.seed is not None:
+        cfg.seed = args.seed
+    if args.num_workers is not None:
+        cfg.num_workers = args.num_workers
+    if args.within_glimpse_iters:
+        cfg.within_glimpse_iters = args.within_glimpse_iters
+    if args.eval_seeds:
+        cfg.eval_seeds = tuple(args.eval_seeds)
+    if args.n_eval_samples:
+        cfg.n_eval_samples = args.n_eval_samples
+    if args.pgd_steps is not None:
+        cfg.pgd_steps = args.pgd_steps
+    if args.w_trades is not None:
+        cfg.w_trades = args.w_trades
+    cfg.clean_only = args.clean_only
+    cfg.amp = not args.no_amp
+    cfg.force_fresh = args.force_fresh
+    cfg.smoke = args.smoke
+    if args.precision_mode is not None:
+        cfg.precision_mode = args.precision_mode
+    hf_token = _resolve_hf_token(args.hf_token)
+    cfg.use_hf = (not args.no_hf) and bool(hf_token)
+    if cfg.smoke:
+        cfg.use_hf = False          # smoke NEVER writes to HF
+    cfg.hf_token = hf_token
+
+    if args.smoke:
+        # Smoke: pure-CE (SBR-0/1-style) so the orchestration proof stays
+        # seconds-cheap — the attack leg is exercised by the unit tests
+        # instead. Recorded as clean_only in the smoke manifest.
+        cfg.clean_only = True
+        cfg.epochs = min(cfg.epochs, 1)
+        cfg.eval_seeds = (0,)
+        cfg.n_eval_samples = 8
+        cfg.pgd_steps = 1
+        cfg.num_workers = 0
+        cfg.batch_size = 8
+        cfg.amp = False
+        # FULL artifact quarantine: smoke checkpoints/manifests/roadmap must
+        # never share a path with real-run state — otherwise a real cold
+        # start would silently RESUME from a synthetic rolling checkpoint
+        # (same contamination class as force-fresh's HF resurrection).
+        cfg.ckpt_dir = os.path.join(cfg.ckpt_dir, "smoke")
+        cfg.runs_dir = os.path.join(cfg.runs_dir, "smoke")
+
+    device = torch.device(
+        args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
+    print(f"device={device}  smoke={cfg.smoke}  hf={cfg.use_hf}\n"
+          f"gaze: steps 1-4 = {PLACEHOLDER_GAZE_LABEL}\n"
+          f"      steps 5-6 = {AIS_V2_GAZE_LABEL}", flush=True)
+
+    # The roadmap FILE is protocol state. Smoke NEVER writes it — a stray
+    # smoke run must not be able to mark real phases 'done' and silently
+    # skip them from the real run (launch-integrity rule).
+    roadmap_path = os.path.join(
+        cfg.report_dir if not cfg.smoke
+        else os.path.join(cfg.report_dir, "smoke"), ROADMAP_NAME)
+    roadmap = load_or_init_roadmap(roadmap_path, hf_token, cfg.use_hf)
+
+    # ── data: synthetic for smoke, VERIFIED ImageNet-100 for real runs ─────
+    if cfg.smoke:
+        loaders = make_synthetic_loaders(batch_size=cfg.batch_size,
+                                         batches=2, seed=cfg.seed)
+        print("  [SMOKE] synthetic loaders (Agent I) — numbers are NOT "
+              "results", flush=True)
+    else:
+        # THE PRE-FLIGHT: structural check on REAL data before any launch.
+        n_train = validate_imagenet100_root(cfg.data_root, split="train")
+        n_val = validate_imagenet100_root(cfg.data_root, split="val")
+        print(f"  ImageNet-100 verified at {cfg.data_root} "
+              f"(train classes={n_train}, val classes={n_val})", flush=True)
+        loaders = make_imagenet100_loaders(cfg.data_root,
+                                           batch_size=cfg.batch_size,
+                                           num_workers=cfg.num_workers)
+
+    # ── which phases run ────────────────────────────────────────────────────
+    if args.phase != "all":
+        if args.phase not in FOUNDATION_PHASES:
+            raise SystemExit(
+                f"unknown phase {args.phase!r} — steps 5/6 belong to J2 "
+                f"(gated on Agent F), not this trainer")
+        todo = [args.phase]        # explicit single-phase (re-)entry
+    else:
+        fnd = roadmap["generation1_foundation"]
+        todo = [p for p in FOUNDATION_PHASES
+                if fnd["phases"][p]["status"] != "done"]
+    print(f"  machine next action: {get_next_action(roadmap)}", flush=True)
+
+    for phase in todo:
+        print(report_state(roadmap), flush=True)
+        roadmap = advance(phase, "running", roadmap_path=roadmap_path,
+                          started_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                                    time.gmtime()))
+        if cfg.use_hf:
+            sync_roadmap_up(roadmap_path, hf_token)
+        result = run_phase(phase, cfg, loaders, device)
+        roadmap = advance(phase, "trained", roadmap_path=roadmap_path,
+                          best_val_acc=result["best_val_acc"],
+                          ckpt=f"foundation_{phase}_best.pth",
+                          gaze_scheme=gaze_scheme_for_phase(phase))
+        roadmap = advance(phase, "eval_pending", roadmap_path=roadmap_path)
+        roadmap = advance(phase, "eval_complete", roadmap_path=roadmap_path,
+                          summary_csv=result["eval"]["summary_csv"])
+        roadmap = advance(phase, "done", roadmap_path=roadmap_path,
+                          finished_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                                     time.gmtime()))
+        if cfg.use_hf:
+            sync_roadmap_up(roadmap_path, hf_token)
+
+    roadmap = load_or_init_roadmap(roadmap_path, hf_token, cfg.use_hf)
+    print(report_state(roadmap), flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

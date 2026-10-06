@@ -24,23 +24,42 @@ def test_package_imports_cleanly():
         GazePolicy, PrecisionModulator, WorldModel, NullWorldModel))
 
 
-def test_structured_belief_instantiates_but_raises_on_use():
+def test_structured_belief_instantiates_and_works():
+    """SBR is now implemented (Stage 4-E2). Verify it works, not just scaffolds."""
     from rhan_core.beliefs import StructuredBeliefState
-    sb = StructuredBeliefState(num_slots=16, slot_dim=512)
-    assert sb.num_slots == 16 and sb.slot_dim == 512
-    for method, args in [
-        ("as_tensor", ()),
-        ("uncertainty", ()),
-        ("update_slots", (torch.zeros(4, 512),)),
-        ("message_passing", ()),
-    ]:
-        try:
-            getattr(sb, method)(*args)
-            raise AssertionError(f"StructuredBeliefState.{method} should raise")
-        except NotImplementedError as e:
-            msg = str(e)
-            assert "PILLAR 3" in msg or "Pillar 3" in msg, f"unclear error: {msg}"
-            assert "SCAFFOLD" in msg or "scaffold" in msg, f"unclear error: {msg}"
+    sb = StructuredBeliefState(num_slots=8, slot_dim=512, iters=3)
+    assert sb.num_slots == 8 and sb.slot_dim == 512
+    # Forward pass works (3D input: B, N, D)
+    features = torch.randn(2, 4, 512)
+    out = sb(features)
+    assert 'slots' in out and 'pooled' in out and 'entropy' in out
+    assert out['pooled'].shape == (2, 512)
+    assert out['slots'].shape == (2, 8, 512)
+    assert out['entropy'].shape == (2,)
+    # Legacy interface works after forward
+    tensor = sb.as_tensor()
+    assert tensor.shape == (2, 512)
+    unc = sb.uncertainty()
+    assert unc.shape == (2,)
+    # update_slots delegates to forward
+    out2 = sb.update_slots(torch.zeros(2, 3, 512))
+    assert 'slots' in out2
+    # message_passing was PROMOTED from the Stage-0 NotImplementedError
+    # scaffold to a real trainable module (RHAN-NX SBR-3): without a
+    # relational layer built (legacy/E2 wiring) it raises a clear RuntimeError
+    # naming the missing layer — never a silent no-op.
+    try:
+        sb.message_passing()
+        raise AssertionError("message_passing should raise without a relational layer")
+    except RuntimeError as e:
+        assert "no relational layer" in str(e)
+    # And it WORKS when the relational layer is built (SBR-3 wiring):
+    sb_rel = StructuredBeliefState(num_slots=8, slot_dim=512, iters=3,
+                                   use_relational=True, use_evidence=True)
+    out = sb_rel(torch.randn(2, 4, 512))
+    assert 'relation_attn' in out and 'evidence' in out
+    slots, rel_attn = sb_rel.message_passing(steps=1)
+    assert slots.shape == (2, 8, 512) and rel_attn.shape == (2, 8, 8)
 
 
 def test_null_world_model_safe_passthrough():
