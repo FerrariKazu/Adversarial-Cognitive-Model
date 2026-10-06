@@ -1,263 +1,125 @@
-# Adversarial Cognition Divergence
+# Adversarial Cognition Divergence — v4.0
 
-**A 12-model + human psychophysics study of adversarial robustness**
+**Research Question:** What makes vision unbreakable — and do machines have it?
 
-> Does adversarial robustness scale with global visual processing — and is it
-> determined by architecture, training objective, or recurrence?
+*Is the robustness of human vision a matter of architecture, training, memory,
+or meaning, and can a machine ever have it?*
 
----
+A 7-model + human psychophysics study using CIFAR-10, FGSM/PGD/C&W attacks,
+and Signal Detection Theory analysis.
 
-## CURRENT RESEARCH GENERATION: RHAN-NXA / Gen-1
+**Deadline: Sunday May 17, 2026**
 
-The active system on branch `feature/rhan-next` is **RHAN-NXA (Generation 1)**,
-packaged as `noesis_vision/` and trained by the six-phase foundation ladder
-with the TRADES/PGD adversarial curriculum as the **default** objective.
-
-| Start here | Path |
-|---|---|
-| What is RHAN-NXA? | `noesis_vision/RHAN_NXA/docs/00_README.md` (+ `MASTER_PLAN.md`) |
-| Current architecture guide | `docs/RHAN_NXA_ARCHITECTURE.md` |
-| Current model | `noesis_vision/` (`core/`, `models/`, `beliefs/`, `predictive_coding/`, `uncertainty/`, `gaze/`) |
-| Current training | `training/train_generation1_foundation.py` (+ `training/adv_curriculum.py`) |
-| Current evaluation | `evaluation/clean_and_robust.py` via `scripts/generate_full_sweep.py` |
-| Tests | `tests/` — run `python3 -m pytest tests/ -q` |
-| Cloud launcher | `cloud/gen1/Kaggle_J1_FOUNDATION.py` |
-| Repository map (authoritative) | `docs/REPOSITORY_MAP.md` |
-| Contributor guide | `CONTRIBUTING.md` |
-
-### Generation lineage
-
-```text
-RHAN historical lineage (CIFAR-10 12-model study, RHAN v1–v7, STL-10 scale-up)
-        ↓
-Gen-0 / RHAN-Next  (archive/gen0/ — frozen reference generation)
-        ↓
-Gen-1 / RHAN-NXA   (noesis_vision/ — CURRENT)
-        ↓
-future RHAN generations
-```
-
-### Naming contract
-
-- **RHAN** — the research lineage / architecture family (all generations).
-- **RHAN-Next** — the Generation-0 model + package (`archive/gen0/`); frozen,
-  kept as the comparison reference. Formerly marked "Current" in this README.
-- **RHAN-NXA** — the Generation-1 architecture (`noesis_vision/`); current.
-- **NOESIS** — the umbrella research/software identity used by the Gen-1
-  documentation (`docs/NOESIS_FOUNDATION.md`, `noesis_vision/RHAN_NXA/`):
-  "RHAN-NXA" names the architecture, "NOESIS" names the framework.
-- **RHANvN** (v1–v12) — the pre-Gen-0 CIFAR/STL-10 lineage in
-  `archive/gen-1-cifar12/` (historical).
-
----
-
-## HOW TO WORK: WHERE DO I GO?
-
-| I want to… | → Path |
-|---|---|
-| Modify the current model / package | `noesis_vision/` |
-| Modify the canonical Gen-1 trainer | `training/train_generation1_foundation.py` |
-| Modify the training curriculum | `training/adv_curriculum.py` |
-| Modify the phase state machine | `training/stage_state_machine.py` |
-| Modify Stage-2 pipeline / DAG | `training/stage2_pipeline.py` |
-| Modify evaluation harness | `evaluation/` |
-| Add an experiment (future) | `experiments/` |
-| Run diagnostics / forensics | `diagnostics/` |
-| Reproduce current six-phase ladder | `training/train_generation1_foundation.py --smoke` |
-| Inspect historical RHAN v1–v7 | `archive/rhan-v1-v7/` |
-| Inspect Gen-0 RHAN-Next | `archive/gen0/` |
-| Reproduce pre-Gen-1 CIFAR/STL pipeline | `archive/gen-1-cifar12/` |
-| Inspect frozen Gen-0 eval entrypoint | `archive/legacy-evals/phase2_attacks/eval_rhan.py` |
-| Launch cloud training (Gen-1) | `cloud/gen1/` |
-
----
-
-## REPOSITORY MAP
+## Model Spectrum
 
 ```
-README.md
-CONTRIBUTING.md
-docs/
-  ├── REPOSITORY_MAP.md                       # implemented map
-  ├── repository_reorganization.md            # this refactor's changelog
-  ├── RHAN_NXA_ARCHITECTURE.md
-  ├── STAGE2_REFACTOR_PLAN.md
-  ├── rhan_next_roadmap.json                  # authoritative orchestration state
-  ├── research/                               # experiment registry, literature corpus, lessons
-  ├── historical/                             # pre-Gen-1 lineage docs
-  └── (Gen-1 docs live in noesis_vision/RHAN_NXA/docs/)
-noesis_vision/             # ★ CANONICAL Gen-1 package (RHAN-NXA) + docs
-training/                  # ★ CANONICAL Gen-1 training
-evaluation/                # ★ CANONICAL Gen-1 evaluation
-scripts/                   # ★ Gen-1 tooling (data, gates, verifier, sweep)
-tests/                     # ★ test suite (24 mechanism-seam green + more)
-archive/
-  ├── gen-1-cifar12/       # ALL pre-Gen-1 models/trainers (from phase1_training)
-  │   └── checkpoints/     # historical checkpoints (gitignored *.pth)
-  ├── rhan-v1-v7/          # RHAN v1-v7 lineage
-  ├── stl10-scaleup/       # STL-10 UNIFIED / TDV / RHAN-Large
-  ├── gen0/                # frozen Gen-0 RHAN-Next (rhan_core + legacy checkpoints)
-  ├── legacy-evals/        # ALL eval/check/debug/examine tooling
-  ├── gen3-human/          # phase3 human psychophysics (n=18)
-  ├── gen4-analysis/       # phase4 analysis
-  ├── gen5-sdt/            # phase5 SDT
-  ├── pkg-rhan-math/       # rhan_math
-  ├── pkg-tier1/           # tier1
-  ├── working-scratch/     # scratch/ working scripts
-  └── historical-report/   # Paper/, RHANv12/, RHANv10Report/, presentational/, competition/
-cloud/
-  ├── canonical/           # symlink → cloud/gen1/Kaggle_J1_FOUNDATION.py (Gen-1 canonical)
-  ├── gen1/                # Gen-1 cloud launchers + notebooks
-  ├── gen0/                # Gen-0 cloud launchers
-  └── misc/                # misc cloud scripts
-diagnostics/               # measurement/forensic tooling (from diagnosis_artifacts)
-experiments/               # future research variants (empty at implementation time)
-checkpoints/               # GENERATED weights (gitignored *.pth)
-runs/                      # GENERATED per-run manifests/logs (gitignored)
-report/                    # GENERATED reports (gitignored, but key files tracked)
-data/                        # downloaded datasets (gitignored)
-images.png notes.txt
+BagNet-33 → ResNet-18 → EfficientNet-B0 → Shape-ResNet-50 → CORnet-S → ViT-Small → CLIP ViT-B/32 → Human
+(local)                                                     (recurrent)  (global)    (language)       (biological)
 ```
 
-### Generation classification (final)
+| Model | Processing Style | Owner | Status |
+|-------|------------------|-------|--------|
+| BagNet-33 | Pure local patches (33×33) | Eyad | 🔲 Pending |
+| ResNet-18 | Local CNN, texture-biased | Mina | ✅ Complete (95.82%) |
+| EfficientNet-B0 | Compound scaled CNN | Mina | ✅ Complete (96.81%) |
+| Shape-ResNet-50 | Shape-biased training (SIN) | Sandy | ✅ Complete (91.47%) |
+| CORnet-S | Recurrent visual cortex (V1→V2→V4→IT) | Youssef + Eyad | 🔲 Pending |
+| ViT-Small | Global patch attention | Mina | ✅ Complete (97.80%) |
+| CLIP ViT-B/32 | Zero-shot vision-language contrastive | Mariam | 🔲 Pending |
 
-- **Canonical current (active):** `noesis_vision/`, `training/`,
-  `evaluation/`, `scripts/`, `tests/`, `cloud/canonical/`, `docs/` (gen1 docs)
-- **Historical (read-only, scientifically preserved):** `archive/*` — every
-  pre-Gen-1 generation is fully intact
-- **Experimental (future):** `experiments/` (empty at implementation time)
-- **Generated artifacts (documented at schema level):** `checkpoints/`,
-  `runs/`, `report/`
+## Scientific Hypotheses
 
----
+This study tests three core hypotheses about the source of adversarial robustness:
 
-## CURRENT ARCHITECTURE
+1. **Training objective** — Shape-ResNet vs ResNet-18: does training on stylized images (shape bias) improve robustness over standard texture-biased training?
+2. **Biological recurrence** — CORnet-S vs feedforward CNNs: does recurrent feedback processing (as in the primate ventral stream) provide structural defense?
+3. **Language grounding** — CLIP vs ViT: does contrastive vision-language pretraining produce more semantically robust representations than pure visual supervision?
 
-### Six-phase foundation ladder (training/stage_state_machine.py)
+## Team
 
-```text
-backbone_only  →  recurrence_only  →  belief_no_f  →  belief_with_f
-      ↓                    ↓                   ↓                ↓
-AIS-v2 swap → gen1_core (frozen reference)
-```
+- **Mina** (FerrariKazu) — ResNet + EfficientNet + ViT + full pipeline + human study + Phase 4 + Phase 5
+- **Sandy** — Shape-ResNet-50 + final report + presentation slides
+- **Youssef + Eyad** — CORnet-S
+- **Eyad** — BagNet-33 + texture analysis
+- **Mariam** — CLIP ViT-B/32
 
-Each phase adds exactly one mechanism:
-- **backbone_only** — substrate + one fixed center fixation + classifier head
-  (no refinement, no recurrence, no belief, no uncertainty)
-- **recurrence_only** — + T=4 fixed-schedule glimpse loop + tied refinement
-- **belief_no_f** — + belief carrier with U_t (S=None VectorBeliefState,
-  EvidentialHead); identity update
-- **belief_with_f** — + Agent E belief dynamics (UpdateNet + precision)
-- **ais_v2_swap** — + Agent F AIS-v2 gaze (policy-driven)
-- **gen1_core** — + integrated system as frozen reference
+## Core Analysis Results (4/7 Models)
 
-### Data / model / training flow
+### PGD Accuracy Collapse
+| Epsilon | ResNet-18 | ViT-Small | EfficientNet-B0 | ShapeResNet | Human |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 95.82% | 97.80% | 96.81% | 91.47% | 74.25% |
+| 0.01 | 75.57% | 55.17% | 1.14% | 18.11% | N/A |
+| 0.05 | 2.84% | 8.80% | 0.00% | 0.01% | 69.00% |
+| 0.10 | 0.20% | 2.78% | 0.00% | 0.00% | 59.25% |
+| 0.20 | 0.02% | 1.12% | 3.62% | 0.00% | 64.25% |
+| 0.30 | 0.00% | 0.58% | 16.49% | 0.00% | 60.25% |
 
-```text
-CLI: python3 training/train_generation1_foundation.py
-     [--smoke | --phase <p>] [--clean-only] [--force-fresh]
-     [--data-root …] [--epochs N] [--batch-size 48] …
+*Note: EfficientNet uses BIM (PGD without random start) due to gradient explosion at 224×224. It collapses to 0.93% at ε=0.01.*
 
-→ FoundationConfig (in-file) ∪ RHANNXAConfig (core/schema.py)
-→ stage_state_machine.py (six-phase orchestration)
-→ FoundationModel (CompactViT substrate + per-phase composition)
-→ adv_curriculum.py (TRADES/PGD default objective)
-→ multi_group_optimizer.py (per-group optimizer)
-→ checkpoints/*.pth (best + rolling), runs/*/manifest.json
-→ report/foundation_{phase}_result.json + _compactness.json
-→ HF sync (FerrariKazu/rhan-nxa-checkpoints)
-```
+### Signal Detection Summary ($d'$)
+| Epsilon | ResNet $d'$ | ViT $d'$ | EffNet $d'$ | Human $d'$ |
+|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 4.426 | 4.931 | 4.642 | 2.694 |
+| 0.01 | 2.345 | 1.120 | -1.142 | 2.650 |
+| 0.05 | -0.771 | -0.154 | -1.879 | 2.544 |
+| 0.10 | -1.707 | -0.909 | -1.526 | 2.071 |
 
----
+**Headline Finding:** At $\epsilon=0.05$, all CNN models drop below the perceptual threshold ($d' < 1.0$), while human observers maintain high sensitivity. EfficientNet exhibits the most extreme collapse at low epsilon, while ViT shows a slight robustness advantage over ResNet at $\epsilon=0.05$.
 
-## HISTORICAL GENERATIONS (PRESERVED — read-only)
-
-### archive/gen-1-cifar12/
-All pre-Gen-1 models, trainers, and datasets:
-- ~45 `train_*.py` teams: RHAN v1-v12, TRADES, CBM, self-alignment, etc.
-- STL-10 scaleup: `model_rhan_stl10*.py`, `train_rhan_stl10_tdv.py`,
-  `train_rhan_large_pseudolabel.py`
-- CIFAR-10 baselines: ResNet, ViT, EfficientNet, BagNet, CORnet, ShapeResNet
-
-### archive/rhan-v1-v7/
-RHAN recurrent lineage: `model_rhan.py`, `_v3_adaptive`, `_v4` … `_v7`,
-`train_rhan*.py`
-
-### archive/stl10-scaleup/
-STL-10 UNIFIED / TDV / RHAN-Large: `model_rhan_unified.py`,
-`model_rhan_stl10*.py`, `train_rhan_unified.py`, `train_rhan_stl10_tdv.py`,
-`train_rhan_large_pseudolabel.py`, `dataset_stl10.py`
-
-### archive/gen0/
-Frozen Gen-0 RHAN-Next: `rhan_core/` package, legacy checkpoints,
-`eval_rhan.py` (frozen Gen-0 eval) — preserved for scientific provenance.
-
-### archive/legacy-evals/
-- `phase2_attacks/` — attack generation + frozen `eval_rhan.py` Gen-0 eval
-- Root-level eval scripts: `eval_*.py`, `inspect_*.py`, `demo.py`,
-  `concept_ablation.py`, `check_parquet.py`, `bench_pgd.py`, etc.
-
-### archive/gen3-human/
-n=18 human psychophysics data (form responses, manifest, stimuli).
-
-### archive/gen4-analysis/
-Pre-Gen-1 interpretability suite: divergence/confidence curves, Grad-CAM,
-ViT attention, SIS, alignment analysis.
-
-### archive/gen5-sdt/
-Signal Detection Theory: `sdt_analysis.py`, `sdt_core.py`,
-`results/sdt_results*.csv`.
-
-### archive/pkg-rhan-math/
-Mathematical proof reports (`phase1_proofs.md` … `phase5_proofs.md`),
-`generate_proof_figures.py`, assets.
-
-### archive/pkg-tier1/
-ScientificValidationReport LaTeX v1/v2 + per-seed results JSONs,
-`validate_rhan.py`.
-
-### archive/working-scratch/
-`scratch/` working scripts (HF checks, PGD debugging, diagnostics,
-roadmap surgery, verification).
-
-### archive/historical-report/
-Paper/ (ACD paper v1/v2), RHANv12, RHANv10Report, presentational/,
-competition/.
-
----
-
-## EXPERIMENTAL (future)
-
-`experiments/` — reserved for future scientific variants (Kimi K3
-implementations will land here as isolated experiments).
-
----
-
-## GENERATED ARTIFACTS (documented at schema level)
-
-- `checkpoints/` — model weights (`*.pth`, gitignored), ~100+ files across all
-  generations. Canonical weights live on HuggingFace.
-- `runs/` — per-run manifests/logs (gitignored).
-- `report/` — result reports (gitignored, but `GEN1_RESULTS_MASTER.md` and
-  `rhan_nx_generation1_report.md` are tracked).
-
----
-
-## SETUP
-
+## Environment Setup
 ```bash
 git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git
 cd Adversarial-Cognitive-Model
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+
+# Additional model-specific installs:
+pip install git+https://github.com/dicarlolab/CORnet.git    # CORnet-S
+pip install git+https://github.com/openai/CLIP.git           # CLIP ViT-B/32
 ```
 
-## Tests
-
+## Running Evaluation
 ```bash
-# Mechanism-seam suite (24/24 passing)
-python3 -m pytest tests/test_stage2_mechanism_seam.py -v
-
-# Full suite
-python3 -m pytest tests/ -q
+python3 phase2_attacks/eval_quick.py
 ```
+*Note: All analysis scripts enforce a maximum batch size of 64 and periodic cache clearing to fit within 8GB VRAM.*
+
+## Project Phases
+| Phase | Description | Status |
+|-------|-------------|--------|
+| Phase 1 | Model training (all 7) | 4/7 Complete |
+| Phase 2 | Adversarial attack generation | 4/7 Complete |
+| Phase 3 | Human psychophysics study | ✅ Complete (21 participants) |
+| Phase 4 | 7-model divergence analysis | 4/7 Complete |
+| Phase 5 | Signal Detection Theory (SDT) | 4/7 Complete |
+
+## Active Branches
+| Branch | Owner | Purpose |
+|--------|-------|---------|
+| `main` | Mina | Stable release |
+| `phase/1-cornets` | Youssef + Eyad | CORnet-S model + training |
+| `phase/1-clip` | Mariam | CLIP ViT-B/32 zero-shot wrapper |
+| `phase/1-bagnet` | Eyad | BagNet-33 model + training |
+
+## Repository Structure
+```text
+.
+├── config/                 # Attack and training configuration (YAML)
+├── phase1_training/        # Model architectures and training scripts
+├── phase2_attacks/         # FGSM/PGD attack generation and eval
+├── phase3_human_study/     # Human baseline data and stimuli export
+├── phase4_analysis/        # Divergence curves and heatmaps
+├── phase5_sdt/             # Signal Detection Theory calculation
+└── utils/                  # Metrics and logging utilities
+```
+
+## References
+1. Brendel, W., & Bethge, M. (2019). Approximating CNNs with Bag-of-local-Features models works surprisingly well on ImageNet.
+2. Geirhos, R. et al. (2019). ImageNet-trained CNNs are biased towards texture.
+3. Goodfellow, I. J., Shlens, J., & Szegedy, C. (2015). Explaining and harnessing adversarial examples.
+4. Tan, M., & Le, Q. V. (2019). EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks.
+5. Dosovitskiy, A. et al. (2021). An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale.
+6. Green, D. M., & Swets, J. A. (1966). Signal detection theory and psychophysics.
+7. Kubilius, J. et al. (2019). Brain-Like Object Recognition with High-Performing Shallow Recurrent ANNs (CORnet).
+8. Radford, A. et al. (2021). Learning Transferable Visual Models From Natural Language Supervision (CLIP).
