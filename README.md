@@ -1,14 +1,372 @@
-# Adversarial Cognition Divergence
-**A 12-model + human psychophysics study of adversarial robustness**
+# Adversarial Cognition Divergence (ACD)
+
+**Historical foundation [Completed]:** a **7-model + human** psychophysics study of adversarial robustness on CIFAR-10 — BagNet-33 / ResNet-18 / EfficientNet-B0 / Shape-ResNet-50 / CORnet-S / ViT-Small / CLIP ViT-B/32, attacked with FGSM / PGD / C&W, analyzed with Signal Detection Theory (d′), plus human psychophysics (n = 18, 1,800 trials). Legacy result tables cover 13/13 CIFAR-10/STL-10 systems.
+
+**Current research line [Active]:** **RHAN-NXA (Generation 1)** — active recurrent perceptual intelligence: perception as belief-state investigation rather than a single look.
 
 > Does adversarial robustness scale with global visual processing —
 > and is it determined by architecture, training objective, or recurrence?
 
+This README is the **repository entry point**, not an architecture paper. Every claim below carries an explicit status label — **Completed / Implemented / Under validation / Experimental / Planned / Research proposal** — and no future mechanism (Gen-3, persistent world modeling, JEPA-style learning, VLM, VLA) is ever presented as implemented. The detailed truth lives in the code; when this file and the code disagree, the code wins and the discrepancy is recorded in *Documented gaps*.
+
 ---
 
-## RHAN-Next: Active Inference + Hierarchical Predictive Coding (Current)
+## Current research line — RHAN-NXA (Generation 1)  [Active]
 
-The latest generation (**RHAN-Next**, branch `feature/rhan-next`) composes two biologically-inspired pillars into a single architecture:
+RHAN-NXA is a speculative, plan-first architecture: a recurrent, belief-state "perception-as-investigation" system that examines an image over several deliberate looks, maintains an explicit updatable belief state, and reads classification out of it. Its foundation ladder is executing training — but **no Gen-1 mechanism has a matched-validated number on a real dataset yet** (see *Status* below).
+
+Where the Gen-1 material lives:
+
+- `noesis_vision/RHAN_NXA/` — ★ the canonical Gen-1 plan: `docs/` chapters 00–30 + `Proposed_Plan.md` (the `MASTER_PLAN.md` root file is tracked only on `feature/rhan-next` — see gaps).
+- `gen2_foundation/` — ★ Gen-2 foundation research slice (committed on `main`; 52/52 unit tests pass).
+- `report/generation1_foundation_roadmap.json` — the six-phase ladder's single source of truth (currently executing).
+- `training/`, `evaluation/`, the Gen-1 `scripts/` tooling, and the `noesis_vision/` package source — the Gen-1 **pipeline code lives on the carrier branches** `feature/rhan-next` / `stage2/nxa-pipeline-refactor`, **not on `main`** (on `main`, `training/` and `evaluation/` contain only `__pycache__` remnants — see gaps).
+- `archive/` — frozen/historical generations (read-only; working tree only).
+
+**Status of the headline claims (do not soften):**
+
+| Component | Status |
+|---|---|
+| AIS-v2 gaze score ↔ error-reduction correlation (r ≈ 0.706) | Existed as a **smoke-gate** result (`noesis_vision/gaze/ais_v2_policy.py`, carrier branches) — mechanism-level and confounded by legacy SBR; **not** a Gen-1 proof |
+| "AIS-v1 is genuine information-gain" | **Not a Gen-1 claim** (Gen-0 halting-only result; see the reprinted Gen-0 section) |
+| Gen-1: isolated discovery of any mechanism (AIS-v2, belief-HPC) | **UNKNOWN** — Gen-1 arms were contaminated by legacy SBR; evidence is explicitly recorded as such |
+| Gen-1 real-data numbers | **None matched-validated yet** — the foundation ladder is executing (ImageNet-100 + CUDA) |
+
+## Generation lineage
+
+1. **ACD v1–v4 (historical) [Completed]** — CIFAR-10 adversarial-robustness study + human psychophysics; results reprinted in the *Historical results* section.
+2. **Gen-0 / RHAN-Next (`rhan_core/`) [frozen reference]** — Active Inference Suite + Hierarchical Predictive Coding on STL-10; Stages 0–2 validated, Stage 3 pending (`docs/ARCHITECTURE.md`); branch `feature/rhan-next`.
+3. **Gen-1 / RHAN-NXA (`noesis_vision/`) [Active — under validation]** — belief-state perception-as-investigation; six-phase foundation ladder on ImageNet-100.
+4. **Gen-2 (`gen2_foundation/`) [Implemented — under validation]** — foundation mechanism slice; code + tests on `main`, real-data gate open.
+5. **Gen-3 [Research proposal]** — hierarchical / persistent world perception. Not implemented; no code, no model class, no experiment.
+6. **VLM / VLA [Planned — research proposal]** — vision-language(-action) integration as a *consumer* of the belief core. Not implemented.
+
+### Six-phase foundation ladder (Gen-1)
+
+| Phase | Adds | Gaze |
+|---|---|---|
+| 1 `backbone_only` | substrate + one fixed center fixation + classifier head | fixed center |
+| 2 `recurrence_only` | T=4 fixed-schedule glimpse loop + tied refinement | fixed center |
+| 3 `belief_no_f` | belief carrier with U_t; IDENTITY update | fixed center |
+| 4 `belief_with_f` | predictor / precision / UpdateNet dynamics | fixed center |
+| 5 `ais_v2_swap` | AIS-v2 gaze policy | AIS-v2 |
+| 6 `gen1_core` | integrated system (S=None, L_stab diagnostic-only) | AIS-v2 |
+
+Entrypoint (carrier branches): `training/train_generation1_foundation.py`; ladder state: `report/generation1_foundation_roadmap.json`.
+
+### Branch layout (where things actually live)
+
+| Branch | Contains |
+|---|---|
+| `main` | Historical ACD packages (`phase1_training/` … `phase5_sdt/`), frozen `rhan_core/` + `tests/`, `gen2_foundation/`, `config/`, tracked docs, generated artifacts |
+| `feature/rhan-next` | Gen-0 RHAN-Next + Gen-1 pipeline sources (`training/`, `evaluation/`, Gen-1 `scripts/`, `noesis_vision/` package + `MASTER_PLAN.md`) |
+| `stage2/nxa-pipeline-refactor` (local) | Carrier for the Gen-1 production run: pipeline + `cloud/gen1/` launchers |
+| `diagnosis/nxa-forensic-2026-10-03` (local) | Forensic snapshot of the cancelled adversarial run |
+
+`main` and `feature/rhan-next` have diverged (516 / 74 commits); commands that need `training/` or `evaluation/` must run from a carrier branch.
+
+---
+
+## Scientific philosophy
+
+- **Perception is investigation, not a lookup.** An image is examined over several deliberate looks; an explicit belief state is maintained and updated; classification is a *readout* of that state (`noesis_vision/RHAN_NXA/docs/01_What_Is_RHAN_NXA.md`, `noesis_vision/RHAN_NXA/docs/03_Perception_As_Investigation.md`, `noesis_vision/RHAN_NXA/docs/04_Belief_State.md`).
+- **Robustness is a property of the mechanism, not a wrapper.** The original ACD finding is the premise of everything after it: adversarial robustness is determined by architecture, training objective, and recurrence — it cannot be bolted on (results below; `docs/ACD_v4.pdf`, `Paper/`).
+- **Uncertainty and precision are first-class citizens.** The system carries an uncertainty state and modulates processing by precision rather than emitting a single confident forward pass (`noesis_vision/RHAN_NXA/docs/07_Uncertainty.md`, `noesis_vision/RHAN_NXA/docs/09_Recurrence.md`, `noesis_vision/RHAN_NXA/docs/10_AIS_v2.md`).
+- **Biology is a constraint, not decoration.** Recurrence, active inference (gaze as information foraging), and predictive coding are structural commitments — not marketing names for attention blocks.
+- **No claim without a matched number.** Mechanisms are gated behind experiment IDs (`gen2_foundation/flags.py` — `GATED_FLAGS` / `REJECTED_OUTRIGHT` raise at construction if a mechanism is flipped without its registered ID); deferred items stay deferred until real numbers exist (`gen2_foundation/AUDIT.md` §5).
+- **This is deliberately *not* a generic VLM with an RHAN module attached.** The belief-state perceptual core is the research object; any future VLM/VLA would *consume* it, not define it (scope: `noesis_vision/RHAN_NXA/docs/20_Scope_Boundaries.md`).
+
+---
+
+## Gen-2 foundation — `gen2_foundation/`  [Implemented — under validation]
+
+A separate research slice on `main`, deliberately small and mechanism-by-mechanism:
+
+| Mechanism (approx.) | Files |
+|---|---|
+| Configuration / experiment gating | `gen2_foundation/flags.py` (`RHANGen2Config`) |
+| Full-image gist encoding + fusion | `gen2_foundation/gist.py` |
+| Precision mechanisms | `gen2_foundation/precision.py` |
+| Observed + prediction-error fusion (UpdateNet-v2) | `gen2_foundation/update_net_v2.py` |
+| EMA target encoder | `gen2_foundation/ema.py` |
+| Optimizer / training recipe | `gen2_foundation/recipe.py` |
+| EOT robustness infrastructure | `gen2_foundation/eot.py` |
+| Unit tests — **52/52 passing** (verified locally) | `gen2_foundation/tests/` (7 modules) |
+| Audit record | `gen2_foundation/AUDIT.md` |
+
+**Validation state (do not inflate):** the mechanisms are implemented as code and all 52 unit tests pass; the **real ImageNet-100 foundation measurement has not been produced** — the gate is open, and deferred items (G2-K10 factor-disagreement, G2-K11 calibration) remain deferred until the foundation slice reports real numbers (`gen2_foundation/AUDIT.md` §5). Nothing in this slice is part of the Gen-1 canonical pipeline.
+
+---
+
+## The empirical foundation — ACD v4.0  [Completed]
+
+The original **Adversarial Cognition Divergence v4.0** program is the completed empirical work this project grew out of. It is preserved here and must NOT be erased:
+
+- **7-model + human CIFAR-10 study**, FGSM / PGD / C&W attacks, Signal Detection Theory (d′), reference models BagNet-33 / ResNet-18 / EfficientNet-B0 / Shape-ResNet-50 / CORnet-S / ViT-Small / CLIP ViT-B/32, the RHAN model family, plus human psychophysics (n = 18, 1,800 trials).
+- Completed results live in the **Historical results** section at the bottom of this README (full tables reprinted verbatim), in `RHAN-history.md`, and in the raw data (`phase3_human_study/data/responses_mapped.csv`, `phase5_sdt/results/`).
+- Historical commands are archived — see *Reproduce → Historical ACD v4.0 commands* and the reprinted *Reproduce Results* block in the Historical section.
+
+---
+
+## Gen-1 family — plan (not code on `main`) vs frozen Gen-0 reference
+
+The Gen-1 **architecture plan** is a research proposal: `noesis_vision/RHAN_NXA/` — `MASTER_PLAN.md` (tracked on `feature/rhan-next`) plus `docs/` chapters 00–30 and `Proposed_Plan.md` (present as working-tree files on `main`; see gaps). It is what RHAN-NXA *specifies*. The Gen-1 *pipeline code* (`training/`, `evaluation/`) lives on the carrier branches; `main` carries the plan documents, `gen2_foundation/`, and the historical study.
+
+The frozen Gen-0 reference is `rhan_core/` (present on `main`, developed on `feature/rhan-next`): `rhan_core/model.py` (RHANNext, 76.7M params), `rhan_core/config/pillar_config.py`, `rhan_core/gaze/`, `rhan_core/predictive_coding/`, `rhan_core/precision/`, `rhan_core/beliefs/`, `rhan_core/world_model/` (null scaffold), `rhan_core/ablation/`, `rhan_core/lens/`. It is a frozen reference for comparison, not the active training line.
+
+The Gen-1 architecture is a **spec, not an implementation**: no Gen-1 mechanism has a matched-validated number on a real dataset yet. Anything you see labeled "implemented" for Gen-1 must be checked against this section first.
+
+---
+
+## Gen-3 — not implemented, plan only  [Research proposal]
+
+Gen-3 is a **research proposal**: hierarchical world perception / persistent belief / memory / counterfactual perception. There is no Gen-3 code, no Gen-3 model class, and no Gen-3 experiment in this repository. Do not cite any Gen-3 number.
+
+## VLM / VLA — future direction only  [Planned — research proposal]
+
+Vision-language and vision-language-action integration is a **future direction only**: no VLM, no VLA, no language-instruction pipeline, and no language training data exist in this repository. The intended shape is that a future VLM/VLA would consume the RHAN-NXA belief core as its perception substrate — the project defines itself *against* being a generic VLM with a module attached. Same for JEPA-style world modeling: a research direction discussed in the literature notes (`docs/research/`, `noesis_vision/RHAN_NXA/docs/29_Literature_Classification.md`), never implemented here. Do not cite any VLM/VLA/JEPA number; there is none.
+
+---
+
+## Roadmap (staged)
+
+| Stage | Goal | Status |
+|---|---|---|
+| **Gen-1** | Six-phase foundation ladder on ImageNet-100 → matched validation of the core mechanisms (belief carrier, UpdateNet dynamics, AIS-v2 gaze) | **Under validation** — pure-CE arm completed all six phases (2026-09-25→26, archived); the earlier adversarial run was cancelled 2026-10-03 after forensics (`docs/CANCELLATION_NOTICE_2026-10-03.md`, `docs/FORENSIC_REPORT_NXA_GENERATION1.md`); the adversarial re-run launched 2026-10-06 with `backbone_only` running (`report/generation1_foundation_roadmap.json`) |
+| **Gen-2** | Foundation mechanism slice → real ImageNet-100 foundation measurement → unlock deferred items (K10 factor-disagreement, K11 calibration) | **Implemented** (code + 52/52 tests); real-data gate **open** — no number yet |
+| **Gen-3** | Hierarchical / persistent world perception (world-state, object–scene, counterfactual, reasoning) | **Research proposal** — not implemented |
+| **Future** | VLM / VLA as consumers of the belief core; JEPA-style world-model research | **Planned** — research direction only, not implemented |
+---
+
+## Installation & usage
+
+```bash
+git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git
+cd Adversarial-Cognitive-Model
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Environment facts (verified against this tree — not a lockfile):
+
+- Python **3.10.12** baseline. The research environment ran **PyTorch 2.9.1+cu128** with CUDA; root `requirements.txt` is the Gen-0-era list and pins the wheel index to `cu124`.
+- Packages: torch / torchvision / torchaudio, `torchattacks==3.5.1`, `grad-cam>=1.4.0`, numpy, scipy, pandas, matplotlib, seaborn, scikit-learn, tqdm, tensorboard, Pillow, openpyxl, PyYAML, ftfy, regex, `timm>=0.9.0`, bagnets / cornet / CLIP (git URLs), `datasets==4.7.0`.
+- `config/train_config.yaml` sets `num_workers=4`, which **deadlocks** the ImageNet-100 loader in local runs — use `--num-workers 0` or `1` for smoke runs.
+- `FoundationConfig` has **no** `device=` kwarg; pass `--device` on the CLI.
+- Real-data runs (ImageNet-100 download, CUDA, HF sync) are environment-specific: they run on a GPU host **from a carrier branch**, not from `main`.
+
+---
+
+## Reproduce
+
+### Gen-1 foundation ladder  [environment-specific: carrier branch + GPU + ImageNet-100]
+
+```bash
+# Requires feature/rhan-next or stage2/nxa-pipeline-refactor — training/ does not exist on main
+python3 training/train_generation1_foundation.py --smoke                 # synthetic-loader smoke, no data/GPU needed
+python3 training/train_generation1_foundation.py --phase all             # full six-phase ladder
+python3 training/train_generation1_foundation.py --phase backbone_only   # one phase; also: recurrence_only,
+#   belief_no_f, belief_with_f, ais_v2_swap, gen1_core
+```
+
+Flags verified against the entrypoint: `--phase`, `--smoke`, `--clean-only`, `--device`, `--num-workers`, `--w-trades`, `--no-hf`, `--hf-token`, `--force-fresh`. Ladder orchestration reads `report/generation1_foundation_roadmap.json`.
+
+Clean/robust numbers are produced **inside** the ladder by the Agent-I harness `evaluation/clean_and_robust.py` (`run_clean_and_robust(...)` — a library API, **not** a CLI; there is no `python3 evaluation/clean_and_robust.py ...` command). Per-phase provenance lands in `report/foundation_<phase>_eval/` and `runs/foundation_<phase>/manifest.json`.
+
+### Frozen Gen-0 eval entrypoint (runs on `main`)  [environment-specific: GPU + checkpoints]
+
+```bash
+# Structural self-test against the checked-in reference (no GPU needed for the check itself)
+python3 phase2_attacks/eval_rhan.py --self-test
+
+# Matched protocol: norm-space PGD (Finding-17 convention), seed floor >= 5 enforced by the facade
+python3 phase2_attacks/eval_rhan.py --n-samples 300 --seeds 41 42 43 44 45 \
+  --pgd-steps 50 --eps-norm-space --eps-list 0.0 0.094 --batch-size 64 \
+  --baseline-label trades_large_baseline \
+  --ckpt-specs trades_large_baseline:checkpoints/rhan_stl10_large_pseudolabel_best.pth:large
+```
+
+`phase2_attacks/eval_rhan.py` is the frozen facade; the underlying parser and protocol live in `phase2_attacks/eval_full_epsilon_sweep.py`.
+
+### Cloud / Kaggle entry points
+
+- Gen-1: `cloud/gen1/Kaggle_J1_FOUNDATION.py`, `cloud/gen1/colab_j1_foundation.py`, `cloud/gen1/run_j1_local.sh`, `cloud/gen1/run_j1_supervised.sh` — **on `stage2/nxa-pipeline-refactor` only** (absent from `main`).
+- Gen-0 legacy [archived]: `cloud_setup/kaggle_notebook.py`, `cloud_setup/Kaggle_NOESIS.py`, `cloud_setup/colab_notebook_noesis.py` — on `main`.
+
+### Historical ACD v4.0 commands  [archived — not current entry points]
+
+- Attack generation: `phase2_attacks/generate_adv_all_models.py` (+ `fgsm.py`, `pgd.py`, `cw.py`).
+- Figures: `phase4_analysis/generate_hero_figures.py`, `phase4_analysis/generate_appendix_figures.py` (the original README cited `phase4_analysis/generate_all_figures.py`, which **no longer exists** — see gaps).
+- SDT: `phase5_sdt/sdt_analysis.py`.
+- Legacy training: `phase1_training/train_rhan_unified.py --phase all`, `phase1_training/train_rhan_stl10_tdv.py --phase trades`, `torchrun --nproc_per_node=2 phase1_training/train_rhan_large_pseudolabel.py ...`.
+- The complete original *Setup* and *Reproduce Results* blocks are reprinted in the *Historical results* section below, labelled archived.
+
+---
+
+## Research reproducibility
+
+Every published number must carry: configuration, seed, dataset fingerprint, code revision, architecture revision, recipe, evaluation protocol, checkpoint, manifest, result summary. Where each one lives on this tree:
+
+| Element | How it is recorded |
+|---|---|
+| Experiment configuration | `report/generation1_foundation_roadmap.json` (Gen-1 ladder state) + per-phase `runs/foundation_<phase>/manifest.json` (flake-checksummed). Gen-0: `docs/rhan_next_roadmap.json` + `config/` |
+| Seed | Seed policy 41 (main); eval seeds 41–48 (46–48 extension at ε=0.094); recorded per manifest |
+| Dataset fingerprint | ImageNet-100, HF `clane9/imagenet-100` pinned revision `0519dc2f…`, listing sha256 `0b0677…c6db09`, recorded in `runs/production_launch_manifest.json` |
+| Code revision | `runs/production_launch_manifest.json` (`git_sha`, `config_sha256`); trainer commit `cf6ce8a` in per-phase manifests |
+| Architecture revision | Checkpoint-embedded config + `code_commit` (extracted in `report/GEN1_RESULTS_MASTER.md`) |
+| Training recipe | Adversarial recipe `gen1-adv-curriculum-v1`: TRADES/PGD-4, ε 0.031→0.062→0.094, β 2.0→2.5, `w_trades=0.55` (`training/adv_curriculum.py`, carrier branch; recorded in `docs/CANCELLATION_NOTICE_2026-10-03.md`) |
+| Evaluation protocol | `evaluation/clean_and_robust.py` (`run_clean_and_robust`: norm-space eps, ≥5-seed floor, summary asserted against per-seed CSV) + `scripts/generate_full_sweep.py`. Gen-0: `phase2_attacks/eval_rhan.py` / `eval_full_epsilon_sweep.py` |
+| Checkpoint | `checkpoints/foundation_<phase>_{best,rolling}.pth`; mirrored to HF `FerrariKazu/rhan-nxa-checkpoints` (best) and `FerrariKazu/rhan-nxa-checkpoints-rolling` |
+| Manifest | `runs/foundation_<phase>/manifest.json` (frozen config hash, per-phase provenance) |
+| Result summary | `report/foundation_<phase>_result.json`, `report/foundation_<phase>_eval/summary_table.csv`, `report/foundation_<phase>_compactness.json`, and the extract `report/GEN1_RESULTS_MASTER.md` |
+
+Freeze record: `runs/production_launch_manifest.json` — code `a4444dbde054`, branch `feature/rhan-next`, frozen 2026-09-25.
+
+---
+
+## Repository map
+
+Generated from the actual `main` working tree and cross-checked against `git ls-files`; every path below exists unless the comment says *carrier branch* / *working tree only*. `#` comments describe each entry. Artifact-heavy stores are summarized, not itemized.
+
+```text
+.
+├── README.md                     # this file — repository entry point (documentation only)
+├── requirements.txt              # Gen-0-era dependency list (see Installation & usage)
+├── ROADMAP.md                    # Gen-0-era roadmap essay (historical)
+├── RHAN-history.md               # ACD/RHAN history narrative (historical)
+├── RHANarch.md  RHANfuture.md  RHANv11.md     # architecture / evolution / v11 essays (historical)
+├── FINDINGS.md  COLLABORATING.md  IMPORTANT.md  deep-research-report.md   # project essays (historical)
+├── RHANarch.pdf  rhan_mathematical_report1.pdf  rhan_epoch_analysis_report.pdf   # compiled reports
+├── T4x2.ipynb                    # dual-T4 cloud training notebook (historical)
+├── app.py  demo.py               # small demo / dashboard entry scripts
+├── eval_pgd_*.py  eval_aa_*.py  eval_quick_perclass*.py  eval_stl10.py  run_eval_stl10.py
+│                                 # loose one-off evaluation scripts at root (historical)
+├── bench_pgd.py  concept_ablation.py  inspect_*.py  check_parquet.py  simple_inspect.py
+│   test_ckpt_load.py  test_load.py  upload_pseudolabel.py   # one-off diagnostics / utilities
+├── response_template.csv         # human-study response template
+├── confusion_matrix*.png  rhan_flowchart.png  resnet_eval.txt  vit_eval.txt  train_norecon.log
+│                                 # committed run outputs (generated artifacts)
+├── *:Zone.Identifier             # Windows download-metadata residue (harmless, left as-is)
+│
+├── phase1_training/              # HISTORICAL model zoo (103 files): model_*.py (ResNet, ViT-Small,
+│                                 #   EfficientNet, Shape-ResNet, BagNet, CORnet, CLIP, RHAN-v1..v12),
+│                                 #   train_*.py, eval_*.py, dataset*.py, pretrain_*.py
+├── phase2_attacks/               # HISTORICAL attacks + frozen eval (29 files): fgsm.py, pgd.py, cw.py,
+│                                 #   generate_adv_all_models.py, eval_rhan.py (frozen Gen-0 facade),
+│                                 #   eval_full_epsilon_sweep.py (matched protocol parser)
+├── phase3_human_study/           # human psychophysics (n=18): data/responses_mapped.csv, manifest.csv,
+│                                 #   anonymize.py, map_responses.py, stimuli_export.py
+├── phase4_analysis/              # interpretability & divergence analysis (25 files): gradcam.py,
+│                                 #   confusion_matrices.py, divergence_curves.py, figures/
+├── phase5_sdt/                   # signal-detection theory: sdt_analysis.py, sdt_core.py,
+│                                 #   results/sdt_results*.csv, figures/
+│
+├── rhan_core/                    # FROZEN Gen-0 RHAN-Next reference: model.py (RHANNext, 76.7M),
+│                                 #   config/pillar_config.py, gaze/, predictive_coding/, precision/,
+│                                 #   beliefs/, world_model/ (null scaffold), ablation/, lens/
+├── tests/                        # Gen-0 test suite: conftest.py + 17 pytest modules
+│                                 #   (scaffold import, config back-compat, HPC gates, resume guard, LENS …)
+├── config/                       # train_config.yaml, train_config_vit.yaml, attack_config.yaml
+│
+├── gen2_foundation/              # ★ Gen-2 foundation slice (committed on main): flags.py, gist.py,
+│   ├── tests/                    #   precision.py, update_net_v2.py, ema.py, recipe.py, eot.py;
+│   │                             #   7 test modules -> 52 tests, all passing
+│   └── AUDIT.md                  # implementation / audit record
+│
+├── noesis_vision/                # ★ Gen-1 RHAN-NXA plan home
+│   └── RHAN_NXA/docs/            #   chapters 00–30 + Proposed_Plan.md (working tree only — gitignored);
+│                                 #   package source (core/, gaze/, models/, …) and MASTER_PLAN.md
+│                                 #   live on carrier branches; on main only __pycache__ remnants
+├── training/                     # Gen-1 trainer — CARRIER BRANCHES ONLY: train_generation1_foundation.py,
+│                                 #   adv_curriculum.py, stage_state_machine.py; on main: empty dir
+├── evaluation/                   # Gen-1 eval harness — CARRIER BRANCHES ONLY: clean_and_robust.py,
+│                                 #   imagenet100_loader.py, shape_texture_bias.py, …; on main: empty dir
+├── scripts/                      # on main: generate_full_sweep.py, merge_stage1_seed_extension.py,
+│                                 #   build_noesis_pdf.py; carrier branches add: prepare_imagenet100.py,
+│                                 #   sbr0_gate.py, eval_ais_v2_gate.py, stage_state_machine.py,
+│                                 #   verify_run_complete.py, freeze_run_manifest.py
+│
+├── cloud_setup/                  # Gen-0-era cloud launchers (22 files): Kaggle_NOESIS.py,
+│                                 #   colab_notebook_noesis.py, kaggle_*/colab_* pipelines, lightning_setup.py
+├── data_generation/              # synthetic STL-10 generation + HF upload (5 scripts)
+├── cognitive_vision_lab/         # independent Streamlit benchmarking platform: backend/, pages/ (14),
+│                                 #   components/, tests/ (7), Dockerfile, docker-compose.yml
+├── dashboards/                   # lens_app.py — LENS introspection dashboard
+├── competition/                  # benchmark comparison: evaluate_comparison.py, generate_heatmaps.py, output/
+│
+├── docs/                         # tracked: ARCHITECTURE.md (Gen-0 plan), rhan_next_roadmap.json (Gen-0 state),
+│   ├── historical/               #   stage3_preregistration.md, stage3_environment.json, ACD_v4.pdf,
+│   ├── research/                 #   ACD_paper_v1.tex, ACD_Project_Documentation_v3.pdf, Manual Documentation.md;
+│   ├── rhan_nxa/                 #   working tree only (gitignored): REPOSITORY_MAP.md (detailed tree map),
+│   └── ...                       #   RHAN_NXA_ARCHITECTURE.md, CANCELLATION_NOTICE_2026-10-03.md,
+│                                 #   FORENSIC_REPORT_NXA_GENERATION1.md, repository_reorganization.md,
+│                                 #   NOESIS_FOUNDATION.md, historical/, research/, rhan_nxa/
+├── Paper/                        # ACD paper LaTeX + PDFs (v1, v2) + figures/
+├── RHANv12/                      # RHAN-v12 report LaTeX + scripts/
+├── tier1/                        # scientific validation report (LaTeX/PDF) + results/ tables
+├── rhan_math/                    # mathematical proof reports (phase1..5_proofs.md) + figures + compilers
+│
+├── report/                       # results & run reports. tracked (16): IEEEtran.cls, assets/, empirical_report.json,
+│   │                             #   final_sweep_results_stl10.json, stage2_hpc_run_log.md, rhan_v10_scientific_report.*;
+│   │                             #   working tree only (gitignored): GEN1_RESULTS_MASTER.md,
+│   │                             #   generation1_foundation_roadmap.json, foundation_*_{result,compactness}.json,
+│   │                             #   foundation_*_eval/ (per-seed CSVs + provenance), sweep_*/ logs, lens_e1_analysis/
+│   ├── GEN1_RESULTS_MASTER.md    #   extracted Gen-1 results (working tree only)
+│   └── generation1_foundation_roadmap.json   # ladder state (working tree only)
+├── checkpoints/                  # model weights: foundation_<phase>_{best,rolling}.pth (six phases) +
+│                                 #   legacy STL-10/CIFAR checkpoints [mostly working tree; 4 tracked]
+├── checkpoints_tier2/            # tier-2 checkpoint slot — currently only *:Zone.Identifier stubs
+├── runs/                         # per-run manifests/logs: foundation_*/manifest.json,
+│                                 #   production_launch_manifest.json [working tree only — gitignored]
+├── logs/  sweep_results/         # run logs + sweep CSVs [generated stores]
+├── figures/  figures_v2/  figures_v3/   # generated figure sets (102 / 136 / 161 files) [generated stores]
+├── data/                         # datasets: imagenet100/, stl10/, stl10_binary/ (131k files) [gitignored, not source]
+├── scratch/                      # 58 ad-hoc debug / diagnostic scripts (historical)
+├── utils/                        # metrics.py — shared metrics
+│
+├── archive/                      # frozen generations (read-only; working tree only — not committed)
+│   ├── gen0/                     #   legacy Gen-0 checkpoints (checkpoints-legacy/)
+│   ├── gen3-human/               #   snapshot of the human-study package
+│   ├── gen4-analysis/            #   snapshot of the analysis package
+│   ├── gen5-sdt/                 #   snapshot of the SDT package
+│   ├── historical-report/        #   Paper/ + competition/ snapshots
+│   ├── legacy-evals/             #   legacy evaluation reports (PDFs)
+│   ├── pkg-rhan-math/            #   rhan_math package snapshot
+│   └── pkg-tier1/                #   tier1 package snapshot
+│
+└── .agent/  .claude/  .vscode/  .freebuff/  .venv/  .verify_samples/   # local tooling / session state (not research source)
+```
+---
+
+## Status — what is real, what is not
+
+| Component | Status |
+|---|---|
+| Original ACD v4.0 (7-model + human CIFAR-10, FGSM/PGD/C&W, SDT) | **Completed** — historical foundation; full results reprinted below |
+| Gen-0 RHAN-Next (`rhan_core/`, AIS + HPC, three-stage protocol) | **Frozen reference** — Stages 0–2 validated, Stage 3 pending (`docs/ARCHITECTURE.md`) |
+| Gen-1 foundation ladder | **Under validation** — pure-CE arm completed all six phases (2026-09-25→26); adversarial re-run launched 2026-10-06, `backbone_only` running; **no matched-validated mechanism number yet** |
+| Gen-1: isolated discovery of AIS-v2 / belief-HPC | **UNKNOWN** — Gen-1 arms contaminated by legacy SBR; evidence recorded as such |
+| Gen-2 foundation mechanisms | **Implemented** as code; **52/52 unit tests pass**; real ImageNet-100 foundation measurement **not yet produced** — validation gate open |
+| Gen-3 / persistent world modeling | **Research proposal** — not implemented |
+| JEPA-style world modeling | **Research proposal / literature direction** — not implemented |
+| VLM / VLA | **Planned — research proposal** — not implemented |
+
+---
+
+## Historical results — ACD v4.0 & legacy generations  [archived — reprinted verbatim]
+
+Everything below this line is **reprinted from the pre-reconstruction README** (including its Gen-0 RHAN-Next section). It records *completed historical work*; numbers are as published at that time and are **not** current results.
+
+Notes on the reprint:
+
+- Two generation-label corrections were applied so history is not presented as current: the RHAN-Next section header now says **frozen Gen-0 reference** instead of "(Current)", and its opening sentence says "The Gen-0 generation" instead of "The latest generation".
+- Code-fence comment lines were moved inside their fences so the Markdown renders correctly; content is otherwise verbatim.
+- Commands here are **archived** (`phase*_training/`, `phase*_attacks/`, `cloud_setup/`, `archive/`). At least one cited script (`phase4_analysis/generate_all_figures.py`) and one cited directory (`phase3_human_study/stimuli/`) no longer exist — see *Documented gaps*.
+- The `## Repository Structure` block below is the *original* README's tree, kept as a historical record; the current tree is in *Repository map* above.
+
+## Gen-0 RHAN-Next: Active Inference + Hierarchical Predictive Coding (frozen reference; reprinted)
+
+The Gen-0 generation (**RHAN-Next**, branch `feature/rhan-next`; frozen since Gen-1 began) composes two biologically-inspired pillars into a single architecture:
 
 - **AIS (Active Inference Suite)**: Entropy-gated halting, information-gain gaze policy, precision-modulated reconstruction — reformulates visual perception as a temporal control loop over discrete foraging steps.
 - **HPC (Hierarchical Predictive Coding)**: Single-level edge-map prediction error loss — the brain's own unsupervised learning signal, regularizing the backbone without labels.
@@ -240,8 +598,8 @@ RHAN-clean → RHAN-adv → Trial branches (Split, PredCoding, Aligned)
 | **Youssef Ayman (Mekky)** | [@Mekky2](https://github.com/Mekky2) | CORnet-S (co-owner) |
 | **Mariam Mohammed** | [@Mariam-203](https://github.com/Mariam-203) | CLIP ViT-B/32 |
 
-## Setup
 ```bash
+## Setup
 git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git
 cd Adversarial-Cognitive-Model
 python3 -m venv .venv && source .venv/bin/activate
@@ -249,23 +607,23 @@ pip install -r requirements.txt
 ```
 
 ## Reproduce Results
-# Phase 2: Generate adversarial arrays (memory-safe, one model at a time)
 ```bash
+# Phase 2: Generate adversarial arrays (memory-safe, one model at a time)
 python phase2_attacks/generate_adv_all_models.py --model [resnet|vit|efficientnet|shaperesnet|bagnet]
 ```
 
-# Phase 4: Run all analysis
 ```bash
+# Phase 4: Run all analysis
 python phase4_analysis/generate_all_figures.py
 ```
 
-# Phase 5: SDT analysis
 ```bash
+# Phase 5: SDT analysis
 python phase5_sdt/sdt_analysis.py
 ```
 
-# RHAN-UNIFIED Training (STL-10 96x96)
 ```bash
+# RHAN-UNIFIED Training (STL-10 96x96)
 # Phase 0: Semantic initialization with unlabeled data (50 epochs)
 python phase1_training/train_rhan_unified.py --phase 0
 
@@ -276,8 +634,8 @@ python phase1_training/train_rhan_unified.py --phase 1-6
 python phase1_training/train_rhan_unified.py --phase all
 ```
 
-# RHAN-TDV Training & Evaluation (STL-10 96x96)
 ```bash
+# RHAN-TDV Training & Evaluation (STL-10 96x96)
 # Phase 1: Self-supervised TDV pretraining (unlabeled data, 30 epochs)
 python phase1_training/train_rhan_stl10_tdv.py --phase tdv --unlabeled-batch-size 32
 
@@ -291,8 +649,8 @@ python phase1_training/train_rhan_stl10_tdv.py --phase trades --batch-size 16 --
 python phase1_training/eval_pgd_sdt_stl10.py --checkpoint ../checkpoints/rhan_stl10_tdv_trades_clean_consistency.pth --samples 1000 --batch-size 64
 ```
 
-# RHAN-Large + Pseudo-Label Curriculum (STL-10 96x96)
 ```bash
+# RHAN-Large + Pseudo-Label Curriculum (STL-10 96x96)
 # Launch optimized DDP training on dual T4 GPUs (batch size 32, 8 accumulation steps)
 torchrun --nproc_per_node=2 phase1_training/train_rhan_large_pseudolabel.py --batch-size 32 --accum-steps 8
 
@@ -372,3 +730,31 @@ Mapping: `phase3_human_study/manifest.csv`
 13. Ilyas, A., et al. (2019). Adversarial Examples Are Not Bugs, They Are Features. NeurIPS 2019.
 14. Carter, B., et al. (2019). Exploring Statistical and Structural Properties of Feedforward and Recurrent Neural Networks. arXiv.
 15. Zhang, H., et al. (2019). Theoretically Principled Trade-off between Robustness and Accuracy (TRADES). ICML 2019.
+---
+
+## Documented gaps and caveats
+
+1. **Gen-1 pipeline sources are not on `main`.** `training/` (`train_generation1_foundation.py`, `adv_curriculum.py`, `stage_state_machine.py`), `evaluation/` (`clean_and_robust.py`, `imagenet100_loader.py`, …), the Gen-1 `scripts/` tooling (`prepare_imagenet100.py`, `sbr0_gate.py`, `eval_ais_v2_gate.py`, `stage_state_machine.py`, `verify_run_complete.py`, `freeze_run_manifest.py`), the `noesis_vision/` package source (`noesis_vision/core/`, `noesis_vision/gaze/ais_v2_policy.py`, …), and `cloud/` (launchers) live on the carrier branches `feature/rhan-next` / `stage2/nxa-pipeline-refactor` (all of `cloud/` is on `stage2/nxa-pipeline-refactor`). On `main`, `training/` and `evaluation/` contain only `__pycache__` remnants. `main` and `feature/rhan-next` have diverged (516 / 74 commits).
+2. **Parts of the working tree are not committed.** `.gitignore` rules (`docs/`, `report/`, `runs/`, `data/`, and any directory literally named `docs/`) keep `docs/REPOSITORY_MAP.md`, `docs/RHAN_NXA_ARCHITECTURE.md`, `docs/CANCELLATION_NOTICE_2026-10-03.md`, `docs/FORENSIC_REPORT_NXA_GENERATION1.md`, `report/GEN1_RESULTS_MASTER.md`, `report/generation1_foundation_roadmap.json`, `runs/` manifests, `noesis_vision/RHAN_NXA/docs/`, `archive/`, and `checkpoints/*` (140+ weights) out of the repository. They exist on this machine; a fresh clone will not contain them. Only 10 `docs/` files and 16 `report/` files are tracked (plus 4 checkpoints).
+3. **`noesis_vision/RHAN_NXA/MASTER_PLAN.md` is absent from `main`** (tracked on `feature/rhan-next`); some `noesis_vision/RHAN_NXA/docs/` chapters link to it, so those links are broken here. The on-tree plan is `noesis_vision/RHAN_NXA/docs/Proposed_Plan.md` + chapters 00–30.
+4. **Two roadmap JSONs.** `docs/rhan_next_roadmap.json` = Gen-0 RHAN-Next orchestration (tracked); `report/generation1_foundation_roadmap.json` = Gen-1 ladder state (working tree only). The latter is the source of truth for Gen-1 ladder status.
+5. **`phase4_analysis/generate_all_figures.py`** (cited by the original README) no longer exists; superseded by `phase4_analysis/generate_hero_figures.py` and `generate_appendix_figures.py`.
+6. **`requirements.txt` is Gen-0-era** (wheel index `cu124`; the research environment ran torch 2.9.1+cu128) — a starting point, not a lockfile. Also: `num_workers>=2` deadlocks the ImageNet-100 loader locally; `FoundationConfig` has no `device=` kwarg.
+7. **Historical commands are archived**, not current entry points — including everything in the reprinted *Setup* / *Reproduce Results* blocks below.
+8. **`checkpoints_tier2/` contains only `*:Zone.Identifier` stubs** (Windows download metadata), no weights; the same residue exists as `*:Zone.Identifier` files elsewhere in the tree.
+9. **Gen-1 evidence caveat:** the Gen-1 arms were contaminated by legacy SBR, so mechanism-discovery claims are **UNKNOWN** — neither confirmed nor refuted (evidence: `noesis_vision/RHAN_NXA/docs/16_Gen0_Evidence_And_Confounds.md`).
+10. **The reprinted historical section** is verbatim except two generation-label corrections and code-fence normalization (disclosed above). Paths inside it are as-of the original README; a few (`phase4_analysis/generate_all_figures.py`, `phase3_human_study/stimuli/`) are gone.
+11. **`docs/REPOSITORY_MAP.md`** (detailed 23-section map) was generated 2026-09-30 on `feature/rhan-next` @ `fef50f3` — it describes that branch, not `main`, and is itself uncommitted. The map in *Repository map* above was regenerated from the `main` working tree for this README.
+
+---
+
+## About this README
+
+Documentation-only deliverable: this commit changes **`README.md` alone** — no model, training, test, architecture, dependency, config, or source file was touched. Inconsistencies found during reconstruction are recorded in *Documented gaps* rather than silently fixed.
+
+- **README** = entry point (this file).
+- **Gen-1 plan** = `noesis_vision/RHAN_NXA/` (`docs/` 00–30 + `Proposed_Plan.md` on the working tree; `MASTER_PLAN.md` on carrier branches).
+- **Gen-0 architecture plan** = `docs/ARCHITECTURE.md` + `docs/rhan_next_roadmap.json`.
+- **Gen-2 audit record** = `gen2_foundation/AUDIT.md` + `gen2_foundation/tests/`.
+- **Detailed map of `feature/rhan-next`** = `docs/REPOSITORY_MAP.md` (uncommitted).
+- **Source code** = implementation truth; `gen2_foundation/` code = Gen-2 mechanism truth.
