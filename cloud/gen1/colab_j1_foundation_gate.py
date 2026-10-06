@@ -733,6 +733,31 @@ def run_selftest() -> int:
 # ═══════════════════════════════════════════════════════════════════════════
 # Orchestration: J1.0 -> J1.9
 # ═══════════════════════════════════════════════════════════════════════════
+def _collab_kernel_args(argv: Optional[List[str]]) -> List[str]:
+    """Strip the JupyterKernelLauncher CLI args before argparse parses.
+
+    Jovian / Colab Kernels run the user script via ipykernel_launcher.py, which
+    injects '-f <kernel.json>'. argparse does not know about that flag, so the
+    parser would raise SystemExit(2). Drop any '-f' (and its single following
+    value) from the argv the user gave us, and hand the cleaned list to
+    parse_args. Everything else (--dry-run, --selftest, --data-root,
+    --run-id) is untouched and still parsed normally.
+    """
+    if argv is None:
+        argv = sys.argv[1:]
+    cleaned: List[str] = []
+    skip = False
+    for token in argv:
+        if skip:
+            skip = False
+            continue
+        if token == "-f":
+            skip = True
+            continue
+        cleaned.append(token)
+    return cleaned
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="J1 Foundation Gate harness (Colab T4)")
     ap.add_argument("--dry-run", action="store_true",
@@ -741,7 +766,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="CPU test of measurement + decision logic")
     ap.add_argument("--data-root", default="data/imagenet100")
     ap.add_argument("--run-id", default=None)
-    args = ap.parse_args(argv)
+    args = ap.parse_args(_collab_kernel_args(argv))
 
     if args.selftest:
         return run_selftest()
