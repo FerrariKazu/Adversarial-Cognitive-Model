@@ -47,13 +47,83 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 PHASE = "backbone_only"
-REPO_REL_TRAINER = "training/train_generation1_foundation.py"
+def _repo_root_from_git() -> str:
+    """Repo root reported by git (the true root of the Gen-1 pipeline).
+
+    The gate lives in cloud/gen1/ under an ancestral repo clone, so
+    dirname(dirname(abspath(__file__))) resolves to cloud/, not repo root.
+    Resolve the real root via git; fall back to a training/-based lookup
+    when git is unavailable or in interactive notebook environments where
+    __file__ may not be defined.
+    """
+    # 1. Explicit environment variable if provided
+    env_root = os.environ.get("REPO_ROOT") or os.environ.get("PROJECT_ROOT")
+    if env_root and os.path.isdir(os.path.join(env_root, "training")):
+        return os.path.abspath(env_root)
+
+    # 2. Determine base directory safely without NameError in notebook cells
+    base_dir: Optional[str] = None
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    except NameError:
+        base_dir = None
+
+    # 3. Probe git from base_dir and cwd
+    probe_dirs: List[str] = []
+    if base_dir:
+        probe_dirs.append(base_dir)
+    cwd = os.getcwd()
+    if cwd not in probe_dirs:
+        probe_dirs.append(cwd)
+
+    for d in probe_dirs:
+        try:
+            import subprocess
+            out = subprocess.run(
+                ["git", "-C", d, "rev-parse", "--show-toplevel"],
+                capture_output=True, text=True, check=True,
+            )
+            root = out.stdout.strip()
+            if root and os.path.isdir(os.path.join(root, "training")):
+                return root
+        except Exception:
+            pass
+
+    # 4. Fallback: upward directory traversal looking for training/
+    for start in probe_dirs:
+        candidate = os.path.abspath(start)
+        for _ in range(6):
+            if os.path.isdir(os.path.join(candidate, "training")):
+                return candidate
+            parent = os.path.dirname(candidate)
+            if parent == candidate:
+                break
+            candidate = parent
+
+    # 5. Colab/notebook fallback: check subdirectories of cwd or /content
+    search_dirs = [cwd]
+    if os.path.isdir("/content") and "/content" not in search_dirs:
+        search_dirs.append("/content")
+    for parent in search_dirs:
+        try:
+            for item in os.listdir(parent):
+                candidate = os.path.join(parent, item)
+                if os.path.isdir(candidate) and os.path.isdir(os.path.join(candidate, "training")):
+                    return os.path.abspath(candidate)
+        except Exception:
+            pass
+
+    return base_dir or cwd
+
+
+REPO_ROOT = _repo_root_from_git()
+REPO_REL_TRAINER = os.path.join("training", "train_generation1_foundation.py")
 REQUIRED_PIPELINE_PATHS = [
-    "training/train_generation1_foundation.py",
-    "training/adv_curriculum.py",
-    "training/stage_state_machine.py",
-    "evaluation/clean_and_robust.py",
-    "evaluation/imagenet100_loader.py",
+    os.path.join("training", "train_generation1_foundation.py"),
+    os.path.join("training", "adv_curriculum.py"),
+    os.path.join("training", "stage_state_machine.py"),
+    os.path.join("evaluation", "clean_and_robust.py"),
+    os.path.join("evaluation", "imagenet100_loader.py"),
 ]
 # Canonical commands (spec). The ONLY intended difference between arms is
 # --clean-only. Do not alter the training objective for convenience.
@@ -220,40 +290,82 @@ def j10_environment() -> Dict[str, Any]:
 # ═══════════════════════════════════════════════════════════════════════════
 # J1.1 — Repository verification
 # ═══════════════════════════════════════════════════════════════════════════
-def j11_repository(cwd: str) -> Dict[str, Any]:
-    info = git_json(cwd)
+def j11_repository(cwd: Optional[str] = None) -> Dict[str, Any]:
+    """Repository verification at the repo root (the real git root).
+
+    The Gen-1 pipeline sources live under the repository root: training/,
+    evaluation/, noesis_vision/, scripts/, tests/. The Jupyter kernel
+    launcher runs the user script from a notebook directory (cloud/gen1/),
+    so os.getcwd() alone would resolve the pipeline paths against the
+    notebook dir instead of the repo root. Use the REPO_ROOT when it is
+    available; keep cwd as a fallback for local terminal runs.
+    """
+    if cwd is not None:
+        check_root = cwd
+    elif "REPO_ROOT" in globals() and REPO_ROOT and os.path.isdir(os.path.join(REPO_ROOT, "training")):
+        check_root = REPO_ROOT
+    else:
+        repo_root = os.path.abspath(os.path.join(os.getcwd(), ".."))
+        if os.path.isdir(os.path.join(repo_root, "training")):
+            check_root = repo_root
+        else:
+            check_root = os.getcwd()
+    info = git_json(check_root)
     info["missing_pipeline_sources"] = [p for p in REQUIRED_PIPELINE_PATHS
-                                        if not os.path.exists(os.path.join(cwd, p))]
+                                        if not os.path.exists(os.path.join(check_root, p))]
     info["pipeline_sources_ok"] = not info["missing_pipeline_sources"]
     if not info["pipeline_sources_ok"]:
         print("  ✗ Gen-1 pipeline sources missing — checkout a carrier branch "
               "(feature/rhan-next or stage2/nxa-pipeline-refactor). "
               f"Missing: {info['missing_pipeline_sources']}")
     else:
-        print(f"  ✓ repo {info['commit'][:12]} on {info['branch']}; pipeline sources present")
+        c = info["commit"][:12] if not str(info.get("commit", "")).startswith("ERROR") else "non-git"
+        b = info["branch"] if not str(info.get("branch", "")).startswith("ERROR") else "local"
+        print(f"  ✓ repo {c} on {b}; pipeline sources present")
     return info
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # J1.2 — Dataset verification
 # ═══════════════════════════════════════════════════════════════════════════
-def j12_dataset(data_root: str) -> Dict[str, Any]:
-    info: Dict[str, Any] = {"data_root": os.path.abspath(data_root),
-                            "exists": os.path.isdir(data_root)}
+def _resolve_data_root(data_root: Optional[str]) -> str:
+    """Resolve the data root to the canonical repo-root data ImageNet-100.
+
+    The training CLI expects --data-root data/imagenet100 relative to the
+    repo root; the Jupyter kernel launcher runs the notebook from a
+    subdirectory, so CWD-relative data/imagenet100 would silently point
+    at the wrong tree. When the user did not supply a path, use the repo
+    root (git-reported when possible, otherwise the training/-based
+    fallback) so the dataset check always matches the real dataset.
+    """
+    if data_root is not None:
+        return os.path.abspath(data_root)
+    return os.path.join(REPO_ROOT, "data", "imagenet100")
+
+
+def j12_dataset(data_root: Optional[str] = None) -> Dict[str, Any]:
+    """Dataset verification at the canonical repo-root-implicit path.
+
+    Resolution: None -> REPO_ROOT/data/imagenet100 (the real dataset on
+    the carrier branches and on main). A user-supplied --data-root is
+    still honoured when passed explicitly.
+    """
+    resolved = _resolve_data_root(data_root)
+    info: Dict[str, Any] = {"data_root": resolved, "exists": os.path.isdir(resolved)}
     if not info["exists"]:
-        print(f"  ✗ dataset root missing: {data_root}")
+        print(f"  ✗ dataset root missing: {resolved}")
         return info
     # Prefer the runner's own validator (same code the trainer uses).
     try:
-        sys.path.insert(0, os.getcwd())
+        sys.path.insert(0, REPO_ROOT)
         from evaluation.imagenet100_loader import validate_imagenet100_root
         info["validator"] = "evaluation.imagenet100_loader.validate_imagenet100_root"
-        info["valid"] = bool(validate_imagenet100_root(data_root))
+        info["valid"] = bool(validate_imagenet100_root(resolved))
     except Exception as e:
         info["validator"] = f"unavailable: {e}"
         info["valid"] = None
         for split in ("train", "val"):
-            d = os.path.join(data_root, split)
+            d = os.path.join(resolved, split)
             if os.path.isdir(d):
                 info[f"{split}_classes"] = len(os.listdir(d))
         info["valid"] = all(info.get(f"{s}_classes", 0) > 0 for s in ("train", "val")) or None
@@ -270,7 +382,7 @@ def j12_dataset(data_root: str) -> Dict[str, Any]:
     else:
         info["pinned_dataset"] = None
         info["fingerprint_status"] = "production manifest not on this tree — recorded pin unavailable"
-    print(f"  dataset: exists={info['exists']} valid={info.get('valid')}")
+        print(f"  dataset: exists={info['exists']} valid={info.get('valid')}")
     return info
 
 
@@ -305,7 +417,7 @@ def j13_configuration(data_root: str) -> Dict[str, Any]:
 # ═══════════════════════════════════════════════════════════════════════════
 def j14_preflight(out_dir: str) -> Dict[str, Any]:
     result: Dict[str, Any] = {"timestamp_utc": utc_now()}
-    sys.path.insert(0, os.getcwd())
+    sys.path.insert(0, REPO_ROOT)
     from training.train_generation1_foundation import (  # carrier sources
         FoundationConfig, build_model, seed_everything, check_gradient_reach)
     from evaluation.imagenet100_loader import IMAGENET100_IMG_SIZE, IMAGENET100_NUM_CLASSES
@@ -774,9 +886,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     print("J1.0 — Environment verification")
     env = j10_environment()
     print("J1.1 — Repository verification")
-    repo = j11_repository(os.getcwd())
+    repo = j11_repository()  # repo-root canonical path (net of CWD)
     print("J1.2 — Dataset verification")
-    dataset = j12_dataset(args.data_root)
+    dataset = j12_dataset(None)  # canonical repo-root data/imagenet100
     print("J1.3 — Foundation configuration")
     config = j13_configuration(args.data_root)
 
