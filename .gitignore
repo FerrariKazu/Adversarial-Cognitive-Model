@@ -1,6 +1,7 @@
 __pycache__
 .venv
 *.pth
+*.pt
 *.npy
 data/
 cognitive_vision_lab/cache/
