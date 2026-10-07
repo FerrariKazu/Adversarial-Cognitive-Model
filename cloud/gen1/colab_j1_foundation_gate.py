@@ -47,18 +47,21 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 PHASE = "backbone_only"
+DEFAULT_REPO_URL = "https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git"
+DEFAULT_REPO_NAME = "Adversarial-Cognitive-Model"
+
+
 def _repo_root_from_git() -> str:
     """Repo root reported by git (the true root of the Gen-1 pipeline).
 
-    The gate lives in cloud/gen1/ under an ancestral repo clone, so
-    dirname(dirname(abspath(__file__))) resolves to cloud/, not repo root.
-    Resolve the real root via git; fall back to a training/-based lookup
-    when git is unavailable or in interactive notebook environments where
-    __file__ may not be defined.
+    Discovers the true repository root whether running from a local clone,
+    a notebook subfolder, or Google Colab /content. If running in a fresh
+    Colab environment where the repository has not been cloned yet,
+    automatically clones the repository into /content/Adversarial-Cognitive-Model.
     """
     # 1. Explicit environment variable if provided
     env_root = os.environ.get("REPO_ROOT") or os.environ.get("PROJECT_ROOT")
-    if env_root and os.path.isdir(os.path.join(env_root, "training")):
+    if env_root and os.path.isdir(env_root):
         return os.path.abspath(env_root)
 
     # 2. Determine base directory safely without NameError in notebook cells
@@ -68,7 +71,6 @@ def _repo_root_from_git() -> str:
     except NameError:
         base_dir = None
 
-    # 3. Probe git from base_dir and cwd
     probe_dirs: List[str] = []
     if base_dir:
         probe_dirs.append(base_dir)
@@ -76,6 +78,7 @@ def _repo_root_from_git() -> str:
     if cwd not in probe_dirs:
         probe_dirs.append(cwd)
 
+    # 3. Probe git rev-parse from base_dir and cwd ancestors
     for d in probe_dirs:
         try:
             import subprocess
@@ -84,16 +87,16 @@ def _repo_root_from_git() -> str:
                 capture_output=True, text=True, check=True,
             )
             root = out.stdout.strip()
-            if root and os.path.isdir(os.path.join(root, "training")):
+            if root and os.path.isdir(root):
                 return root
         except Exception:
             pass
 
-    # 4. Fallback: upward directory traversal looking for training/
+    # 4. Upward directory traversal from probe_dirs looking for .git or training/
     for start in probe_dirs:
         candidate = os.path.abspath(start)
         for _ in range(6):
-            if os.path.isdir(os.path.join(candidate, "training")):
+            if os.path.isdir(os.path.join(candidate, ".git")) or os.path.isdir(os.path.join(candidate, "training")):
                 return candidate
             parent = os.path.dirname(candidate)
             if parent == candidate:
@@ -104,21 +107,70 @@ def _repo_root_from_git() -> str:
     search_dirs = [cwd]
     if os.path.isdir("/content") and "/content" not in search_dirs:
         search_dirs.append("/content")
+
+    # Priority 5a: look for known repository name with .git
+    for parent in search_dirs:
+        for name in (DEFAULT_REPO_NAME, "adversarial-cognitive-model", "Adversarial Cognitive Model"):
+            cand = os.path.join(parent, name)
+            if os.path.isdir(cand) and (os.path.isdir(os.path.join(cand, ".git")) or os.path.isdir(os.path.join(cand, "training"))):
+                return os.path.abspath(cand)
+
+    # Priority 5b: check ANY subdirectory containing .git
     for parent in search_dirs:
         try:
             for item in os.listdir(parent):
                 candidate = os.path.join(parent, item)
-                if os.path.isdir(candidate) and os.path.isdir(os.path.join(candidate, "training")):
+                if os.path.isdir(candidate) and (os.path.isdir(os.path.join(candidate, ".git")) or os.path.isdir(os.path.join(candidate, "training"))):
                     return os.path.abspath(candidate)
         except Exception:
             pass
+
+    # 6. Fresh Colab runtime automatic clone
+    if os.path.isdir("/content"):
+        target_clone = os.path.join("/content", DEFAULT_REPO_NAME)
+        # Clone if missing OR if exists but has no .git (incomplete previous clone)
+        needs_clone = not os.path.isdir(target_clone) or not os.path.isdir(os.path.join(target_clone, ".git"))
+        if needs_clone:
+            repo_url = os.environ.get("RHAN_REPO_URL") or DEFAULT_REPO_URL
+            print(f"  == Fresh Colab runtime: cloning {repo_url} -> {target_clone} ==")
+            gh_token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+            if not gh_token:
+                try:
+                    from google.colab import userdata  # type: ignore[import-untyped]
+                    gh_token = userdata.get("GH_TOKEN") or userdata.get("GITHUB_TOKEN") or userdata.get("HF_TOKEN")
+                except Exception:
+                    pass
+            clone_target_url = repo_url
+            if gh_token and "github.com" in repo_url and "@" not in repo_url:
+                clone_target_url = repo_url.replace("https://", f"https://{gh_token}@")
+            try:
+                import subprocess
+                # Remove incomplete clone directory if it exists
+                if os.path.isdir(target_clone) and not os.path.isdir(os.path.join(target_clone, ".git")):
+                    import shutil as _shutil
+                    _shutil.rmtree(target_clone, ignore_errors=True)
+                subprocess.run(["git", "clone", clone_target_url, target_clone], check=True)
+                return target_clone
+            except Exception as e:
+                print(f"  ✗ Failed to clone {repo_url}: {e}")
+                print("    notice: for private repositories, provide GH_TOKEN in Colab secrets or environment")
+        elif os.path.isdir(os.path.join(target_clone, ".git")):
+            # Clone exists and is valid — use it
+            return target_clone
 
     return base_dir or cwd
 
 
 REPO_ROOT = _repo_root_from_git()
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
+if os.path.isdir(REPO_ROOT):
+    if REPO_ROOT not in sys.path:
+        sys.path.insert(0, REPO_ROOT)
+    # Ensure working directory is REPO_ROOT in notebook / Colab environments
+    if os.getcwd() != REPO_ROOT and ("/content" in os.getcwd() or "cloud" in os.getcwd()):
+        try:
+            os.chdir(REPO_ROOT)
+        except Exception:
+            pass
 
 REPO_REL_TRAINER = os.path.join("training", "train_generation1_foundation.py")
 REQUIRED_PIPELINE_PATHS = [
@@ -151,6 +203,57 @@ def verify_pipeline_imports(repo_root: str) -> Tuple[bool, Optional[str]]:
         return False, str(e)
 
 
+def _ensure_git_repo(repo_root: str, repo_url: Optional[str] = None) -> str:
+    """Ensure repo_root is inside a valid git repository.
+
+    If repo_root has no .git directory, clone the repository there.
+    Returns the validated repo_root (may change if cloned to a subdirectory).
+    """
+    if os.path.isdir(os.path.join(repo_root, ".git")):
+        return repo_root
+
+    # Check if we're inside a git worktree (repo_root is a subdirectory)
+    try:
+        out = subprocess.run(
+            ["git", "-C", repo_root, "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, check=True,
+        )
+        real_root = out.stdout.strip()
+        if real_root and os.path.isdir(os.path.join(real_root, ".git")):
+            return real_root
+    except Exception:
+        pass
+
+    # No git repo at all — clone into repo_root or a subdirectory
+    clone_url = repo_url or os.environ.get("RHAN_REPO_URL") or DEFAULT_REPO_URL
+    target_clone = repo_root if not os.listdir(repo_root) else os.path.join(repo_root, DEFAULT_REPO_NAME)
+
+    # Skip if target already has a valid .git
+    if os.path.isdir(os.path.join(target_clone, ".git")):
+        return target_clone
+
+    print(f"  == No git repository at {repo_root} — cloning {clone_url} -> {target_clone} ==")
+    gh_token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if not gh_token:
+        try:
+            from google.colab import userdata  # type: ignore[import-untyped]
+            gh_token = userdata.get("GH_TOKEN") or userdata.get("GITHUB_TOKEN")
+        except Exception:
+            pass
+    actual_url = clone_url
+    if gh_token and "github.com" in clone_url and "@" not in clone_url:
+        actual_url = clone_url.replace("https://", f"https://{gh_token}@")
+    try:
+        subprocess.run(["git", "clone", actual_url, target_clone], check=True,
+                       capture_output=True, text=True)
+        print(f"  ✓ cloned successfully to {target_clone}")
+        return target_clone
+    except subprocess.CalledProcessError as e:
+        print(f"  ✗ clone failed: {e.stderr.strip() if e.stderr else e}")
+        print("    notice: for private repositories, provide GH_TOKEN in Colab secrets or environment")
+    return repo_root
+
+
 def bootstrap_sources(
     repo_root: str,
     source_ref: Optional[str] = None,
@@ -163,12 +266,28 @@ def bootstrap_sources(
     Never switches the user's branch, never runs hard-reset or auto-merge.
     Restores only the needed subtrees (training, evaluation, noesis_vision, scripts)
     from a verified carrier or authoritative ref if missing in working directory.
+
+    If repo_root is not inside a git repository, automatically clones the repo first.
     """
-    missing = [p for p in ALL_REQUIRED_PATHS if not os.path.exists(os.path.join(repo_root, p))]
+    # Ensure we're inside a git repo before attempting git operations
+    effective_root = _ensure_git_repo(repo_root, repo_url=repo_url)
+    if effective_root != repo_root:
+        # Update global REPO_ROOT if the clone changed the effective root
+        global REPO_ROOT
+        REPO_ROOT = effective_root
+        if REPO_ROOT not in sys.path:
+            sys.path.insert(0, REPO_ROOT)
+        try:
+            os.chdir(REPO_ROOT)
+        except Exception:
+            pass
+
+    missing = [p for p in ALL_REQUIRED_PATHS if not os.path.exists(os.path.join(effective_root, p))]
     res: Dict[str, Any] = {
         "missing_before": missing,
         "restored": False,
         "ref_used": None,
+        "effective_root": effective_root,
         "errors": [],
     }
     if not missing:
@@ -177,6 +296,12 @@ def bootstrap_sources(
 
     if dry_run:
         res["status"] = "dry_run_missing"
+        return res
+
+    # Verify we have a .git directory to work with
+    if not os.path.isdir(os.path.join(effective_root, ".git")):
+        res["status"] = "no_git_repo"
+        res["errors"].append(f"no .git directory in {effective_root}; clone may have failed")
         return res
 
     if source_ref:
@@ -199,7 +324,7 @@ def bootstrap_sources(
         try:
             check = subprocess.run(
                 ["git", "cat-file", "-e", f"{ref}:training/train_generation1_foundation.py"],
-                cwd=repo_root, capture_output=True, text=True,
+                cwd=effective_root, capture_output=True, text=True,
             )
             if check.returncode == 0:
                 matched_ref = ref
@@ -208,21 +333,32 @@ def bootstrap_sources(
             pass
 
     if not matched_ref and source_mode in ("auto", "fetch"):
-        target_remote = repo_url or "origin"
+        # Determine the actual remote name or URL
+        target_remote = "origin"
+        if repo_url:
+            # If a full URL was provided, use it directly as the remote
+            target_remote = repo_url
         fetch_branches = [source_ref] if source_ref else ["main", "stage2/nxa-pipeline-refactor", "feature/rhan-next"]
         for b in fetch_branches:
             try:
+                # Fetch to FETCH_HEAD — avoids "refusing to fetch into
+                # currently checked out branch" errors
                 fetch_run = subprocess.run(
-                    ["git", "fetch", target_remote, f"{b}:{b}"],
-                    cwd=repo_root, capture_output=True, text=True,
+                    ["git", "fetch", target_remote, b],
+                    cwd=effective_root, capture_output=True, text=True,
                 )
                 if fetch_run.returncode == 0:
-                    check = subprocess.run(
-                        ["git", "cat-file", "-e", f"{b}:training/train_generation1_foundation.py"],
-                        cwd=repo_root, capture_output=True, text=True,
-                    )
-                    if check.returncode == 0:
-                        matched_ref = b
+                    # After plain fetch, the ref is available at FETCH_HEAD
+                    # and also updated in remote tracking refs (origin/<b>)
+                    for check_ref in ["FETCH_HEAD", f"origin/{b}", b]:
+                        check = subprocess.run(
+                            ["git", "cat-file", "-e", f"{check_ref}:training/train_generation1_foundation.py"],
+                            cwd=effective_root, capture_output=True, text=True,
+                        )
+                        if check.returncode == 0:
+                            matched_ref = check_ref
+                            break
+                    if matched_ref:
                         break
             except Exception as e:
                 res["errors"].append(f"fetch {b} failed: {e}")
@@ -234,7 +370,7 @@ def bootstrap_sources(
     subtrees = ["training", "evaluation", "noesis_vision", "scripts"]
     try:
         cmd = ["git", "checkout", matched_ref, "--"] + subtrees
-        cp = subprocess.run(cmd, cwd=repo_root, capture_output=True, text=True)
+        cp = subprocess.run(cmd, cwd=effective_root, capture_output=True, text=True)
         if cp.returncode == 0:
             res["restored"] = True
             res["ref_used"] = matched_ref
@@ -246,7 +382,7 @@ def bootstrap_sources(
         res["status"] = "error"
         res["errors"].append(str(e))
 
-    res["missing_after"] = [p for p in ALL_REQUIRED_PATHS if not os.path.exists(os.path.join(repo_root, p))]
+    res["missing_after"] = [p for p in ALL_REQUIRED_PATHS if not os.path.exists(os.path.join(effective_root, p))]
     return res
 
 
@@ -433,11 +569,12 @@ def j11_repository(
     """
     if cwd is not None:
         check_root = cwd
-    elif "REPO_ROOT" in globals() and REPO_ROOT and os.path.isdir(os.path.join(REPO_ROOT, "training")):
+    elif "REPO_ROOT" in globals() and REPO_ROOT and os.path.isdir(REPO_ROOT):
+        # Accept REPO_ROOT even without training/ — bootstrap will create it
         check_root = REPO_ROOT
     else:
         repo_root = os.path.abspath(os.path.join(os.getcwd(), ".."))
-        if os.path.isdir(os.path.join(repo_root, "training")):
+        if os.path.isdir(os.path.join(repo_root, ".git")) or os.path.isdir(os.path.join(repo_root, "training")):
             check_root = repo_root
         else:
             check_root = os.getcwd()
@@ -462,8 +599,14 @@ def j11_repository(
             info["bootstrap_result"] = boot_res
             if boot_res.get("restored"):
                 print(f"  ✓ Gen-1 pipeline sources restored from ref '{boot_res.get('ref_used')}'")
+                # Update check_root if bootstrap changed the effective root
+                if boot_res.get("effective_root") and boot_res["effective_root"] != check_root:
+                    check_root = boot_res["effective_root"]
             else:
                 print(f"  ✗ Gen-1 pipeline source bootstrap failed: {boot_res.get('status')} ({boot_res.get('errors')})")
+                # Update check_root if bootstrap changed the effective root
+                if boot_res.get("effective_root") and boot_res["effective_root"] != check_root:
+                    check_root = boot_res["effective_root"]
         else:
             info["bootstrap_status"] = "disabled"
 
