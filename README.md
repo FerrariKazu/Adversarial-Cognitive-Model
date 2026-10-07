@@ -19,9 +19,10 @@ Where the Gen-1 material lives:
 
 - `noesis_vision/RHAN_NXA/` — ★ the canonical Gen-1 plan: `docs/` chapters 00–30 + `Proposed_Plan.md` (the `MASTER_PLAN.md` root file is tracked only on `feature/rhan-next` — see gaps).
 - `gen2_foundation/` — ★ Gen-2 foundation research slice (committed on `main`; 52/52 unit tests pass) + `EXPERIMENT_REGISTRY.md` (campaign registry).
-- `cloud/gen1/colab_j1_foundation_gate.py` — ★ J1 Foundation-Gate harness (TRADES vs matched-CE A/B on Colab T4); gate OPEN, not yet run.
+- `cloud/gen1/colab_j1_foundation.py` — Gen-1 six-phase ladder dispatcher (runs the ladder) **on `main`**.
+- `cloud/gen1/colab_j1_foundation_gate.py` — J1 Foundation-Gate harness (TRADES vs matched-CE A/B on Colab T4); gate OPEN, awaiting a real T4 run (not yet run).
 - `report/generation1_foundation_roadmap.json` — the six-phase ladder's single source of truth (currently executing).
-- `training/`, `evaluation/`, the Gen-1 `scripts/` tooling, and the `noesis_vision/` package source — the Gen-1 **pipeline code lives on the carrier branches** `feature/rhan-next` / `stage2/nxa-pipeline-refactor`, **not on `main`** (on `main`, `training/` and `evaluation/` contain only `__pycache__` remnants — see gaps).
+- `training/`, `evaluation/`, the Gen-1 `scripts/` tooling, and the `noesis_vision/` package source — the Gen-1 **pipeline code now lives on `main`** (committed 0803087), matching what the J1 gate's `training/`, `evaluation/`, `noesis_vision/`, `scripts/`, `tests/` checks require. The carrier branches `feature/rhan-next` / `stage2/nxa-pipeline-refactor` retain the historical/final pipeline trees and the remaining `cloud/gen1/` launchers (`Kaggle_J1_FOUNDATION.py`, `run_j1_local.sh`, `run_j1_supervised.sh`) not yet folded onto `main`.
 - `archive/` — frozen/historical generations (read-only; working tree only).
 
 **Status of the headline claims (do not soften):**
@@ -59,12 +60,12 @@ Entrypoint (carrier branches): `training/train_generation1_foundation.py`; ladde
 
 | Branch | Contains |
 |---|---|
-| `main` | Historical ACD packages (`phase1_training/` … `phase5_sdt/`), frozen `rhan_core/` + `tests/`, `gen2_foundation/`, `cloud/gen1/` (Colab J1 dispatcher + gate harness), `config/`, tracked docs, generated artifacts |
+| `main` | Historical ACD packages (`phase1_training/` … `phase5_sdt/`), frozen `rhan_core/` + `tests/`, `gen2_foundation/`, `cloud/gen1/` (Colab J1 dispatcher + gate harness), `config/`, tracked docs, **pipeline sources (`training/`, `evaluation/`, `noesis_vision/`, `scripts/`, `tests/`) from 0803087**, generated artifacts |
 | `feature/rhan-next` | Gen-0 RHAN-Next + Gen-1 pipeline sources (`training/`, `evaluation/`, Gen-1 `scripts/`, `noesis_vision/` package + `MASTER_PLAN.md`) |
 | `stage2/nxa-pipeline-refactor` (local) | Carrier for the Gen-1 production run: pipeline + the remaining `cloud/gen1/` launchers (`Kaggle_J1_FOUNDATION.py`, `run_j1_local.sh`, `run_j1_supervised.sh`) |
 | `diagnosis/nxa-forensic-2026-10-03` (local) | Forensic snapshot of the cancelled adversarial run |
 
-`main` and `feature/rhan-next` have diverged (6 / 74 commits); commands that need `training/` or `evaluation/` must run from a carrier branch.
+`main` now carries the Gen-1 pipeline sources (0803087 → c04f150). Commands that need `training/`, `evaluation/`, or `noesis_vision/` can run from `main`. The J1 gate is on `main` and self-verifies 12/12 for `--selftest`; a real T4 run is still required before the gate can be marked PASS.
 
 ---
 
@@ -110,9 +111,9 @@ The original **Adversarial Cognition Divergence v4.0** program is the completed 
 
 ---
 
-## Gen-1 family — plan (not code on `main`) vs frozen Gen-0 reference
+## Gen-1 family — plan vs code on `main` vs frozen Gen-0 reference
 
-The Gen-1 **architecture plan** is a research proposal: `noesis_vision/RHAN_NXA/` — `MASTER_PLAN.md` (tracked on `feature/rhan-next`) plus `docs/` chapters 00–30 and `Proposed_Plan.md` (present as working-tree files on `main`; see gaps). It is what RHAN-NXA *specifies*. The Gen-1 *pipeline code* (`training/`, `evaluation/`) lives on the carrier branches; `main` carries the plan documents, `gen2_foundation/`, and the historical study.
+The Gen-1 **architecture plan** is a research proposal: `noesis_vision/RHAN_NXA/` — `MASTER_PLAN.md` (tracked on `feature/rhan-next`) plus `docs/` chapters 00–30 and `Proposed_Plan.md` (present as working-tree files on `main`; see gaps). It is what RHAN-NXA *specifies*. The Gen-1 *pipeline code* (`training/`, `evaluation/`, `noesis_vision/`, `scripts/`, `tests/`) **now lives on `main`** (0803087). `main` carries the plan documents, `gen2_foundation/`, and the historical study; the carrier branches retain the final pipeline trees and the remaining `cloud/gen1/` launchers.
 
 The frozen Gen-0 reference is `rhan_core/` (present on `main`, developed on `feature/rhan-next`): `rhan_core/model.py` (RHANNext, 76.7M params), `rhan_core/config/pillar_config.py`, `rhan_core/gaze/`, `rhan_core/predictive_coding/`, `rhan_core/precision/`, `rhan_core/beliefs/`, `rhan_core/world_model/` (null scaffold), `rhan_core/ablation/`, `rhan_core/lens/`. It is a frozen reference for comparison, not the active training line.
 
@@ -741,7 +742,7 @@ Mapping: `phase3_human_study/manifest.csv`
 
 ## Documented gaps and caveats
 
-1. **Gen-1 pipeline sources are not on `main`.** `training/` (`train_generation1_foundation.py`, `adv_curriculum.py`, `stage_state_machine.py`), `evaluation/` (`clean_and_robust.py`, `imagenet100_loader.py`, …), the Gen-1 `scripts/` tooling (`prepare_imagenet100.py`, `sbr0_gate.py`, `eval_ais_v2_gate.py`, `stage_state_machine.py`, `verify_run_complete.py`, `freeze_run_manifest.py`), the `noesis_vision/` package source (`noesis_vision/core/`, `noesis_vision/gaze/ais_v2_policy.py`, …), live on the carrier branches `feature/rhan-next` / `stage2/nxa-pipeline-refactor`. The Gen-1 `cloud/gen1/` Colab entry points are partially on `main`: `colab_j1_foundation.py` and `colab_j1_foundation_gate.py` are committed there, while `Kaggle_J1_FOUNDATION.py`, `run_j1_local.sh`, and `run_j1_supervised.sh` remain `stage2`-only. On `main`, `training/` and `evaluation/` contain only `__pycache__` remnants. `main` and `feature/rhan-next` have diverged (6 / 74 commits).
+1. **Gen-1 pipeline sources are now on `main` (committed 0803087).** `training/` (`train_generation1_foundation.py`, `adv_curriculum.py`, `stage_state_machine.py`), `evaluation/` (`clean_and_robust.py`, `imagenet100_loader.py`, …), the Gen-1 `scripts/` tooling (`prepare_imagenet100.py`, `sbr0_gate.py`, `eval_ais_v2_gate.py`, `stage_state_machine.py`, `verify_run_complete.py`, `freeze_run_manifest.py`), the `noesis_vision/` package source (`noesis_vision/core/`, `noesis_vision/gaze/ais_v2_policy.py`, …), and `tests/` live on `main` and are what the J1 gate's `j11_repository` checks require. `cloud/gen1/` is split: `colab_j1_foundation.py` and `colab_j1_foundation_gate.py` are on `main`; `Kaggle_J1_FOUNDATION.py`, `run_j1_local.sh`, and `run_j1_supervised.sh` remain on `stage2/nxa-pipeline-refactor` only. `main` and `feature/rhan-next` have diverged; runner commands that still need the final carrier trees use those branches.
 2. **Parts of the working tree are not committed.** `.gitignore` rules (`docs/`, `report/`, `runs/`, `data/`, and any directory literally named `docs/`) keep `docs/REPOSITORY_MAP.md`, `docs/RHAN_NXA_ARCHITECTURE.md`, `docs/CANCELLATION_NOTICE_2026-10-03.md`, `docs/FORENSIC_REPORT_NXA_GENERATION1.md`, `report/GEN1_RESULTS_MASTER.md`, `report/generation1_foundation_roadmap.json`, `runs/` manifests, `noesis_vision/RHAN_NXA/docs/`, `archive/`, and `checkpoints/*` (140+ weights) out of the repository. They exist on this machine; a fresh clone will not contain them. Only 10 `docs/` files and 16 `report/` files are tracked (plus 4 checkpoints).
 3. **`noesis_vision/RHAN_NXA/MASTER_PLAN.md` is absent from `main`** (tracked on `feature/rhan-next`); some `noesis_vision/RHAN_NXA/docs/` chapters link to it, so those links are broken here. The on-tree plan is `noesis_vision/RHAN_NXA/docs/Proposed_Plan.md` + chapters 00–30.
 4. **Two roadmap JSONs.** `docs/rhan_next_roadmap.json` = Gen-0 RHAN-Next orchestration (tracked); `report/generation1_foundation_roadmap.json` = Gen-1 ladder state (working tree only). The latter is the source of truth for Gen-1 ladder status.
