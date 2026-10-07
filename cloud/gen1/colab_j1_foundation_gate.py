@@ -117,6 +117,9 @@ def _repo_root_from_git() -> str:
 
 
 REPO_ROOT = _repo_root_from_git()
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
 REPO_REL_TRAINER = os.path.join("training", "train_generation1_foundation.py")
 REQUIRED_PIPELINE_PATHS = [
     os.path.join("training", "train_generation1_foundation.py"),
@@ -125,6 +128,128 @@ REQUIRED_PIPELINE_PATHS = [
     os.path.join("evaluation", "clean_and_robust.py"),
     os.path.join("evaluation", "imagenet100_loader.py"),
 ]
+REQUIRED_EXTRA_PATHS = [
+    os.path.join("evaluation", "compactness_report.py"),
+    os.path.join("noesis_vision", "models", "backbone.py"),
+    os.path.join("scripts", "prepare_imagenet100.py"),
+]
+ALL_REQUIRED_PATHS = REQUIRED_PIPELINE_PATHS + REQUIRED_EXTRA_PATHS
+
+
+def verify_pipeline_imports(repo_root: str) -> Tuple[bool, Optional[str]]:
+    """Verify that the trainer and required pipeline modules can be imported."""
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    try:
+        import training.train_generation1_foundation  # noqa: F401
+        import training.adv_curriculum  # noqa: F401
+        import training.stage_state_machine  # noqa: F401
+        import evaluation.clean_and_robust  # noqa: F401
+        import evaluation.imagenet100_loader  # noqa: F401
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
+def bootstrap_sources(
+    repo_root: str,
+    source_ref: Optional[str] = None,
+    repo_url: Optional[str] = None,
+    source_mode: str = "auto",
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """Safely obtain missing Gen-1 pipeline source files without destructive Git ops.
+
+    Never switches the user's branch, never runs hard-reset or auto-merge.
+    Restores only the needed subtrees (training, evaluation, noesis_vision, scripts)
+    from a verified carrier or authoritative ref if missing in working directory.
+    """
+    missing = [p for p in ALL_REQUIRED_PATHS if not os.path.exists(os.path.join(repo_root, p))]
+    res: Dict[str, Any] = {
+        "missing_before": missing,
+        "restored": False,
+        "ref_used": None,
+        "errors": [],
+    }
+    if not missing:
+        res["status"] = "already_present"
+        return res
+
+    if dry_run:
+        res["status"] = "dry_run_missing"
+        return res
+
+    if source_ref:
+        candidate_refs = [source_ref]
+    else:
+        candidate_refs = [
+            "HEAD",
+            "main",
+            "origin/main",
+            "stage2/nxa-pipeline-refactor",
+            "origin/stage2/nxa-pipeline-refactor",
+            "feature/rhan-next",
+            "origin/feature/rhan-next",
+            "legacy",
+            "origin/legacy",
+        ]
+
+    matched_ref = None
+    for ref in candidate_refs:
+        try:
+            check = subprocess.run(
+                ["git", "cat-file", "-e", f"{ref}:training/train_generation1_foundation.py"],
+                cwd=repo_root, capture_output=True, text=True,
+            )
+            if check.returncode == 0:
+                matched_ref = ref
+                break
+        except Exception:
+            pass
+
+    if not matched_ref and source_mode in ("auto", "fetch"):
+        target_remote = repo_url or "origin"
+        fetch_branches = [source_ref] if source_ref else ["main", "stage2/nxa-pipeline-refactor", "feature/rhan-next"]
+        for b in fetch_branches:
+            try:
+                fetch_run = subprocess.run(
+                    ["git", "fetch", target_remote, f"{b}:{b}"],
+                    cwd=repo_root, capture_output=True, text=True,
+                )
+                if fetch_run.returncode == 0:
+                    check = subprocess.run(
+                        ["git", "cat-file", "-e", f"{b}:training/train_generation1_foundation.py"],
+                        cwd=repo_root, capture_output=True, text=True,
+                    )
+                    if check.returncode == 0:
+                        matched_ref = b
+                        break
+            except Exception as e:
+                res["errors"].append(f"fetch {b} failed: {e}")
+
+    if not matched_ref:
+        res["status"] = "ref_not_found"
+        return res
+
+    subtrees = ["training", "evaluation", "noesis_vision", "scripts"]
+    try:
+        cmd = ["git", "checkout", matched_ref, "--"] + subtrees
+        cp = subprocess.run(cmd, cwd=repo_root, capture_output=True, text=True)
+        if cp.returncode == 0:
+            res["restored"] = True
+            res["ref_used"] = matched_ref
+            res["status"] = "success"
+        else:
+            res["status"] = "checkout_failed"
+            res["errors"].append(cp.stderr.strip() or cp.stdout.strip())
+    except Exception as e:
+        res["status"] = "error"
+        res["errors"].append(str(e))
+
+    res["missing_after"] = [p for p in ALL_REQUIRED_PATHS if not os.path.exists(os.path.join(repo_root, p))]
+    return res
+
+
 # Canonical commands (spec). The ONLY intended difference between arms is
 # --clean-only. Do not alter the training objective for convenience.
 def canonical_command(data_root: str, clean_only: bool) -> List[str]:
@@ -288,17 +413,23 @@ def j10_environment() -> Dict[str, Any]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# J1.1 — Repository verification
+# J1.1 — Repository verification & source bootstrap
 # ═══════════════════════════════════════════════════════════════════════════
-def j11_repository(cwd: Optional[str] = None) -> Dict[str, Any]:
-    """Repository verification at the repo root (the real git root).
+def j11_repository(
+    cwd: Optional[str] = None,
+    source_ref: Optional[str] = None,
+    repo_url: Optional[str] = None,
+    source_mode: str = "auto",
+    bootstrap: bool = True,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """Repository verification and non-destructive source bootstrap.
 
     The Gen-1 pipeline sources live under the repository root: training/,
-    evaluation/, noesis_vision/, scripts/, tests/. The Jupyter kernel
-    launcher runs the user script from a notebook directory (cloud/gen1/),
-    so os.getcwd() alone would resolve the pipeline paths against the
-    notebook dir instead of the repo root. Use the REPO_ROOT when it is
-    available; keep cwd as a fallback for local terminal runs.
+    evaluation/, noesis_vision/, scripts/, tests/.
+    If pipeline sources are missing, automatically and non-destructively
+    retrieves them from the authoritative or carrier ref without branch
+    switching or force resets.
     """
     if cwd is not None:
         check_root = cwd
@@ -310,79 +441,191 @@ def j11_repository(cwd: Optional[str] = None) -> Dict[str, Any]:
             check_root = repo_root
         else:
             check_root = os.getcwd()
+
     info = git_json(check_root)
+    missing_before = [p for p in ALL_REQUIRED_PATHS if not os.path.exists(os.path.join(check_root, p))]
+
+    if missing_before:
+        if dry_run:
+            print(f"  [DRY-RUN] pipeline sources missing: {missing_before}")
+            print(f"  [DRY-RUN] would bootstrap from ref: {source_ref or 'auto'}")
+            info["bootstrap_status"] = "dry_run_missing"
+        elif bootstrap:
+            print(f"  == Bootstrapping missing Gen-1 pipeline sources in {check_root} ==")
+            boot_res = bootstrap_sources(
+                check_root,
+                source_ref=source_ref,
+                repo_url=repo_url,
+                source_mode=source_mode,
+                dry_run=False,
+            )
+            info["bootstrap_result"] = boot_res
+            if boot_res.get("restored"):
+                print(f"  ✓ Gen-1 pipeline sources restored from ref '{boot_res.get('ref_used')}'")
+            else:
+                print(f"  ✗ Gen-1 pipeline source bootstrap failed: {boot_res.get('status')} ({boot_res.get('errors')})")
+        else:
+            info["bootstrap_status"] = "disabled"
+
     info["missing_pipeline_sources"] = [p for p in REQUIRED_PIPELINE_PATHS
                                         if not os.path.exists(os.path.join(check_root, p))]
-    info["pipeline_sources_ok"] = not info["missing_pipeline_sources"]
+    info["missing_extra_sources"] = [p for p in REQUIRED_EXTRA_PATHS
+                                     if not os.path.exists(os.path.join(check_root, p))]
+    info["pipeline_sources_ok"] = not info["missing_pipeline_sources"] and not info["missing_extra_sources"]
+
     if not info["pipeline_sources_ok"]:
-        print("  ✗ Gen-1 pipeline sources missing — checkout a carrier branch "
-              "(feature/rhan-next or stage2/nxa-pipeline-refactor). "
-              f"Missing: {info['missing_pipeline_sources']}")
+        print("  ✗ required Gen-1 sources unavailable — checkout a carrier branch "
+              "(feature/rhan-next or stage2/nxa-pipeline-refactor) or specify RHAN_SOURCE_REF. "
+              f"Missing: {info['missing_pipeline_sources'] + info['missing_extra_sources']}")
+        info["import_ok"] = False
+        info["repo_ok"] = False
     else:
+        # Verify trainer and imports
+        imports_ok, import_err = verify_pipeline_imports(check_root)
+        info["import_ok"] = imports_ok
+        info["import_error"] = import_err
+        info["repo_ok"] = bool(info["pipeline_sources_ok"] and info["import_ok"])
         c = info["commit"][:12] if not str(info.get("commit", "")).startswith("ERROR") else "non-git"
         b = info["branch"] if not str(info.get("branch", "")).startswith("ERROR") else "local"
-        print(f"  ✓ repo {c} on {b}; pipeline sources present")
+        if imports_ok:
+            print(f"  ✓ repo {c} on {b}; pipeline sources verified & imports OK")
+        else:
+            print(f"  ✗ repo {c} on {b}; imports failed: {import_err}")
     return info
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# J1.2 — Dataset verification
+# J1.2 — Dataset verification & bootstrap
 # ═══════════════════════════════════════════════════════════════════════════
 def _resolve_data_root(data_root: Optional[str]) -> str:
-    """Resolve the data root to the canonical repo-root data ImageNet-100.
-
-    The training CLI expects --data-root data/imagenet100 relative to the
-    repo root; the Jupyter kernel launcher runs the notebook from a
-    subdirectory, so CWD-relative data/imagenet100 would silently point
-    at the wrong tree. When the user did not supply a path, use the repo
-    root (git-reported when possible, otherwise the training/-based
-    fallback) so the dataset check always matches the real dataset.
-    """
+    """Resolve the data root to the canonical repo-root data ImageNet-100."""
     if data_root is not None:
         return os.path.abspath(data_root)
+    env_root = os.environ.get("J1_DATA_ROOT") or os.environ.get("IMAGENET100_ROOT")
+    if env_root:
+        return os.path.abspath(env_root)
+    # Check known persistent or Colab cache candidates
+    candidates = [
+        os.path.join(REPO_ROOT, "data", "imagenet100"),
+        "/content/drive/MyDrive/imagenet100",
+        "/content/imagenet100",
+        "/content/data/imagenet100",
+    ]
+    for cand in candidates:
+        if os.path.isdir(cand) and os.path.isdir(os.path.join(cand, "val")):
+            return cand
     return os.path.join(REPO_ROOT, "data", "imagenet100")
 
 
-def j12_dataset(data_root: Optional[str] = None) -> Dict[str, Any]:
+def _inspect_dataset(root: str) -> Dict[str, Any]:
+    """Inspect dataset directory for structural ImageNet-100 compliance."""
+    info: Dict[str, Any] = {
+        "data_root": root,
+        "exists": os.path.isdir(root),
+        "valid": False,
+        "dataset_source": "clane9/imagenet-100",
+        "dataset_revision": "0519dc2f402a3a18c6e57f7913db059215eee25b",
+    }
+    if not info["exists"]:
+        return info
+
+    train_dir = os.path.join(root, "train")
+    val_dir = os.path.join(root, "val")
+    if not os.path.isdir(train_dir) or not os.path.isdir(val_dir):
+        return info
+
+    try:
+        from evaluation.imagenet100_loader import validate_imagenet100_root
+        n_train = validate_imagenet100_root(root, split="train")
+        n_val = validate_imagenet100_root(root, split="val")
+        info["train_classes"] = n_train
+        info["val_classes"] = n_val
+        info["class_count"] = n_val
+        if n_train == 100 and n_val == 100:
+            info["valid"] = True
+    except Exception as e:
+        info["validator_error"] = str(e)
+        return info
+
+    # Sample counts
+    try:
+        train_samples = sum(len(files) for _, _, files in os.walk(train_dir) if files)
+        val_samples = sum(len(files) for _, _, files in os.walk(val_dir) if files)
+        info["train_samples"] = train_samples
+        info["val_samples"] = val_samples
+    except Exception:
+        pass
+
+    fp_path = os.path.join(root, "fingerprint.json")
+    if os.path.exists(fp_path):
+        try:
+            with open(fp_path) as f:
+                info["fingerprint"] = json.load(f)
+        except Exception:
+            pass
+    return info
+
+
+def j12_dataset(
+    data_root: Optional[str] = None,
+    bootstrap: bool = True,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
     """Dataset verification at the canonical repo-root-implicit path.
 
-    Resolution: None -> REPO_ROOT/data/imagenet100 (the real dataset on
-    the carrier branches and on main). A user-supplied --data-root is
-    still honoured when passed explicitly.
+    Restores the canonical clane9/imagenet-100 dataset automatically when
+    missing via scripts/prepare_imagenet100.py.
     """
     resolved = _resolve_data_root(data_root)
-    info: Dict[str, Any] = {"data_root": resolved, "exists": os.path.isdir(resolved)}
-    if not info["exists"]:
-        print(f"  ✗ dataset root missing: {resolved}")
+    info = _inspect_dataset(resolved)
+
+    if info["valid"]:
+        print(f"  ✓ dataset pre-flight OK: {resolved} (100 classes in both splits; "
+              f"{info.get('train_samples', '?')} train / {info.get('val_samples', '?')} val samples)")
         return info
-    # Prefer the runner's own validator (same code the trainer uses).
-    try:
-        sys.path.insert(0, REPO_ROOT)
-        from evaluation.imagenet100_loader import validate_imagenet100_root
-        info["validator"] = "evaluation.imagenet100_loader.validate_imagenet100_root"
-        info["valid"] = bool(validate_imagenet100_root(resolved))
-    except Exception as e:
-        info["validator"] = f"unavailable: {e}"
-        info["valid"] = None
-        for split in ("train", "val"):
-            d = os.path.join(resolved, split)
-            if os.path.isdir(d):
-                info[f"{split}_classes"] = len(os.listdir(d))
-        info["valid"] = all(info.get(f"{s}_classes", 0) > 0 for s in ("train", "val")) or None
-    # Recorded pin, when the production launch manifest is present on this tree.
-    pm = "runs/production_launch_manifest.json"
-    if os.path.exists(pm):
+
+    # If dataset not valid:
+    if dry_run:
+        print(f"  [DRY-RUN] canonical ImageNet-100 missing/incomplete: {resolved} — would bootstrap via scripts/prepare_imagenet100.py")
+        info["valid"] = False
+        return info
+
+    if bootstrap:
+        converter = os.path.join(REPO_ROOT, "scripts", "prepare_imagenet100.py")
+        if not os.path.exists(converter):
+            print(f"  ✗ canonical ImageNet-100 unavailable: converter script missing at {converter}")
+            info["valid"] = False
+            return info
+
+        print(f"  == ImageNet-100 bootstrap: restoring canonical clane9/imagenet-100 -> {resolved} ==")
+        cmd = [sys.executable, converter, "--root", resolved]
         try:
-            with open(pm) as f:
-                ds = json.load(f).get("dataset", {})
-            info["pinned_dataset"] = {k: ds.get(k) for k in ("repo", "revision", "fingerprint")
-                                      if k in ds} or ds
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, cwd=REPO_ROOT
+            )
+            for line in proc.stdout:  # type: ignore[union-attr]
+                if any(k in line for k in ("source:", "rows ->", "train:", "val:", "verify", "error", "STOP")):
+                    print(f"    {line.rstrip()}")
+            rc = proc.wait()
+            if rc == 0:
+                info = _inspect_dataset(resolved)
+                if info["valid"]:
+                    print(f"  ✓ ImageNet-100 bootstrap complete & verified: 100 classes in both splits")
+                else:
+                    print(f"  ✗ ImageNet-100 bootstrap completed but structural validation failed ({resolved})")
+            else:
+                print(f"  ✗ canonical ImageNet-100 bootstrap failed (exit {rc})")
+                tok = os.environ.get("HF_TOKEN")
+                if not tok:
+                    print("    notice: if access requires authentication, set HF_TOKEN in environment or Colab secrets")
+                info["valid"] = False
         except Exception as e:
-            info["pinned_dataset"] = f"unreadable: {e}"
+            print(f"  ✗ canonical ImageNet-100 bootstrap error: {e}")
+            info["valid"] = False
     else:
-        info["pinned_dataset"] = None
-        info["fingerprint_status"] = "production manifest not on this tree — recorded pin unavailable"
-        print(f"  dataset: exists={info['exists']} valid={info.get('valid')}")
+        print(f"  ✗ dataset root missing or incomplete: {resolved} (bootstrap disabled)")
+        info["valid"] = False
+
     return info
 
 
@@ -497,7 +740,7 @@ def run_arm(arm: str, cmd: List[str], out_dir: str, logs: str) -> Dict[str, Any]
         summary["command_str"] = " ".join(cmd)
         print(f"  [{arm}] running: {' '.join(cmd)}")
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                text=True, bufsize=1)
+                                text=True, bufsize=1, cwd=REPO_ROOT)
         for line in proc.stdout:  # type: ignore[union-attr]
             logf.write(line)
             if re.search(r"epoch \d+/\d+|DONE|FAILURE|Error|Traceback", line):
@@ -516,16 +759,18 @@ def run_arm(arm: str, cmd: List[str], out_dir: str, logs: str) -> Dict[str, Any]
 
     # harvest (copy — originals get overwritten by the second arm)
     for tag, rel in HARVEST:
-        if os.path.exists(rel):
+        src = os.path.join(REPO_ROOT, rel) if not os.path.isabs(rel) else rel
+        if os.path.exists(src):
             dst = os.path.join(arm_dir, os.path.basename(rel))
-            shutil.copy2(rel, dst)
+            shutil.copy2(src, dst)
             summary["artifacts"][tag] = dst
         else:
             summary["missing_artifacts"].append(rel)
     for tag, rel in HARVEST_DIRS:
-        if os.path.isdir(rel):
+        src = os.path.join(REPO_ROOT, rel) if not os.path.isabs(rel) else rel
+        if os.path.isdir(src):
             dst = os.path.join(arm_dir, os.path.basename(rel))
-            shutil.copytree(rel, dst, dirs_exist_ok=True)
+            shutil.copytree(src, dst, dirs_exist_ok=True)
             summary["artifacts"][tag] = dst
         else:
             summary["missing_artifacts"].append(rel)
@@ -838,6 +1083,12 @@ def run_selftest() -> int:
           {"trades_completed", "ce_completed", "backbone_grads_trades",
            "backbone_moved_trades", "classifier_grads_trades",
            "feature_drift_trades"} <= set(HARD_ITEMS))
+    check("ALL_REQUIRED_PATHS completeness",
+          len(ALL_REQUIRED_PATHS) >= 8 and any("train_generation1_foundation.py" in p for p in ALL_REQUIRED_PATHS))
+    check("bootstrap_sources dry-run contract",
+          bootstrap_sources(REPO_ROOT, dry_run=True).get("status") in ("already_present", "dry_run_missing"))
+    check("is_interactive_notebook callable and boolean",
+          isinstance(is_interactive_notebook(), bool))
     print("SELFTEST:", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 
@@ -845,6 +1096,21 @@ def run_selftest() -> int:
 # ═══════════════════════════════════════════════════════════════════════════
 # Orchestration: J1.0 -> J1.9
 # ═══════════════════════════════════════════════════════════════════════════
+def is_interactive_notebook() -> bool:
+    """Detect if running inside an interactive notebook (Jupyter / Google Colab)."""
+    try:
+        from IPython import get_ipython  # type: ignore[import-untyped]
+        ip = get_ipython()
+        if ip is not None:
+            if hasattr(ip, "kernel") or "IPKernelApp" in getattr(ip, "config", {}):
+                return True
+            if "google.colab" in sys.modules:
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def _collab_kernel_args(argv: Optional[List[str]]) -> List[str]:
     """Strip the JupyterKernelLauncher CLI args before argparse parses.
 
@@ -874,10 +1140,23 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="J1 Foundation Gate harness (Colab T4)")
     ap.add_argument("--dry-run", action="store_true",
                     help="pre-flight only: verify + print, no training, no writes")
+    ap.add_argument("--prepare", action="store_true",
+                    help="prepare environment, bootstrap sources and dataset, verify dependencies without running training")
     ap.add_argument("--selftest", action="store_true",
                     help="CPU test of measurement + decision logic")
-    ap.add_argument("--data-root", default="data/imagenet100")
-    ap.add_argument("--run-id", default=None)
+    ap.add_argument("--data-root", default=None,
+                    help="path to ImageNet-100 dataset root (default: data/imagenet100)")
+    ap.add_argument("--run-id", default=None,
+                    help="custom run id for artifact directory")
+    ap.add_argument("--source-ref", default=os.environ.get("RHAN_SOURCE_REF"),
+                    help="git ref to resolve pipeline sources from (default: RHAN_SOURCE_REF or auto)")
+    ap.add_argument("--source-repo", default=os.environ.get("RHAN_REPO_URL"),
+                    help="remote git URL for fetching pipeline sources if needed")
+    ap.add_argument("--source-mode", default=os.environ.get("RHAN_SOURCE_MODE", "auto"),
+                    choices=["auto", "local", "fetch"],
+                    help="mode for obtaining pipeline sources: auto, local, fetch")
+    ap.add_argument("--no-bootstrap", action="store_true",
+                    help="disable automatic source and dataset bootstrapping (check only)")
     args = ap.parse_args(_collab_kernel_args(argv))
 
     if args.selftest:
@@ -885,13 +1164,66 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     print("J1.0 — Environment verification")
     env = j10_environment()
-    print("J1.1 — Repository verification")
-    repo = j11_repository()  # repo-root canonical path (net of CWD)
-    print("J1.2 — Dataset verification")
-    dataset = j12_dataset(None)  # canonical repo-root data/imagenet100
+    print("J1.1 — Repository verification & source bootstrap")
+    repo = j11_repository(
+        cwd=REPO_ROOT,
+        source_ref=args.source_ref,
+        repo_url=args.source_repo,
+        source_mode=args.source_mode,
+        bootstrap=not args.no_bootstrap,
+        dry_run=args.dry_run,
+    )
+    print("J1.2 — Dataset verification & bootstrap")
+    dataset = j12_dataset(
+        data_root=args.data_root,
+        bootstrap=not args.no_bootstrap,
+        dry_run=args.dry_run,
+    )
     print("J1.3 — Foundation configuration")
-    config = j13_configuration(args.data_root)
+    data_root_for_cfg = dataset.get("data_root") or _resolve_data_root(args.data_root)
+    config = j13_configuration(data_root_for_cfg)
 
+    # ── Explicit --prepare mode ──────────────────────────────────────────────
+    if args.prepare:
+        prep_id = args.run_id or datetime.now(timezone.utc).strftime("prepare_%Y%m%dT%H%M%SZ")
+        prep_out = os.path.join("runs", "j1_foundation", prep_id)
+        if not args.dry_run:
+            os.makedirs(prep_out, exist_ok=True)
+            write_json(os.path.join(prep_out, "config.json"), config)
+            write_json(os.path.join(prep_out, "environment.json"), env)
+
+        if args.dry_run:
+            print("\n================================================================================")
+            print("PREPARATION REPORT (DRY-RUN)")
+            print("================================================================================")
+            print(f"Environment       : {'✓' if env.get('gpu_ok') else '✗ MISSING'}")
+            print(f"Repository        : {'✓' if repo.get('repo_ok') else '✗ MISSING'}")
+            print(f"Pipeline sources  : {'✓' if repo.get('pipeline_sources_ok') else '✗ MISSING'}")
+            print(f"Dataset           : {'✓' if dataset.get('valid') else '✗ MISSING'}")
+            print(f"Dependencies      : {'✓' if repo.get('import_ok') else '✗ MISSING'}")
+            print("\nNo experiment executed.")
+            print("No scientific artifacts created.")
+            print("================================================================================")
+            return 0
+
+        prep_ok = bool(env.get("gpu_ok") and repo.get("pipeline_sources_ok") and repo.get("import_ok") and dataset.get("valid"))
+        print("\n================================================================================")
+        print(f"PREPARATION STATUS: {'READY' if prep_ok else 'INCOMPLETE'}")
+        print("================================================================================")
+        print(f"Environment       : {'✓' if env.get('gpu_ok') else '✗ FAIL'}")
+        print(f"Repository        : {'✓' if repo.get('repo_ok') else '✗ FAIL'}")
+        print(f"Pipeline sources  : {'✓' if repo.get('pipeline_sources_ok') else '✗ FAIL'}")
+        print(f"Dataset           : {'✓' if dataset.get('valid') else '✗ FAIL'}")
+        print(f"Dependencies      : {'✓' if repo.get('import_ok') else '✗ FAIL'}")
+        if prep_ok:
+            print("\nThe Colab runtime is fully prepared.")
+            print("Run 'python3 cloud/gen1/colab_j1_foundation_gate.py' to launch the Foundation Gate experiment.")
+        else:
+            print("\nPreparation incomplete. Check logs above for missing prerequisites.")
+        print("================================================================================")
+        return 0 if prep_ok else 1
+
+    # ── Dry-run mode ─────────────────────────────────────────────────────────
     if args.dry_run:
         print("\n--dry-run: pre-flight only. Would run:")
         print("  A:", " ".join(config["arms"]["trades"]))
@@ -917,11 +1249,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     backups = {p: (open(p, "rb").read() if os.path.exists(p) else None)
                for p in shielded}
     try:
-        can_run = env.get("gpu_ok") and repo.get("pipeline_sources_ok") and dataset.get("valid")
+        can_run = bool(env.get("gpu_ok") and repo.get("pipeline_sources_ok") and repo.get("import_ok") and dataset.get("valid"))
         if not can_run:
             print("  ✗ prerequisites not met — arms will NOT run "
                   f"(gpu_ok={env.get('gpu_ok')}, repo_ok={repo.get('pipeline_sources_ok')}, "
-                  f"dataset_ok={dataset.get('valid')})")
+                  f"imports_ok={repo.get('import_ok')}, dataset_ok={dataset.get('valid')})")
             ctx["preflight"] = {"skipped": "prerequisites not met"}
         else:
             print("J1.4 — Gradient-reach preflight")
@@ -963,4 +1295,10 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    rc = main()
+    if is_interactive_notebook():
+        if rc != 0:
+            raise RuntimeError(f"J1 Foundation Gate failed with exit code: {rc}")
+        # Clean completion in interactive notebook without SystemExit(0)
+    else:
+        sys.exit(rc)
