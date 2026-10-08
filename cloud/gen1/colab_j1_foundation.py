@@ -138,13 +138,16 @@ if not DRY_RUN:
     # durability model. Fresh clone each session (simplest correct form).
     os.chdir('/content')
     if not os.path.exists(WORK_DIR):
-        run(f'git clone https://github.com/FerrariKazu/{REPO_NAME}.git')
+        t0 = time.perf_counter()
+        run(f'git clone https://github.com/FerrariKazu/{REPO_NAME}.git', noisy=False)
+        print(f"HF sync ok (clone {REPO_NAME}, {time.perf_counter()-t0:.1f}s)", flush=True)
     os.chdir(WORK_DIR)
     sys.path.insert(0, WORK_DIR)
     os.environ["PYTHONPATH"] = f"{WORK_DIR}:{os.environ.get('PYTHONPATH', '')}"
 
     # RHAN-NXA lives on feature/rhan-next. Never reset to origin/main here.
-    run('git fetch origin')
+    t0 = time.perf_counter()
+    run('git fetch origin', noisy=False)
     _branch_ok = subprocess.run(
         'git ls-remote --heads origin feature/rhan-next',
         shell=True, capture_output=True, text=True).stdout.strip()
@@ -153,11 +156,13 @@ if not DRY_RUN:
             "feature/rhan-next is NOT on origin. Push it first:\n"
             "  git push origin feature/rhan-next\n"
             "(RHAN-NXA must not be merged to main until J1/J2 validate.)")
-    run('git checkout -B feature/rhan-next origin/feature/rhan-next')
-    run('git reset --hard origin/feature/rhan-next')
+    run('git checkout -B feature/rhan-next origin/feature/rhan-next', noisy=False)
+    run('git reset --hard origin/feature/rhan-next', noisy=False)
     _sha = subprocess.run('git rev-parse --short HEAD', shell=True,
                           capture_output=True, text=True).stdout.strip()
-    print(f"✓ checked out feature/rhan-next @ {_sha}", flush=True)
+    print(f"HF sync ok (checkout feature/rhan-next @ {_sha}, "
+          f"{time.perf_counter()-t0:.1f}s)", flush=True)
+    log_sync_event(f"checkout feature/rhan-next @ {_sha}", logger)
 
     if not os.path.exists("training/train_generation1_foundation.py"):
         raise RuntimeError(
@@ -182,6 +187,28 @@ if not DRY_RUN:
 
 # %%
 import torch
+from training.sync_log import configure_sync_logger, log_sync_event
+def run(msg: str, *, noisy: bool = True) -> None:
+    """run(cmd) helper wrapper already in scope for this notebook; we patch
+    the noisy git/chirp behavior here only. Noisy operations log their full
+    stdout/stderr to report/sync.log and print one line to stdout."""
+    logger = configure_sync_logger()
+    if noisy:
+        logger.info(f"RUN START: {msg}")
+    try:
+        import subprocess
+        proc = subprocess.run(msg, shell=True, capture_output=True, text=True)
+        if noisy:
+            if proc.stdout:
+                logger.info(f"RUN STDOUT:\n{proc.stdout}")
+            if proc.stderr:
+                logger.info(f"RUN STDERR:\n{proc.stderr}")
+        if proc.returncode != 0:
+            raise RuntimeError(f"command failed (rc={proc.returncode}): {msg}\n{proc.stderr}")
+    finally:
+        if noisy:
+            logger.info(f"RUN END: {msg}")
+
 hf_token = os.environ.get("HF_TOKEN")
 if not hf_token:
     try:

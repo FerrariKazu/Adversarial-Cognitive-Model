@@ -54,12 +54,27 @@ class CheckpointResumeError(RuntimeError):
 
 # ── code identity (ported from phase1_training/checkpoint_utils.py) ─────────
 
+def _git_head_short() -> str:
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=10)
+        sha = out.stdout.strip()
+        if out.returncode == 0 and sha:
+            return sha
+    except Exception:
+        pass
+    return "unknown"
+
+
 def current_code_commit(short: bool = True) -> str:
     """git HEAD SHA of the running code, or 'unknown'."""
+    if short:
+        return _git_head_short()
     try:
-        args = ["git", "rev-parse", "--short", "HEAD"] if short else \
-               ["git", "rev-parse", "HEAD"]
-        out = subprocess.run(args, capture_output=True, text=True, timeout=10)
+        out = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=10)
         sha = out.stdout.strip()
         if out.returncode == 0 and sha:
             return sha

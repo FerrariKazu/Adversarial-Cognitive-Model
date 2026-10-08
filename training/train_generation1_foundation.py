@@ -163,6 +163,48 @@ from training.stage_state_machine import (  # noqa: E402
     report_state,
 )
 
+# Reporting/diagnostics only; no training math changed.
+from training.run_report import (
+    EPOCH_BLOCK_LEGEND,
+    HEALTH_LEGEND,
+    compute_health_flags,
+    format_epoch_block,
+    GradNormCollector,
+)
+from training.run_report_jsonl import (
+    _gpu_peak_vram_gb,
+    _print_phase_header,
+    _sync_jsonl_to_hf,
+    _train_one_epoch_instrumented,
+    append_epoch_jsonl,
+    default_phase_jsonl_path,
+    epoch_jsonl_record,
+    resume_banner,
+    validate_jsonl_terminal_epoch,
+)
+
+import hashlib
+
+
+def _file_sha256_local(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 16), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+# ── HF persistence coordinator (J1.5 per-epoch durability) ────────────────────
+try:
+    from training.hf_persistence import (
+        HFPersistenceCoordinator,
+        generate_run_id,
+        config_sha256 as hf_config_sha256,
+    )
+except ImportError:
+    HFPersistenceCoordinator = None  # type: ignore
+    generate_run_id = None  # type: ignore
+    hf_config_sha256 = None  # type: ignore
+
 # ── HF namespace: Gen-1 DEDICATED repos (never Gen-0's rhan-checkpoints) ────
 HF_REPO = "FerrariKazu/rhan-nxa-checkpoints"
 HF_REPO_ROLLING = "FerrariKazu/rhan-nxa-checkpoints-rolling"
@@ -181,6 +223,19 @@ def gaze_scheme_for_phase(phase: str) -> str:
     if phase in ("ais_v2_swap", "gen1_core"):
         return AIS_V2_GAZE_LABEL
     return PLACEHOLDER_GAZE_LABEL
+
+
+#: Which metric currently selects best.pth. The existing run uses clean
+#: validation accuracy (evaluate_val). We add best_robust as an ADDITIVE
+#: artifact (best_robust.pth) and PRINT which criterion is in use; we do
+#: NOT silently switch the existing best.pth selection to robust.
+class BestSelect:
+    CLEAN = "clean"
+    ROBUST = "robust"
+
+
+def _best_criterion(cfg) -> str:
+    return BestSelect.CLEAN
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -908,7 +963,11 @@ def train_one_epoch(model, loader, optimizer, registry, device,
 
 def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
               device: torch.device) -> Dict[str, Any]:
-    """One phase end to end: resume-or-abort -> train -> eval -> artifacts."""
+    """One phase end to end: resume-or-abort -> train -> eval -> artifacts.
+
+    Integrates with HF persistence module for per-epoch immutable archive,
+    best-checkpoint persistence, rolling recovery mirror, and automatic resume.
+    """
     tag = f"[{phase}]"
     rolling_path = os.path.join(cfg.ckpt_dir,
                                 f"foundation_{phase}_rolling.pth")
@@ -1006,6 +1065,28 @@ def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
                  "precision", "gaze_policy"):
         if name in groups:
             registry.register(name, groups[name])
+    # Reporting bookkeeping (Step 0/1). No training math changed.
+    criterion = _best_criterion(cfg)
+    best_clean = 0.0
+    best_clean_epoch = 0
+    best_robust = 0.0
+    best_robust_epoch = 0
+    jsonl_path = default_phase_jsonl_path(cfg.report_dir, phase)
+    grad_collector = GradNormCollector(registry)
+    if state is not None:
+        best_clean = float(state.get("best_clean", 0.0) or 0.0)
+        best_clean_epoch = int(state.get("best_clean_epoch", 0) or 0)
+        best_robust = float(state.get("best_robust", 0.0) or 0.0)
+        best_robust_epoch = int(state.get("best_robust_epoch", 0) or 0)
+    best_robust_path = os.path.join(
+        cfg.ckpt_dir, f"foundation_{phase}_best_robust.pth")
+    def save_best_robust(epoch: int, model: nn.Module,
+                         optimizer, scheduler, scaler, extra: dict) -> None:
+        save_best(
+            best_robust_path, model=model, config=cfg.to_dict(),
+            metric_value=best_robust,
+            uploader=(up_best if (cfg.use_hf and cfg.hf_token) else None),
+        )
     optimizer = registry.build_optimizer(cfg.lr, cfg.momentum,
                                          cfg.weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -1088,9 +1169,99 @@ def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
                                     weights_only=False)
                          .get("metric_value", -1.0))
 
+    # ── HF persistence setup (J1.5) ────────────────────────────────────────
+    hf_coordinator = None
+    if HFPersistenceCoordinator is not None and cfg.use_hf and cfg.hf_token:
+        config_hash = config_sha256(cfg.to_dict())
+        code_commit = current_code_commit(short=False)
+        run_id = generate_run_id(
+            phase=phase,
+            recipe_version=cfg.recipe_version,
+            config_hash=config_hash,
+        )
+        hf_coordinator = HFPersistenceCoordinator(
+            cfg=cfg,
+            phase=phase,
+            run_id=run_id,
+            config_hash=config_hash,
+            code_commit=code_commit,
+            hf_token=cfg.hf_token,
+            ckpt_dir=cfg.ckpt_dir,
+            runs_dir=cfg.runs_dir,
+            use_hf=True,
+            smoke=cfg.smoke,
+        )
+
+        # Run preflight
+        if not cfg.smoke:
+            hf_coordinator.preflight()
+
+        # Discover committed epochs and reconcile
+        committed = hf_coordinator.discover_committed_epochs()
+        if committed:
+            hf_coordinator.reconcile_manifest()
+            start_epoch = hf_coordinator.get_start_epoch()
+
+            # Restore from HF if we have a checkpoint
+            if start_epoch > 0:
+                restored_epoch, restored_state = hf_coordinator.restore_from_hf(
+                    model=model,
+                    optimizer=optimizer,
+                    scheduler=scheduler,
+                    scaler=scaler,
+                )
+                start_epoch = restored_epoch
+                best_acc = hf_coordinator.best_metric
+                best_clean = float(best_acc)
+                best_clean_epoch = int(getattr(hf_coordinator, "best_epoch", 0) or 0)
+                print(
+                    f"{tag} HF recovery: restored from epoch {start_epoch} "
+                    f"(best_clean={best_clean:.4f}@{best_clean_epoch}; "
+                    f"best_robust={best_robust:.4f}@{best_robust_epoch})",
+                    flush=True,
+                )
+
+        # Check config integrity
+        existing_manifest = None
+        if os.path.exists(hf_coordinator.manifest_path):
+            with open(hf_coordinator.manifest_path) as f:
+                existing_manifest = json.load(f)
+        if hf_coordinator and existing_manifest:
+            hf_coordinator.check_config_mismatch(existing_manifest)
+
     # ── train ───────────────────────────────────────────────────────────────
+    # STEP 4: one-time phase header so a disconnected session can be read
+    # back on without guessing what any column means.
+    _print_phase_header(phase, cfg, model, registry, point_for_epoch(
+        phase, 1, cfg.epochs))
     grad_checked = state is not None   # re-check on cold starts only
+    training_history: List[Dict[str, Any]] = []
+    global_step = 0
+    # resume banner + JSONL terminal-epoch verification (Step 3)
+    if start_epoch > 0:
+        rolling_sha = None
+        if state is not None and os.path.exists(rolling_path):
+            try:
+                rolling_sha = _file_sha256_local(rolling_path)
+            except Exception:
+                rolling_sha = None
+        banner = resume_banner(
+            phase=phase,
+            start_epoch=start_epoch,
+            best_clean=best_clean,
+            best_clean_epoch=best_clean_epoch,
+            best_robust=best_robust,
+            best_robust_epoch=best_robust_epoch,
+            loaded_checkpoint_path=(rolling_path if state is not None else None),
+            loaded_checkpoint_sha256=rolling_sha,
+            jsonl_path=jsonl_path,
+        )
+        print(banner, flush=True)
+        ok, why = validate_jsonl_terminal_epoch(jsonl_path, start_epoch - 1)
+        if not ok:
+            print(f"{tag} WARNING: {why}", flush=True)
     for epoch in range(start_epoch, cfg.epochs):
+        t_epoch = time.perf_counter()
         if not grad_checked:
             x0, y0 = next(iter(loaders["train"]))
             check_gradient_reach(model, x0.to(device)[:8], y0.to(device)[:8])
@@ -1098,29 +1269,126 @@ def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
                   f"{GRADIENT_REQUIRED[phase]}", flush=True)
             grad_checked = True
         point = phase_curriculum(phase, epoch + 1, cfg.epochs)
-        tr_loss = train_one_epoch(model, loaders["train"], optimizer,
-                                  registry, device, scaler,
-                                  epoch=epoch + 1, total_epochs=cfg.epochs,
-                                  clean_only=cfg.clean_only,
-                                  w_trades=cfg.w_trades)
-        val_acc = evaluate_val(model, loaders["val"], device)
+        # STEP 1: loss_total is the existing train_one_epoch return (unchanged).
+        # We additionally instrument train-batch clean/adv accuracy with a
+        # no-grad pre-step pass that reuses the SAME attack inputs (eps, steps)
+        # and the SAME model forward contract as the training step, so the
+        # training math is untouched.
+        tr_loss, ce_clean, kl_trades, train_clean_acc, train_adv_acc = \
+            _train_one_epoch_instrumented(
+                model=model, loader=loaders["train"], optimizer=optimizer,
+                registry=registry, device=device, scaler=scaler,
+                epoch=epoch + 1, total_epochs=cfg.epochs,
+                clean_only=cfg.clean_only, w_trades=cfg.w_trades,
+                grad_collector=grad_collector, point=point,
+            )
+        # STEP 1: explicit clean + robust VAL with labeled fields.
+        val_clean, clean_n, clean_secs = clean_val_accuracy(
+            model, loaders["val"], device,
+            n_subset=getattr(cfg, "val_clean_subset", None),
+            seed=17, batch_size=cfg.batch_size)
+        val_robust, robust_n, robust_secs = robust_val_accuracy(
+            model, loaders["val"], device,
+            eps=float(getattr(point, "eps", 0.0)),
+            pgd_steps=int(getattr(point, "pgd_steps", 0)),
+            n_subset=getattr(cfg, "val_robust_subset", 512),
+            seed=17, batch_size=cfg.batch_size)
         scheduler.step()
+        global_step += len(loaders["train"])
+
+        # best selection: existing behavior is CLEAN; we add best_robust as
+        # an additive artifact only.
+        if val_clean > best_clean:
+            best_clean = float(val_clean)
+            best_clean_epoch = epoch + 1
+            save_best(best_path, model=model, config=cfg.to_dict(),
+                      metric_value=val_clean, uploader=up_best)
+        if val_robust > best_robust:
+            best_robust = float(val_robust)
+            best_robust_epoch = epoch + 1
+            save_best_robust(epoch + 1, model, optimizer, scheduler,
+                             scaler, {"phase": phase})
+
+        grad = grad_collector.finish()
+        epoch_seconds = time.perf_counter() - t_epoch
+        # rough ETA to end of phase (remaining epochs * last epoch time)
+        remaining = cfg.epochs - (epoch + 1)
+        eta = remaining * epoch_seconds if remaining > 0 else 0.0
+        peak_vram = _gpu_peak_vram_gb(device)
+        img_per_sec = (len(loaders["train"].dataset)
+                       / max(epoch_seconds, 1e-6))
+        health = compute_health_flags(
+            epoch=epoch + 1, total_epochs=cfg.epochs,
+            num_classes=cfg.num_classes,
+            val_clean=val_clean, val_robust=val_robust,
+            kl_trades=kl_trades, grad=grad,
+            best_clean=best_clean, best_robust=best_robust,
+            best_clean_at_epoch=best_clean_epoch,
+            best_robust_at_epoch=best_robust_epoch,
+        )
+        block = format_epoch_block(
+            phase=phase, epoch=epoch + 1, total_epochs=cfg.epochs,
+            point=point, lr=scheduler.get_last_lr()[0],
+            tr_loss=tr_loss, ce_clean=ce_clean, kl_trades=kl_trades,
+            w_trades=cfg.w_trades, train_clean_acc=train_clean_acc,
+            train_adv_acc=train_adv_acc, val_clean=val_clean,
+            val_robust=val_robust, clean_n=clean_n,
+            robust_n=robust_n, robust_secs=robust_secs,
+            best_clean=best_clean, best_clean_epoch=best_clean_epoch,
+            best_robust=best_robust, best_robust_epoch=best_robust_epoch,
+            criterion=criterion, grad=grad, epoch_seconds=epoch_seconds,
+            img_per_sec=img_per_sec, peak_vram_gb=peak_vram,
+            eta_phase_end=eta, health=health,
+        )
+        print(f"{tag}\n{block}", flush=True)
+
+        # STEP 3: durable JSONL log (append-only; flushed).
+        record = epoch_jsonl_record(
+            phase=phase, epoch=epoch + 1, total_epochs=cfg.epochs,
+            point=point, lr=scheduler.get_last_lr()[0],
+            tr_loss=tr_loss, ce_clean=ce_clean, kl_trades=kl_trades,
+            w_trades=cfg.w_trades, train_clean_acc=train_clean_acc,
+            train_adv_acc=train_adv_acc, val_clean=val_clean,
+            val_robust=val_robust, clean_n=clean_n,
+            robust_n=robust_n, robust_secs=robust_secs,
+            best_clean=best_clean, best_clean_epoch=best_clean_epoch,
+            best_robust=best_robust, best_robust_epoch=best_robust_epoch,
+            criterion=criterion, grad=grad, epoch_seconds=epoch_seconds,
+            img_per_sec=img_per_sec, peak_vram_gb=peak_vram,
+            config_sha256=getattr(hf_coordinator, "config_hash", "local"),
+            git_commit=getattr(hf_coordinator, "code_commit", "local"),
+            session_id=getattr(hf_coordinator, "run_id", "local"),
+        )
+        append_epoch_jsonl(jsonl_path, record)
+
+        # HF rolling save (existing cadence, unchanged).
         if (epoch + 1) % cfg.roll_every == 0 or epoch + 1 == cfg.epochs:
             save_rolling(rolling_path, epoch=epoch + 1, model=model,
                          optimizer=optimizer, scheduler=scheduler,
                          extra={"phase": phase,
-                                "gaze_scheme": gaze_scheme_for_phase(phase)},
+                                "gaze_scheme": gaze_scheme_for_phase(phase),
+                                "best_clean": best_clean,
+                                "best_clean_epoch": best_clean_epoch,            "best_robust": best_robust,
+                               "best_robust_epoch": best_robust_epoch,
+                               "best_clean": best_clean,
+                               "best_clean_epoch": best_clean_epoch},
                          uploader=up_rolling)
-        if val_acc > best_acc:
-            best_acc = val_acc
-            save_best(best_path, model=model, config=cfg.to_dict(),
-                      metric_value=val_acc, uploader=up_best)
-        adv = ("clean-only" if cfg.clean_only else
-               f"eps={point.eps:.3f} beta={point.beta:.1f} "
-               f"pgd={point.pgd_steps}")
-        print(f"{tag} epoch {epoch + 1}/{cfg.epochs} "
-              f"loss={tr_loss:.4f} val_acc={val_acc:.4f} "
-              f"best={best_acc:.4f} [{adv}]", flush=True)
+
+        # Persist epoch to HF if coordinator is active (existing behavior for
+        # the CLEAN metric; we additionally persist the JSONL below).
+        if hf_coordinator is not None:
+            hf_coordinator.persist_epoch(
+                model=model,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                scaler=scaler,
+                epoch=epoch + 1,
+                global_step=global_step,
+                val_acc=val_clean,
+                training_history=training_history,
+                config=cfg.to_dict(),
+            )
+            _sync_jsonl_to_hf(jsonl_path, hf_coordinator)
 
     # ── parity check BEFORE anything cites the artifacts (Agent A rule) ────
     if os.path.exists(best_path) and os.path.exists(rolling_path):
@@ -1166,6 +1434,13 @@ def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
                          "est_macs_per_image")},
         "gaze_scheme": model.gaze_scheme,
     }
+    if hf_coordinator is not None:
+        result["run_id"] = hf_coordinator.run_id
+        result["config_hash"] = hf_coordinator.config_hash
+        result["hf_persistence"] = True
+        result["hf_checkpoint_repo"] = hf_coordinator.checkpoint_repo
+        result["hf_rolling_repo"] = hf_coordinator.rolling_repo
+        hf_coordinator.training_complete()
     with open(os.path.join(cfg.report_dir,
                            f"foundation_{phase}_result.json"), "w") as f:
         json.dump(result, f, indent=2, sort_keys=True)
@@ -1279,6 +1554,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if cfg.smoke:
         cfg.use_hf = False          # smoke NEVER writes to HF
     cfg.hf_token = hf_token
+
+    # Configure HF persistence for J1.5
+    # HF persistence is enabled automatically when HF_TOKEN is available
+    # and --no-hf is not passed. --no-hf explicitly disables HF persistence.
+    hf_token_for_persistence = hf_token
+    if args.no_hf:
+        print("WARNING: HF persistence disabled (--no-hf).", flush=True)
+        print("Runtime-reset recovery is NOT guaranteed.", flush=True)
+        hf_token_for_persistence = None
+    elif hf_token is None and not cfg.smoke:
+        print("WARNING: HF persistence disabled — HF_TOKEN not configured.", flush=True)
+        print("Runtime-reset recovery is NOT guaranteed.", flush=True)
+        hf_token_for_persistence = None
+
+    cfg.hf_token = hf_token_for_persistence
 
     if args.smoke:
         # Smoke: pure-CE (SBR-0/1-style) so the orchestration proof stays

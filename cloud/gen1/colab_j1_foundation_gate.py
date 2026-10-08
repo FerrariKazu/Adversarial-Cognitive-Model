@@ -388,6 +388,10 @@ def bootstrap_sources(
 
 # Canonical commands (spec). The ONLY intended difference between arms is
 # --clean-only. Do not alter the training objective for convenience.
+#
+# HF persistence is now enabled by default when HF_TOKEN is available.
+# The trainer will automatically persist every completed epoch to HF.
+# Use --no-hf only for local development/testing.
 def canonical_command(data_root: str, clean_only: bool) -> List[str]:
     cmd = [
         "python3", REPO_REL_TRAINER,
@@ -396,7 +400,9 @@ def canonical_command(data_root: str, clean_only: bool) -> List[str]:
         "--batch-size", "64",
         "--num-workers", "0",
         "--device", "cuda",
-        "--no-hf",
+        # Note: --no-hf is NOT used by default.
+        # HF persistence is enabled when HF_TOKEN is available.
+        # Use --no-hf for local development/testing.
         "--force-fresh",
     ]
     if clean_only:
