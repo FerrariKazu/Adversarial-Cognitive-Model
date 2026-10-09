@@ -103,8 +103,9 @@ if DRY_RUN:
     ROADMAP_LOCAL = _shadow
 
 
-def run(cmd, check=True):
-    print(f"\n[RUN]: {cmd}", flush=True)
+def run(cmd, check=True, noisy=True):
+    if noisy:
+        print(f"\n[RUN]: {cmd}", flush=True)
     if DRY_RUN:
         print("  [DRY-RUN] command NOT executed — pre-flight mode.", flush=True)
         return 0

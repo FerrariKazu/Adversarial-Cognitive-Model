@@ -54,8 +54,9 @@ you later merge the two tables.
 # %%
 import os, sys, subprocess
 
-def run(cmd, check=True):
-    print(f"\n[RUN]: {cmd}")
+def run(cmd, check=True, noisy=True):
+    if noisy:
+        print(f"\n[RUN]: {cmd}")
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
     for line in process.stdout:

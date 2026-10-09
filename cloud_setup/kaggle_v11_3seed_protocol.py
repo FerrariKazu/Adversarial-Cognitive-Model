@@ -72,8 +72,9 @@ if not hf_token:
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["PYTHONUNBUFFERED"] = "1"
 
-def run(cmd, check=True):
-    print(f"\n[RUN]: {cmd}")
+def run(cmd, check=True, noisy=True):
+    if noisy:
+        print(f"\n[RUN]: {cmd}")
     result = subprocess.run(cmd, shell=True, check=check, text=True)
     return result.returncode
 

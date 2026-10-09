@@ -43,8 +43,9 @@ if not hf_token:
     raise RuntimeError("HF_TOKEN not found — set in Kaggle Secrets or env vars")
 os.environ["HF_TOKEN"] = hf_token
 
-def run(cmd, shell=True, check=True):
-    print(f"\n[RUN]: {cmd}")
+def run(cmd, shell=True, check=True, noisy=True):
+    if noisy:
+        print(f"\n[RUN]: {cmd}")
     if shell:
         process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                    universal_newlines=True, bufsize=1)

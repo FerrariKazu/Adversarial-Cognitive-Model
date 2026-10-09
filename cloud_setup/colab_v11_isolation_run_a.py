@@ -29,8 +29,9 @@ Usage: Copy cells directly into Colab. Set HF_TOKEN in Colab Secrets.
 # %%
 import os, sys, subprocess, time
 
-def run(cmd, check=True):
-    print(f"\n[RUN]: {cmd}")
+def run(cmd, check=True, noisy=True):
+    if noisy:
+        print(f"\n[RUN]: {cmd}")
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
     for line in process.stdout:

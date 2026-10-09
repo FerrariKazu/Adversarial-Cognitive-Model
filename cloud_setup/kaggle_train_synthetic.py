@@ -42,8 +42,9 @@ os.environ["HF_TOKEN"] = hf_token
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 
 
-def run(cmd, shell=True, check=True):
-    print(f"\n[RUN]: {cmd}")
+def run(cmd, shell=True, check=True, noisy=True):
+    if noisy:
+        print(f"\n[RUN]: {cmd}")
     proc = subprocess.Popen(cmd, shell=shell, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
     for line in proc.stdout:
