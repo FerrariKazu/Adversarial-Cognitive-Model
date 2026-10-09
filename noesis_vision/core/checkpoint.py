@@ -68,27 +68,153 @@ def current_code_commit(short: bool = True) -> str:
     return "unknown"
 
 
-def resume_commit_ok(ckpt: Any, current: Optional[str] = None) -> Tuple[bool, str]:
+def resume_commit_ok(
+    ckpt: Any,
+    current: Optional[str] = None,
+    *,
+    require_experiment_class: bool = True,
+    allowed_experiment_configs: Optional[set] = None,
+) -> Tuple[bool, str]:
     """Is a checkpoint safe to resume under the current code?
 
     Returns (ok, message). A pre-guard checkpoint (no recorded
-    code_commit) is never resumable. Gen-0's training-fingerprint layer
-    (notebook-only-commit equivalence) lives in
-    phase1_training/checkpoint_utils.py; RHAN-NXA trainers that need it
-    call that function explicitly — this port keeps the core refusal
-    semantics every experiment shares.
+    code_commit) is never resumable.
+
+    This is the RHAN-NXA fingerprint-aware resume gate. It extends the
+    original commit-SHA comparison with the Gen-0 training-fingerprint
+    semantics (phase1_training/checkpoint_utils.py): notebook-only /
+    platform-only commits do not invalidate a mid-run resume, while any
+    change to the training-math ancestors still refuses it.
+
+    For RHAN-NXA foundation runs we ALSO verify that the checkpoint's
+    embedded config is compatible with the intended experiment class.
+    That prevents resuming across config drift (e.g. a stale manifest vs
+    a checkpoint that recorded a different pgd_steps / clean_only / recipe).
+
+    IMPORTANT: this gate does NOT authorize arbitrary cross-commit resume.
+    It authorizes resume only when (a) the training fingerprint matches
+    AND (b) the checkpoint's embedded config is compatible with the
+    experiment class the caller declares.
     """
-    current = current or current_code_commit()
-    recorded = ckpt.get("code_commit") if isinstance(ckpt, dict) else None
-    if not recorded:
+    from phase1_training.checkpoint_utils import (
+        resume_commit_ok as _g0_resume_commit_ok,
+        training_fingerprint,
+    )
+
+    if current is None:
+        current = current_code_commit()
+
+    # 1. Legacy guard: no recorded code_commit == no resume.
+    recorded_code_commit = ckpt.get("code_commit") if isinstance(ckpt, dict) else None
+    if not recorded_code_commit:
         return False, (
             "legacy checkpoint with no recorded code_commit — written by "
             "older code; refusing to resume across a code change")
-    if recorded != current:
+
+    # 2. Training-fingerprint identity (Gen-0 semantics).
+    fp_recorded = ckpt.get("training_fingerprint") or training_fingerprint(recorded_code_commit)
+    fp_current = training_fingerprint(current)
+    if fp_recorded != fp_current:
         return False, (
-            f"checkpoint written by commit {recorded}, current code is "
-            f"{current} — refusing to resume across a training-code change")
-    return True, f"code_commit {current} matches — resumable"
+            f"checkpoint written by commit {recorded_code_commit} (training fingerprint "
+            f"{fp_recorded}), current code is {current} (training fingerprint "
+            f"{fp_current}) — refusing to resume across a training-code change")
+
+    # 3. Optional experiment-class guard for RHAN-NXA foundation runs.
+    # The checkpoint's authoritative config is the embedded config in the BEST
+    # checkpoint, not any stale manifest. When this gate is given a best
+    # checkpoint (which carries its own embedded config) AND a declared experiment
+    # class, it verifies compatibility and refuses config drift.
+    #
+    # IMPORTANT: for a ROLLING checkpoint this function does NOT demand an embedded
+    # config. The rolling artifact intentionally carries the resume state, not the
+    # authoritative config; the authoritative config lives in the BEST checkpoint.
+    # The correct recovery sequence is therefore:
+    #   (1) verify BEST checkpoint embedded config matches declared experiment class,
+    #   (2) resume the ROLLING checkpoint under the training-fingerprint match.
+    if require_experiment_class and allowed_experiment_configs is not None:
+        ckpt_cfg = ckpt.get("config") if isinstance(ckpt, dict) else None
+        if isinstance(ckpt_cfg, dict):
+            # Best checkpoint path: verify embedded config compatibility.
+            cfg_ok = False
+            reason_parts = []
+            for sig in allowed_experiment_configs:
+                if not isinstance(sig, dict):
+                    continue
+                mismatches = []
+                for key in ("clean_only", "recipe_version", "seed", "w_trades", "pgd_steps"):
+                    if key in sig and ckpt_cfg.get(key) != sig[key]:
+                        mismatches.append(f"{key}: checkpoint={ckpt_cfg.get(key)!r}, expected={sig[key]!r}")
+                if not mismatches:
+                    cfg_ok = True
+                    reason_parts.append("best-checkpoint config compatible with declared experiment class")
+                    break
+                else:
+                    reason_parts.append(
+                        f"best-checkpoint config incompatible with a declared experiment signature "
+                        f"({sig.get('recipe_version')!r}): " + "; ".join(mismatches)
+                    )
+            if not cfg_ok:
+                return False, (
+                    "refusing to resume: " + " || ".join(reason_parts) +
+                    " — resuming across config drift silently invalidates the run."
+                )
+        else:
+            # Rolling checkpoint path: cannot verify config here; the caller must have
+            # already verified the BEST checkpoint config above. Fail closed if the
+            # caller did not declare an experiment class.
+            return False, (
+                "rolling checkpoint has no embedded config; the caller must verify the "
+                "BEST checkpoint's embedded config before resuming. Refusing to resume."
+            )
+
+    # Convenience message when we reached here via the fingerprint path only.
+    if recorded_code_commit == current:
+        return True, f"code_commit {current} matches — resumable"
+    return True, (
+        f"commit {current} changed notebooks only (training fingerprint "
+        f"{fp_current} == checkpoint's {fp_recorded}) — resumable"
+    )
+
+def _checkpoint_embedded_config_hash(cfg: Any) -> Optional[str]:
+    """Hash the RECONCILED authoritative experiment config.
+
+    IMPORTANT provenance decision (recovery/rhan-next-resume-gateway):
+    the experiment config hash MUST NOT include runtime/deployment fields
+    (hf_token, ckpt_dir, report_dir, runs_dir, data_root). Those are
+    environment/path fields, not experiment math, and they differ between
+    the Kaggle runtime, the Colab runtime, and local development machines.
+
+    The canonical experiment payload is the embedded config MINUS those five
+    fields, serialized with sort_keys=True. This is the ONE canonical config
+    hash used for the RHAN-NXA foundation recovery, and it is the same hash
+    recorded in the reconciled manifest for foundation_backbone_only.
+
+    NOTE: provenance.config_sha256 still exists and still hashes the FULL
+    config (including those five fields) for its own existing manifest/stale
+    provenance contexts. That is intentionally NOT the same number. If a
+    manifest or report wants the experiment config hash, it must use this
+    function, not provenance.config_sha256.
+    """
+    import hashlib
+    import json as _json
+    if not isinstance(cfg, dict):
+        return None
+    payload = dict(cfg)
+    for _k in ("hf_token", "ckpt_dir", "report_dir", "runs_dir", "data_root"):
+        payload.pop(_k, None)
+    return hashlib.sha256(_json.dumps(payload, sort_keys=True).encode()).hexdigest()
+
+
+def canonical_experiment_config_hash(cfg: Any) -> Optional[str]:
+    """Public alias for the reconciled experiment config hash.
+
+    This is the single canonical hash the RHAN-NXA foundation recovery
+    asserts. Both noesis_vision/core/checkpoint.py and the recovery Kaggle
+    pre-flight cell use this function so the same embedded config always
+    produces the same hash regardless of which module computes it.
+    """
+    return _checkpoint_embedded_config_hash(cfg)
 
 
 # ── atomic save (ported from train_rhan_next._atomic_torch_save) ────────────

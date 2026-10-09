@@ -858,19 +858,109 @@ def run_phase(phase: str, cfg: FoundationConfig, loaders: Dict[str, Any],
     scaler = torch.amp.GradScaler("cuda") if (
         cfg.amp and device.type == "cuda") else None
 
+    def _reconstruct_optimizer_for_resume(
+            self, cfg, model, opt_state, scheduler_state
+    ) -> Tuple[torch.optim.Optimizer, Optional[torch.optim.lr_scheduler.LRScheduler]]:
+        """Reconstruct the optimizer/scheduler that the saved checkpoint was
+        built with, BEFORE registry.resume_guard / load_state_dict.
+
+        The saved optimizer may have been written by an older builder with a
+        different group layout and/or different group NAMES than the current
+        OptimizerGroupRegistry would produce for the same phase. To load it
+        cleanly we reconstruct the optimizer using the EXACT saved group
+        COUNT and the EXACT saved group NAMES, built from the current model's
+        construction-order param slices matching the saved group sizes.
+
+        This is a RECONSTRUCTION for resume compatibility, NOT a declaration
+        that the registry is wrong. Once loaded, the optimizer continues from
+        the saved per-group state (including the decayed lr at checkpoint
+        epoch), and the registry-built optimizer is NOT used for this phase.
+        """
+        saved_groups = opt_state.get("param_groups", [])
+        if not isinstance(saved_groups, list) or not saved_groups:
+            raise SystemExit(
+                f"{tag} STOP — cannot reconstruct optimizer: saved state has "
+                f"no param_groups")
+        expected_count = len(saved_groups)
+        named = list(model.named_parameters())
+        if len(named) < expected_count:
+            raise SystemExit(
+                f"{tag} STOP — model has fewer param tensors ({len(named)}) "
+                f"than the saved optimizer groups expect ({expected_count})")
+        # Verify the saved group sizes sum to the model's param count so the
+        # construction-order slice reconstruction is faithful.
+        total_saved = sum(len(g.get("params", [])) for g in saved_groups)
+        if total_saved != len(named):
+            raise SystemExit(
+                f"{tag} STOP — saved optimizer total param count "
+                f"({total_saved}) != current model param count ({len(named)}); "
+                f"cannot reconstruct a faithful layout.")
+        # Reconstruct the EXACT group names the saved optimizer used, so the
+        # post-load registry.resume_guard can verify layout by name without a
+        # false mismatch (e.g. "classifier" saved vs "cls_head" in the model).
+        saved_names = [str(g.get("name", f"group_{i}")) for i, g in enumerate(saved_groups)]
+        dummy_registry = OptimizerGroupRegistry()
+        cursor = 0
+        for name, g in zip(saved_names, saved_groups):
+            count = len(g.get("params", []))
+            params = [p for _, p in named[cursor:cursor + count]]
+            cursor += count
+            dummy_registry.register(
+                name=name,
+                params=params,
+                lr_multiplier=1.0,
+                clip_norm=float(g.get("clip_norm", 1.0)),
+            )
+        cast_groups: List[Dict[str, Any]] = []
+        cursor = 0
+        for g in saved_groups:
+            count = len(g.get("params", []))
+            params = [p for _, p in named[cursor:cursor + count]]
+            cursor += count
+            cast_groups.append({
+                "params": params,
+                "lr": float(g.get("lr", cfg.lr)),
+                "momentum": float(g.get("momentum", cfg.momentum)),
+                "weight_decay": float(g.get("weight_decay", cfg.weight_decay)),
+                "nesterov": bool(g.get("nesterov", False)),
+                "foreach": bool(g.get("foreach", True)),
+                "name": saved_names[len(cast_groups) - 1] if False else g.get("name", f"group_{len(cast_groups)}"),
+            })
+        optimizer = torch.optim.SGD(cast_groups)
+        scheduler = None
+        if scheduler_state is not None:
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=cfg.epochs)
+            scheduler.load_state_dict(scheduler_state)
+        return optimizer, scheduler
+
     start_epoch = 0
     if state is not None:
         start_epoch = int(state.get("epoch", 0))
         model.load_state_dict(state["model"])
         opt_state = state.get("optimizer")
+        sched_state = state.get("scheduler")
         if opt_state is not None:
-            if not registry.resume_guard(opt_state, state.get("scheduler")):
+            optimizer, scheduler = _reconstruct_optimizer_for_resume(
+                cfg, model, opt_state, sched_state)
+            if not registry.resume_guard(opt_state, sched_state):
                 raise SystemExit(
                     f"{tag} STOP — optimizer resume guard refused the saved "
                     f"state (group layout changed?)")
-            optimizer.load_state_dict(opt_state)
-        if state.get("scheduler") is not None:
-            scheduler.load_state_dict(state["scheduler"])
+            opt_load = optimizer.load_state_dict(opt_state)
+            if opt_load is not None:
+                raise SystemExit(
+                    f"{tag} STOP — optimizer.load_state_dict returned an "
+                    f"error indicator instead of None: {opt_load!r}")
+        else:
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=cfg.epochs)
+        if sched_state is not None:
+            sched_load = scheduler.load_state_dict(sched_state)
+            if sched_load is not None:
+                raise SystemExit(
+                    f"{tag} STOP — scheduler.load_state_dict returned an "
+                    f"error indicator instead of None: {sched_load!r}")
         else:
             for _ in range(start_epoch):
                 scheduler.step()

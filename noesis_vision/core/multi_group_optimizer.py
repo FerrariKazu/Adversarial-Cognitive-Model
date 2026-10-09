@@ -181,7 +181,12 @@ class OptimizerGroupRegistry:
         if len(saved_groups) != len(self._groups):
             return False
 
-        # Names (when recorded).
+        # Names (when recorded in BOTH dicts).
+        # A saved optimizer written by older code may omit 'name' entirely.
+        # We only enforce a name match when the saved state ALSO records names
+        # for every group; otherwise the name check is skipped and the lr-ratio
+        # pattern (above) is the main structural compatibility signal. That lets
+        # resume work for legacy checkpoints that were built without named groups.
         saved_names = [g.get("name") for g in saved_groups]
         cur_names = [g["name"] for g in self._groups]
         if all(isinstance(n, str) for n in saved_names):
