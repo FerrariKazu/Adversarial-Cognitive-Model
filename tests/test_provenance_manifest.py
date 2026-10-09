@@ -48,6 +48,7 @@ def test_hash_changes_on_config_change():
 
 
 def test_experiment_config_hash_is_single_source_of_truth():
+
     """The reconciled RHAN-NXA foundation experiment config hash is computed by
     ONE canonicalization: the embedded config MINUS runtime/deployment fields
     (hf_token, ckpt_dir, report_dir, runs_dir, data_root).
@@ -56,19 +57,35 @@ def test_experiment_config_hash_is_single_source_of_truth():
     exposed publicly as canonical_experiment_config_hash(). Both the checkpoint
     module and the recovery pre-flight cell use it, so the same embedded config
     always produces the same hash regardless of which module computes it.
+
+    This test uses a SYNTHETIC embedded config (a plain dict), so it never
+    depends on any on-disk checkpoint artifact. The REAL checkpoint
+    verification (canonical hash matches committed value, full-field hash
+    intentionally differs) lives in
+    tests/test_epoch49_checkpoint_integration.py and SKIPS when the preserved
+    checkpoints are not present.
     """
-    import torch
-    ckpt = torch.load(
-        "recovery_artifacts/checkpoints/"
-        "foundation_backbone_only_best_fef50f3_metric0.059.pth",
-        map_location="cpu", weights_only=False)
-    embedded = ckpt["config"]
+    embedded = {
+        "clean_only": False,
+        "recipe_version": "gen1-adv-curriculum-v1",
+        "seed": 41,
+        "w_trades": 0.55,
+        "pgd_steps": 10,
+        "eps_list": [0.0, 0.031, 0.062, 0.094],
+        "roll_every": 1,
+        "data_root": "/kaggle/tmp/imagenet100",
+        "ckpt_dir": "/kaggle/working/x",
+        "report_dir": "/kaggle/working/y",
+        "runs_dir": "/kaggle/working/z",
+        "hf_token": None,
+    }
     h1 = canonical_experiment_config_hash(embedded)
     h2 = _checkpoint_embedded_config_hash(embedded)
     assert h1 is not None
     assert h1 == h2, (
         "canonical_experiment_config_hash and "
-        "_checkpoint_embedded_config_hash must agree on the SAME embedded config")
+        "_checkpoint_embedded_config_hash must agree on the SAME embedded config"
+    )
     # The full-field provenance.config_sha256 is intentionally DIFFERENT because
     # it still includes runtime/deployment fields.
     assert config_sha256(embedded) != h1

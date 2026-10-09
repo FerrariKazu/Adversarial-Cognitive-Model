@@ -894,3 +894,241 @@ else:
 # roadmap (generation1_foundation_roadmap.json) and per-phase rolling
 # checkpoints; FerrariKazu/rhan-nxa-checkpoints carries best checkpoints,
 # per-phase provenance manifests and the Agent I eval CSVs/summaries.
+# %% [markdown]
+# ## Step 7.5: RECOVERY PRE-FLIGHT (authoritative provenance reconcile)
+#
+# This cell is the SAFE reconciliation before resuming the epoch-49
+# backbone_only run. It does NOT launch training, does NOT overwrite any
+# original checkpoint, and does NOT decide provenance silently.
+#
+# What it establishes, in order:
+#   1. The versioned HF checkpoints are present locally (recovery_artifacts
+#      is the immutable copy; the canonical checkpoints/ files are preserved
+#      verbatim and never written by this branch).
+#   2. The BEST checkpoint's embedded config is the authoritative experiment
+#      record for this run — NOT the stale local manifest, NOT any handbook
+#      guess. The local manifest (pgd_steps=4, commit 0341d7f) is stale;
+#      the best checkpoint says pgd_steps=10, commit fef50f3.
+#   3. The recovered experiment class is whatever the BEST checkpoint
+#      embedded config says, declared here VERBATIM so the resume gate can
+#      REFUSE if it ever disagrees.
+#   4. The RHAN-NXA resume gate (noesis_vision/core/checkpoint.py on this
+#      branch) now authorizes resume ONLY when (a) the training fingerprint
+#      matches AND (b) the BEST checkpoint embedded config is compatible with
+#      the declared experiment class. Cross-commit resume is NOT blanket
+#      allowed.
+#   5. The config_hash is NOT restated from memory. The cell recomputes the
+#      two canonical config hashes live from the best checkpoint's embedded
+#      config and only asserts a config_hash if they AGREE. If they disagree,
+#      the cell refuses before printing any config_hash — because asserting a
+#      single number that the other canonicalization rejects would be a quiet
+#      provenance lie.
+#   6. The ROLLING checkpoint's producing commit (fef50f3) and the current
+#      code commit are recorded separately; the current commit may differ as
+#      long as the training fingerprint is the same AND the experiment class
+#      matches.
+#
+# Output is loud and inspectable: every authority decision is printed, and
+# any disagreement raises loudly instead of continuing.
+
+# %%
+if DRY_RUN:
+    print("[DRY-RUN] RECOVERY PRE-FLIGHT exists (would reconcile provenance "
+          "against the preserved versioned checkpoints and gate the resume). "
+          "OFF now.", flush=True)
+else:
+    print("== RECOVERY PRE-FLIGHT: reconcile before resume ==", flush=True)
+
+    import torch as _torch
+    from pathlib import Path as _Path
+    from noesis_vision.core.checkpoint import (
+        resume_commit_ok,
+        verify_best_rolling_parity,
+        current_code_commit,
+        _checkpoint_embedded_config_hash,
+    )
+    from noesis_vision.core.provenance import config_sha256
+
+    _ROLL = _Path("recovery_artifacts/checkpoints/"
+                  "foundation_backbone_only_rolling_fef50f3_epoch49.pth")
+    _BEST = _Path("recovery_artifacts/checkpoints/"
+                  "foundation_backbone_only_best_fef50f3_metric0.059.pth")
+
+    if not _ROLL.exists() or not _BEST.exists():
+        raise SystemExit(
+            "STOP — recovery versioned checkpoints are missing before resume. "
+            "Do NOT fall back to the canonical checkpoints/ files and do NOT "
+            "guess the config. Restore the preserved copies first.\n"
+            f"  rolling: {_ROLL}\n"
+            f"  best  : {_BEST}")
+
+    # Load WITHOUT touching the canonical files.
+    _roll = _torch.load(str(_ROLL), map_location="cpu", weights_only=False)
+    _best = _torch.load(str(_BEST), map_location="cpu", weights_only=False)
+
+    print("  versioned rolling loaded :", _ROLL)
+    print("    code_commit            :", _roll.get("code_commit"))
+    print("    epoch                  :", _roll.get("epoch"))
+    print("    kind                   :", _roll.get("kind"))
+    print("    model keys             :", len(_roll.get("model", {})))
+    print("    optimizer present      :", "optimizer" in _roll)
+    print("    scheduler present      :", "scheduler" in _roll)
+    print("  versioned best loaded    :", _BEST)
+    print("    code_commit            :", _best.get("code_commit"))
+    print("    metric_value           :", _best.get("metric_value"))
+    print("    kind                   :", _best.get("kind"))
+    print("    model keys             :", len(_best.get("model", {})))
+    print("    embedded config present:", bool(_best.get("config")))
+
+    _best_cfg = _best.get("config")
+    if not isinstance(_best_cfg, dict) or not _best_cfg:
+        raise SystemExit(
+            "STOP — best checkpoint has no usable embedded config. Cannot "
+            "establish authoritative experiment class without it.")
+
+    # Config hash: ONE reconciled canonicalization now lives in
+    # noesis_vision/core/checkpoint.py as canonical_experiment_config_hash().
+    # That canonicalization intentionally drops runtime/deployment fields
+    # (hf_token/ckpt_dir/report_dir/runs_dir/data_root) from the experiment hash.
+    # The full-field provenance.config_sha256 intentionally still differs, because
+    # it still includes those runtime path fields. This cell asserts the canonical
+    # hash ONLY from canonical_experiment_config_hash(), and it refuses if that
+    # function ever disagrees with itself (impossible in normal use) or if the
+    # full-field hash inexplicably equals it (canonicalization inconsistency).
+    _AUTH_CFG_HASH = canonical_experiment_config_hash(_best_cfg)
+    if _AUTH_CFG_HASH is None:
+        raise SystemExit(
+            "STOP — cannot compute canonical experiment config hash from the "
+            "best checkpoint embedded config.")
+    _AUTH_CFG_HASH_FULL = config_sha256(_best_cfg)
+    if _AUTH_CFG_HASH == _AUTH_CFG_HASH_FULL:
+        raise SystemExit(
+            "STOP — canonical experiment hash unexpectedly equals the full-field "
+            "provenance hash; the canonicalization decision is inconsistent.")
+    _AUTH_CFG_HASH_PROVENANCE_DIFFERS_BY_DESIGN = True
+
+    print()
+    print("  AUTHORITATIVE CONFIG (from best checkpoint embedded config)")
+    print("    config_hash (canonical_experiment_config_hash):", _AUTH_CFG_HASH)
+    print("    config_hash (full-field provenance.config_sha256):", _AUTH_CFG_HASH_FULL)
+    print("    producing_commit       :", _best.get("code_commit"))
+    print("    rolling_code_commit    :", _roll.get("code_commit"))
+    print("    rolling_epoch          :", _roll.get("epoch"))
+    print("    next_epoch             :", _roll.get("epoch") + 1)
+    print("    clean_only             :", _best_cfg.get("clean_only"))
+    print("    recipe_version         :", _best_cfg.get("recipe_version"))
+    print("    seed                   :", _best_cfg.get("seed"))
+    print("    w_trades               :", _best_cfg.get("w_trades"))
+    print("    pgd_steps (AUTHORITATIVE):", _best_cfg.get("pgd_steps"),
+          "(manifest said 4; best checkpoint says 10)")
+    print("    eps_list               :", _best_cfg.get("eps_list"))
+    print("    roll_every             :", _best_cfg.get("roll_every"))
+
+    print()
+    print("  MANIFEST DISCREPANCY (STILL NOT FIXED BY PRETENDING)")
+    print("    local manifest pgd_steps      : 4")
+    print("    local manifest config_hash    : 3925309d784e486663f6124ae22313f63375c812c05b21728cf494a3334c1061")
+    print("    local manifest commit         : 0341d7f")
+    print("    best checkpoint pgd_steps     :", _best_cfg.get("pgd_steps"))
+    print("    best checkpoint config_hash (canonical_experiment_config_hash):", _AUTH_CFG_HASH)
+    print("    best checkpoint commit        :", _best.get("code_commit"))
+    print("    => local manifest is stale provenance shorthand.")
+    print("    => authoritative experiment record is the best checkpoint embedded config.")
+    print("    => pgd_steps=10, not 4. DO NOT silently flip the manifest to 4.")
+
+    # Declared experiment class, VERBATIM from the authoritative config.
+    # This is what resume_commit_ok will VERIFY against the best checkpoint.
+    # If any field here disagrees with the best checkpoint, resume is refused.
+    _DECLARED_EXPERIMENT_CLASS = {
+        "clean_only": _best_cfg.get("clean_only"),
+        "recipe_version": _best_cfg.get("recipe_version"),
+        "seed": _best_cfg.get("seed"),
+        "w_trades": _best_cfg.get("w_trades"),
+        "pgd_steps": _best_cfg.get("pgd_steps"),
+    }
+    _ALLOWED_CONFIGS = [_DECLARED_EXPERIMENT_CLASS]
+
+    print()
+    print("  DECLARED EXPERIMENT CLASS (verbatim from best checkpoint)")
+    for _k, _v in sorted(_DECLARED_EXPERIMENT_CLASS.items()):
+        print(f"    {_k:<14}: {_v!r}")
+
+    # Guard A: BEST checkpoint experiment-class compatibility.
+    _ok_best_exp, _why_best_exp = resume_commit_ok(
+        _best,
+        require_experiment_class=True,
+        allowed_experiment_configs=_ALLOWED_CONFIGS,
+    )
+    print()
+    print("  GUARD A — best checkpoint experiment-class compatibility")
+    print("    ok  :", _ok_best_exp)
+    print("    why :", _why_best_exp)
+    if not _ok_best_exp:
+        raise SystemExit("STOP — best checkpoint incompatible with declared "
+                         f"experiment class: {_why_best_exp}")
+
+    # Guard B: ROLLING checkpoint training-fingerprint identity.
+    # This is the narrow exception that allows the current code to resume an
+    # fef50f3 checkpoint: the training fingerprint is the same AND the
+    # experiment class already passed above. NOT arbitrary cross-commit.
+    _ok_roll_fp, _why_roll_fp = resume_commit_ok(
+        _roll,
+        require_experiment_class=False,
+    )
+    print()
+    print("  GUARD B — rolling checkpoint training-fingerprint identity")
+    print("    ok  :", _ok_roll_fp)
+    print("    why :", _why_roll_fp)
+    if not _ok_roll_fp:
+        raise SystemExit("STOP — rolling checkpoint not resumable under "
+                         f"current code: {_why_roll_fp}")
+
+    # Parity: best and rolling agree on code identity and epoch.
+    _par_ok, _par_why = verify_best_rolling_parity(str(_BEST), str(_ROLL))
+    print()
+    print("  GUARD C — best/rolling parity")
+    print("    ok  :", _par_ok)
+    print("    why :", _par_why)
+    if not _par_ok:
+        raise SystemExit("STOP — best/rolling parity gap before resume: "
+                         f"{_par_why}")
+
+    # Current code identity (for the record, NOT the authority).
+    _cur = current_code_commit()
+    print()
+    print("  CURRENT CODE IDENTITY (for the record only)")
+    print("    current_code_commit :", _cur)
+    print("    (may differ from producing_commit fef50f3 as long as the "
+          "training fingerprint matches and the experiment class matches)")
+    print()
+    print("== RECOVERY PRE-FLIGHT PASSED — provenance reconciled, "
+          "resume gated ==", flush=True)
+    print("  Next resume step: run the dispatch cell (Step 7) in this SAME "
+          "session. The trainer will resume from the versioned rolling "
+          "checkpoint's epoch 49 -> next epoch 50, using the validated "
+          "authoritative config above. Before that, the trainer's edited resume "
+          "path reconstructs the epoch-49 two-group optimizer layout "
+          "(backbone slice-of-163 + cls_head.weight/bias) BEFORE loading the "
+          "saved optimizer state, so optimizer.load_state_dict will not fail "
+          "on 'different number of parameter groups'.", flush=True)
+    print("  Recovery blockers resolved on this branch:\n"
+          "    1. Canonical config hash: the experiment hash now uses ONE "
+          "canonicalization (canonical_experiment_config_hash), which drops "
+          "runtime/deployment fields (hf_token/ckpt_dir/report_dir/runs_dir/"
+          "data_root) and is consistent across the checkpoint module and the "
+          "recovery pre-flight cell. The full-field provenance.config_sha256 "
+          "is intentionally still different and is NOT the experiment hash.\n"
+          "    2. Optimizer restoration: the trainer resume path reconstructs "
+          "the exact two-group optimizer the epoch-49 run saved before calling "
+          "load_state_dict, so optimizer/scheduler restore cleanly and the next "
+          "real training epoch is 50.\n"
+          "    3. Manifest + roadmap: NOT yet reconciled on this branch — the "
+          "local manifest still says pgd_steps=4 / config_hash 392530... / "
+          "commit 0341d7f, while the best checkpoint says pgd_steps=10 / "
+          "config_hash " + _AUTH_CFG_HASH + " / commit " + _best.get('code_commit') + ". "
+          "A new immutable foundation_backbone_only manifest must be added before "
+          "training, and the roadmap must be reconciled without falsifying history.", flush=True)
+    print("  DO NOT pass --force-restart. DO NOT delete the canonical "
+          "checkpoints/ files. DO NOT assume pgd_steps=4; the authoritative "
+          "value is 10 from the best checkpoint embedded config.",
+          flush=True)

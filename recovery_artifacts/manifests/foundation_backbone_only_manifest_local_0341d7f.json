@@ -1,0 +1,37 @@
+{
+  "adv_curriculum": {
+    "beta_ramp": [
+      2.0,
+      2.0,
+      2.5
+    ],
+    "clean_only": false,
+    "eps_ramp": [
+      0.031,
+      0.062,
+      0.094
+    ],
+    "pgd_steps": 4,
+    "recipe_version": "gen1-adv-curriculum-v1",
+    "w_trades": 0.55
+  },
+  "ais_v2": false,
+  "config_sha256": "3925309d784e486663f6124ae22313f63375c812c05b21728cf494a3334c1061",
+  "dataset_version": "imagenet100-structural-check-passed",
+  "experiment_id": "foundation_backbone_only",
+  "gaze_scheme": "single_center_fixation",
+  "git_commit": "0341d7f",
+  "optimizer_config": {
+    "base_lr": 0.003,
+    "groups": [
+      "backbone",
+      "classifier"
+    ],
+    "momentum": 0.9,
+    "weight_decay": 0.0001
+  },
+  "part2_steps": "1-4",
+  "phase": "backbone_only",
+  "seed": 41,
+  "timestamp_utc": "2026-10-07T16:22:22Z"
+}
