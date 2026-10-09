@@ -81,48 +81,33 @@ recipe — the pure-CE gap cannot silently recur.
 
 # %%
 import os, sys, subprocess, json, shutil
-from training.sync_log import configure_sync_logger, log_sync
 
-
-def run(msg: str, *, noisy: bool = True) -> None:
-    """run(cmd) wrapper: noisy git/empty-commit/HF-sync chatter goes to
-    report/sync.log; only one status line is printed per sync."""
-    logger = configure_sync_logger()
-    if noisy:
-        logger.info(f"RUN START: {msg}")
-    try:
-        proc = subprocess.run(msg, shell=True, capture_output=True, text=True)
-        if noisy:
-            if proc.stdout:
-                logger.info(f"RUN STDOUT:\n{proc.stdout}")
-            if proc.stderr:
-                logger.info(f"RUN STDERR:\n{proc.stderr}")
-        if proc.returncode != 0:
-            raise subprocess.CalledProcessError(proc.returncode, msg, proc.stderr)
-    finally:
-        if noisy:
-            logger.info(f"RUN END: {msg}")
-
-
-# huggingface_hub freezes HF_HUB_DOWNLOAD_TIMEOUT at import time — set it
-# BEFORE any hub import (the dep-check below imports it), and trainer
-# subprocesses inherit it. A stalled download raises in ~30s instead of
-# hanging the session silently (the 2026-08-09 Step A incident).
-os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "30")
-
-# ── PRE-FLIGHT (dry-run) MODE ─────────────────────────────────────────────
+# ── PRE-FLIGHT (dry-run) MODE ──────────────────────────────────────────────
+# Used by NOESIS_DRY_RUN=1 (Kaggle: Add-ons > Environment variables).
+# When set, every run() is a no-op print and every HF/git mutation is skipped
+# or shielded, so pre-flight can validate logic against LIVE HF state without
+# spending compute or mutating protocol state.
 DRY_RUN = os.environ.get("NOESIS_DRY_RUN", "0") == "1"
 
-# J1's roadmap lives under report/ in-repo; in dry-run, writes are shielded
-# to a scratch copy so pre-flight can never mutate protocol state.
-ROADMAP_LOCAL = "report/generation1_foundation_roadmap.json"
-if DRY_RUN:
-    import tempfile, shutil
-    _shadow = os.path.join(tempfile.mkdtemp(prefix="j1_dryrun_"),
-                           "generation1_foundation_roadmap.json")
-    if os.path.exists(ROADMAP_LOCAL):
-        shutil.copy(ROADMAP_LOCAL, _shadow)
-    ROADMAP_LOCAL = _shadow
+# The notebook is executed by papermill cell-by-cell. 'training.*' imports are
+# reached from this same top-level cell block only AFTER the repo bootstrap cell
+# has appended the cloned WORK_DIR to sys.path. To keep 'training.sync_log'
+# importable even if a cell ordering/regeneration changes, make the bootstrap code
+# set sys.path here as early as possible and keep it idempotent.
+_REPO_ROOT_ON_PATH = os.environ.get("REPO_ROOT") or os.environ.get("PROJECT_ROOT")
+if _REPO_ROOT_ON_PATH and os.path.isdir(_REPO_ROOT_ON_PATH):
+    _p = os.path.abspath(_REPO_ROOT_ON_PATH)
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+        os.environ.setdefault(
+            "PYTHONPATH",
+            f"{_p}:{os.environ.get('PYTHONPATH', '')}".strip(":"))
+else:
+    # Best-effort: if we already have a local './training' directory, use it.
+    if os.path.isdir("training"):
+        _p = os.path.abspath(".")
+        if _p not in sys.path:
+            sys.path.insert(0, _p)
 
 
 def run(cmd, check=True):
@@ -183,8 +168,6 @@ if not DRY_RUN:
         run(f'git clone https://github.com/FerrariKazu/{REPO_NAME}.git', noisy=False)
         print(f"HF sync ok (clone {REPO_NAME}, {__import__('time').perf_counter()-t0:.1f}s)", flush=True)
     os.chdir(WORK_DIR)
-    sys.path.insert(0, WORK_DIR)
-    os.environ["PYTHONPATH"] = f"{WORK_DIR}:{os.environ.get('PYTHONPATH', '')}"
 
     # RHAN-NXA lives on feature/rhan-next. Never reset to origin/main here.
     t0 = __import__('time').perf_counter()
@@ -203,6 +186,41 @@ if not DRY_RUN:
                           capture_output=True, text=True).stdout.strip()
     print(f"HF sync ok (checkout feature/rhan-next @ {_sha}, "
           f"{__import__('time').perf_counter()-t0:.1f}s)", flush=True)
+
+    # Make the cloned repo importable before any training.* import.
+    # Papermill executes cells top-to-bottom, so 'training.sync_log' is reached
+    # while we are still in the repo bootstrap cell; sys.path must already carry
+    # WORK_DIR for that import to resolve.
+    sys.path.insert(0, WORK_DIR)
+    os.environ["PYTHONPATH"] = f"{WORK_DIR}:{os.environ.get('PYTHONPATH', '')}"
+
+    # Sync-log + noisy run() helper only become importable AFTER the repo has
+    # been cloned and WORK_DIR added to sys.path (same cell, right here). This
+    # is what lets Step 1 itself run before the clone on a fresh Kaggle "Run
+    # all" — the sync_log import no longer happens before WORK_DIR exists.
+    from training.sync_log import configure_sync_logger, log_sync_event as log_sync
+
+    logger = configure_sync_logger()
+
+    def run(msg: str, *, noisy: bool = True) -> None:
+        """run(cmd) wrapper: noisy git/empty-commit/HF-sync chatter goes to
+        report/sync.log; only one status line is printed per sync."""
+        logger = configure_sync_logger()
+        if noisy:
+            logger.info(f"RUN START: {msg}")
+        try:
+            proc = subprocess.run(msg, shell=True, capture_output=True, text=True)
+            if noisy:
+                if proc.stdout:
+                    logger.info(f"RUN STDOUT:\n{proc.stdout}")
+                if proc.stderr:
+                    logger.info(f"RUN STDERR:\n{proc.stderr}")
+            if proc.returncode != 0:
+                raise subprocess.CalledProcessError(proc.returncode, msg, proc.stderr)
+        finally:
+            if noisy:
+                logger.info(f"RUN END: {msg}")
+
     log_sync_event(f"checkout feature/rhan-next @ {_sha}", logger)
 
     if not os.path.exists("training/train_generation1_foundation.py"):

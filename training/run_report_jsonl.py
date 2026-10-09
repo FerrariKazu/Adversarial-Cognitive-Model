@@ -23,11 +23,23 @@ from noesis_vision.core.multi_group_optimizer import OptimizerGroupRegistry
 from training.run_report import (
     EPOCH_BLOCK_LEGEND,
     HEALTH_LEGEND,
-    GradNormCollector,
     compute_health_flags,
     default_phase_jsonl_path as _default_phase_jsonl_path,
     format_epoch_block,
+    snap_model_state,
+    model_update_stats,
+    group_update_stats,
+    feature_snapshot,
+    ResumedBestState,
+    _gradient_share_from_trades,
+    _val_subset_hash,
+    _feature_snapshot_for_block,
 )
+
+# Re-export the one shared class so the trainer and tests can import
+# 'GradNormCollector' from either module and get the same object.
+from training.run_report import GradNormCollector
+
 
 
 # ── JSONL helpers ────────────────────────────────────────────────────────────
@@ -201,7 +213,7 @@ def _train_one_epoch_instrumented(
     total_epochs: int,
     clean_only: bool,
     w_trades: float,
-    grad_collector: GradNormCollector,
+    grad_collector: 'GradNormCollector',  # runtime type; imported from training.run_report
     point: Any,
 ) -> Tuple[float, float, float, float, float]:
     """Returns (loss_total, ce_clean, kl_trades, train_clean_acc, train_adv_acc).
@@ -450,87 +462,6 @@ def summarize_phase_from_jsonl(
 def compute_health_flags_string_only(**kwargs) -> str:
     from training.run_report import compute_health_flags
     return compute_health_flags(**kwargs)
-
-def summarize_phase_from_jsonl(
-    jsonl_path: str,
-) -> str:
-    """Read a phase JSONL log and print a table + plain-text trend verdict.
-
-    Works from the HF-synced file alone (no GPU needed).
-    """
-    if not os.path.exists(jsonl_path):
-        return f"no log at {jsonl_path}"
-    rows: List[Dict[str, Any]] = []
-    with open(jsonl_path) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rows.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-    if not rows:
-        return f"{jsonl_path}: empty"
-    rows.sort(key=lambda r: int(r["epoch"]))
-    header = (
-        "epoch | eps | beta | lr | loss | ce | kl | w | "
-        "trClean | trAdv | valClean | valRobust | bestClean@ep | "
-        "bestRobust@ep | sec | img/s | vram | flags"
-    )
-    out = [header]
-    for r in rows:
-        grad = r.get("grad", {})
-        per = grad.get("per_group", {})
-        pg = ", ".join(
-            f"{n}:{g['post_clip_norm']:.2f}" for n, g in per.items())
-        flags = compute_health_flags_string_only(
-            epoch=int(r["epoch"]),
-            total_epochs=int(r["total_epochs"]),
-            num_classes=100,
-            val_clean=float(r["val_acc_clean"]),
-            val_robust=float(r["val_acc_robust"]),
-            kl_trades=float(r["train_kl_trades"]),
-            grad=grad,
-            best_clean=float(r["best_clean"]),
-            best_robust=float(r["best_robust"]),
-            best_clean_at_epoch=int(r["best_clean_epoch"]),
-            best_robust_at_epoch=int(r["best_robust_epoch"]),
-        )
-        out.append(
-            f"{int(r['epoch']):>3} | {r.get('epsilon',0):.3f} | "
-            f"{r.get('beta',0):.1f} | {r.get('lr',0):.2e} | "
-            f"{r.get('train_loss_total',0):.4f} | "
-            f"{r.get('train_ce_clean',0):.4f} | "
-            f"{r.get('train_kl_trades',0):.4f} | "
-            f"{r.get('w_trades',0):.2f} | {r.get('train_acc_clean',0)*100:.1f} | "
-            f"{r.get('train_acc_adv',0)*100:.1f} | {r.get('val_acc_clean',0)*100:.1f} | "
-            f"{r.get('val_acc_robust',0)*100:.1f} | {r.get('best_clean',0)*100:.1f}@"
-            f"{int(r['best_clean_epoch'])} | {r.get('best_robust',0)*100:.1f}@"
-            f"{int(r['best_robust_epoch'])} | {r.get('epoch_seconds',0):.0f} | "
-            f"{r.get('img_per_sec',0):.0f} | "
-            f"{r.get('peak_vram_gb',0) if r.get('peak_vram_gb') is not None else 0:.1f} | "
-            f"{flags} | pg[{pg}]"
-        )
-    first = rows[0]
-    last = rows[-1]
-    delta_clean = last["val_acc_clean"] - first["val_acc_clean"]
-    delta_robust = last["val_acc_robust"] - first["val_acc_robust"]
-    improved_clean = last["best_clean"] > first["best_clean"]
-    improved_robust = last["best_robust"] > first["best_robust"]
-    verdict = (
-        f"epochs: {len(rows)} | clean Δ={delta_clean*100:+.1f} pp | "
-        f"robust Δ={delta_robust*100:+.1f} pp | "
-        f"best_clean {first['best_clean']*100:.1f}->"
-        f"{last['best_clean']*100:.1f} "
-        f"({'improved' if improved_clean else 'flat'}) | "
-        f"best_robust {first['best_robust']*100:.1f}->"
-        f"{last['best_robust']*100:.1f} "
-        f"({'improved' if improved_robust else 'flat'}) | "
-        f"config_sha256={rows[0].get('config_sha256','n/a')} | "
-        f"git_commit={rows[0].get('git_commit','n/a')} | "
-        f"session_id={rows[0].get('session_id','n/a')}")
-    return "\n".join(out + ["", verdict])
 
 
 def compute_health_flags_string_only(**kwargs) -> str:

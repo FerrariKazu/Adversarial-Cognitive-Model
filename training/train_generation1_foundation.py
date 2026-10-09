@@ -169,9 +169,9 @@ from training.run_report import (
     HEALTH_LEGEND,
     compute_health_flags,
     format_epoch_block,
-    GradNormCollector,
 )
 from training.run_report_jsonl import (
+    GradNormCollector,
     _gpu_peak_vram_gb,
     _print_phase_header,
     _sync_jsonl_to_hf,

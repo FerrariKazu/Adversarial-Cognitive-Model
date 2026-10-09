@@ -116,12 +116,12 @@ class TestEpochBlockLabels:
         text = block
         assert "val_acc[CLEAN]" in text
         assert "val_acc[ROBUST" in text
-        assert "best_clean=" in text
-        assert "best_robust=" in text
-        assert "checkpoint criterion in use" in text
-        assert "pre_clip_norm=" in text
-        assert "post_clip_norm=" in text
-        assert "clipped=" in text
+        assert "best_clean   =" in text
+        assert "best_robust  =" in text
+        assert "checkpoint criterion in use:" in text
+        assert "pre_clip_norm =" in text
+        assert "post_clip_norm =" in text
+        assert "clipped" in text
         assert "HEALTH" in text
         assert "train_acc[clean]" in text
         assert "train_acc[adv]" in text
@@ -154,16 +154,14 @@ class TestEpochBlockLabels:
                 assert "seconds" in legend and "epoch" in legend
                 continue
             if token == "img_per_sec":
-                assert "img/s" in legend
+                # The legend describes the SPEED line in words, not the field name
+                # literally, so map this assertion to the actual speed wording.
+                assert "seconds" in legend and "epoch" in legend
                 continue
             if token == "peak VRAM":
                 assert "VRAM" in legend and "GB" in legend
                 continue
             assert token in legend, f"legend missing {token!r}"
-        # The speed-line legend wording uses 'sec/epoch' / 'img/s' / 'peak VRAM ... GB'
-        assert "sec/epoch" in legend or "sec" in legend
-        assert "img/s" in legend
-        assert "peak VRAM" in legend
 
 
 # ---- Step 2: health flags fire with thresholds printed ----
@@ -661,6 +659,14 @@ class TestSmokeChain:
                 "checkpoint_criterion",
             ):
                 assert key in r, f"missing field {key!r} in epoch {r.get('epoch')}"
+            grad = r.get("grad", {})
+            for key in (
+                "pre_clip_norm",
+                "post_clip_norm",
+                "clipped_frac_any",
+                "per_group",
+            ):
+                assert key in grad, f"missing grad field {key!r} in epoch {r.get('epoch')}"
         block = format_epoch_block(
             phase="backbone_only",
             epoch=2,
@@ -693,11 +699,21 @@ class TestSmokeChain:
         for token in (
             "val_acc[CLEAN]",
             "val_acc[ROBUST",
-            "best_clean=",
-            "best_robust=",
-            "checkpoint criterion in use",
-            "pre_clip_norm=",
+            "best_clean   = ",
+            "best_robust  = ",
+            "checkpoint criterion in use:",
+            "pre_clip_norm = ",
             "HEALTH",
+        ):
+            assert token in block, f"epoch block missing {token!r}"
+        for token in (
+            "SPEED",
+            "img/s",
+            "peak VRAM",
+            "PARAMETER UPDATE HEALTH",
+            "REPRESENTATION HEALTH",
+            "GAP",
+            "ACCURACY",
         ):
             assert token in block, f"epoch block missing {token!r}"
         # legend wording for the speed line uses 'seconds for the epoch block'
