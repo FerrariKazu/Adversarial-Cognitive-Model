@@ -110,11 +110,36 @@ else:
             sys.path.insert(0, _p)
 
 
-def run(cmd, check=True):
+def run(cmd, *, noisy=True, check=True):
+    """Run a shell command.
+
+    This is the Step 1 runner: it streams stdout live to the notebook and
+    raises on non-zero exit (unless ``check=False``). It intentionally does
+    NOT use capture_output — that is the job of the later sync-log-aware
+    ``run(msg, *, noisy=...)`` helper defined after the repo is cloned.
+
+    noisy/upload diagnostics are NOT part of this runner's contract; for the
+    quiet clone/fetch/checkout/reset gates the notebook uses the sync-log
+    helper below, which is the one that accepts ``noisy=``.
+    """
     print(f"\n[RUN]: {cmd}", flush=True)
     if DRY_RUN:
         print("  [DRY-RUN] command NOT executed — pre-flight mode.", flush=True)
         return 0
+    if not noisy:
+        # Backward-compatible no-op: callers that pass noisy=False get the
+        # old silent-run behavior (live stream suppressed, exit status still
+        # asserted). This path exists only so the Step 2 clone/fetch/reset
+        # call sites that opt into quiet git ops keep working without a
+        # separate helper.
+        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT,
+                                   universal_newlines=True, bufsize=1)
+        process.wait()
+        rc = process.returncode
+        if check and rc != 0:
+            raise subprocess.CalledProcessError(rc, cmd)
+        return rc
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT,
                                universal_newlines=True, bufsize=1)
