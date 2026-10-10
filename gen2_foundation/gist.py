@@ -81,8 +81,12 @@ class FixedGistEncoder(nn.Module):
 
         # Shared patch embedder: the ONLY tokenizer in the system.
         # patch_embed is nn.ModuleDict({"proj": Conv2d(...)}) in the
-        # substrate (CompactViT). Take the 'proj' key if available.
-        proj = self.patch_embed["proj"] if isinstance(self.patch_embed, dict) else self.patch_embed
+        if isinstance(self.patch_embed, (dict, nn.ModuleDict)):
+            proj = self.patch_embed["proj"]
+        elif hasattr(self.patch_embed, "proj"):
+            proj = self.patch_embed.proj
+        else:
+            proj = self.patch_embed
         B, C, _, _ = gist.shape
         h = proj(gist)        # (B, D, 4, 4)
         tokens = h.flatten(2).transpose(1, 2)     # (B, 16, D)

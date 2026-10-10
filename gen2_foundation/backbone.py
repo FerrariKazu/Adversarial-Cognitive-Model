@@ -228,7 +228,8 @@ class CompactViTGen2(nn.Module):
                 interp_patch = interp_patch.permute(0, 2, 3, 1).reshape(1, target_grid * target_grid, dim)
                 # Keep register token position as zeros or existing own
                 reg_pos = own["pos_embed"][:, 1:2, :]
-                new_pos_embed = torch.cat([cls_pos, reg_pos, interp_patch], dim=1)
+                dev = reg_pos.device
+                new_pos_embed = torch.cat([cls_pos.to(dev), reg_pos, interp_patch.to(dev)], dim=1)
                 if new_pos_embed.shape == own["pos_embed"].shape:
                     matched["pos_embed"] = new_pos_embed
                 else:

@@ -15,6 +15,7 @@ Implements the unified Gen-2 Foundation Model across all phases:
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Dict, List, Optional, Tuple, Any
 import torch
 import torch.nn as nn
@@ -23,13 +24,13 @@ from gen2_foundation.backbone import CompactViTGen2
 from gen2_foundation.gist import FixedGistEncoder
 from gen2_foundation.ema import EMATargetEncoder
 from gen2_foundation.update_net_v2 import BeliefUpdaterV2, PositionSensitiveErrorPool
-from noesis_vision.models.uncertainty import EvidentialHead
-from noesis_vision.models.belief_dynamics import (
+from noesis_vision.uncertainty.evidential_head import EvidentialHead
+from noesis_vision.predictive_coding.glimpse_predictor import (
     ConcreteGlimpseFeaturePredictor,
-    ConcreteUpdateNet,
-    PrecisionFunction,
 )
-from noesis_vision.models.policy import AISv2GazePolicy
+from noesis_vision.predictive_coding.update_net import ConcreteUpdateNet
+from noesis_vision.predictive_coding.precision import PrecisionFunction
+from noesis_vision.gaze.ais_v2_policy import AISv2GazePolicy
 from noesis_vision.models.foveation import foveal_sample, DEFAULT_FOVEA_SIZE
 
 D_Z = 384
@@ -95,15 +96,13 @@ class Gen2FoundationModel(nn.Module):
             self.precision = PrecisionFunction()
 
             if arm == "v2" and phase in ("belief_with_f", "ais_v2_swap", "gen1_core"):
-                # Arm v2: BeliefUpdaterV2 + spatial error pool + EMA target encoder
-                self.spatial_error_pool = PositionSensitiveErrorPool(d_feat=d_z, d_z=d_z)
+                # Arm v2: BeliefUpdaterV2 + EMA target encoder
                 self.update_net_v2 = BeliefUpdaterV2(d_z=d_z)
-                self.ema_target_encoder = EMATargetEncoder(self.backbone, momentum=0.99)
+                self.ema_target_encoder = EMATargetEncoder(self.predictor, alpha=0.996)
                 self.update_net = None
             else:
                 # Arm v1: Gen-1 UpdateNet, mean-pooled error, no EMA
                 self.update_net = ConcreteUpdateNet(d_z=d_z)
-                self.spatial_error_pool = None
                 self.update_net_v2 = None
                 self.ema_target_encoder = None
 
@@ -120,7 +119,7 @@ class Gen2FoundationModel(nn.Module):
         groups: Dict[str, List[nn.Parameter]] = {
             "backbone": trunk_params,
             "classifier": list(self.cls_head.parameters()),
-            "gist": list(self.gist_encoder.parameters()),
+            "gist": [self.gist_encoder.gate],
         }
         if self.carry_belief:
             groups["evidential_head"] = (
@@ -130,9 +129,7 @@ class Gen2FoundationModel(nn.Module):
             groups["predictor"] = list(self.predictor.parameters())
             groups["precision"] = list(self.precision.parameters())
             if self.arm == "v2" and self.update_net_v2 is not None:
-                groups["update_net"] = (
-                    list(self.update_net_v2.parameters()) + list(self.spatial_error_pool.parameters())
-                )
+                groups["update_net"] = list(self.update_net_v2.parameters())
             elif self.update_net is not None:
                 groups["update_net"] = list(self.update_net.parameters())
         if self.use_ais_v2:
@@ -162,14 +159,15 @@ class Gen2FoundationModel(nn.Module):
         gist_tokens = self.gist_encoder(x)  # (B, 16, D_z)
         z_t = gist_tokens.mean(dim=1)       # Initial z_0 from gist (B, D_z)
 
+        gaze_schedule = [
+            torch.zeros(B, 2, device=device),
+            torch.tensor([[0.3, 0.3]], device=device).expand(B, -1),
+            torch.tensor([[-0.3, 0.3]], device=device).expand(B, -1),
+            torch.tensor([[0.0, -0.3]], device=device).expand(B, -1),
+        ]
+
         if not self.carry_belief:
             # recurrence_only: T=4 fixed glimpses refining z
-            gaze_schedule = [
-                torch.zeros(B, 2, device=device),
-                torch.tensor([[0.3, 0.3]], device=device).expand(B, -1),
-                torch.tensor([[-0.3, 0.3]], device=device).expand(B, -1),
-                torch.tensor([[0.0, -0.3]], device=device).expand(B, -1),
-            ]
             for t in range(min(self.num_glimpses, len(gaze_schedule))):
                 crop = foveal_sample(x, gaze_schedule[t], fovea_size=self.fovea_size)
                 pooled_g, _ = self.backbone(crop)
@@ -177,28 +175,52 @@ class Gen2FoundationModel(nn.Module):
             return self.cls_head(z_t)
 
         # Belief phases: carry evidential uncertainty and dynamics
-        evidence = self.evidential_head(z_t)
-        u_t = self.evidential_head.uncertainty(evidence)
+        dirichlet = self.evidential_head(z_t)
+        current_gaze = torch.zeros(B, 2, device=device)
+        prev_tokens = None
+        pred_feat = None
 
-        # Simple fixed or AIS-v2 loop
         for t in range(self.num_glimpses):
-            gaze = torch.zeros(B, 2, device=device)  # placeholder or policy
-            crop = foveal_sample(x, gaze, fovea_size=self.fovea_size)
+            if self.use_ais_v2 and t > 0:
+                belief_obj = SimpleNamespace(
+                    z=z_t, uncertainty=dirichlet.uncertainty, evidence=dirichlet.evidence
+                )
+                sel = self.gaze_policy.select_next_location(
+                    belief_obj,
+                    observed_tokens=prev_tokens.detach() if prev_tokens is not None else torch.zeros(B, 16, self.d_z, device=device),
+                    current_gaze=current_gaze,
+                    predicted_tokens=pred_feat,
+                    training=self.training,
+                )
+                current_gaze = sel.selected.clamp(-1.0, 1.0)
+            elif t < len(gaze_schedule):
+                current_gaze = gaze_schedule[t]
+            else:
+                current_gaze = torch.zeros(B, 2, device=device)
+
+            crop = foveal_sample(x, current_gaze, fovea_size=self.fovea_size)
             pooled_g, tokens_g = self.backbone(crop)
+            prev_tokens = tokens_g
 
             if self.belief_dynamics:
-                prec = self.precision(u_t)
-                pred_feat = self.predictor.predict_features(z_t, gaze)
-                if self.arm == "v2" and self.spatial_error_pool is not None:
-                    # Spatial error pool
-                    err = self.spatial_error_pool(pred_feat, tokens_g)
-                    z_t = self.update_net_v2(z_t, pooled_g, err, prec)
+                prec = self.precision(dirichlet).unsqueeze(-1)
+                belief_obj = SimpleNamespace(
+                    z=z_t, uncertainty=dirichlet.uncertainty, evidence=dirichlet.evidence
+                )
+                pred_feat = self.predictor.predict_features(belief_obj, current_gaze)
+                if self.arm == "v2" and self.update_net_v2 is not None:
+                    err_map = (pred_feat - tokens_g).norm(dim=-1).view(B, 4, 4)
+                    delta_z = self.update_net_v2(
+                        z_t, err_map, observed=pooled_g, U=dirichlet.uncertainty
+                    )
                 else:
-                    err = (pred_feat - tokens_g).abs().mean(dim=1)
-                    z_t = self.update_net(z_t, pooled_g, err, prec)
+                    err = pred_feat - tokens_g
+                    delta_z = self.update_net(z_t, err)
+                z_t = z_t + prec * delta_z
+            else:
+                z_t = 0.5 * z_t + 0.5 * pooled_g
 
-            evidence = self.evidential_head(z_t)
-            u_t = self.evidential_head.uncertainty(evidence)
+            dirichlet = self.evidential_head(z_t)
 
-        feats = torch.cat([z_t, evidence], dim=-1)
-        return self.cls_head(feats) + self.ev_readout(evidence)
+        feats = torch.cat([z_t, dirichlet.evidence], dim=-1)
+        return self.cls_head(feats) + self.ev_readout(dirichlet.evidence)

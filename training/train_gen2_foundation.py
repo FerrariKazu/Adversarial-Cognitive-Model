@@ -39,6 +39,7 @@ if REPO_ROOT not in sys.path:
 from gen2_foundation.backbone import CompactViTGen2
 from gen2_foundation.model import Gen2FoundationModel
 from gen2_foundation.recipe import build_adamw, AdamWGroups
+from noesis_vision.models.foveation import DEFAULT_FOVEA_SIZE
 from training.curriculum_gen2 import (
     curriculum_for_phase_epoch,
     norm_to_pixel_eps,
@@ -383,7 +384,20 @@ def run_gen2_phase(
         if os.path.exists(prev_final_path):
             print(f"Inheriting FINAL weights from previous phase: {prev_final_path}")
             st = torch.load(prev_final_path, map_location="cpu")
-            model.load_state_dict(st["model"], strict=False)
+            saved_sd = st["model"]
+            model_sd = model.state_dict()
+            filtered_sd = {}
+            for k, v in saved_sd.items():
+                if k in model_sd:
+                    if v.shape == model_sd[k].shape:
+                        filtered_sd[k] = v
+                    else:
+                        print(f"  Note: skipping direct copy of '{k}' due to phase shape transition ({v.shape} -> {model_sd[k].shape})")
+                        if k == "cls_head.weight" and v.shape[0] == model.cls_head.weight.shape[0]:
+                            with torch.no_grad():
+                                model.cls_head.weight[:, :v.shape[1]].copy_(v)
+                            print(f"  Partially copied cls_head.weight[:, :{v.shape[1]}] from {prev_phase}.")
+            model.load_state_dict(filtered_sd, strict=False)
         else:
             print(f"WARNING: Parent checkpoint {prev_final_path} not found. Cold start.")
 
@@ -401,20 +415,33 @@ def run_gen2_phase(
     stall_count = 0
     start_time = time.time()
 
-    # Resume check
+    # Resume check — with stale-checkpoint detection
     rolling_path = os.path.join(ckpt_dir, f"foundation_{phase}_rolling.pth")
     if os.path.exists(rolling_path):
         print(f"Resuming from rolling checkpoint: {rolling_path}")
         saved = torch.load(rolling_path, map_location="cpu")
-        start_epoch = saved.get("epoch", 0) + 1
-        model.load_state_dict(saved["model"])
-        if "optimizer" in saved:
-            optimizer.load_state_dict(saved["optimizer"])
-        if "scheduler" in saved:
-            scheduler.load_state_dict(saved["scheduler"])
-        best_clean_acc = saved.get("best_clean_acc", 0.0)
-        best_rob_acc = saved.get("best_rob_acc", 0.0)
-        print(f"Resumed at epoch {start_epoch}. Verified rolling state.")
+        saved_keys = set(saved["model"].keys())
+        model_keys = set(model.state_dict().keys())
+        missing = model_keys - saved_keys
+        unexpected = saved_keys - model_keys
+        if missing or unexpected:
+            print(f"WARNING: Stale rolling checkpoint detected!")
+            if missing:
+                print(f"  Missing keys ({len(missing)}): {sorted(missing)[:5]}{'...' if len(missing) > 5 else ''}")
+            if unexpected:
+                print(f"  Unexpected keys ({len(unexpected)}): {sorted(unexpected)[:5]}{'...' if len(unexpected) > 5 else ''}")
+            print(f"  Discarding stale checkpoint. Phase will restart from inherited or warm-start weights.")
+            os.rename(rolling_path, rolling_path + ".stale")
+        else:
+            start_epoch = saved.get("epoch", 0) + 1
+            model.load_state_dict(saved["model"])
+            if "optimizer" in saved:
+                optimizer.load_state_dict(saved["optimizer"])
+            if "scheduler" in saved:
+                scheduler.load_state_dict(saved["scheduler"])
+            best_clean_acc = saved.get("best_clean_acc", 0.0)
+            best_rob_acc = saved.get("best_rob_acc", 0.0)
+            print(f"Resumed at epoch {start_epoch}. Verified rolling state.")
 
     for epoch in range(start_epoch, total_epochs + 1):
         ep_t0 = time.time()
@@ -580,6 +607,10 @@ def run_gen2_phase(
         }
         with open(jsonl_path, "a", encoding="utf-8") as f_log:
             f_log.write(json.dumps(log_record) + "\n")
+
+        if smoke:
+            print(f"\n[Smoke Benchmark] 1 smoke epoch completed in {ep_duration:.1f}s.")
+            break
 
         # ── Gate C Check (epoch 10 of g2_gist_only) ─────────────────────────
         if curric.gate_trigger == "GATE_C":
