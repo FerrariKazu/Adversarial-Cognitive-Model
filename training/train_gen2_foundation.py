@@ -470,7 +470,10 @@ def run_gen2_phase(
         clip_sat_steps = 0
         step_count = 0
 
-        for x, y in train_loader:
+        total_batches = len(train_loader)
+        log_interval = 10 if smoke else 25
+
+        for step, (x, y) in enumerate(train_loader, start=1):
             x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
             optimizer.zero_grad(set_to_none=True)
 
@@ -507,9 +510,29 @@ def run_gen2_phase(
             tot_kl += kl_val * y.size(0)
             n_samples += y.size(0)
 
+            if step == 1 or step % log_interval == 0 or step == total_batches:
+                step_elapsed = max(time.time() - ep_t0, 1e-4)
+                img_per_sec = (step * y.size(0)) / step_elapsed
+                rem_steps = total_batches - step
+                step_eta_min = (rem_steps * (step_elapsed / step)) / 60.0
+                cur_loss = tot_loss / max(n_samples, 1)
+                cur_ce = tot_ce / max(n_samples, 1)
+                cur_kl = tot_kl / max(n_samples, 1)
+                cur_lr = optimizer.param_groups[0]["lr"]
+                max_norm = max(pre_norms.values()) if pre_norms else 0.0
+                pct = (step / total_batches) * 100.0
+                print(
+                    f"  [{phase}] Ep {epoch}/{total_epochs} [{step:>4}/{total_batches} | {pct:>5.1f}%] "
+                    f"loss: {cur_loss:.4f} (ce: {cur_ce:.4f}, kl: {cur_kl:.4f}) | "
+                    f"lr: {cur_lr:.2e} | gnorm: {max_norm:.2f} | "
+                    f"{img_per_sec:.1f} img/s | eta: {step_eta_min:.1f}m",
+                    flush=True,
+                )
+
         scheduler.step()
 
         # Validation Clean (Full 5,000 images)
+        print(f"  [{phase}] Running clean validation (5,000 images)...", flush=True)
         model.eval()
         v_clean_correct = 0
         v_clean_total = 0
@@ -523,9 +546,10 @@ def run_gen2_phase(
         val_clean_acc = v_clean_correct / max(v_clean_total, 1)
 
         # Validation Robust (Fixed 512-image subset with PGD-10 @ current eps)
+        rob_eps = curric.eps_norm if curric.adversarial else 0.031
+        print(f"  [{phase}] Running robust validation (512 images, PGD-10 @ eps={rob_eps:.3f})...", flush=True)
         v_rob_correct = 0
         v_rob_total = 0
-        rob_eps = curric.eps_norm if curric.adversarial else 0.031
         for rx, ry in rob_loader:
             rx, ry = rx.to(device, non_blocking=True), ry.to(device, non_blocking=True)
             rx_adv = run_pgd_ce_eval(model, rx, ry, eps=rob_eps, steps=10)
@@ -565,13 +589,18 @@ def run_gen2_phase(
 
         # Labeled epoch block
         print("-" * 70)
-        print(f"[{phase}] Epoch {epoch}/{total_epochs} ({ep_duration:.1f}s, VRAM: {vram_mb:.0f}MB, ETA: {eta_min:.1f}m)")
-        print(f"  val_acc[CLEAN]:  {val_clean_acc*100:.2f}% (best: {max(best_clean_acc, val_clean_acc)*100:.2f}%)")
-        print(f"  val_acc[ROBUST]: {val_rob_acc*100:.2f}% (eps={rob_eps:.3f}, best: {max(best_rob_acc, val_rob_acc)*100:.2f}%)")
-        print(f"  loss: total={tot_loss/max(n_samples,1):.4f} ce={tot_ce/max(n_samples,1):.4f} kl={tot_kl/max(n_samples,1):.4f}")
-        print(f"  health flags: {health_flags or ['OK']}")
+        print(f"[{phase}] Epoch {epoch}/{total_epochs} COMPLETED ({ep_duration:.1f}s, VRAM: {vram_mb:.0f}MB, Phase ETA: {eta_min:.1f}m)")
+        print(f"  Accuracy:")
+        print(f"    val_acc[CLEAN]:  {val_clean_acc*100:.2f}% (best: {max(best_clean_acc, val_clean_acc)*100:.2f}%)")
+        print(f"    val_acc[ROBUST]: {val_rob_acc*100:.2f}% (eps={rob_eps:.3f}, best: {max(best_rob_acc, val_rob_acc)*100:.2f}%)")
+        print(f"  Losses: total={tot_loss/max(n_samples,1):.4f} | ce={tot_ce/max(n_samples,1):.4f} | kl={tot_kl/max(n_samples,1):.4f}")
+        lr_strs = [f"{g['name']}: {g['lr']:.2e}" for g in optimizer.param_groups[:3]]
+        print(f"  Learning rates: {', '.join(lr_strs)}")
+        norm_strs = [f"{k}: {v:.2f}" for k, v in list(pre_norms.items())[:4]]
+        print(f"  Pre-clip norms: {', '.join(norm_strs)}")
+        print(f"  Health flags:   {health_flags or ['OK']}")
         if drift_info:
-            print(f"  feature drift: mean |dW|/|W0| = {drift_info.get('mean_rel_weight_change', 0.0)*100:.2f}%")
+            print(f"  Feature drift:  mean |dW|/|W0| = {drift_info.get('mean_rel_weight_change', 0.0)*100:.2f}%")
         print("-" * 70, flush=True)
 
         # Checkpoints saving
