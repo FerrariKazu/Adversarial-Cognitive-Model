@@ -443,6 +443,7 @@ def run_gen2_phase(
             best_rob_acc = saved.get("best_rob_acc", 0.0)
             print(f"Resumed at epoch {start_epoch}. Verified rolling state.")
 
+    recent_ep_durations: list = []  # rolling window for ETA smoothing
     for epoch in range(start_epoch, total_epochs + 1):
         ep_t0 = time.time()
         elapsed_hours = (time.time() - start_time) / 3600.0
@@ -585,22 +586,36 @@ def run_gen2_phase(
         ep_duration = time.time() - ep_t0
         vram_mb = torch.cuda.max_memory_allocated() / (1024 * 1024) if torch.cuda.is_available() else 0.0
         rem_epochs = total_epochs - epoch
-        eta_min = (rem_epochs * ep_duration) / 60.0
+
+        # Rolling-average ETA (last 3 epochs to smooth slow first-epoch cache warming)
+        recent_ep_durations.append(ep_duration)
+        if len(recent_ep_durations) > 3:
+            recent_ep_durations.pop(0)
+        avg_ep_s = sum(recent_ep_durations) / len(recent_ep_durations)
+        phase_eta_min = (rem_epochs * avg_ep_s) / 60.0
+
+        # Session budget (how many epochs fit before the 11h safety halt)
+        session_elapsed_h = (time.time() - start_time) / 3600.0
+        session_remain_s = max(0.0, 11.0 * 3600.0 - session_elapsed_h * 3600.0)
+        epochs_fit_in_session = int(session_remain_s / avg_ep_s) if avg_ep_s > 0 else rem_epochs
+        session_warn = f" ⚠ WILL NEED RESUME (only ~{epochs_fit_in_session} more fit this session)" if epochs_fit_in_session < rem_epochs else ""
 
         # Labeled epoch block
         print("-" * 70)
-        print(f"[{phase}] Epoch {epoch}/{total_epochs} COMPLETED ({ep_duration:.1f}s, VRAM: {vram_mb:.0f}MB, Phase ETA: {eta_min:.1f}m)")
-        print(f"  Accuracy:")
-        print(f"    val_acc[CLEAN]:  {val_clean_acc*100:.2f}% (best: {max(best_clean_acc, val_clean_acc)*100:.2f}%)")
-        print(f"    val_acc[ROBUST]: {val_rob_acc*100:.2f}% (eps={rob_eps:.3f}, best: {max(best_rob_acc, val_rob_acc)*100:.2f}%)")
-        print(f"  Losses: total={tot_loss/max(n_samples,1):.4f} | ce={tot_ce/max(n_samples,1):.4f} | kl={tot_kl/max(n_samples,1):.4f}")
+        print(
+            f"[{phase}] Epoch {epoch}/{total_epochs} ({ep_duration:.1f}s, VRAM: {vram_mb:.0f}MB) "
+            f"| session: {session_elapsed_h:.2f}h/11h | phase ETA: {phase_eta_min:.1f}m{session_warn}"
+        )
+        print(f"  val_acc[CLEAN]:  {val_clean_acc*100:.2f}% (best: {max(best_clean_acc, val_clean_acc)*100:.2f}%)")
+        print(f"  val_acc[ROBUST]: {val_rob_acc*100:.2f}% (eps={rob_eps:.3f}, best: {max(best_rob_acc, val_rob_acc)*100:.2f}%)")
+        print(f"  loss: total={tot_loss/max(n_samples,1):.4f} ce={tot_ce/max(n_samples,1):.4f} kl={tot_kl/max(n_samples,1):.4f}")
         lr_strs = [f"{g['name']}: {g['lr']:.2e}" for g in optimizer.param_groups[:3]]
-        print(f"  Learning rates: {', '.join(lr_strs)}")
+        print(f"  lr: {', '.join(lr_strs)}")
         norm_strs = [f"{k}: {v:.2f}" for k, v in list(pre_norms.items())[:4]]
-        print(f"  Pre-clip norms: {', '.join(norm_strs)}")
-        print(f"  Health flags:   {health_flags or ['OK']}")
+        print(f"  gnorm: {', '.join(norm_strs)}")
+        print(f"  health flags: {health_flags or ['OK']}")
         if drift_info:
-            print(f"  Feature drift:  mean |dW|/|W0| = {drift_info.get('mean_rel_weight_change', 0.0)*100:.2f}%")
+            print(f"  feature drift: mean |dW|/|W0| = {drift_info.get('mean_rel_weight_change', 0.0)*100:.2f}%")
         print("-" * 70, flush=True)
 
         # Checkpoints saving
