@@ -145,21 +145,22 @@ for r in [HF_BEST, HF_ROLLING]:
         print(f"  HF repo check for {r}: {e}")
 
 def restore_checkpoints_from_hf():
-    """Download rolling checkpoints and logs from HF if resuming a session."""
-    try:
-        files = list_repo_files(repo_id=HF_ROLLING, repo_type="dataset", token=hf_token)
-        restored = 0
-        for f in files:
-            if f.endswith(".pth") or f.endswith(".jsonl"):
-                local_f = os.path.join("checkpoints", os.path.basename(f)) if f.endswith(".pth") else os.path.join("report", os.path.basename(f))
-                if not os.path.exists(local_f):
-                    print(f"  Restoring {f} from HF...")
-                    p = hf_hub_download(repo_id=HF_ROLLING, filename=f, repo_type="dataset", token=hf_token)
-                    shutil.copyfile(p, local_f)
-                    restored += 1
-        print(f"✓ Restored {restored} checkpoint/log file(s) from HF.")
-    except Exception as e:
-        print(f"  Note: No prior rolling checkpoints found on HF (starting fresh): {e}")
+    """Download rolling checkpoints, best/final checkpoints, and logs from HF if resuming a session."""
+    restored = 0
+    for repo_id in [HF_BEST, HF_ROLLING]:
+        try:
+            files = list_repo_files(repo_id=repo_id, repo_type="dataset", token=hf_token)
+            for f in files:
+                if f.endswith(".pth") or f.endswith(".jsonl"):
+                    local_f = os.path.join("checkpoints", os.path.basename(f)) if f.endswith(".pth") else os.path.join("report", os.path.basename(f))
+                    if not os.path.exists(local_f):
+                        print(f"  Restoring {f} from HF ({repo_id})...")
+                        p = hf_hub_download(repo_id=repo_id, filename=f, repo_type="dataset", token=hf_token)
+                        shutil.copyfile(p, local_f)
+                        restored += 1
+        except Exception as e:
+            print(f"  Note: Checking HF repo {repo_id}: {e}")
+    print(f"✓ Restored {restored} checkpoint/log file(s) from HF.")
 
 def sync_checkpoints_to_hf():
     """Upload new checkpoints and JSONL log to HF."""

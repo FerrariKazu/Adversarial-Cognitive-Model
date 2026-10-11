@@ -442,7 +442,18 @@ def run_gen2_phase(
             best_clean_acc = saved.get("best_clean_acc", 0.0)
             best_rob_acc = saved.get("best_rob_acc", 0.0)
             print(f"Resumed at epoch {start_epoch}. Verified rolling state.")
+            if start_epoch > total_epochs:
+                print(f"✓ Phase '{phase}' rolling checkpoint already completed all {total_epochs} epochs. Marking complete.")
+                final_path = os.path.join(ckpt_dir, f"foundation_{phase}_final.pth")
+                if not os.path.exists(final_path):
+                    torch.save(saved, final_path)
+                    print(f"  Saved final checkpoint from rolling state to: {final_path}")
+                return {
+                    "status": "complete", "phase": phase,
+                    "best_clean": best_clean_acc, "best_robust": best_rob_acc,
+                }
 
+    ckpt_state: Optional[Dict[str, Any]] = None
     recent_ep_durations: list = []  # rolling window for ETA smoothing
     for epoch in range(start_epoch, total_epochs + 1):
         ep_t0 = time.time()
@@ -676,7 +687,8 @@ def run_gen2_phase(
 
     # Final checkpoint at completion
     final_path = os.path.join(ckpt_dir, f"foundation_{phase}_final.pth")
-    torch.save(ckpt_state, final_path)
+    if ckpt_state is not None:
+        torch.save(ckpt_state, final_path)
     print(f"\n✓ Phase '{phase}' COMPLETE. Final checkpoint saved to: {final_path}")
     print(f"  best_clean: {best_clean_acc*100:.2f}%, best_robust: {best_rob_acc*100:.2f}%")
     return {
