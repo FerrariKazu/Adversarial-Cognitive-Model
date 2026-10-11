@@ -243,9 +243,10 @@ for phase in PHASE_LADDER:
         batch_size=BATCH_SIZE,
         num_workers=NUM_WORKERS,
         smoke=False,
+        epoch_callback=lambda p, ep: sync_checkpoints_to_hf(),
     )
 
-    # Sync durable checkpoints to HuggingFace after each completed phase
+    # Final sync to HuggingFace after each completed phase
     print(f"Syncing completed phase '{phase}' to HuggingFace...")
     sync_checkpoints_to_hf()
 

@@ -24,7 +24,7 @@ import math
 import os
 import sys
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -348,6 +348,7 @@ def run_gen2_phase(
     num_workers: int = 4,
     smoke: bool = False,
     center_crop_mode: bool = False,
+    epoch_callback: Optional[Callable[[str, int], None]] = None,
 ) -> Dict[str, Any]:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"\n{'='*70}\n[Gen-2 Foundation] Launching Phase: '{phase}' (arm={arm}, device={device})")
@@ -467,6 +468,11 @@ def run_gen2_phase(
                 "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(),
                 "best_clean_acc": best_clean_acc, "best_rob_acc": best_rob_acc,
             }, rolling_path)
+            if epoch_callback is not None:
+                try:
+                    epoch_callback(phase, epoch - 1)
+                except Exception as e:
+                    print(f"  Warning: epoch_callback failed at 11h halt: {e}", flush=True)
             return {"status": "checkpointed_11h", "last_epoch": epoch - 1}
 
         curric = curriculum_for_phase_epoch(phase, epoch)
@@ -662,6 +668,13 @@ def run_gen2_phase(
         }
         with open(jsonl_path, "a", encoding="utf-8") as f_log:
             f_log.write(json.dumps(log_record) + "\n")
+
+        # Invoke per-epoch persistence callback (e.g. HuggingFace sync)
+        if epoch_callback is not None:
+            try:
+                epoch_callback(phase, epoch)
+            except Exception as e:
+                print(f"  Warning: epoch_callback failed at epoch {epoch}: {e}", flush=True)
 
         if smoke:
             print(f"\n[Smoke Benchmark] 1 smoke epoch completed in {ep_duration:.1f}s.")
