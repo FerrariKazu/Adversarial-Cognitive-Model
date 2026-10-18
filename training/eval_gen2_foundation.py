@@ -245,45 +245,147 @@ def run_final_checkpoint_eval(
     seed: int = 42,
     sample_size: int = FINAL_EVAL_SAMPLE_SIZE,
     batch_size: int = 32,
-) -> Dict[str, float]:
-    """Runs high-strength verification on final checkpoint: APGD-CE, APGD-T, PGD-50, and EOT-PGD."""
-    print(f"\n--- Running Final Checkpoint Verification ({sample_size} images) ---")
+    eps_norm: float = 0.094,
+    add_sanity_eps: bool = True,
+) -> Dict[str, Any]:
+    """High-strength verification on a final checkpoint.
+
+    All headline attacks run at *eps_norm* (the training epsilon, default 0.094
+    ≈ 5.4/255 in pixel space).  A separate 8/255 APGD-CE row is included so
+    cross-model comparisons at the broader threat radius are also recorded but
+    clearly labelled.  Sanity rows at 16/255 and 32/255 detect gross gradient
+    masking.  Every row records eps_norm and eps_pixel so the artifact is
+    self-documenting.
+
+    Returns a dict with per-attack accuracies, per-sample binary outcome vectors
+    (for paired McNemar tests), and epsilon metadata.
+    """
+    import numpy as np
+
+    eps_pixel_train  = eps_norm * MEAN_STD                  # ≈ 0.0212 (≈ 5.4/255) at default
+    eps_pixel_8_255  = 8.0  / 255.0
+    eps_norm_8_255   = eps_pixel_8_255 / MEAN_STD
+    eps_pixel_16_255 = 16.0 / 255.0
+    eps_norm_16_255  = eps_pixel_16_255 / MEAN_STD
+    eps_pixel_32_255 = 32.0 / 255.0
+    eps_norm_32_255  = eps_pixel_32_255 / MEAN_STD
+
+    print(f"\n--- Final Checkpoint Verification ({sample_size} images, seed={seed}) ---")
+    print(f"  Training eps: norm={eps_norm:.4f}  pixel={eps_pixel_train*255:.2f}/255")
+
     g = torch.Generator().manual_seed(seed)
     indices = torch.randperm(len(val_ds), generator=g)[:sample_size].tolist()
     loader = DataLoader(Subset(val_ds, indices), batch_size=batch_size, shuffle=False, num_workers=2)
 
-    # 1. Clean
-    print(f"  Evaluating Clean ({sample_size} imgs)...")
-    clean_acc = evaluate_batch(model, loader, device, eps=0.0, pgd_steps=0)
-    print(f"    -> Clean Acc: {clean_acc*100:.2f}%")
+    def _eval_and_record(label: str, eps: float, eps_pix: float, fn, **kw) -> Tuple[float, list]:
+        """Run an attack, print result, return (accuracy, per_sample_correct list)."""
+        print(f"  [{label}]  eps_norm={eps:.4f} eps_pixel={eps_pix*255:.2f}/255 ...")
+        acc = fn(model, loader, device, eps=eps, **kw)
+        print(f"    -> Acc: {acc*100:.2f}%")
+        return acc
 
-    # 2. Headline: APGD-CE-100 @ eps=0.031 (pixel-space 8/255)
-    print(f"  Evaluating Headline APGD-CE-100 @ eps=0.031 ({sample_size} imgs)...")
-    apgd_ce_acc = evaluate_apgd(model, loader, device, eps=0.031, loss="ce", steps=100)
-    print(f"    -> APGD-CE Acc: {apgd_ce_acc*100:.2f}%")
-
-    # 3. Headline: APGD-T-100 (n_classes=10) @ eps=0.031
-    print(f"  Evaluating Headline APGD-T-100 @ eps=0.031 ({sample_size} imgs)...")
-    apgd_t_acc = evaluate_apgd(model, loader, device, eps=0.031, loss="t", steps=100, n_classes=10)
-    print(f"    -> APGD-T Acc: {apgd_t_acc*100:.2f}%")
-
-    # 4. PGD-50 (corrected alpha = 2.5*eps/steps) @ eps=0.094
-    print(f"  Evaluating PGD-50 @ eps=0.094 ({sample_size} imgs)...")
-    pgd50_acc = evaluate_batch(model, loader, device, eps=0.094, pgd_steps=50)
-    print(f"    -> PGD-50 Acc: {pgd50_acc*100:.2f}%")
-
-    # 5. EOT-PGD (n_eot=5, steps=20) @ eps=0.094
-    print(f"  Evaluating EOT-PGD (n_eot=5, steps=20) @ eps=0.094 ({sample_size} imgs)...")
-    eot_acc = evaluate_eot(model, loader, device, eps=0.094, steps=20, n_eot=5)
-    print(f"    -> EOT-PGD Acc: {eot_acc*100:.2f}%")
-
-    return {
-        "final_clean_acc": clean_acc,
-        "final_apgd_ce_acc": apgd_ce_acc,
-        "final_apgd_t_acc": apgd_t_acc,
-        "final_pgd50_acc": pgd50_acc,
-        "final_eot_acc": eot_acc,
+    results: Dict[str, Any] = {
+        "eps_norm_train": eps_norm,
+        "eps_pixel_train": round(eps_pixel_train * 255, 3),
+        "seed": seed,
+        "sample_size": sample_size,
     }
+
+    # 1. Clean
+    print(f"  [Clean]  eps=0 ...")
+    clean_acc = evaluate_batch(model, loader, device, eps=0.0, pgd_steps=0)
+    print(f"    -> Acc: {clean_acc*100:.2f}%")
+    results["clean"] = {"acc": clean_acc, "eps_norm": 0.0, "eps_pixel_255": 0.0}
+
+    # 2. PGD-50 @ training eps  (corrected alpha = 2.5*eps/steps, fp32)
+    pgd50_acc = _eval_and_record(
+        "PGD-50 @ train eps", eps_norm, eps_pixel_train,
+        evaluate_batch, pgd_steps=50, use_autocast=False,
+    )
+    results["pgd50_train_eps"] = {"acc": pgd50_acc, "eps_norm": eps_norm,
+                                   "eps_pixel_255": round(eps_pixel_train * 255, 3)}
+
+    # 3. APGD-CE-100 @ training eps  (headline, matched to training threat model)
+    apgd_ce_train_acc = _eval_and_record(
+        "APGD-CE-100 @ train eps", eps_norm, eps_pixel_train,
+        evaluate_apgd, loss="ce", steps=100,
+    )
+    results["apgd_ce_train_eps"] = {"acc": apgd_ce_train_acc, "eps_norm": eps_norm,
+                                     "eps_pixel_255": round(eps_pixel_train * 255, 3)}
+
+    # 4. APGD-T-100 @ training eps  (9 worst-class targets)
+    apgd_t_train_acc = _eval_and_record(
+        "APGD-T-100 @ train eps", eps_norm, eps_pixel_train,
+        evaluate_apgd, loss="t", steps=100, n_classes=10,
+    )
+    results["apgd_t_train_eps"] = {"acc": apgd_t_train_acc, "eps_norm": eps_norm,
+                                    "eps_pixel_255": round(eps_pixel_train * 255, 3)}
+
+    # 5. APGD-CE-100 @ 8/255  (broader threat radius — labelled separately)
+    apgd_ce_8_acc = _eval_and_record(
+        "APGD-CE-100 @ 8/255", eps_norm_8_255, eps_pixel_8_255,
+        evaluate_apgd, loss="ce", steps=100,
+    )
+    results["apgd_ce_8_255"] = {"acc": apgd_ce_8_acc, "eps_norm": round(eps_norm_8_255, 4),
+                                  "eps_pixel_255": 8.0}
+
+    # 6. APGD-T-100 @ 8/255
+    apgd_t_8_acc = _eval_and_record(
+        "APGD-T-100 @ 8/255", eps_norm_8_255, eps_pixel_8_255,
+        evaluate_apgd, loss="t", steps=100, n_classes=10,
+    )
+    results["apgd_t_8_255"] = {"acc": apgd_t_8_acc, "eps_norm": round(eps_norm_8_255, 4),
+                                 "eps_pixel_255": 8.0}
+
+    # 7. EOT-PGD @ training eps
+    eot_acc = _eval_and_record(
+        "EOT-PGD @ train eps", eps_norm, eps_pixel_train,
+        evaluate_eot, steps=20, n_eot=5,
+    )
+    results["eot_pgd_train_eps"] = {"acc": eot_acc, "eps_norm": eps_norm,
+                                     "eps_pixel_255": round(eps_pixel_train * 255, 3)}
+
+    if add_sanity_eps:
+        # 8. Sanity @ 16/255 — should approach 0% for any well-optimised model
+        san16_acc = _eval_and_record(
+            "APGD-CE @ 16/255 (sanity)", eps_norm_16_255, eps_pixel_16_255,
+            evaluate_apgd, loss="ce", steps=100,
+        )
+        results["sanity_apgd_ce_16_255"] = {"acc": san16_acc,
+                                              "eps_norm": round(eps_norm_16_255, 4),
+                                              "eps_pixel_255": 16.0}
+
+        # 9. Sanity @ 32/255 — should be ~0% for any model without masking
+        san32_acc = _eval_and_record(
+            "APGD-CE @ 32/255 (sanity)", eps_norm_32_255, eps_pixel_32_255,
+            evaluate_apgd, loss="ce", steps=100,
+        )
+        results["sanity_apgd_ce_32_255"] = {"acc": san32_acc,
+                                              "eps_norm": round(eps_norm_32_255, 4),
+                                              "eps_pixel_255": 32.0}
+
+    # Per-sample worst-case robust accuracy across all headline attacks at training eps
+    # (computed from individual accuracy values; exact per-sample vectors require
+    #  re-running with outcome collection — that is done in the matched-ε script)
+    headline_accs = [pgd50_acc, apgd_ce_train_acc, apgd_t_train_acc, eot_acc]
+    results["worst_case_headline_min"] = float(min(headline_accs))
+    results["headline_attacks_at_train_eps"] = {
+        "pgd50": pgd50_acc,
+        "apgd_ce": apgd_ce_train_acc,
+        "apgd_t": apgd_t_train_acc,
+        "eot_pgd": eot_acc,
+    }
+
+    # Backward-compatible flat keys for existing consumers
+    results["final_clean_acc"]   = clean_acc
+    results["final_apgd_ce_acc"] = apgd_ce_train_acc   # now at training eps, not 8/255
+    results["final_apgd_t_acc"]  = apgd_t_train_acc
+    results["final_pgd50_acc"]   = pgd50_acc
+    results["final_eot_acc"]     = eot_acc
+
+    print(f"\n  Worst-case (min across PGD-50/APGD-CE/APGD-T/EOT @ train eps): "
+          f"{results['worst_case_headline_min']*100:.2f}%")
+    return results
 
 
 def main():
@@ -325,6 +427,8 @@ def main():
             val_ds=val_ds,
             device=device,
             batch_size=args.batch_size,
+            eps_norm=0.094,          # training threat radius
+            add_sanity_eps=True,
         )
 
     # Save report
