@@ -109,6 +109,11 @@ subprocess.run(f"git reset --hard origin/{BRANCH}", shell=True, check=True)
 sha = subprocess.check_output("git rev-parse --short HEAD", shell=True, text=True).strip()
 print(f"✓ Checked out {BRANCH} @ commit {sha}")
 
+# Evict cached modules so updated code on disk is reloaded fresh
+for mod in list(sys.modules.keys()):
+    if any(mod.startswith(p) for p in ["training", "gen2_foundation", "noesis_vision"]):
+        del sys.modules[mod]
+
 # %% [markdown]
 # ## Step 3: Official DINOv2-small Warm-Start Checkpoint
 
@@ -215,6 +220,11 @@ else:
 # Measure exact batch latency on GPU with corrected TRADES-PGD4 to project full run cost.
 
 # %%
+import sys
+for mod in list(sys.modules.keys()):
+    if any(mod.startswith(p) for p in ["training", "gen2_foundation", "noesis_vision"]):
+        del sys.modules[mod]
+
 from training.train_gen2_foundation import (
     run_pgd_kl_attack,
     compute_trades_loss,
