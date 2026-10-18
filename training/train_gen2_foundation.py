@@ -1,17 +1,85 @@
 """Gen-2 Foundation Trainer — training/train_gen2_foundation.py
 ================================================================================
 
-Comprehensive Gen-2 Foundation ladder runner implementing S0-S7:
-- Targets: Kaggle T4 & Colab T4. Single GPU.
-- fp16 autocast + GradScaler, with PGD-KL attack evaluated OUTSIDE autocast.
-- Phase g2_gist_only: 30 epochs (10 clean + 20-epoch TRADES ramp).
-- Downstream phases: recurrence_only, belief_no_f, belief_with_f (arm v1 & v2),
-  ais_v2_swap, gen1_core. 15 epochs each, inheriting previous phase's FINAL-epoch weights.
-- AdamW multi-group optimizer with per-group clip norm and warmup/cosine.
-- Epoch health flags (CHANCE-LEVEL, CLIP-SATURATED, TRADES-DEAD, STALL, ROBUST>CLEAN).
-- Feature drift monitoring every 5 epochs.
-- Clean exit at 11h elapsed to prevent cloud session cut corruption.
-- Durable JSONL append-only log with resume verification.
+PURPOSE
+-------
+This file is the single entry point for training every Gen-2 model checkpoint.
+It implements the full S0-S7 ladder described in the project plan and is the
+only source of truth for the training recipe.  All cloud notebooks (colab_j1,
+colab_j2, …) delegate to ``run_gen2_phase()`` or invoke this file via the CLI.
+
+ARCHITECTURE OVERVIEW
+---------------------
+Every phase trains a ``Gen2FoundationModel`` from ``gen2_foundation/model.py``.
+The model is a DINOv2-ViT-S backbone (12 blocks, 384 dims, 6 heads) with phase-
+specific heads attached on top.  Phases are trained sequentially; each inherits
+its predecessor's final-epoch weights.
+
+  Phase 1  g2_gist_only     — 30 epochs.  Trunk + linear classifier only.
+                               10 clean epochs then a 3-rung TRADES ramp
+                               (eps 0.031 → 0.062 → 0.094 in norm space).
+  Phase 2  recurrence_only  — 15 epochs.  T=4 glimpse fixed-EMA recurrence.
+  Phase 3  belief_no_f      — 15 epochs.  Dirichlet evidential uncertainty head.
+  Phase 4  belief_with_f    — 15 epochs.  UpdateNet belief dynamics + precision.
+  Phase 5  ais_v2_swap      — 15 epochs.  AIS-v2 active gaze policy.
+  Phase 6  gen1_core        — 15 epochs.  Full end-to-end joint fine-tune.
+
+  Control / new baselines (J2):
+  ff_112                    — 15 epochs.  Feedforward ViT-S at 112px / 64 tokens.
+                               This is the Gen-3 reference baseline.
+  ff_56                     — 15 epochs.  Same recipe, 56px (Gen-2 resolution).
+                               Separates resolution gain from attack correction.
+  ff_112_seed<N>            — ff_112 trained with a different random seed.
+
+ATTACK RECIPE (CORRECTED)
+-------------------------
+All adversarial training uses TRADES with a KL-divergence inner problem.
+The inner PGD loop uses the corrected step size::
+
+    alpha = 2.5 * eps / steps
+
+and a uniform random start in [-eps, eps], matching the Madry / AutoAttack
+convention.  The original Gen-2 ladder used alpha = eps / steps (too small);
+this has been corrected for ff_112 and all future checkpoints.
+
+EVALUATION DURING TRAINING
+---------------------------
+The in-loop robust monitor runs PGD-10 on a fixed 512-image slice.  This is a
+WEAK monitor (small n, old-convention step size at older phases).  Do NOT quote
+the training log's robust column in any paper table; use the dedicated
+``eval_gen2_foundation.py`` script for that.
+
+DURABILITY
+----------
+- Rolling checkpoint saved after every epoch so cloud sessions can resume.
+- Best-clean and best-robust checkpoints saved separately.
+- Append-only JSONL log at ``report/gen2_epoch_log.jsonl``.
+- 11-hour safety cutoff: saves a clean checkpoint and exits before cloud
+  session is terminated mid-write.
+- HuggingFace sync is injected via the ``epoch_callback`` hook (see Colab notebooks).
+
+CLI USAGE
+---------
+  # Train a single phase:
+  python3 training/train_gen2_foundation.py --phase ff_112 --img-size 112
+
+  # Train the full original ladder:
+  python3 training/train_gen2_foundation.py --phase all
+
+  # Train ff_56 control and rename checkpoints accordingly:
+  python3 training/train_gen2_foundation.py \
+      --phase g2_gist_only --phase-name ff_56 --img-size 56 --n-epochs 15
+
+  # Second ff_112 seed (for variance estimation):
+  python3 training/train_gen2_foundation.py \
+      --phase ff_112 --phase-name ff_112_seed42 --seed 42
+
+DEPENDNCIES
+------------
+  gen2_foundation/model.py        — Gen2FoundationModel
+  gen2_foundation/recipe.py       — AdamW group builder
+  noesis_vision/models/foveation  — DEFAULT_FOVEA_SIZE constant
+  training/curriculum_gen2.py     — per-epoch eps / beta schedule
 """
 
 from __future__ import annotations
@@ -53,6 +121,8 @@ from training.curriculum_gen2 import (
 HF_BEST_REPO = "FerrariKazu/rhan-nxa-g2-checkpoints"
 HF_ROLLING_REPO = "FerrariKazu/rhan-nxa-g2-checkpoints-rolling"
 
+# Ordered sequence of the six original Gen-2 phases.  Each phase inherits the
+# FINAL-epoch weights of the phase immediately before it in this list.
 PHASE_LADDER = [
     "g2_gist_only",
     "recurrence_only",
@@ -62,6 +132,8 @@ PHASE_LADDER = [
     "gen1_core",
 ]
 
+# Default epoch budget per phase.  Can be overridden at runtime via the
+# ``n_epochs`` argument to ``run_gen2_phase()`` or ``--n-epochs`` on the CLI.
 PHASE_TOTAL_EPOCHS = {
     "g2_gist_only": 30,
     "recurrence_only": 15,
@@ -69,13 +141,15 @@ PHASE_TOTAL_EPOCHS = {
     "belief_with_f": 15,
     "ais_v2_swap": 15,
     "gen1_core": 15,
-    "ff_112": 15,
+    # J2 baselines
+    "ff_112": 15,   # 112-px feedforward reference baseline
+    "ff_56":  15,   # 56-px feedforward control (resolution ablation)
 }
 
 GATE_W_REFERENCE_ACC = 0.5852  # Gate W passed score
 
 
-# ── PGD-KL Attack (Gen-0 mechanics, evaluated strictly outside autocast) ─────
+# ── PGD-KL Attack (evaluated strictly outside autocast in fp32) ──────────────
 def run_pgd_kl_attack(
     model: nn.Module,
     x: torch.Tensor,
@@ -83,7 +157,30 @@ def run_pgd_kl_attack(
     steps: int,
     alpha: Optional[float] = None,
 ) -> torch.Tensor:
-    """Builds x_adv outside autocast in fp32 with KL(x_adv || clean)."""
+    """Inner PGD loop for the TRADES training objective.
+
+    Builds x_adv by maximising KL(f(x_adv) || f(x_clean)), which is the
+    TRADES inner problem.  Crucially, this runs OUTSIDE torch.cuda.amp.autocast
+    so that all gradient computations are in fp32 — autocast is re-enabled only
+    for the forward pass inside the outer TRADES loss call.
+
+    Step-size convention (corrected):
+        alpha = 2.5 * eps / steps  (Madry / AutoAttack standard)
+    Random start:
+        x_adv = x + U(-eps, eps)   (uniform, not Gaussian)
+
+    Args:
+        model:  The model being adversarially trained.  Temporarily set to
+                eval() to suppress dropout/BN train-mode noise during attack.
+        x:      Clean input batch, normalised to ImageNet stats, in [-4, 4].
+        eps:    Perturbation radius in normalised pixel space (e.g. 0.094).
+        steps:  Number of PGD steps.  For TRADES inner loop, typically 4.
+        alpha:  Step size.  If None or <= 0, defaults to 2.5*eps/steps.
+
+    Returns:
+        x_adv: Adversarial batch, same shape as x, clamped to [x-eps, x+eps]
+               and to [-4.0, 4.0].
+    """
     was_training = model.training
     model.eval()
     try:
@@ -116,7 +213,7 @@ def run_pgd_kl_attack(
             model.train()
 
 
-# ── PGD Cross-Entropy Attack for Robust Evaluation ─────────────────────────
+# ── PGD Cross-Entropy Attack for Robust Evaluation ──────────────────────────
 def run_pgd_ce_eval(
     model: nn.Module,
     x: torch.Tensor,
@@ -124,6 +221,32 @@ def run_pgd_ce_eval(
     eps: float,
     steps: int = 10,
 ) -> torch.Tensor:
+    """PGD attack using cross-entropy loss, used for robust accuracy measurement.
+
+    This is a SEPARATE function from the training attack (run_pgd_kl_attack).
+    The training attack maximises KL divergence from the clean prediction;
+    this attack maximises cross-entropy against the ground-truth label — a
+    stronger evaluation objective.
+
+    Step-size convention:  alpha = 2.5 * eps / steps  (corrected standard).
+    Random start:          x_adv = x + U(-eps, eps).
+
+    Used by:
+      - In-loop robust monitor (512-image subset, steps=10) during training.
+        NOTE: The in-loop monitor is a WEAK estimate.  Do NOT quote its numbers
+        in paper tables.  Use eval_gen2_foundation.py for final evaluation.
+      - eval_gen2_foundation.py::evaluate_batch() for the final PGD-50 row.
+
+    Args:
+        model:  Model to attack.  Set to eval() during the attack.
+        x:      Clean input batch.
+        y:      Ground-truth class labels.
+        eps:    Perturbation radius in normalised pixel space.
+        steps:  Number of PGD iterations.
+
+    Returns:
+        x_adv: Adversarial batch clamped to [x-eps, x+eps] ∩ [-4, 4].
+    """
     was_training = model.training
     model.eval()
     try:
@@ -147,7 +270,7 @@ def run_pgd_ce_eval(
             model.train()
 
 
-# ── TRADES Loss ─────────────────────────────────────────────────────────────
+# ── TRADES Loss ──────────────────────────────────────────────────────────────
 def compute_trades_loss(
     model: nn.Module,
     x_clean: torch.Tensor,
@@ -156,6 +279,35 @@ def compute_trades_loss(
     beta: float,
     w_trades: float,
 ) -> Tuple[torch.Tensor, float, float]:
+    """Compute the TRADES adversarial training loss.
+
+    TRADES loss::
+
+        L = w_trades * (CE(f(x_clean), y)  +  beta * KL(f(x_adv) || f(x_clean)))
+
+    The weight ``w_trades`` scales the whole expression (default 0.55), which means
+    the effective coefficients at beta=2.5, w_trades=0.55 are::
+
+        0.55 * CE  +  1.375 * KL
+
+    This differs from the doc formula "0.45*CE + 0.55*beta*KL" in plan.md —
+    the code is the ground truth (verified via training logs in revision1.md §3.2).
+
+    Args:
+        model:    The model being trained.  Called twice: once on x_clean,
+                  once on x_adv.  Runs inside torch.cuda.amp.autocast.
+        x_clean:  Original (non-adversarial) input batch.
+        y:        Ground-truth class labels.
+        x_adv:    Adversarial batch produced by run_pgd_kl_attack.
+        beta:     TRADES regularisation strength (2.5 at the top rung).
+        w_trades: Overall loss weight (0.55 throughout the Gen-2 ladder).
+
+    Returns:
+        (total_loss, ce_scalar, kl_scalar):
+          total_loss — differentiable tensor for backward().
+          ce_scalar  — detached CE value for logging.
+          kl_scalar  — detached KL value for logging.
+    """
     logits_clean = model(x_clean)
     loss_ce = F.cross_entropy(logits_clean.float(), y)
 
@@ -169,7 +321,7 @@ def compute_trades_loss(
     return total_loss, float(loss_ce.item()), float(loss_kl.item())
 
 
-# ── Light Augmentation Dataset Loaders ─────────────────────────────────────
+# ── Dataset Loaders ──────────────────────────────────────────────────────────
 def get_gen2_loaders(
     data_root: str,
     batch_size: int = 48,
@@ -177,6 +329,42 @@ def get_gen2_loaders(
     smoke: bool = False,
     img_size: int = DEFAULT_FOVEA_SIZE,
 ) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
+    """Build the four standard DataLoaders for Gen-2 training.
+
+    Returns four loaders:
+      train_loader  — full training set with random augmentation.
+      val_loader    — full validation set (5,000 images), no augmentation.
+      rob_loader    — fixed 512-image subset (seed 41) for in-loop robust eval.
+      drift_loader  — fixed 256-image subset (seed 42) for feature-drift monitor.
+
+    Augmentation policy (training only)::
+
+        RandomResizedCrop(img_size, scale=(0.35, 1.0))
+        RandomHorizontalFlip
+        Normalize(ImageNet mean/std)
+
+    All val/eval paths use deterministic Resize + Normalize only.
+
+    IMPORTANT — img_size:
+        The default is 56 (DEFAULT_FOVEA_SIZE), matching the original Gen-2 ladder.
+        Pass img_size=112 for ff_112 and ff_112_seed* baselines.
+        Pass img_size=56  for ff_56 (same as default; explicit for clarity).
+
+    Smoke mode:
+        When smoke=True, training is restricted to a random 2,000-image subset
+        (seed 41) so a single epoch completes in ~20s.  Use this to time one
+        epoch and project GPU-hour cost before committing a full run.
+
+    Args:
+        data_root:   Path to the root directory containing ``train/`` and ``val/``.
+        batch_size:  Batch size for train and val loaders.
+        num_workers: DataLoader worker processes.
+        smoke:       If True, restricts training set to 2,000 images.
+        img_size:    Resize all images to (img_size, img_size).
+
+    Returns:
+        (train_loader, val_loader, rob_loader, drift_loader)
+    """
     tf_train = transforms.Compose([
         transforms.RandomResizedCrop(img_size, scale=(0.35, 1.0)),
         transforms.RandomHorizontalFlip(),
@@ -226,7 +414,7 @@ def get_gen2_loaders(
     return train_loader, val_loader, rob_loader, drift_loader
 
 
-# ── Optimizer Construction with AdamW Multi-Group Registry ──────────────────
+# ── Optimizer ────────────────────────────────────────────────────────────────
 def build_gen2_optimizer(
     model: Gen2FoundationModel,
     warmup_epochs: int = 3,
@@ -236,6 +424,26 @@ def build_gen2_optimizer(
     weight_decay: float = 0.05,
     clip_norm: float = 1.0,
 ) -> Tuple[torch.optim.Optimizer, Any]:
+    """Build the AdamW multi-group optimizer and cosine LR scheduler.
+
+    Two LR groups:
+      backbone  — trunk parameters, lr=5e-5 (slow; preserves DINOv2 features).
+      all other — heads, gist, recurrence, etc., lr=5e-4.
+
+    Within each group, weight decay is applied to 2-D+ tensors (weight matrices)
+    and disabled for 1-D tensors (bias, LayerNorm, LayerScale gamma, tokens).
+    This follows the ViT/DINOv2 convention.
+
+    LR schedule:
+      3-epoch linear warmup followed by a cosine decay to 0 over the remaining
+      epochs.  The schedule resets at the start of each phase (no carry-over).
+
+    Gradient clipping:
+      Applied per parameter group with clip_norm=1.0.  See clip_per_group().
+
+    Returns:
+        (optimizer, scheduler)  — pass both to run_gen2_phase.
+    """
     groups = model.group_parameters()
     param_groups = []
 
@@ -287,8 +495,19 @@ def build_gen2_optimizer(
     return optimizer, scheduler
 
 
-# ── Per-Group Gradient Clipping with Pre/Post Norm Recording ────────────────
+# ── Gradient Clipping ────────────────────────────────────────────────────────
 def clip_per_group(optimizer: torch.optim.Optimizer) -> Tuple[Dict[str, float], bool]:
+    """Clip gradients per parameter group and record pre-clip gradient norms.
+
+    Each group's clip budget comes from its ``clip_norm`` field (default 1.0).
+    Pre-clip norms are recorded for the health-flag check (CLIP-SATURATED) and
+    printed in the epoch summary.
+
+    Returns:
+        pre_norms    — dict mapping group name -> pre-clip gradient norm.
+        is_saturated — True if ALL groups were at >= 95% of their clip budget.
+                       Triggers the CLIP-SATURATED health flag.
+    """
     pre_norms = {}
     is_saturated = True
     for g in optimizer.param_groups:
@@ -305,13 +524,32 @@ def clip_per_group(optimizer: torch.optim.Optimizer) -> Tuple[Dict[str, float], 
     return pre_norms, is_saturated
 
 
-# ── Feature Drift Monitor ───────────────────────────────────────────────────
+# ── Feature Drift Monitor ────────────────────────────────────────────────────
 def compute_feature_drift(
     model: Gen2FoundationModel,
     initial_trunk_sd: Dict[str, torch.Tensor],
     drift_loader: DataLoader,
     device: torch.device,
 ) -> Dict[str, float]:
+    """Measure how far the trunk has drifted from its initialisation.
+
+    Reports the mean relative weight change across all trunk parameters::
+
+        drift = mean over layers of  |W_t - W_0|_F / |W_0|_F
+
+    This is computed every 5 epochs on the fixed 256-image drift_loader.
+    A large drift (>10%) relative to the DINOv2 warm-start typically indicates
+    the trunk LR is too high or the loss has collapsed.
+
+    Args:
+        model:            The model being trained (eval() is called internally).
+        initial_trunk_sd: Snapshot of backbone.state_dict() taken at epoch 0.
+        drift_loader:     Fixed 256-image validation subset for measurement.
+        device:           CUDA or CPU device.
+
+    Returns:
+        dict with key ``mean_rel_weight_change`` (float, fraction not percent).
+    """
     model.eval()
     all_current_feats = []
     with torch.no_grad():
@@ -339,7 +577,7 @@ def compute_feature_drift(
     }
 
 
-# ── Full Phase Training Loop ────────────────────────────────────────────────
+# ── Full Phase Training Loop ──────────────────────────────────────────────────
 def run_gen2_phase(
     phase: str,
     arm: str,
@@ -352,17 +590,101 @@ def run_gen2_phase(
     smoke: bool = False,
     center_crop_mode: bool = False,
     epoch_callback: Optional[Callable[[str, int], None]] = None,
+    phase_override_name: Optional[str] = None,
+    img_size: Optional[int] = None,
+    n_epochs: Optional[int] = None,
+    training_seed: Optional[int] = None,
 ) -> Dict[str, Any]:
+    """Train one phase of the Gen-2 (or control/ablation) ladder.
+
+    This is the canonical training entry point.  Colab notebooks call this
+    function directly; the CLI in ``main()`` also delegates to it.
+
+    Phase lifecycle
+    ---------------
+    1. Build model for the requested phase (model architecture is phase-specific).
+    2. Load weights:
+       - Phases ``g2_gist_only``, ``ff_112``, ``ff_56``: load DINOv2 warm-start.
+       - All other phases: inherit FINAL-epoch weights from the previous phase.
+    3. Build AdamW optimizer + cosine scheduler (resets each phase).
+    4. Check for a rolling checkpoint and resume if found and compatible.
+    5. Train for ``total_epochs`` epochs with TRADES-PGD adversarial training.
+    6. Save rolling / best-clean / best-robust / final checkpoints.
+    7. Write every epoch to an append-only JSONL log.
+    8. Call ``epoch_callback(phase, epoch)`` after each epoch (used for HF sync).
+
+    Checkpoint naming
+    -----------------
+    By default, checkpoints are named ``foundation_{phase}_*.pth``.  Pass
+    ``phase_override_name`` to rename them to ``foundation_{override}_*.pth``
+    without changing the model architecture.  This is used for:
+      - ``ff_56``  (trains as ``g2_gist_only`` but checkpoints named ``ff_56``)
+      - ``ff_112_seed42`` / ``ff_112_seed99``  (additional seeds)
+
+    Args:
+        phase:               Architecture phase key, must be in PHASE_LADDER
+                             or a recognised extension (``ff_112``, ``ff_56``).
+        arm:                 Model arm variant (``v1`` or ``v2``, relevant for
+                             ``belief_with_f`` only).
+        data_root:           Path to ImageNet-100 root (contains ``train/``
+                             and ``val/`` subdirectories).
+        ckpt_dir:            Directory where checkpoints are written.
+        report_dir:          Directory where the JSONL epoch log is written.
+        dino_path:           Path to the DINOv2-small pretrained weights
+                             (``dinov2_vits14_pretrain.pth``, 88 MB).
+        batch_size:          Training and val batch size (default 48).
+        num_workers:         DataLoader worker processes (default 4).
+        smoke:               If True, restricts training to 2,000 images for
+                             one epoch.  Use to project GPU hours.
+        center_crop_mode:    Deprecated flag; kept for backward compatibility.
+        epoch_callback:      Callable invoked as ``fn(phase, epoch)`` after each
+                             epoch.  Use for HuggingFace checkpoint sync.
+        phase_override_name: If set, checkpoints and log entries use this name
+                             instead of ``phase``.  Does NOT change model arch.
+        img_size:            Override the input image size.  Defaults to 112 for
+                             ``ff_112`` / ``feedforward_112`` phases, 56 for all
+                             others.  Pass explicitly for ``ff_56``.
+        n_epochs:            Override the total epoch count from
+                             ``PHASE_TOTAL_EPOCHS``.  Useful for shorter ablation
+                             runs or for training beyond the default budget.
+        training_seed:       If set, calls ``torch.manual_seed(seed)`` before
+                             building data loaders and model.  Use for multi-seed
+                             variance estimation (ff_112_seed42, ff_112_seed99, …).
+
+    Returns:
+        dict with keys:
+          ``status``       — ``'complete'`` or ``'checkpointed_11h'``.
+          ``phase``        — the effective phase name (may be override).
+          ``best_clean``   — best clean val accuracy observed during training.
+          ``best_robust``  — best in-loop robust accuracy observed.
+    """
+    # Apply optional training seed before anything else so data order and
+    # weight init are reproducible for multi-seed variance experiments.
+    if training_seed is not None:
+        torch.manual_seed(training_seed)
+
+    # The "effective" phase name governs checkpoint filenames and log entries.
+    # It may differ from the architecture ``phase`` when phase_override_name is set
+    # (e.g., training g2_gist_only but naming outputs "ff_56").
+    eff_name = phase_override_name if phase_override_name else phase
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"\n{'='*70}\n[Gen-2 Foundation] Launching Phase: '{phase}' (arm={arm}, device={device})")
+    print(f"\n{'='*70}\n[Gen-2] Launching: arch_phase='{phase}'  eff_name='{eff_name}'  arm={arm}  device={device}")
+    if phase_override_name:
+        print(f"  NOTE: checkpoints will be named 'foundation_{eff_name}_*.pth'")
     print_curriculum_header()
 
     os.makedirs(ckpt_dir, exist_ok=True)
     os.makedirs(report_dir, exist_ok=True)
     jsonl_path = os.path.join(report_dir, "gen2_epoch_log.jsonl")
 
-    total_epochs = PHASE_TOTAL_EPOCHS.get(phase, 15)
-    fovea_size = 112 if phase in ("ff_112", "feedforward_112") else DEFAULT_FOVEA_SIZE
+    # Resolve epoch budget and image size
+    total_epochs = n_epochs if n_epochs is not None else PHASE_TOTAL_EPOCHS.get(phase, 15)
+    if img_size is not None:
+        fovea_size = img_size
+    else:
+        fovea_size = 112 if phase in ("ff_112", "feedforward_112") else DEFAULT_FOVEA_SIZE
+
     train_loader, val_loader, rob_loader, drift_loader = get_gen2_loaders(
         data_root, batch_size=batch_size, num_workers=num_workers, smoke=smoke, img_size=fovea_size
     )
@@ -421,7 +743,8 @@ def run_gen2_phase(
     start_time = time.time()
 
     # Resume check — with stale-checkpoint detection
-    rolling_path = os.path.join(ckpt_dir, f"foundation_{phase}_rolling.pth")
+    # All checkpoint paths use eff_name so phase_override_name is honoured.
+    rolling_path = os.path.join(ckpt_dir, f"foundation_{eff_name}_rolling.pth")
     if os.path.exists(rolling_path):
         print(f"Resuming from rolling checkpoint: {rolling_path}")
         saved = torch.load(rolling_path, map_location="cpu")
@@ -654,11 +977,11 @@ def run_gen2_phase(
 
         if val_clean_acc > best_clean_acc:
             best_clean_acc = val_clean_acc
-            torch.save(ckpt_state, os.path.join(ckpt_dir, f"foundation_{phase}_best_clean.pth"))
+            torch.save(ckpt_state, os.path.join(ckpt_dir, f"foundation_{eff_name}_best_clean.pth"))
 
         if val_rob_acc > best_rob_acc:
             best_rob_acc = val_rob_acc
-            torch.save(ckpt_state, os.path.join(ckpt_dir, f"foundation_{phase}_best_robust.pth"))
+            torch.save(ckpt_state, os.path.join(ckpt_dir, f"foundation_{eff_name}_best_robust.pth"))
 
         # Durable append-only JSONL record
         log_record = {
@@ -703,46 +1026,140 @@ def run_gen2_phase(
                 print(f"\n✓ GATE R PASSED: clean val ({val_clean_acc*100:.2f}%) >= 31.3%")
 
     # Final checkpoint at completion
-    final_path = os.path.join(ckpt_dir, f"foundation_{phase}_final.pth")
+    final_path = os.path.join(ckpt_dir, f"foundation_{eff_name}_final.pth")
     if ckpt_state is not None:
         torch.save(ckpt_state, final_path)
-    print(f"\n✓ Phase '{phase}' COMPLETE. Final checkpoint saved to: {final_path}")
-    print(f"  best_clean: {best_clean_acc*100:.2f}%, best_robust: {best_rob_acc*100:.2f}%")
+    print(f"\n✓ Phase '{eff_name}' COMPLETE. Final checkpoint: {final_path}")
+    print(f"  best_clean: {best_clean_acc*100:.2f}%  best_robust: {best_rob_acc*100:.2f}%")
     return {
-        "status": "complete", "phase": phase,
+        "status": "complete", "phase": eff_name,
         "best_clean": best_clean_acc, "best_robust": best_rob_acc,
     }
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Gen-2 Foundation Training Pipeline")
-    parser.add_argument("--phase", type=str, default="g2_gist_only", choices=PHASE_LADDER + ["all"])
-    parser.add_argument("--arm", type=str, default="v1", choices=["v1", "v2"], help="Arm for belief_with_f")
-    parser.add_argument("--data-root", type=str, default="data/imagenet100")
-    parser.add_argument("--ckpt-dir", type=str, default="checkpoints")
-    parser.add_argument("--report-dir", type=str, default="report")
-    parser.add_argument("--dino-path", type=str, default="checkpoints/dinov2_vits14_pretrain.pth")
-    parser.add_argument("--batch-size", type=int, default=48)
-    parser.add_argument("--num-workers", type=int, default=4)
-    parser.add_argument("--smoke", action="store_true", help="Smoke run on 2k subset to measure and project GPU hours")
-    parser.add_argument("--center-crop", action="store_true", help="Center-crop mode flag (disabled by default)")
+    """CLI entry point.  See module docstring for usage examples."""
+    parser = argparse.ArgumentParser(
+        description="Gen-2 Foundation Training Pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Full original Gen-2 ladder:
+  python3 training/train_gen2_foundation.py --phase all
+
+  # 112-px feedforward baseline (the Gen-3 reference):
+  python3 training/train_gen2_foundation.py --phase ff_112
+
+  # 56-px feedforward control (resolution ablation):
+  python3 training/train_gen2_foundation.py \\
+      --phase g2_gist_only --phase-name ff_56 --img-size 56 --n-epochs 15
+
+  # Second ff_112 seed for variance estimation:
+  python3 training/train_gen2_foundation.py \\
+      --phase ff_112 --phase-name ff_112_seed42 --seed 42
+
+  # One-epoch smoke test to project GPU hours:
+  python3 training/train_gen2_foundation.py --phase ff_112 --smoke
+""",
+    )
+    # ── Architecture ──────────────────────────────────────────────────────────
+    parser.add_argument(
+        "--phase", type=str, default="g2_gist_only",
+        choices=PHASE_LADDER + ["ff_112", "ff_56", "all"],
+        help="Architecture phase to train.  Use 'all' to run the full Gen-2 ladder.",
+    )
+    parser.add_argument(
+        "--arm", type=str, default="v1", choices=["v1", "v2"],
+        help="Model arm variant.  Only matters for belief_with_f (default: v1).",
+    )
+    parser.add_argument(
+        "--phase-name", type=str, default=None, dest="phase_name",
+        help=("Override the name used for checkpoint files and log entries.  "
+              "Use when training g2_gist_only but wanting outputs named 'ff_56', "
+              "or when training additional seeds of ff_112."),
+    )
+    # ── Data ──────────────────────────────────────────────────────────────────
+    parser.add_argument(
+        "--data-root", type=str, default="data/imagenet100",
+        help="Path to ImageNet-100 root directory (must contain train/ and val/).",
+    )
+    parser.add_argument(
+        "--img-size", type=int, default=None, dest="img_size",
+        help=("Input image resolution in pixels (square).  Defaults to 112 for ff_112, "
+              "56 for all other phases.  Set explicitly when using --phase-name."),
+    )
+    # ── Infrastructure ────────────────────────────────────────────────────────
+    parser.add_argument(
+        "--ckpt-dir", type=str, default="checkpoints",
+        help="Directory where checkpoints are written.",
+    )
+    parser.add_argument(
+        "--report-dir", type=str, default="report",
+        help="Directory where the epoch JSONL log is written.",
+    )
+    parser.add_argument(
+        "--dino-path", type=str,
+        default="checkpoints/dinov2_vits14_pretrain.pth",
+        help="Path to the DINOv2-small pretrained weights (~88 MB).",
+    )
+    # ── Training hyperparameters ───────────────────────────────────────────────
+    parser.add_argument(
+        "--batch-size", type=int, default=48,
+        help="Train and val batch size.",
+    )
+    parser.add_argument(
+        "--num-workers", type=int, default=4,
+        help="DataLoader worker processes.",
+    )
+    parser.add_argument(
+        "--n-epochs", type=int, default=None, dest="n_epochs",
+        help=("Override the total epoch count from PHASE_TOTAL_EPOCHS.  "
+              "Useful for shorter ablation runs."),
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None,
+        help=("Random seed for multi-seed variance experiments.  When set, calls "
+              "torch.manual_seed(seed) before any data loading or model init."),
+    )
+    # ── Flags ─────────────────────────────────────────────────────────────────
+    parser.add_argument(
+        "--smoke", action="store_true",
+        help=("Smoke run: restrict training to 2,000 images and run one epoch. "
+              "Use to time a batch and project full GPU-hour cost."),
+    )
+    parser.add_argument(
+        "--center-crop", action="store_true",
+        help="Center-crop mode (deprecated; kept for backward compatibility).",
+    )
     args = parser.parse_args()
 
+    phase_kwargs = dict(
+        arm=args.arm,
+        data_root=args.data_root,
+        ckpt_dir=args.ckpt_dir,
+        report_dir=args.report_dir,
+        dino_path=args.dino_path,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        smoke=args.smoke,
+        center_crop_mode=args.center_crop,
+        phase_override_name=args.phase_name,
+        img_size=args.img_size,
+        n_epochs=args.n_epochs,
+        training_seed=args.seed,
+    )
+
     if args.phase == "all":
+        # Full Gen-2 ladder: phases run in sequence, each inheriting the previous
+        # phase's final-epoch weights.  Stops early if a phase fails or is
+        # interrupted (returns status != 'complete').
         for p in PHASE_LADDER:
-            res = run_gen2_phase(
-                phase=p, arm=args.arm, data_root=args.data_root, ckpt_dir=args.ckpt_dir,
-                report_dir=args.report_dir, dino_path=args.dino_path, batch_size=args.batch_size,
-                num_workers=args.num_workers, smoke=args.smoke, center_crop_mode=args.center_crop
-            )
+            res = run_gen2_phase(phase=p, **phase_kwargs)
             if res.get("status") != "complete":
+                print(f"\nLadder halted after phase '{p}' (status={res.get('status')}).")
                 break
     else:
-        run_gen2_phase(
-            phase=args.phase, arm=args.arm, data_root=args.data_root, ckpt_dir=args.ckpt_dir,
-            report_dir=args.report_dir, dino_path=args.dino_path, batch_size=args.batch_size,
-            num_workers=args.num_workers, smoke=args.smoke, center_crop_mode=args.center_crop
-        )
+        run_gen2_phase(phase=args.phase, **phase_kwargs)
 
 
 if __name__ == "__main__":

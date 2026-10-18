@@ -1,39 +1,84 @@
 #!/usr/bin/env python3
 """
-Colab Notebook — RHAN-NXA J2: Matched-ε Eval + 56px FF Control + ff_112 Seed Replication
-==========================================================================================
+Colab Notebook -- RHAN-NXA J2: Matched-eps Eval + 56px FF Control + ff_112 Seed Replication
+==============================================================================================
 
-Three sequential jobs, each gated by an environment variable so the same
-notebook can be re-run cell-by-cell or driven by GEN2_JOBS:
+CONTEXT
+-------
+This notebook is the second Colab dispatch script in the Gen-2 evidence-gathering
+sequence (J1 trained the Gen-2 ladder; J2 collects the numbers needed to compare
+models fairly and to set the variance bar for Gen-3 design).
 
-  JOB A  (eval-only, ~2 GPU-h):
-      Matched-ε cross-checkpoint evaluation.
-      All four checkpoints (g2_gist_only, recurrence_only, gen1_core, ff_112)
-      on one shared 1 000-image slice.
-      Attacks: corrected PGD-50, APGD-CE-100, APGD-T-100  @ eps_norm=0.094
-      Extra rows for ff_112: APGD-CE/T @ 8/255, 16/255 and 32/255 sanity.
-      Per-sample worst-case robust accuracy.
-      Paired McNemar test for every model pair.
-      Epsilon logged in both pixel and normalised units.  All attacks in fp32.
+The three jobs answer three independent questions:
 
-  JOB B  (training, ~1-1.5 GPU-h):
-      56-px feedforward control (ff_56) under corrected TRADES-PGD4.
-      Separates the resolution gain from the attack correction.
-      Architecture: same ViT-S trunk, 56-px input (16 patch tokens), no loop.
-      15 epochs, inherits DINOv2 warm-start.  S7 eval on completion.
+  JOB A -- "Are the four checkpoints actually different at the same threat level?"
+      Earlier comparisons were invalid because APGD was run at different epsilon
+      values across models (8/255 vs 5.4/255), and the training log's robust
+      column used a weak PGD-10 monitor.  JOB A re-evaluates all four checkpoints
+      on an identical 1,000-image slice with all attacks at eps_norm=0.094 (the
+      training threat radius, approx 5.4/255).  McNemar tests quantify whether
+      accuracy differences are statistically significant.
 
-  JOB C  (training, ~9.4 GPU-h total):
-      Two additional ff_112 seeds (seeds 2 and 3, training seeds 42 and 99).
-      Sets the 2-sigma bar every downstream arm must beat.
-      Each seed independently trains for 15 epochs; S7 eval on completion.
+      Checkpoints:
+        g2_gist_only    phase 1 of the Gen-2 ladder (56px, TRADES)
+        recurrence_only phase 2 (56px, T=4 EMA recurrence)
+        gen1_core       phase 6 (56px, full Gen-2 core)
+        ff_112          J1 feedforward baseline (112px, 64 tokens, no loop)
 
-USAGE:
-  Google Colab T4 GPU.  HF_TOKEN secret required (see j1 for setup).
-  Set env-var GEN2_JOBS to a comma-list of jobs to run, e.g.:
-      GEN2_JOBS=A        (eval only)
-      GEN2_JOBS=A,B,C    (all three, sequential)
-  Default (unset) runs all three.
+      Attacks (all in fp32):
+        PGD-50         alpha=2.5*eps/50, uniform random start
+        APGD-CE-100    torchattacks, 1 restart, CE loss
+        APGD-T-100     torchattacks, 1 restart, 10 worst-class targets
+      Per-sample worst-case = correct only if it resists ALL three attacks.
+
+      Extra rows for ff_112 (gradient-masking sanity check):
+        APGD-CE @ 8/255    labelled separately for the broader threat radius
+        APGD-CE @ 16/255   should be near 0% for a well-trained model
+        APGD-CE @ 32/255   should be ~0% without gradient masking
+
+      Epsilon is logged in both normalised and pixel units in every output row.
+      Artifact: report/audit_rev1/joba_matched_eps_<timestamp>.json
+
+  JOB B -- "How much of ff_112's improvement is resolution vs attack correction?"
+      ff_112 improved over recurrence_only for two reasons:
+        (a) resolution increased from 56px/16 tokens to 112px/64 tokens
+        (b) the training attack was corrected (alpha = 2.5*eps/steps, not 1x)
+      JOB B trains an ff_56 control: same feedforward architecture and corrected
+      recipe but at 56px.  Comparing:
+        ff_56 vs recurrence_only  --> isolates attack-correction benefit
+        ff_112 vs ff_56           --> isolates resolution benefit
+      Architecture: phase=g2_gist_only (feedforward trunk, no recurrent loop),
+      img_size=56, phase_override_name="ff_56" so checkpoints are named correctly.
+
+  JOB C -- "What is the 2-sigma uncertainty bar for ff_112?"
+      All future Gen-3 improvements must beat ff_112 by more than 2*sigma seed
+      variance.  JOB C trains two additional ff_112 seeds (42 and 99; original
+      was seed 17) to establish that bar.  Each seed trains for 15 epochs and
+      is evaluated with the S7 protocol.
+
+USAGE
+-----
+  1. New Colab notebook.  Runtime > Change runtime type > T4 GPU.
+  2. Secrets (key icon) > Add secret "HF_TOKEN" > Enable notebook access.
+  3. Optionally set GEN2_JOBS before running:
+       import os; os.environ["GEN2_JOBS"] = "A"      # eval only (~2 GPU-h)
+       import os; os.environ["GEN2_JOBS"] = "A,B,C"  # all jobs (~13 GPU-h)
+     Default (unset) = "A,B,C".
+  4. Run all cells in sequence.
+
+  Resume after disconnect:
+    Re-run all cells from the top.  Step 4 restores rolling checkpoints from
+    HuggingFace and resumes training from the last completed epoch.  Completed
+    checkpoints (foundation_<phase>_final.pth) are never re-trained.
+
+RELATIONSHIP TO OTHER FILES
+---------------------------
+  cloud_setup/colab_j1_foundation.py  -- runs FIRST; trains the Gen-2 ladder
+  training/train_gen2_foundation.py   -- run_gen2_phase() and attack recipe
+  training/eval_gen2_foundation.py    -- run_final_checkpoint_eval() (S7 protocol)
+  noesis_vision/RHAN_NXA/docs/revision1.md -- forensic audit that motivated J2
 """
+
 
 # %% [markdown]
 # ## Step 1: Environment, Dependencies & HuggingFace Secrets

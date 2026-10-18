@@ -2,16 +2,63 @@
 """Gen-2 Foundation Evaluation Protocol — training/eval_gen2_foundation.py
 ================================================================================
 
-Implements the S7 Per-Phase Evaluation Protocol:
-  * 8 seeds × 300 validation images per seed.
-  * Perturbation grid:
-      - Clean (eps = 0.0)
-      - Norm-space: eps in {0.031, 0.062, 0.094}
-      - Pixel-space: {2/255, 4/255} (mapped to normalized space via dataset std)
-  * Final checkpoint protocol:
-      - PGD-50 (50 steps) on 500 images
-      - EOT-PGD (n_eot=5) on 500 images
-  * Outputs detailed per-seed and aggregated statistics (mean, std).
+PURPOSE
+-------
+This is the canonical evaluation script for all Gen-2 model checkpoints.
+It must be used for any number quoted in a table or comparison; do NOT use the
+in-training robust-monitor column from the JSONL log for that purpose.
+
+PROTOCOL
+--------
+Two evaluation modes are provided:
+
+1. Multi-seed sweep  (``run_per_phase_eval``)
+   ------------------------------------------------
+   8 seeds × 300 images = 2,400 total evaluations.
+   Perturbation grid per seed:
+     - Clean                 (eps = 0)
+     - Norm-space eps:       0.031, 0.062, 0.094
+     - Pixel-space eps:      2/255, 4/255  (mapped to norm via dataset std)
+   Attack: corrected PGD-10 with alpha = 2.5*eps/10, uniform random start.
+   Outputs mean ± std over the 8 seeds for each condition.
+
+   This mode is run automatically at end-of-phase training.
+
+2. Final checkpoint verification  (``run_final_checkpoint_eval``)
+   ----------------------------------------------------------------
+   Single 500-image slice (seed 42) with five attack types:
+     - Clean baseline.
+     - PGD-50 @ training eps (eps_norm=0.094, alpha = 2.5*eps/50, fp32).
+     - APGD-CE-100 @ training eps    [headline, matched to training threat].
+     - APGD-T-100  @ training eps    [targeted, 10 worst-classes].
+     - APGD-CE-100 @ 8/255           [broader threat radius, clearly labelled].
+     - APGD-T-100  @ 8/255.
+     - EOT-PGD (n_eot=5, 20 steps)  @ training eps.
+     - APGD-CE @ 16/255 and 32/255  (sanity / masking check).
+   Per-sample worst-case robust accuracy reported across headline attacks.
+
+   IMPORTANT — epsilon fix:
+   The original ff_112 eval ran APGD at eps=0.031 (8/255 norm-space),
+   while recurrence_only's APGD was at eps_norm=0.094 (5.4/255).  This made
+   the "15.6% vs 23.6%" comparison invalid.  The function now defaults all
+   attacks to eps_norm (the training epsilon, 0.094) so cross-model numbers
+   are comparable.  The 8/255 row is retained but clearly labelled.
+
+   Invoke via::
+
+       python3 training/eval_gen2_foundation.py \\
+           --ckpt-path checkpoints/foundation_ff_112_final.pth \\
+           --phase ff_112 \\
+           --data-root /content/imagenet100 \\
+           --final-verify
+
+DEPENDENCIES
+------------
+  gen2_foundation/model.py          — Gen2FoundationModel
+  gen2_foundation/eot.py            — eot_pgd_attack
+  training/train_gen2_foundation.py — run_pgd_ce_eval (attack shared with trainer)
+  training/curriculum_gen2.py       — IMAGENET_MEAN/STD, MEAN_STD
+  torchattacks                      — APGD-CE and APGD-T (pip install torchattacks)
 """
 
 from __future__ import annotations
@@ -40,12 +87,25 @@ from noesis_vision.models.foveation import DEFAULT_FOVEA_SIZE
 from training.curriculum_gen2 import IMAGENET_MEAN, IMAGENET_STD, MEAN_STD
 from training.train_gen2_foundation import run_pgd_ce_eval
 
-DEFAULT_SEEDS = [101, 102, 103, 104, 105, 106, 107, 108]
-EVAL_SAMPLE_SIZE = 300
-FINAL_EVAL_SAMPLE_SIZE = 500
+DEFAULT_SEEDS          = [101, 102, 103, 104, 105, 106, 107, 108]  # 8 evaluation seeds
+EVAL_SAMPLE_SIZE       = 300   # images per seed in the multi-seed sweep
+FINAL_EVAL_SAMPLE_SIZE = 500   # images used by run_final_checkpoint_eval
 
 
 def get_eval_dataset(data_root: str, img_size: int = DEFAULT_FOVEA_SIZE) -> datasets.ImageFolder:
+    """Load the ImageNet-100 validation set with deterministic preprocessing.
+
+    No augmentation is applied — only Resize and Normalize.  The same
+    transform is used for every evaluation, clean or adversarial.
+
+    Args:
+        data_root: Root directory containing ``val/`` as a subdirectory.
+        img_size:  Side length of the square resize.  Must match the model's
+                   input size (56 for all original Gen-2 phases; 112 for ff_112).
+
+    Returns:
+        An ``ImageFolder`` over the full 5,000-image validation set.
+    """
     tf_val = transforms.Compose([
         transforms.Resize((img_size, img_size)),
         transforms.ToTensor(),
@@ -61,12 +121,38 @@ def evaluate_apgd(
     model: nn.Module,
     loader: DataLoader,
     device: torch.device,
-    eps: float = 0.031,
+    eps: float = 0.094,          # default now matches training eps, NOT 0.031
     loss: str = "ce",
     steps: int = 100,
     n_classes: int = 10,
 ) -> float:
-    """Evaluate under APGD-CE or APGD-T (torchattacks)."""
+    """Evaluate robust accuracy using the ``torchattacks`` APGD implementation.
+
+    Two variants are supported:
+      - ``loss='ce'``  → APGD-CE (untargeted, cross-entropy loss).
+      - ``loss='t'``   → APGD-T  (targeted, 9 worst-class targets; n_classes
+                                    controls the number of targets).
+
+    IMPORTANT — eps default:
+        The original code had eps=0.031 (8/255).  The training threat radius
+        is eps_norm=0.094 (≈5.4/255).  This function now defaults to 0.094 so
+        that cross-model comparisons are made at the same threat level.  Always
+        pass eps explicitly and record the value in the output artifact.
+
+    Args:
+        model:     Model in eval() mode (function enforces this internally).
+        loader:    DataLoader over the evaluation subset.
+        device:    CUDA or CPU device.
+        eps:       Perturbation radius in normalised pixel space.  Defaults to
+                   0.094 (training threat radius, ≈5.4/255).
+        loss:      ``'ce'`` for APGD-CE or ``'t'`` for APGD-T.
+        steps:     Number of attack steps (default 100).
+        n_classes: Number of target classes for APGD-T (default 10).
+
+    Returns:
+        Top-1 accuracy under attack (float in [0, 1]).
+        Returns -1.0 if torchattacks is not installed.
+    """
     try:
         import torchattacks
     except ImportError:
@@ -104,7 +190,29 @@ def evaluate_batch(
     pgd_steps: int = 10,
     use_autocast: bool = True,
 ) -> float:
-    """Evaluate accuracy on loader. If eps > 0, attacks with PGD-ce."""
+    """Evaluate accuracy on a loader, optionally under PGD-CE attack.
+
+    When eps=0 (default), evaluates clean accuracy.
+    When eps > 0, runs run_pgd_ce_eval (corrected alpha = 2.5*eps/steps) before
+    each batch.  This is used for:
+      - The multi-seed sweep (PGD-10 @ each eps in the grid).
+      - The final PGD-50 row in run_final_checkpoint_eval.
+
+    Note: autocast is used for the forward pass (logit computation) but the
+    attack itself runs in fp32 inside run_pgd_ce_eval.  Pass use_autocast=False
+    to also run the forward pass in fp32 (used for the PGD-50 final-verify row).
+
+    Args:
+        model:        Model to evaluate.
+        loader:       DataLoader over the evaluation subset.
+        device:       CUDA or CPU.
+        eps:          Perturbation radius in norm space.  0.0 = clean.
+        pgd_steps:    PGD iterations.  Ignored when eps=0.
+        use_autocast: Enable fp16 autocast for the forward pass.
+
+    Returns:
+        Top-1 accuracy (float in [0, 1]).
+    """
     model.eval()
     correct = 0
     total = 0
@@ -135,7 +243,33 @@ def evaluate_eot(
     n_eot: int = 5,
     use_autocast: bool = True,
 ) -> float:
-    """Evaluate accuracy under EOT-PGD attack."""
+    """Evaluate robust accuracy under Expectation-Over-Transformations PGD.
+
+    EOT-PGD is the correct evaluation metric for stochastic models (i.e.,
+    gen1_core and ais_v2_swap, which sample gaze candidates from the global RNG
+    at inference time).  It averages the gradient over ``n_eot`` independent
+    forward passes, approximating the expectation over the model's stochasticity.
+
+    For deterministic models (recurrence_only, ff_112), EOT with n_eot=1
+    reduces to standard PGD.  The reported n_eot=5 result is a meaningful
+    lower bound on robustness for all models.
+
+    Registered strength (from plan.md Gate A): n_eot=20, steps=50.
+    The current default (n_eot=5, steps=20) is below registration — noted in
+    revision1.md D5.1.  The J2 matched-eps notebook runs the registered version.
+
+    Args:
+        model:        Model to attack.  Stochasticity is retained (no seed fix).
+        loader:       DataLoader over the evaluation subset.
+        device:       CUDA or CPU.
+        eps:          Perturbation radius in norm space (default: 0.094).
+        steps:        PGD iterations per EOT call (default: 20).
+        n_eot:        Number of stochastic samples to average over (default: 5).
+        use_autocast: Enable fp16 autocast for the model forward pass.
+
+    Returns:
+        Top-1 accuracy under EOT-PGD (float in [0, 1]).
+    """
     model.eval()
     correct = 0
     total = 0
@@ -174,7 +308,38 @@ def run_per_phase_eval(
     batch_size: int = 48,
     pgd_steps: int = 10,
 ) -> Dict[str, Any]:
-    """Runs 8 seeds × 300 images across the standardized perturbation grid."""
+    """Run the 8-seed sweep evaluation across the standard perturbation grid.
+
+    This is the primary evaluation that runs at the end of every training phase.
+    It samples ``sample_size`` (default 300) images per seed using
+    ``torch.randperm(len(val_ds), generator=torch.Generator().manual_seed(seed))``
+    so the subsets are independent across seeds but reproducible.
+
+    Attack strength in this sweep:
+        PGD-10 with corrected alpha = 2.5*eps/10.  This is a modest attack
+        (cheap enough to run 8 times).  Use run_final_checkpoint_eval for the
+        full strength assessment.
+
+    Output format::
+
+        {
+          "clean (eps=0.0)": {"mean": 0.74, "std": 0.02, "min": ..., "max": ..., "per_seed": [...]},
+          "norm_eps=0.031":  {...},
+          ...  (one entry per condition)
+        }
+
+    Args:
+        model:       Model in eval() mode.
+        val_ds:      Full ImageNet-100 validation dataset (5,000 images).
+        device:      CUDA or CPU.
+        seeds:       List of random seeds for subset selection (default: 101-108).
+        sample_size: Images per seed (default: 300).
+        batch_size:  Evaluation batch size.
+        pgd_steps:   PGD iteration count for all adversarial conditions.
+
+    Returns:
+        Dict mapping condition name -> {mean, std, min, max, per_seed}.
+    """
     # Define test conditions: name -> norm_eps
     eps_pixel_2_255 = (2.0 / 255.0) / MEAN_STD
     eps_pixel_4_255 = (4.0 / 255.0) / MEAN_STD
