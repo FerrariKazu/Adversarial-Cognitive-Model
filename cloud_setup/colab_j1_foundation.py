@@ -78,7 +78,7 @@ else:
     print("⚠ WARNING: No GPU detected! Go to Runtime > Change runtime type > T4 GPU.")
 
 # Install missing lightweight dependencies
-for mod, pkg in [("huggingface_hub", "huggingface_hub"), ("pyarrow", "pyarrow"), ("pandas", "pandas")]:
+for mod, pkg in [("huggingface_hub", "huggingface_hub"), ("pyarrow", "pyarrow"), ("pandas", "pandas"), ("torchattacks", "torchattacks")]:
     try:
         __import__(mod)
     except ImportError:
@@ -211,28 +211,82 @@ else:
     print(f"✓ ImageNet-100 bootstrap complete.")
 
 # %% [markdown]
-# ## Step 6: THE DISPATCH — Launch Gen-2 Foundation Ladder
+# ## Step 5b: Pre-flight Latency & Cost Benchmark (Time 1 Epoch Before Committing)
+# Measure exact batch latency on GPU with corrected TRADES-PGD4 to project full run cost.
+
+# %%
+from training.train_gen2_foundation import (
+    run_pgd_kl_attack,
+    compute_trades_loss,
+    Gen2FoundationModel,
+    get_gen2_loaders,
+)
+
+print("=== Pre-flight Cost & Latency Benchmark ===")
+bench_bs = int(os.environ.get("GEN2_BATCH", "48"))
+_, test_loader, _, _ = get_gen2_loaders(DATA_ROOT, batch_size=bench_bs, smoke=True, img_size=112)
+
+# Benchmark Feedforward 112px under corrected TRADES-PGD4 (alpha = 2.5*eps/steps)
+bench_model = Gen2FoundationModel(phase="ff_112", fovea_size=112).cuda()
+bench_opt = torch.optim.AdamW(bench_model.parameters(), lr=1e-4)
+
+print(f"Timing 20 batches of TRADES-PGD4 (corrected alpha = 2.5*eps/steps) @ 112px (batch_size={bench_bs})...")
+bench_model.train()
+torch.cuda.synchronize()
+t0 = time.time()
+nb = 0
+for i, (bx, by) in enumerate(test_loader):
+    if i >= 20:
+        break
+    bx, by = bx.cuda(), by.cuda()
+    bench_opt.zero_grad(set_to_none=True)
+    with torch.cuda.amp.autocast():
+        bx_adv = run_pgd_kl_attack(bench_model, bx, eps=0.094, steps=4)
+        loss, _, _ = compute_trades_loss(bench_model, bx, by, bx_adv, beta=2.5, w_trades=0.55)
+    loss.backward()
+    bench_opt.step()
+    nb += 1
+
+torch.cuda.synchronize()
+elapsed = time.time() - t0
+sec_per_batch = elapsed / max(nb, 1)
+total_batches = 126689 // bench_bs
+epoch_minutes = (total_batches * sec_per_batch) / 60.0
+gpu_hours_15 = (epoch_minutes * 15) / 60.0
+
+print(f"\n--- Pre-flight Cost Projection (112px Feedforward ViT-S) ---")
+print(f"  Sec / batch:       {sec_per_batch:.3f} s")
+print(f"  Est 1 full epoch:  {epoch_minutes:.1f} minutes")
+print(f"  Est 15-epoch run:  {gpu_hours_15:.2f} GPU-hours")
+print("=" * 60)
+
+# %% [markdown]
+# ## Step 6: THE DISPATCH — Launch Training (Feedforward 112px Reference or Gen-2 Ladder)
 
 # %%
 BATCH_SIZE = int(os.environ.get("GEN2_BATCH", "48"))
 NUM_WORKERS = int(os.environ.get("GEN2_WORKERS", "4"))
 ARM = os.environ.get("GEN2_ARM", "v1")
+# Primary target is "ff_112" (Feedforward 112px reference baseline); can also be set to PHASE_LADDER
+TARGET_PHASES = os.environ.get("GEN2_PHASES", "ff_112").split(",")
 
-print(f"Launching Gen-2 Foundation ladder:")
-print(f"  data_root:  {DATA_ROOT}")
-print(f"  batch_size: {BATCH_SIZE}")
-print(f"  arm:        {ARM}")
-print(f"  dino:       {DINO_PATH}")
+print(f"Launching Training Dispatch:")
+print(f"  target_phases: {TARGET_PHASES}")
+print(f"  data_root:     {DATA_ROOT}")
+print(f"  batch_size:    {BATCH_SIZE}")
+print(f"  arm:           {ARM}")
+print(f"  dino:          {DINO_PATH}")
 
-from training.train_gen2_foundation import PHASE_LADDER, run_gen2_phase
+from training.train_gen2_foundation import run_gen2_phase
 
-for phase in PHASE_LADDER:
+for phase in TARGET_PHASES:
+    phase = phase.strip()
     final_pth = f"checkpoints/foundation_{phase}_final.pth"
     if os.path.exists(final_pth):
         print(f"\n✓ Phase '{phase}' is already complete ({final_pth} exists). Skipping to next phase.")
         continue
 
-    print(f"\n{'='*70}\n[Gen-2 Dispatch] Starting Phase: {phase}\n{'='*70}")
+    print(f"\n{'='*70}\n[Training Dispatch] Starting Phase: {phase}\n{'='*70}")
     res = run_gen2_phase(
         phase=phase,
         arm=ARM,
@@ -251,20 +305,21 @@ for phase in PHASE_LADDER:
     sync_checkpoints_to_hf()
 
 print("\n" + "=" * 70)
-print("✓ ALL SIX GEN-2 FOUNDATION PHASES COMPLETE!")
+print(f"✓ TRAINING DISPATCH COMPLETE FOR: {TARGET_PHASES}")
 print("=" * 70)
 
 # %% [markdown]
-# ## Step 7: S7 Evaluation Protocol (8 Seeds × 300 Images + PGD-50 + EOT-PGD)
+# ## Step 7: S7 Evaluation Protocol (APGD-CE + APGD-T + PGD-50 + EOT-PGD)
 
 # %%
-final_ckpt = "checkpoints/foundation_gen1_core_final.pth"
+eval_phase = TARGET_PHASES[-1].strip()
+final_ckpt = f"checkpoints/foundation_{eval_phase}_final.pth"
 if not os.path.exists(final_ckpt):
-    final_ckpt = "checkpoints/foundation_gen1_core_best_clean.pth"
+    final_ckpt = f"checkpoints/foundation_{eval_phase}_best_clean.pth"
 
 if os.path.exists(final_ckpt):
-    print(f"\nRunning S7 Evaluation Protocol on: {final_ckpt}")
-    cmd = f"python3 training/eval_gen2_foundation.py --ckpt-path {final_ckpt} --phase gen1_core --arm {ARM} --data-root {DATA_ROOT} --final-verify"
+    print(f"\nRunning S7 Evaluation Protocol on: {final_ckpt} (phase={eval_phase})")
+    cmd = f"python3 training/eval_gen2_foundation.py --ckpt-path {final_ckpt} --phase {eval_phase} --arm {ARM} --data-root {DATA_ROOT} --final-verify"
     subprocess.run(cmd, shell=True, check=True)
     sync_checkpoints_to_hf()
 else:

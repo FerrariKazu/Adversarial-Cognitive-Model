@@ -45,9 +45,9 @@ EVAL_SAMPLE_SIZE = 300
 FINAL_EVAL_SAMPLE_SIZE = 500
 
 
-def get_eval_dataset(data_root: str) -> datasets.ImageFolder:
+def get_eval_dataset(data_root: str, img_size: int = DEFAULT_FOVEA_SIZE) -> datasets.ImageFolder:
     tf_val = transforms.Compose([
-        transforms.Resize((DEFAULT_FOVEA_SIZE, DEFAULT_FOVEA_SIZE)),
+        transforms.Resize((img_size, img_size)),
         transforms.ToTensor(),
         transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
     ])
@@ -55,6 +55,45 @@ def get_eval_dataset(data_root: str) -> datasets.ImageFolder:
     if not os.path.exists(val_dir):
         raise FileNotFoundError(f"Validation directory not found: {val_dir}")
     return datasets.ImageFolder(val_dir, transform=tf_val)
+
+
+def evaluate_apgd(
+    model: nn.Module,
+    loader: DataLoader,
+    device: torch.device,
+    eps: float = 0.031,
+    loss: str = "ce",
+    steps: int = 100,
+    n_classes: int = 10,
+) -> float:
+    """Evaluate under APGD-CE or APGD-T (torchattacks)."""
+    try:
+        import torchattacks
+    except ImportError:
+        print("  [Warning] torchattacks not installed; skipping APGD evaluation.")
+        return -1.0
+    was_training = model.training
+    model.eval()
+    try:
+        if loss == "t":
+            # APGD-T targeting worst-classes (n_classes=10 for tractable eval on 100 classes)
+            atk = torchattacks.APGDT(model, norm="Linf", eps=eps, steps=steps, n_restarts=1, n_classes=n_classes, verbose=False)
+        else:
+            atk = torchattacks.APGD(model, norm="Linf", eps=eps, steps=steps, n_restarts=1, loss=loss, verbose=False)
+
+        correct = 0
+        total = 0
+        for x, y in loader:
+            x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
+            x_adv = atk(x, y)
+            with torch.no_grad():
+                preds = model(x_adv).argmax(dim=-1)
+                correct += (preds == y).sum().item()
+                total += y.size(0)
+        return float(correct) / float(max(total, 1))
+    finally:
+        if was_training:
+            model.train()
 
 
 def evaluate_batch(
@@ -207,29 +246,41 @@ def run_final_checkpoint_eval(
     sample_size: int = FINAL_EVAL_SAMPLE_SIZE,
     batch_size: int = 32,
 ) -> Dict[str, float]:
-    """Runs high-strength verification on final checkpoint: PGD-50 and EOT-PGD."""
-    print(f"\n--- Running Final Checkpoint Verification (500 images) ---")
+    """Runs high-strength verification on final checkpoint: APGD-CE, APGD-T, PGD-50, and EOT-PGD."""
+    print(f"\n--- Running Final Checkpoint Verification ({sample_size} images) ---")
     g = torch.Generator().manual_seed(seed)
     indices = torch.randperm(len(val_ds), generator=g)[:sample_size].tolist()
     loader = DataLoader(Subset(val_ds, indices), batch_size=batch_size, shuffle=False, num_workers=2)
 
     # 1. Clean
-    print("  Evaluating Clean (500 imgs)...")
+    print(f"  Evaluating Clean ({sample_size} imgs)...")
     clean_acc = evaluate_batch(model, loader, device, eps=0.0, pgd_steps=0)
     print(f"    -> Clean Acc: {clean_acc*100:.2f}%")
 
-    # 2. PGD-50 @ eps=0.094
-    print("  Evaluating PGD-50 @ eps=0.094 (500 imgs)...")
+    # 2. Headline: APGD-CE-100 @ eps=0.031 (pixel-space 8/255)
+    print(f"  Evaluating Headline APGD-CE-100 @ eps=0.031 ({sample_size} imgs)...")
+    apgd_ce_acc = evaluate_apgd(model, loader, device, eps=0.031, loss="ce", steps=100)
+    print(f"    -> APGD-CE Acc: {apgd_ce_acc*100:.2f}%")
+
+    # 3. Headline: APGD-T-100 (n_classes=10) @ eps=0.031
+    print(f"  Evaluating Headline APGD-T-100 @ eps=0.031 ({sample_size} imgs)...")
+    apgd_t_acc = evaluate_apgd(model, loader, device, eps=0.031, loss="t", steps=100, n_classes=10)
+    print(f"    -> APGD-T Acc: {apgd_t_acc*100:.2f}%")
+
+    # 4. PGD-50 (corrected alpha = 2.5*eps/steps) @ eps=0.094
+    print(f"  Evaluating PGD-50 @ eps=0.094 ({sample_size} imgs)...")
     pgd50_acc = evaluate_batch(model, loader, device, eps=0.094, pgd_steps=50)
     print(f"    -> PGD-50 Acc: {pgd50_acc*100:.2f}%")
 
-    # 3. EOT-PGD (n_eot=5, steps=20) @ eps=0.094
-    print("  Evaluating EOT-PGD (n_eot=5, steps=20) @ eps=0.094 (500 imgs)...")
+    # 5. EOT-PGD (n_eot=5, steps=20) @ eps=0.094
+    print(f"  Evaluating EOT-PGD (n_eot=5, steps=20) @ eps=0.094 ({sample_size} imgs)...")
     eot_acc = evaluate_eot(model, loader, device, eps=0.094, steps=20, n_eot=5)
     print(f"    -> EOT-PGD Acc: {eot_acc*100:.2f}%")
 
     return {
         "final_clean_acc": clean_acc,
+        "final_apgd_ce_acc": apgd_ce_acc,
+        "final_apgd_t_acc": apgd_t_acc,
         "final_pgd50_acc": pgd50_acc,
         "final_eot_acc": eot_acc,
     }
@@ -243,20 +294,21 @@ def main():
     parser.add_argument("--data-root", type=str, default="data/imagenet100")
     parser.add_argument("--report-dir", type=str, default="report/eval")
     parser.add_argument("--batch-size", type=int, default=48)
-    parser.add_argument("--final-verify", action="store_true", help="Also run PGD-50 and EOT-PGD (500 images)")
+    parser.add_argument("--final-verify", action="store_true", help="Also run APGD-CE, APGD-T, PGD-50 and EOT-PGD (500 images)")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[Gen-2 Eval] Evaluating '{args.ckpt_path}' (phase={args.phase}, arm={args.arm}, device={device})")
 
+    img_size = 112 if args.phase in ("ff_112", "feedforward_112") else DEFAULT_FOVEA_SIZE
     # Build model
-    model = Gen2FoundationModel(phase=args.phase, arm=args.arm).to(device)
+    model = Gen2FoundationModel(phase=args.phase, arm=args.arm, fovea_size=img_size).to(device)
     saved = torch.load(args.ckpt_path, map_location=device)
     sd = saved["model"] if "model" in saved else saved
     model.load_state_dict(sd, strict=False)
     model.eval()
 
-    val_ds = get_eval_dataset(args.data_root)
+    val_ds = get_eval_dataset(args.data_root, img_size=img_size)
 
     # 1. 8-seed sweep
     sweep_summary = run_per_phase_eval(

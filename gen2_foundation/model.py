@@ -57,6 +57,9 @@ class Gen2FoundationModel(nn.Module):
         self.arm = arm
         self.d_z = d_z
         self.num_classes = num_classes
+        if phase in ("ff_112", "feedforward_112") and fovea_size == DEFAULT_FOVEA_SIZE:
+            fovea_size = 112
+
         self.fovea_size = fovea_size
         self.num_glimpses = num_glimpses
         self.within_glimpse_iters = within_glimpse_iters
@@ -76,7 +79,7 @@ class Gen2FoundationModel(nn.Module):
         )
 
         # Phase flags
-        self.is_gist_only = (phase == "g2_gist_only")
+        self.is_gist_only = (phase in ("g2_gist_only", "ff_112", "feedforward_112"))
         self.use_refinement = not self.is_gist_only
         self.use_recurrence = phase in ("recurrence_only", "belief_no_f", "belief_with_f", "ais_v2_swap", "gen1_core")
         self.carry_belief = phase in ("belief_no_f", "belief_with_f", "ais_v2_swap", "gen1_core")

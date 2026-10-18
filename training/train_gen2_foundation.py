@@ -69,6 +69,7 @@ PHASE_TOTAL_EPOCHS = {
     "belief_with_f": 15,
     "ais_v2_swap": 15,
     "gen1_core": 15,
+    "ff_112": 15,
 }
 
 GATE_W_REFERENCE_ACC = 0.5852  # Gate W passed score
@@ -89,10 +90,11 @@ def run_pgd_kl_attack(
         with torch.no_grad():
             probs_clean = F.softmax(model(x).float(), dim=1)
 
-        x_adv = x.clone().detach() + 0.001 * torch.randn_like(x)
+        # Random start uniformly in [-eps, eps] matching standard TRADES/Madry
+        x_adv = x.clone().detach() + torch.empty_like(x).uniform_(-eps, eps)
         x_adv = torch.clamp(x_adv, -4.0, 4.0)
         if alpha is None or alpha <= 0.0:
-            alpha = eps / max(steps, 1)
+            alpha = (2.5 * eps) / max(steps, 1)
 
         for _ in range(steps):
             x_adv.requires_grad_(True)
@@ -127,7 +129,7 @@ def run_pgd_ce_eval(
     try:
         x_adv = x.clone().detach() + torch.empty_like(x).uniform_(-eps, eps)
         x_adv = torch.clamp(x_adv, -4.0, 4.0)
-        alpha = eps / max(steps, 1) if steps > 0 else 0.0
+        alpha = (2.5 * eps) / max(steps, 1) if steps > 0 else 0.0
 
         for _ in range(steps):
             x_adv.requires_grad_(True)
@@ -173,15 +175,16 @@ def get_gen2_loaders(
     batch_size: int = 48,
     num_workers: int = 4,
     smoke: bool = False,
+    img_size: int = DEFAULT_FOVEA_SIZE,
 ) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
     tf_train = transforms.Compose([
-        transforms.RandomResizedCrop(56, scale=(0.35, 1.0)),
+        transforms.RandomResizedCrop(img_size, scale=(0.35, 1.0)),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
     ])
     tf_val = transforms.Compose([
-        transforms.Resize((56, 56)),
+        transforms.Resize((img_size, img_size)),
         transforms.ToTensor(),
         transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
     ])
@@ -359,19 +362,20 @@ def run_gen2_phase(
     jsonl_path = os.path.join(report_dir, "gen2_epoch_log.jsonl")
 
     total_epochs = PHASE_TOTAL_EPOCHS.get(phase, 15)
+    fovea_size = 112 if phase in ("ff_112", "feedforward_112") else DEFAULT_FOVEA_SIZE
     train_loader, val_loader, rob_loader, drift_loader = get_gen2_loaders(
-        data_root, batch_size=batch_size, num_workers=num_workers, smoke=smoke
+        data_root, batch_size=batch_size, num_workers=num_workers, smoke=smoke, img_size=fovea_size
     )
 
     model = Gen2FoundationModel(
         phase=phase,
         arm=arm,
-        fovea_size=DEFAULT_FOVEA_SIZE,
+        fovea_size=fovea_size,
         center_crop_mode=center_crop_mode,
     ).to(device)
 
     # Weights initialization / inheritance
-    if phase == "g2_gist_only":
+    if phase in ("g2_gist_only", "ff_112", "feedforward_112"):
         print(f"Loading official DINOv2-small warm-start from {dino_path}...")
         rep = model.backbone.load_dino_warm_start(dino_path)
         print(f"Warm-start load: accepted={rep['accepted']}, "
