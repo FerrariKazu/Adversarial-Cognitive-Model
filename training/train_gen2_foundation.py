@@ -74,7 +74,7 @@ CLI USAGE
   python3 training/train_gen2_foundation.py \
       --phase ff_112 --phase-name ff_112_seed42 --seed 42
 
-DEPENDNCIES
+DEPENDENCIES
 ------------
   gen2_foundation/model.py        — Gen2FoundationModel
   gen2_foundation/recipe.py       — AdamW group builder

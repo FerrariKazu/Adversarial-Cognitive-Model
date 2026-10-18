@@ -203,7 +203,7 @@ def restore_checkpoints_from_hf():
             files = list_repo_files(repo_id=repo_id, repo_type="dataset", token=hf_token)
             for f in files:
                 local_f = None
-                if f.endswith(".pth"):
+                if f.endswith(".pth") or f.endswith(".zip"):
                     local_f = os.path.join("checkpoints", os.path.basename(f))
                 elif f.endswith(".jsonl"):
                     local_f = os.path.join("report", os.path.basename(f))
@@ -390,20 +390,21 @@ else:
         ("ff_112",          "ff_112",           112, "checkpoints/foundation_ff_112_final.pth"),
     ]
 
-    # g2_gist_only may be zip-wrapped from the original ladder
-    gist_zip = "checkpoints/foundation_g2_gist_only_final.zip"
-    gist_pth = "checkpoints/foundation_g2_gist_only_final.pth"
-    if os.path.exists(gist_zip) and not os.path.exists(gist_pth):
-        import zipfile
-        print("Extracting g2_gist_only from zip...")
-        with zipfile.ZipFile(gist_zip) as zf:
-            for m in zf.namelist():
-                if m.endswith(".pth"):
-                    zf.extract(m, "checkpoints")
-                    extracted = os.path.join("checkpoints", m)
-                    if extracted != gist_pth:
-                        shutil.move(extracted, gist_pth)
-        print("Extracted g2_gist_only_final.pth")
+    # Extract any zip-wrapped checkpoints if corresponding .pth is missing
+    import zipfile
+    for zpath in Path("checkpoints").glob("*.zip"):
+        pname = zpath.stem + ".pth"
+        ppath = zpath.parent / pname
+        if not ppath.exists():
+            print(f"Extracting {zpath.name} -> {pname}...")
+            with zipfile.ZipFile(zpath) as zf:
+                for m in zf.namelist():
+                    if m.endswith(".pth"):
+                        zf.extract(m, "checkpoints")
+                        extracted = os.path.join("checkpoints", m)
+                        if extracted != str(ppath):
+                            shutil.move(extracted, str(ppath))
+            print(f"Extracted {pname}")
 
     # ── Main evaluation loop ─────────────────────────────────────────────────
     all_results  = {}
