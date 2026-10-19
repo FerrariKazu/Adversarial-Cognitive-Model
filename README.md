@@ -104,118 +104,1819 @@ python3 phase2_attacks/eval_quick.py
 
 ## Repository Map & Directory Layout
 
-The codebase has evolved from the initial CIFAR-10 baseline study into the **RHAN-NXA** (Recurrent Hierarchical Attention Network — Noesis eXperimental Architecture) cognitive vision system. Below is an exhaustive structural map of all directories and key files across the project:
+The codebase has evolved from the initial CIFAR-10 baseline study into the **RHAN-NXA** (Recurrent Hierarchical Attention Network — Noesis eXperimental Architecture) cognitive vision system. Below is a complete, exhaustive structural map of all directories and files across the repository, annotated with their functional role:
 
 ```text
 .
-├── README.md                           # Main project overview, scientific hypotheses, and benchmark results
-├── CONTRIBUTING.md                     # Contributor guidelines, git branching conventions, and PR policies
-├── ROADMAP.md                          # Multi-generation project roadmap (Gen-1 through Gen-3/4)
-├── TRAINING_HEALTH_REPORT.md           # Training diagnostic reports (gradient norms, loss stability, NaN checks)
-├── T4x2.ipynb                          # Dual-GPU (2x T4) Colab/Kaggle interactive experimentation notebook
-├── app.py                              # Streamlit/Gradio web demo for interactive model visualization and attack inspection
-├── requirements.txt                    # Python runtime dependencies (PyTorch, torchvision, timm, torchattacks, scipy)
-├── RHANarch.pdf                        # Architectural diagram of the Recurrent Hierarchical Attention Network
-│
-├── gen2_foundation/                    # Generation-2 foundation model package and components
-│   ├── __init__.py                     # Package initialization and public API exports
-│   ├── flags.py                        # Feature flag system and experiment registry toggles
-│   ├── gist.py                         # Global gist encoder (DINOv2 patch projection and CLS prior token)
-│   ├── precision.py                    # Dynamic precision weighting and observation reliability heads
-│   ├── recipe.py                       # Layer-wise parameter grouping and AdamW optimizer schedule builder
-│   ├── ema.py                          # Exponential Moving Average (EMA) shadow model weights tracker
-│   ├── eot.py                          # Expectation Over Transformation (EOT-PGD) stochastic attack defense
-│   ├── update_net_v2.py                # Bounded recurrent belief update network (GRU/residual state dynamics)
-│   ├── AUDIT.md                        # Package code-level audit and integrity verification notes
-│   ├── EXPERIMENT_REGISTRY.md          # Preregistered Gen-2 experimental arms and hypothesis ledger
-│   └── tests/                          # Internal unit test suite for the gen2_foundation package
-│
-├── noesis_vision/                      # NOESIS cognitive architecture and biological perceptual loop
-│   ├── RHAN_NXA/                       # Master architectural specifications, plans, and forensic audit reports
-│   │   ├── docs/                       # Technical design specs (gen3_spec.md, revision1.md, plan1.md, plan2.md)
-│   │   └── MASTER_PLAN.md              # Historical NOESIS master plan and locked phase contracts
-│   ├── core/                           # Core cognitive orchestrator and multi-step perceptual recurrent loop
-│   ├── models/                         # Neural backbones, foveated glimpse crop samplers, and vision transformers
-│   ├── gaze/                           # Adaptive Information Seeking (AIS) candidate generator and gaze policy
-│   ├── beliefs/                        # Latent belief state representations (z_t) and spatial memory integration
-│   ├── predictive_coding/              # Top-down feature predictor heads and hierarchical prediction error computation
-│   └── uncertainty/                    # Dirichlet evidential heads, softmax entropy, and calibration modules
-│
-├── training/                           # Training drivers, adversarial curriculum, and persistence pipelines
-│   ├── train_gen2_foundation.py        # Canonical Gen-2 / ff_112 training driver with TRADES-PGD4 curriculum
-│   ├── train_generation1_foundation.py # Gen-1 foundation training script across the 6-phase ladder
-│   ├── curriculum_gen2.py              # Per-epoch epsilon radius and TRADES beta curriculum schedule
-│   ├── adv_curriculum.py               # Adversarial attack parameter ramps and epsilon step-size scaling
-│   ├── hf_persistence.py               # Automated HuggingFace checkpoint upload, resume, and sync handlers
-│   ├── stage2_pipeline.py              # Multi-phase stage transition state machine
-│   ├── measure_training_health.py      # Real-time gradient norm monitor, loss landscape tracker, and NaN guards
-│   ├── run_report.py                   # Generation of human-readable training summary reports
-│   └── run_report_jsonl.py             # Machine-readable per-epoch JSONL telemetry logging
-│
-├── cloud_setup/                        # Automated dispatch scripts for Colab and Kaggle cloud environments
-│   ├── colab_j1_foundation.py          # Colab J1 dispatch: Trains full Gen-2 foundation ladder (S0–S7)
-│   ├── colab_j2_eval_train.py          # Colab J2 dispatch: Matched-eps eval, ff_56 control, and ff_112 multi-seed
-│   ├── Kaggle_J1_FOUNDATION.py         # Kaggle J1 dispatch: Adapted for /kaggle/working and Kaggle Secrets
-│   ├── Kaggle_J2_EVAL_TRAIN.py         # Kaggle J2 dispatch: Parallel matched-eps eval and ff_112 seed training
-│   ├── colab_v11_3seed_protocol.py     # Colab multi-seed variance protocol for historical models
-│   ├── kaggle_v11_3seed_protocol.py    # Kaggle multi-seed variance protocol for historical models
-│   └── scripts/                        # Remote cloud validation and syntax verification utilities
-│
-├── evaluation/                         # Evaluation datasets, corruptions, and benchmark protocols
-│   ├── clean_and_robust.py             # Standard evaluation runner for clean and Linf PGD accuracy
-│   ├── geirhos_loader.py               # Geirhos cue-conflict dataset loader (human vs machine shape/texture bias)
-│   ├── shape_texture_bias.py           # Signal Detection Theory d' calculation for shape vs texture classification
-│   ├── imagenet100_loader.py           # ImageNet-100 dataset loader with normalization and caching
-│   ├── imagenet_c_loader.py            # ImageNet-C benchmark loader for common synthetic image corruptions
-│   └── compactness_report.py           # Model parameter count, FLOPs, and latency efficiency profiler
-│
-├── scripts/                            # Operational automation, data preparation, and gate verification
-│   ├── prepare_imagenet100.py          # Automated ImageNet-100 dataset downloader and directory structure bootstrap
-│   ├── verify_run_complete.py          # Validation script asserting full completion of scheduled training epochs
-│   ├── freeze_run_manifest.py          # Cryptographic SHA-256 fingerprinting of model checkpoints and datasets
-│   ├── sbr0_gate.py                    # Stage-boundary validation assertion script for gating progression
-│   ├── build_noesis_pdf.py             # Automated LaTeX compilation of project documentation into formal PDFs
-│   └── build_rhan_nx_report.py         # Automated markdown-to-PDF report generator for experimental results
-│
-├── tests/                              # Pytest test suite enforcing system invariants and regression safety
-│   ├── conftest.py                     # Global pytest fixtures, mock data loaders, and device configuration
-│   ├── test_adv_curriculum.py          # Unit tests verifying TRADES curriculum bounds and step-size formulas
-│   ├── test_ais_v2_gaze_policy.py      # Tests for AIS candidate gaze selection and temperature calibration
-│   ├── test_evidential_gradient_flow.py# Assertion test verifying non-zero gradients through Dirichlet uncertainty
-│   ├── test_hf_persistence.py          # Mock tests for HuggingFace upload, download, and resume mechanisms
-│   ├── test_belief_state_composition.py# Shape and consistency tests for latent belief vector concatenation
-│   └── test_center_bias_measurement.py # Measures spatial fixation distribution to detect center-bias collapse
-│
-├── docs/                               # Architectural documentation, forensic reports, and research papers
-│   ├── REPOSITORY_MAP.md               # Exhaustive 1,600-line descriptive inventory of the entire repository
-│   ├── ARCHITECTURE.md                 # Detailed mathematical and cognitive architecture specifications
-│   ├── FORENSIC_REPORT_NXA_GENERATION1.md # Forensic analysis of Gen-1 mechanisms and performance anomalies
-│   ├── NOESIS_FOUNDATION.md            # Cognitive vision foundations, biological inspiration, and design philosophy
-│   └── historical/                     # Archived stage reports, early proposal drafts, and pre-registrations
-│
-├── report/                             # Experimental results, JSON artifacts, and scientific reports
-│   ├── GEN1_RESULTS_MASTER.md          # Master reference table of Generation-1 experimental results
-│   ├── rhan_nx_generation1_report.md   # Comprehensive experimental audit report for Generation-1
-│   ├── empirical_report.json           # Machine-readable performance database across all models and phases
-│   ├── audit_rev1/                     # Revision 1 forensic evaluation artifacts (matched-eps JSON reports)
-│   └── eval/                           # Checkpoint evaluation summaries and AutoAttack metric dumps
-│
-├── figures/                            # Publication-grade figures and visualizations (v1)
-├── figures_v2/                         # Extended visualizations: attention maps, biological comparisons, loss surfaces
-├── figures_v3/                         # Multi-theme (dark/light) publication figures in vector SVG and raster PNG
-│
-├── archive/                            # Archived legacy stages and previous experimental pipelines
-│   ├── gen-1-cifar12/                  # Original May 2026 CIFAR-10 7-model + human psychophysics comparison
-│   ├── rhan-v1-v7/                     # Early RHAN recurrent prototypes (v1 through v7)
-│   ├── stl10-scaleup/                  # STL-10 self-supervised pretraining and pseudo-labeling experiments
-│   └── historical-report/              # Prior LaTeX project manuscripts, draft papers, and workshop submissions
-│
-├── checkpoints/                        # Model weights directory (tracked JSON manifests, local cache, and symlinks)
-├── cloud/                              # Historical cloud cluster configurations, Slurm scripts, and setup specs
-├── config/                             # Central YAML configuration files for models, training, and attack bounds
-├── data/                               # Local data directory placeholder (cached datasets and split indices)
-├── diagnostics/                        # Diagnostic logs, memory profiling traces, and GPU utilization dumps
-└── runs/                               # Experiment output runs containing TensorBoard event logs and metrics
+├── .gitattributes                               # Git line endings and binary diff configuration
+├── .gitignore                                   # Ignored patterns (virtual environments, PyTorch weights, cache)
+├── .mailmap                                     # Developer name and email address canonicalization
+├── .verify_samples/                             # Ground-truth reference validation images across 10 object classes
+│   ├── airplane/                                    # Directory: airplane/
+│   │   ├── sample_00.png                                # Validation sample image: sample_00.png
+│   │   ├── sample_01.png                                # Validation sample image: sample_01.png
+│   │   ├── sample_02.png                                # Validation sample image: sample_02.png
+│   │   ├── sample_03.png                                # Validation sample image: sample_03.png
+│   │   ├── sample_04.png                                # Validation sample image: sample_04.png
+│   │   ├── sample_05.png                                # Validation sample image: sample_05.png
+│   │   ├── sample_06.png                                # Validation sample image: sample_06.png
+│   │   ├── sample_07.png                                # Validation sample image: sample_07.png
+│   │   ├── sample_08.png                                # Validation sample image: sample_08.png
+│   │   ├── sample_09.png                                # Validation sample image: sample_09.png
+│   │   ├── sample_10.png                                # Validation sample image: sample_10.png
+│   │   ├── sample_11.png                                # Validation sample image: sample_11.png
+│   │   ├── sample_12.png                                # Validation sample image: sample_12.png
+│   │   ├── sample_13.png                                # Validation sample image: sample_13.png
+│   │   ├── sample_14.png                                # Validation sample image: sample_14.png
+│   │   ├── sample_15.png                                # Validation sample image: sample_15.png
+│   │   ├── sample_16.png                                # Validation sample image: sample_16.png
+│   │   ├── sample_17.png                                # Validation sample image: sample_17.png
+│   │   ├── sample_18.png                                # Validation sample image: sample_18.png
+│   │   └── sample_19.png                                # Validation sample image: sample_19.png
+│   ├── bird/                                        # Directory: bird/
+│   │   ├── sample_00.png                                # Validation sample image: sample_00.png
+│   │   ├── sample_01.png                                # Validation sample image: sample_01.png
+│   │   ├── sample_02.png                                # Validation sample image: sample_02.png
+│   │   ├── sample_03.png                                # Validation sample image: sample_03.png
+│   │   ├── sample_04.png                                # Validation sample image: sample_04.png
+│   │   ├── sample_05.png                                # Validation sample image: sample_05.png
+│   │   ├── sample_06.png                                # Validation sample image: sample_06.png
+│   │   ├── sample_07.png                                # Validation sample image: sample_07.png
+│   │   ├── sample_08.png                                # Validation sample image: sample_08.png
+│   │   ├── sample_09.png                                # Validation sample image: sample_09.png
+│   │   ├── sample_10.png                                # Validation sample image: sample_10.png
+│   │   ├── sample_11.png                                # Validation sample image: sample_11.png
+│   │   ├── sample_12.png                                # Validation sample image: sample_12.png
+│   │   ├── sample_13.png                                # Validation sample image: sample_13.png
+│   │   ├── sample_14.png                                # Validation sample image: sample_14.png
+│   │   ├── sample_15.png                                # Validation sample image: sample_15.png
+│   │   ├── sample_16.png                                # Validation sample image: sample_16.png
+│   │   ├── sample_17.png                                # Validation sample image: sample_17.png
+│   │   ├── sample_18.png                                # Validation sample image: sample_18.png
+│   │   └── sample_19.png                                # Validation sample image: sample_19.png
+│   ├── car/                                         # Directory: car/
+│   │   ├── sample_00.png                                # Validation sample image: sample_00.png
+│   │   ├── sample_01.png                                # Validation sample image: sample_01.png
+│   │   ├── sample_02.png                                # Validation sample image: sample_02.png
+│   │   ├── sample_03.png                                # Validation sample image: sample_03.png
+│   │   ├── sample_04.png                                # Validation sample image: sample_04.png
+│   │   ├── sample_05.png                                # Validation sample image: sample_05.png
+│   │   ├── sample_06.png                                # Validation sample image: sample_06.png
+│   │   ├── sample_07.png                                # Validation sample image: sample_07.png
+│   │   ├── sample_08.png                                # Validation sample image: sample_08.png
+│   │   ├── sample_09.png                                # Validation sample image: sample_09.png
+│   │   ├── sample_10.png                                # Validation sample image: sample_10.png
+│   │   ├── sample_11.png                                # Validation sample image: sample_11.png
+│   │   ├── sample_12.png                                # Validation sample image: sample_12.png
+│   │   ├── sample_13.png                                # Validation sample image: sample_13.png
+│   │   ├── sample_14.png                                # Validation sample image: sample_14.png
+│   │   ├── sample_15.png                                # Validation sample image: sample_15.png
+│   │   ├── sample_16.png                                # Validation sample image: sample_16.png
+│   │   ├── sample_17.png                                # Validation sample image: sample_17.png
+│   │   ├── sample_18.png                                # Validation sample image: sample_18.png
+│   │   ├── sample_19.png                                # Validation sample image: sample_19.png
+│   │   ├── sample_20.png                                # Validation sample image: sample_20.png
+│   │   ├── sample_21.png                                # Validation sample image: sample_21.png
+│   │   ├── sample_22.png                                # Validation sample image: sample_22.png
+│   │   ├── sample_23.png                                # Validation sample image: sample_23.png
+│   │   ├── sample_24.png                                # Validation sample image: sample_24.png
+│   │   ├── sample_25.png                                # Validation sample image: sample_25.png
+│   │   ├── sample_26.png                                # Validation sample image: sample_26.png
+│   │   ├── sample_27.png                                # Validation sample image: sample_27.png
+│   │   ├── sample_28.png                                # Validation sample image: sample_28.png
+│   │   └── sample_29.png                                # Validation sample image: sample_29.png
+│   ├── cat/                                         # Directory: cat/
+│   │   ├── sample_00.png                                # Validation sample image: sample_00.png
+│   │   ├── sample_01.png                                # Validation sample image: sample_01.png
+│   │   ├── sample_02.png                                # Validation sample image: sample_02.png
+│   │   ├── sample_03.png                                # Validation sample image: sample_03.png
+│   │   ├── sample_04.png                                # Validation sample image: sample_04.png
+│   │   ├── sample_05.png                                # Validation sample image: sample_05.png
+│   │   ├── sample_06.png                                # Validation sample image: sample_06.png
+│   │   ├── sample_07.png                                # Validation sample image: sample_07.png
+│   │   ├── sample_08.png                                # Validation sample image: sample_08.png
+│   │   ├── sample_09.png                                # Validation sample image: sample_09.png
+│   │   ├── sample_10.png                                # Validation sample image: sample_10.png
+│   │   ├── sample_11.png                                # Validation sample image: sample_11.png
+│   │   ├── sample_12.png                                # Validation sample image: sample_12.png
+│   │   ├── sample_13.png                                # Validation sample image: sample_13.png
+│   │   ├── sample_14.png                                # Validation sample image: sample_14.png
+│   │   ├── sample_15.png                                # Validation sample image: sample_15.png
+│   │   ├── sample_16.png                                # Validation sample image: sample_16.png
+│   │   ├── sample_17.png                                # Validation sample image: sample_17.png
+│   │   ├── sample_18.png                                # Validation sample image: sample_18.png
+│   │   └── sample_19.png                                # Validation sample image: sample_19.png
+│   ├── deer/                                        # Directory: deer/
+│   │   ├── sample_00.png                                # Validation sample image: sample_00.png
+│   │   ├── sample_01.png                                # Validation sample image: sample_01.png
+│   │   ├── sample_02.png                                # Validation sample image: sample_02.png
+│   │   ├── sample_03.png                                # Validation sample image: sample_03.png
+│   │   ├── sample_04.png                                # Validation sample image: sample_04.png
+│   │   ├── sample_05.png                                # Validation sample image: sample_05.png
+│   │   ├── sample_06.png                                # Validation sample image: sample_06.png
+│   │   ├── sample_07.png                                # Validation sample image: sample_07.png
+│   │   ├── sample_08.png                                # Validation sample image: sample_08.png
+│   │   ├── sample_09.png                                # Validation sample image: sample_09.png
+│   │   ├── sample_10.png                                # Validation sample image: sample_10.png
+│   │   ├── sample_11.png                                # Validation sample image: sample_11.png
+│   │   ├── sample_12.png                                # Validation sample image: sample_12.png
+│   │   ├── sample_13.png                                # Validation sample image: sample_13.png
+│   │   ├── sample_14.png                                # Validation sample image: sample_14.png
+│   │   ├── sample_15.png                                # Validation sample image: sample_15.png
+│   │   ├── sample_16.png                                # Validation sample image: sample_16.png
+│   │   ├── sample_17.png                                # Validation sample image: sample_17.png
+│   │   ├── sample_18.png                                # Validation sample image: sample_18.png
+│   │   └── sample_19.png                                # Validation sample image: sample_19.png
+│   ├── dog/                                         # Directory: dog/
+│   │   ├── sample_00.png                                # Validation sample image: sample_00.png
+│   │   ├── sample_01.png                                # Validation sample image: sample_01.png
+│   │   ├── sample_02.png                                # Validation sample image: sample_02.png
+│   │   ├── sample_03.png                                # Validation sample image: sample_03.png
+│   │   ├── sample_04.png                                # Validation sample image: sample_04.png
+│   │   ├── sample_05.png                                # Validation sample image: sample_05.png
+│   │   ├── sample_06.png                                # Validation sample image: sample_06.png
+│   │   ├── sample_07.png                                # Validation sample image: sample_07.png
+│   │   ├── sample_08.png                                # Validation sample image: sample_08.png
+│   │   ├── sample_09.png                                # Validation sample image: sample_09.png
+│   │   ├── sample_10.png                                # Validation sample image: sample_10.png
+│   │   ├── sample_11.png                                # Validation sample image: sample_11.png
+│   │   ├── sample_12.png                                # Validation sample image: sample_12.png
+│   │   ├── sample_13.png                                # Validation sample image: sample_13.png
+│   │   ├── sample_14.png                                # Validation sample image: sample_14.png
+│   │   ├── sample_15.png                                # Validation sample image: sample_15.png
+│   │   ├── sample_16.png                                # Validation sample image: sample_16.png
+│   │   ├── sample_17.png                                # Validation sample image: sample_17.png
+│   │   ├── sample_18.png                                # Validation sample image: sample_18.png
+│   │   └── sample_19.png                                # Validation sample image: sample_19.png
+│   ├── horse/                                       # Directory: horse/
+│   │   ├── sample_00.png                                # Validation sample image: sample_00.png
+│   │   ├── sample_01.png                                # Validation sample image: sample_01.png
+│   │   ├── sample_02.png                                # Validation sample image: sample_02.png
+│   │   ├── sample_03.png                                # Validation sample image: sample_03.png
+│   │   ├── sample_04.png                                # Validation sample image: sample_04.png
+│   │   ├── sample_05.png                                # Validation sample image: sample_05.png
+│   │   ├── sample_06.png                                # Validation sample image: sample_06.png
+│   │   ├── sample_07.png                                # Validation sample image: sample_07.png
+│   │   ├── sample_08.png                                # Validation sample image: sample_08.png
+│   │   ├── sample_09.png                                # Validation sample image: sample_09.png
+│   │   ├── sample_10.png                                # Validation sample image: sample_10.png
+│   │   ├── sample_11.png                                # Validation sample image: sample_11.png
+│   │   ├── sample_12.png                                # Validation sample image: sample_12.png
+│   │   ├── sample_13.png                                # Validation sample image: sample_13.png
+│   │   ├── sample_14.png                                # Validation sample image: sample_14.png
+│   │   ├── sample_15.png                                # Validation sample image: sample_15.png
+│   │   ├── sample_16.png                                # Validation sample image: sample_16.png
+│   │   ├── sample_17.png                                # Validation sample image: sample_17.png
+│   │   ├── sample_18.png                                # Validation sample image: sample_18.png
+│   │   └── sample_19.png                                # Validation sample image: sample_19.png
+│   ├── monkey/                                      # Directory: monkey/
+│   │   ├── sample_00.png                                # Validation sample image: sample_00.png
+│   │   ├── sample_01.png                                # Validation sample image: sample_01.png
+│   │   ├── sample_02.png                                # Validation sample image: sample_02.png
+│   │   ├── sample_03.png                                # Validation sample image: sample_03.png
+│   │   ├── sample_04.png                                # Validation sample image: sample_04.png
+│   │   ├── sample_05.png                                # Validation sample image: sample_05.png
+│   │   ├── sample_06.png                                # Validation sample image: sample_06.png
+│   │   ├── sample_07.png                                # Validation sample image: sample_07.png
+│   │   ├── sample_08.png                                # Validation sample image: sample_08.png
+│   │   ├── sample_09.png                                # Validation sample image: sample_09.png
+│   │   ├── sample_10.png                                # Validation sample image: sample_10.png
+│   │   ├── sample_11.png                                # Validation sample image: sample_11.png
+│   │   ├── sample_12.png                                # Validation sample image: sample_12.png
+│   │   ├── sample_13.png                                # Validation sample image: sample_13.png
+│   │   ├── sample_14.png                                # Validation sample image: sample_14.png
+│   │   ├── sample_15.png                                # Validation sample image: sample_15.png
+│   │   ├── sample_16.png                                # Validation sample image: sample_16.png
+│   │   ├── sample_17.png                                # Validation sample image: sample_17.png
+│   │   ├── sample_18.png                                # Validation sample image: sample_18.png
+│   │   └── sample_19.png                                # Validation sample image: sample_19.png
+│   ├── ship/                                        # Directory: ship/
+│   │   ├── sample_00.png                                # Validation sample image: sample_00.png
+│   │   ├── sample_01.png                                # Validation sample image: sample_01.png
+│   │   ├── sample_02.png                                # Validation sample image: sample_02.png
+│   │   ├── sample_03.png                                # Validation sample image: sample_03.png
+│   │   ├── sample_04.png                                # Validation sample image: sample_04.png
+│   │   ├── sample_05.png                                # Validation sample image: sample_05.png
+│   │   ├── sample_06.png                                # Validation sample image: sample_06.png
+│   │   ├── sample_07.png                                # Validation sample image: sample_07.png
+│   │   ├── sample_08.png                                # Validation sample image: sample_08.png
+│   │   ├── sample_09.png                                # Validation sample image: sample_09.png
+│   │   ├── sample_10.png                                # Validation sample image: sample_10.png
+│   │   ├── sample_11.png                                # Validation sample image: sample_11.png
+│   │   ├── sample_12.png                                # Validation sample image: sample_12.png
+│   │   ├── sample_13.png                                # Validation sample image: sample_13.png
+│   │   ├── sample_14.png                                # Validation sample image: sample_14.png
+│   │   ├── sample_15.png                                # Validation sample image: sample_15.png
+│   │   ├── sample_16.png                                # Validation sample image: sample_16.png
+│   │   ├── sample_17.png                                # Validation sample image: sample_17.png
+│   │   ├── sample_18.png                                # Validation sample image: sample_18.png
+│   │   └── sample_19.png                                # Validation sample image: sample_19.png
+│   └── truck/                                       # Directory: truck/
+│       ├── sample_00.png                                # Validation sample image: sample_00.png
+│       ├── sample_01.png                                # Validation sample image: sample_01.png
+│       ├── sample_02.png                                # Validation sample image: sample_02.png
+│       ├── sample_03.png                                # Validation sample image: sample_03.png
+│       ├── sample_04.png                                # Validation sample image: sample_04.png
+│       ├── sample_05.png                                # Validation sample image: sample_05.png
+│       ├── sample_06.png                                # Validation sample image: sample_06.png
+│       ├── sample_07.png                                # Validation sample image: sample_07.png
+│       ├── sample_08.png                                # Validation sample image: sample_08.png
+│       ├── sample_09.png                                # Validation sample image: sample_09.png
+│       ├── sample_10.png                                # Validation sample image: sample_10.png
+│       ├── sample_11.png                                # Validation sample image: sample_11.png
+│       ├── sample_12.png                                # Validation sample image: sample_12.png
+│       ├── sample_13.png                                # Validation sample image: sample_13.png
+│       ├── sample_14.png                                # Validation sample image: sample_14.png
+│       ├── sample_15.png                                # Validation sample image: sample_15.png
+│       ├── sample_16.png                                # Validation sample image: sample_16.png
+│       ├── sample_17.png                                # Validation sample image: sample_17.png
+│       ├── sample_18.png                                # Validation sample image: sample_18.png
+│       └── sample_19.png                                # Validation sample image: sample_19.png
+├── CONTRIBUTING.md                              # Contributor instructions, branch policy, and pull request workflow
+├── README.md                                    # Master repository overview, empirical benchmark findings, and exhaustive repo map
+├── RHANarch.pdf                                 # Architectural vector diagram of Recurrent Hierarchical Attention Network
+├── ROADMAP.md                                   # Multi-generation research roadmap (Gen-1 through Gen-4)
+├── ROADMAP.md:Zone.Identifier                   # Windows filesystem metadata for ROADMAP.md
+├── T4x2.ipynb                                   # Dual-T4 multi-GPU training and experimentation notebook
+├── TRAINING_HEALTH_REPORT.md                    # Diagnostic criteria for loss stability, gradient norms, and NaN guards
+├── acd_research_dashboard.html:Zone.Identifier  # Windows filesystem metadata for acd_research_dashboard.html
+├── app.py                                       # Interactive web dashboard for visualizing model predictions and attacks
+├── archive/                                     # Archived legacy stages and previous experimental pipelines
+│   ├── gen-1-cifar12/                               # Archived May 2026 CIFAR-10 7-model + human psychophysics comparison
+│   │   └── phase1_training/                             # CIFAR-10 model training definitions (ResNet, ViT, EfficientNet, etc.)
+│   │       ├── alignment_head.py                            # Archived project asset: alignment_head.py
+│   │       ├── checkpoint_utils.py                          # Archived project asset: checkpoint_utils.py
+│   │       ├── dataset.py                                   # Archived project asset: dataset.py
+│   │       ├── dataset_vit.py                               # Archived project asset: dataset_vit.py
+│   │       ├── eval_pgd_sdt_stl10.py                        # Archived project asset: eval_pgd_sdt_stl10.py
+│   │       ├── eval_pgd_stl10.py                            # Archived project asset: eval_pgd_stl10.py
+│   │       ├── eval_pgd_v8.py                               # Archived project asset: eval_pgd_v8.py
+│   │       ├── eval_pseudolabel_full.py                     # Archived project asset: eval_pseudolabel_full.py
+│   │       ├── eval_quick.py                                # Archived project asset: eval_quick.py
+│   │       ├── eval_rhan_v10.py                             # Archived project asset: eval_rhan_v10.py
+│   │       ├── eval_rhan_v11.py                             # Archived project asset: eval_rhan_v11.py
+│   │       ├── eval_sprint2_comparison.py                   # Archived project asset: eval_sprint2_comparison.py
+│   │       ├── eval_static_baseline.py                      # Archived project asset: eval_static_baseline.py
+│   │       ├── eval_trades_baseline.py                      # Archived project asset: eval_trades_baseline.py
+│   │       ├── evaluate.py                                  # Archived project asset: evaluate.py
+│   │       ├── evaluate_clip.py                             # Archived project asset: evaluate_clip.py
+│   │       ├── extract_cornet_features.py                   # Archived project asset: extract_cornet_features.py
+│   │       ├── model.py                                     # Archived project asset: model.py
+│   │       ├── model_bagnet.py                              # Archived project asset: model_bagnet.py
+│   │       ├── model_clip.py                                # Archived project asset: model_clip.py
+│   │       ├── model_cornets.py                             # Archived project asset: model_cornets.py
+│   │       ├── model_efficientnet.py                        # Archived project asset: model_efficientnet.py
+│   │       ├── model_rhan_adaptive.py                       # Archived project asset: model_rhan_adaptive.py
+│   │       ├── model_rhan_aligned.py                        # Archived project asset: model_rhan_aligned.py
+│   │       ├── model_rhan_clip.py                           # Archived project asset: model_rhan_clip.py
+│   │       ├── model_rhan_dualstream.py                     # Archived project asset: model_rhan_dualstream.py
+│   │       ├── model_rhan_full.py                           # Archived project asset: model_rhan_full.py
+│   │       ├── model_rhan_predcoding.py                     # Archived project asset: model_rhan_predcoding.py
+│   │       ├── model_rhan_predictive.py                     # Archived project asset: model_rhan_predictive.py
+│   │       ├── model_rhan_split.py                          # Archived project asset: model_rhan_split.py
+│   │       ├── model_rhan_v10.py                            # Archived project asset: model_rhan_v10.py
+│   │       ├── model_rhan_v11.py                            # Archived project asset: model_rhan_v11.py
+│   │       ├── model_rhan_v12.py                            # Archived project asset: model_rhan_v12.py
+│   │       ├── model_rhan_v9.py                             # Archived project asset: model_rhan_v9.py
+│   │       ├── model_rhan_v9.py:Zone.Identifier             # Archived project asset: model_rhan_v9.py:Zone.Identifier
+│   │       ├── model_shaperesnet.py                         # Archived project asset: model_shaperesnet.py
+│   │       ├── model_vit.py                                 # Archived project asset: model_vit.py
+│   │       ├── pretrain_noise_estimator.py                  # Archived project asset: pretrain_noise_estimator.py
+│   │       ├── pretrain_rhan_v5_clip.py                     # Archived project asset: pretrain_rhan_v5_clip.py
+│   │       ├── pretrain_rhan_v6_clip.py                     # Archived project asset: pretrain_rhan_v6_clip.py
+│   │       ├── profile_rhan_large.py                        # Archived project asset: profile_rhan_large.py
+│   │       ├── train.py                                     # Archived project asset: train.py
+│   │       ├── train_cornets.py                             # Archived project asset: train_cornets.py
+│   │       ├── train_efficientnet.py                        # Archived project asset: train_efficientnet.py
+│   │       ├── train_feature_scatter.py                     # Archived project asset: train_feature_scatter.py
+│   │       ├── train_rhan_adaptive.py                       # Archived project asset: train_rhan_adaptive.py
+│   │       ├── train_rhan_adv.py                            # Archived project asset: train_rhan_adv.py
+│   │       ├── train_rhan_aligned.py                        # Archived project asset: train_rhan_aligned.py
+│   │       ├── train_rhan_alignment.py                      # Archived project asset: train_rhan_alignment.py
+│   │       ├── train_rhan_cbm.py                            # Archived project asset: train_rhan_cbm.py
+│   │       ├── train_rhan_cbm_trades.py                     # Archived project asset: train_rhan_cbm_trades.py
+│   │       ├── train_rhan_cbm_v2.py                         # Archived project asset: train_rhan_cbm_v2.py
+│   │       ├── train_rhan_clip.py                           # Archived project asset: train_rhan_clip.py
+│   │       ├── train_rhan_dualstream.py                     # Archived project asset: train_rhan_dualstream.py
+│   │       ├── train_rhan_dualstream_adv.py                 # Archived project asset: train_rhan_dualstream_adv.py
+│   │       ├── train_rhan_next.py                           # Archived project asset: train_rhan_next.py
+│   │       ├── train_rhan_predcoding.py                     # Archived project asset: train_rhan_predcoding.py
+│   │       ├── train_rhan_predcoding_adv.py                 # Archived project asset: train_rhan_predcoding_adv.py
+│   │       ├── train_rhan_predictive.py                     # Archived project asset: train_rhan_predictive.py
+│   │       ├── train_rhan_pseudolabel.py                    # Archived project asset: train_rhan_pseudolabel.py
+│   │       ├── train_rhan_pseudolabel_v2.py                 # Archived project asset: train_rhan_pseudolabel_v2.py
+│   │       ├── train_rhan_selfalign.py                      # Archived project asset: train_rhan_selfalign.py
+│   │       ├── train_rhan_split.py                          # Archived project asset: train_rhan_split.py
+│   │       ├── train_rhan_stl10.py                          # Archived project asset: train_rhan_stl10.py
+│   │       ├── train_rhan_stl10_pretrained.py               # Archived project asset: train_rhan_stl10_pretrained.py
+│   │       ├── train_rhan_trades_class_hardened.py          # Archived project asset: train_rhan_trades_class_hardened.py
+│   │       ├── train_rhan_trades_curriculum.py              # Archived project asset: train_rhan_trades_curriculum.py
+│   │       ├── train_rhan_v10.py                            # Archived project asset: train_rhan_v10.py
+│   │       ├── train_rhan_v11.py                            # Archived project asset: train_rhan_v11.py
+│   │       ├── train_rhan_v12.py                            # Archived project asset: train_rhan_v12.py
+│   │       ├── train_rhan_v3_adaptive.py                    # Archived project asset: train_rhan_v3_adaptive.py
+│   │       ├── train_rhan_v5_trades.py                      # Archived project asset: train_rhan_v5_trades.py
+│   │       ├── train_rhan_v8.py                             # Archived project asset: train_rhan_v8.py
+│   │       ├── train_rhan_v9_direct.py                      # Archived project asset: train_rhan_v9_direct.py
+│   │       ├── train_rhan_video_tdv.py                      # Archived project asset: train_rhan_video_tdv.py
+│   │       ├── train_sail.py                                # Archived project asset: train_sail.py
+│   │       ├── train_sail.py:Zone.Identifier                # Archived project asset: train_sail.py:Zone.Identifier
+│   │       ├── train_shaperesnet.py                         # Archived project asset: train_shaperesnet.py
+│   │       ├── train_shaperesnet_v2.py                      # Archived project asset: train_shaperesnet_v2.py
+│   │       ├── train_stl10_pretrained.py                    # Archived project asset: train_stl10_pretrained.py
+│   │       ├── train_stl10_pretrained.py:Zone.Identifier    # Archived project asset: train_stl10_pretrained.py:Zone.Identifier
+│   │       └── train_vit.py                                 # Archived project asset: train_vit.py
+│   ├── gen0/                                        # Archived Gen-0 (RHAN-Next) codebase and world model prototypes
+│   │   └── rhan_core/                                   # Gen-0 core package: ablation, beliefs, gaze, precision, predictive coding
+│   │       ├── OfficialNOESIS.png                           # Archived project asset: OfficialNOESIS.png
+│   │       ├── __init__.py                                  # Archived project asset: __init__.py
+│   │       ├── ablation/                                    # Ablation modules isolating recurrence, gating, and foveation
+│   │       │   ├── __init__.py                                  # Archived project asset: __init__.py
+│   │       │   ├── matrix.py                                    # Archived project asset: matrix.py
+│   │       │   └── runner.py                                    # Archived project asset: runner.py
+│   │       ├── artifacts/                                   # Reference evaluation outputs for Gen-0 models
+│   │       │   ├── __init__.py                                  # Archived project asset: __init__.py
+│   │       │   ├── events.py                                    # Archived project asset: events.py
+│   │       │   ├── manifest.py                                  # Archived project asset: manifest.py
+│   │       │   └── store.py                                     # Archived project asset: store.py
+│   │       ├── beliefs/                                     # Gen-0 belief state implementations and experimental dynamics
+│   │       │   ├── __init__.py                                  # Archived project asset: __init__.py
+│   │       │   ├── base.py                                      # Archived project asset: base.py
+│   │       │   ├── evidence_decomposition.py                    # Archived project asset: evidence_decomposition.py
+│   │       │   ├── experimental/                                # Experimental continuous-discrete belief representations
+│   │       │   │   ├── __init__.py                                  # Archived project asset: __init__.py
+│   │       │   │   └── sbr_feasibility.py                           # Archived project asset: sbr_feasibility.py
+│   │       │   ├── relational.py                                # Archived project asset: relational.py
+│   │       │   ├── structured_belief.py                         # Archived project asset: structured_belief.py
+│   │       │   └── vector_belief.py                             # Archived project asset: vector_belief.py
+│   │       ├── config/                                      # Configuration dataclasses for Gen-0 models
+│   │       │   ├── __init__.py                                  # Archived project asset: __init__.py
+│   │       │   └── pillar_config.py                             # Archived project asset: pillar_config.py
+│   │       ├── gaze/                                        # Gen-0 fixation sampling policies and spatial grids
+│   │       │   ├── __init__.py                                  # Archived project asset: __init__.py
+│   │       │   ├── base.py                                      # Archived project asset: base.py
+│   │       │   ├── halting.py                                   # Archived project asset: halting.py
+│   │       │   ├── info_gain_policy.py                          # Archived project asset: info_gain_policy.py
+│   │       │   └── info_gain_policy_v2.py                       # Archived project asset: info_gain_policy_v2.py
+│   │       ├── lens/                                        # Introspection lens extracting interpretable state tokens
+│   │       │   ├── __init__.py                                  # Archived project asset: __init__.py
+│   │       │   ├── capture.py                                   # Archived project asset: capture.py
+│   │       │   ├── hooks.py                                     # Archived project asset: hooks.py
+│   │       │   └── session.py                                   # Archived project asset: session.py
+│   │       ├── model.py                                     # Archived project asset: model.py
+│   │       ├── optim/                                       # Optimizer parameter group constructors for Gen-0
+│   │       │   ├── __init__.py                                  # Archived project asset: __init__.py
+│   │       │   └── multi_group_optimizer.py                     # Archived project asset: multi_group_optimizer.py
+│   │       ├── precision/                                   # Dynamic precision weighting mechanisms for Gen-0
+│   │       │   ├── __init__.py                                  # Archived project asset: __init__.py
+│   │       │   ├── base.py                                      # Archived project asset: base.py
+│   │       │   └── global_precision.py                          # Archived project asset: global_precision.py
+│   │       ├── predictive_coding/                           # Gen-0 top-down error computation and prediction heads
+│   │       │   ├── __init__.py                                  # Archived project asset: __init__.py
+│   │       │   ├── base.py                                      # Archived project asset: base.py
+│   │       │   ├── feature_targets.py                           # Archived project asset: feature_targets.py
+│   │       │   ├── hierarchical_stack.py                        # Archived project asset: hierarchical_stack.py
+│   │       │   ├── hpc_belief_level.py                          # Archived project asset: hpc_belief_level.py
+│   │       │   └── hpc_level1.py                                # Archived project asset: hpc_level1.py
+│   │       └── world_model/                                 # World state transition models predicting future states
+│   │           ├── __init__.py                                  # Archived project asset: __init__.py
+│   │           ├── base.py                                      # Archived project asset: base.py
+│   │           └── null_world_model.py                          # Archived project asset: null_world_model.py
+│   ├── gen3-human/                                  # Archived human psychophysics baseline experiments and trial records
+│   │   └── phase3_human_study/                          # Human trial logs, response templates, and participant data
+│   │       ├── Human Psychophysics Study (Responses) - Form responses 1.csv # Archived project asset: Human Psychophysics Study (Responses) - Form responses 1.csv
+│   │       ├── Human Psychophysics Study (Responses) - Form responses 1.csv:Zone.Identifier # Archived project asset: Human Psychophysics Study (Responses) - Form responses 1.csv:Zone.Identifier
+│   │       ├── anonymize.py                                 # Archived project asset: anonymize.py
+│   │       ├── build_form_guide.py                          # Archived project asset: build_form_guide.py
+│   │       ├── build_manifest.py                            # Archived project asset: build_manifest.py
+│   │       ├── form_structure.txt                           # Archived project asset: form_structure.txt
+│   │       ├── human_responses_reconstructed_wide.csv       # Archived project asset: human_responses_reconstructed_wide.csv
+│   │       ├── human_responses_reconstructed_wide.csv:Zone.Identifier # Archived project asset: human_responses_reconstructed_wide.csv:Zone.Identifier
+│   │       ├── manifest.csv                                 # Archived project asset: manifest.csv
+│   │       ├── map_responses.py                             # Archived project asset: map_responses.py
+│   │       ├── process_responses.py                         # Archived project asset: process_responses.py
+│   │       ├── response_schema.py                           # Archived project asset: response_schema.py
+│   │       ├── response_template.csv                        # Archived project asset: response_template.csv
+│   │       ├── responseorder.txt                            # Archived project asset: responseorder.txt
+│   │       ├── stimuli_export.py                            # Archived project asset: stimuli_export.py
+│   │       └── stimuli_manifest.csv                         # Archived project asset: stimuli_manifest.csv
+│   ├── gen4-analysis/                               # Archived divergence analysis curves, heatmaps, and attention figures
+│   │   └── phase4_analysis/                             # Cross-model divergence scripts and representation similarity metrics
+│   │       ├── .claude.md                                   # Archived project asset: .claude.md
+│   │       ├── adaptive_steps_analysis.py                   # Archived project asset: adaptive_steps_analysis.py
+│   │       ├── alignment_analysis.py                        # Archived project asset: alignment_analysis.py
+│   │       ├── class_heatmap.py                             # Archived project asset: class_heatmap.py
+│   │       ├── confidence_curves.py                         # Archived project asset: confidence_curves.py
+│   │       ├── confusion_matrices.py                        # Archived project asset: confusion_matrices.py
+│   │       ├── cross_model_compare.py                       # Archived project asset: cross_model_compare.py
+│   │       ├── divergence_curves.py                         # Archived project asset: divergence_curves.py
+│   │       ├── dualstream_attention_analysis.py             # Archived project asset: dualstream_attention_analysis.py
+│   │       ├── figures/                                     # Attention and Grad-CAM visualizations across 7 architectures
+│   │       │   ├── bagnet/                                      # Directory: bagnet/
+│   │       │   │   └── .gitkeep                                     # Archived project asset: .gitkeep
+│   │       │   ├── class_heatmap.png                            # Archived project asset: class_heatmap.png
+│   │       │   ├── combined/                                    # Directory: combined/
+│   │       │   │   ├── .gitkeep                                     # Archived project asset: .gitkeep
+│   │       │   │   ├── confidence_accuracy_gap.png                  # Archived project asset: confidence_accuracy_gap.png
+│   │       │   │   ├── confidence_collapse.png                      # Archived project asset: confidence_collapse.png
+│   │       │   │   ├── full_confidence_curve.png                    # Archived project asset: full_confidence_curve.png
+│   │       │   │   ├── full_divergence_curve.png                    # Archived project asset: full_divergence_curve.png
+│   │       │   │   ├── hero_perturbation.png                        # Archived project asset: hero_perturbation.png
+│   │       │   │   ├── latent_space/                                # Directory: latent_space/
+│   │       │   │   │   ├── displacement_comparison.bar.png              # Archived project asset: displacement_comparison.bar.png
+│   │       │   │   │   ├── resnet_tsne.png                              # Archived project asset: resnet_tsne.png
+│   │       │   │   │   └── vit_tsne.png                                 # Archived project asset: vit_tsne.png
+│   │       │   │   ├── partial_divergence_3model.png                # Archived project asset: partial_divergence_3model.png
+│   │       │   │   ├── partial_divergence_confidence.png            # Archived project asset: partial_divergence_confidence.png
+│   │       │   │   ├── partial_divergence_curve.png                 # Archived project asset: partial_divergence_curve.png
+│   │       │   │   ├── perturbation_atlas.png                       # Archived project asset: perturbation_atlas.png
+│   │       │   │   ├── sufficient_input_subsets.png                 # Archived project asset: sufficient_input_subsets.png
+│   │       │   │   ├── threshold_summary/                           # Directory: threshold_summary/
+│   │       │   │   │   ├── accuracy_robustness_landscape.png            # Archived project asset: accuracy_robustness_landscape.png
+│   │       │   │   │   ├── accuracy_threshold_bars.png                  # Archived project asset: accuracy_threshold_bars.png
+│   │       │   │   │   └── sdt_threshold_bars.png                       # Archived project asset: sdt_threshold_bars.png
+│   │       │   │   └── vit_attention_entropy.png                    # Archived project asset: vit_attention_entropy.png
+│   │       │   ├── divergence_accuracy.png                      # Archived project asset: divergence_accuracy.png
+│   │       │   ├── divergence_confidence.png                    # Archived project asset: divergence_confidence.png
+│   │       │   ├── efficientnet/                                # Directory: efficientnet/
+│   │       │   │   ├── .gitkeep                                     # Archived project asset: .gitkeep
+│   │       │   │   ├── class_heatmap.png                            # Archived project asset: class_heatmap.png
+│   │       │   │   └── confusion/                                   # Directory: confusion/
+│   │       │   │       └── efficientnet_confusion_suite.png             # Archived project asset: efficientnet_confusion_suite.png
+│   │       │   ├── gradcam/                                     # Directory: gradcam/
+│   │       │   │   ├── airplane_gradcam.png                         # Archived project asset: airplane_gradcam.png
+│   │       │   │   ├── automobile_gradcam.png                       # Archived project asset: automobile_gradcam.png
+│   │       │   │   ├── bird_gradcam.png                             # Archived project asset: bird_gradcam.png
+│   │       │   │   ├── cat_gradcam.png                              # Archived project asset: cat_gradcam.png
+│   │       │   │   ├── deer_gradcam.png                             # Archived project asset: deer_gradcam.png
+│   │       │   │   ├── dog_gradcam.png                              # Archived project asset: dog_gradcam.png
+│   │       │   │   ├── frog_gradcam.png                             # Archived project asset: frog_gradcam.png
+│   │       │   │   ├── horse_gradcam.png                            # Archived project asset: horse_gradcam.png
+│   │       │   │   ├── ship_gradcam.png                             # Archived project asset: ship_gradcam.png
+│   │       │   │   └── truck_gradcam.png                            # Archived project asset: truck_gradcam.png
+│   │       │   ├── human/                                       # Directory: human/
+│   │       │   │   ├── device_comparison.png                        # Archived project asset: device_comparison.png
+│   │       │   │   ├── human_calibration.png                        # Archived project asset: human_calibration.png
+│   │       │   │   └── human_class_heatmap.png                      # Archived project asset: human_class_heatmap.png
+│   │       │   ├── resnet/                                      # Directory: resnet/
+│   │       │   │   ├── .gitkeep                                     # Archived project asset: .gitkeep
+│   │       │   │   ├── class_heatmap.png                            # Archived project asset: class_heatmap.png
+│   │       │   │   ├── confusion/                                   # Directory: confusion/
+│   │       │   │   │   └── resnet_confusion_suite.png                   # Archived project asset: resnet_confusion_suite.png
+│   │       │   │   └── gradcam/                                     # Directory: gradcam/
+│   │       │   │       ├── airplane_gradcam.png                         # Archived project asset: airplane_gradcam.png
+│   │       │   │       ├── automobile_gradcam.png                       # Archived project asset: automobile_gradcam.png
+│   │       │   │       ├── bird_gradcam.png                             # Archived project asset: bird_gradcam.png
+│   │       │   │       ├── cat_gradcam.png                              # Archived project asset: cat_gradcam.png
+│   │       │   │       ├── deer_gradcam.png                             # Archived project asset: deer_gradcam.png
+│   │       │   │       ├── dog_gradcam.png                              # Archived project asset: dog_gradcam.png
+│   │       │   │       ├── frog_gradcam.png                             # Archived project asset: frog_gradcam.png
+│   │       │   │       ├── horse_gradcam.png                            # Archived project asset: horse_gradcam.png
+│   │       │   │       ├── ship_gradcam.png                             # Archived project asset: ship_gradcam.png
+│   │       │   │       └── truck_gradcam.png                            # Archived project asset: truck_gradcam.png
+│   │       │   ├── shaperesnet/                                 # Directory: shaperesnet/
+│   │       │   │   ├── .gitkeep                                     # Archived project asset: .gitkeep
+│   │       │   │   ├── class_heatmap.png                            # Archived project asset: class_heatmap.png
+│   │       │   │   └── confusion/                                   # Directory: confusion/
+│   │       │   │       └── shaperesnet_confusion_suite.png              # Archived project asset: shaperesnet_confusion_suite.png
+│   │       │   └── vit/                                         # Directory: vit/
+│   │       │       ├── .gitkeep                                     # Archived project asset: .gitkeep
+│   │       │       ├── attention/                                   # Directory: attention/
+│   │       │       │   ├── airplane_1.png                               # Archived project asset: airplane_1.png
+│   │       │       │   ├── airplane_2.png                               # Archived project asset: airplane_2.png
+│   │       │       │   ├── automobile_1.png                             # Archived project asset: automobile_1.png
+│   │       │       │   ├── automobile_2.png                             # Archived project asset: automobile_2.png
+│   │       │       │   ├── bird_1.png                                   # Archived project asset: bird_1.png
+│   │       │       │   ├── bird_2.png                                   # Archived project asset: bird_2.png
+│   │       │       │   ├── cat_1.png                                    # Archived project asset: cat_1.png
+│   │       │       │   ├── cat_2.png                                    # Archived project asset: cat_2.png
+│   │       │       │   ├── deer_1.png                                   # Archived project asset: deer_1.png
+│   │       │       │   ├── deer_2.png                                   # Archived project asset: deer_2.png
+│   │       │       │   ├── dog_1.png                                    # Archived project asset: dog_1.png
+│   │       │       │   ├── dog_2.png                                    # Archived project asset: dog_2.png
+│   │       │       │   ├── frog_1.png                                   # Archived project asset: frog_1.png
+│   │       │       │   ├── frog_2.png                                   # Archived project asset: frog_2.png
+│   │       │       │   ├── horse_1.png                                  # Archived project asset: horse_1.png
+│   │       │       │   ├── horse_2.png                                  # Archived project asset: horse_2.png
+│   │       │       │   ├── ship_1.png                                   # Archived project asset: ship_1.png
+│   │       │       │   ├── ship_2.png                                   # Archived project asset: ship_2.png
+│   │       │       │   ├── truck_1.png                                  # Archived project asset: truck_1.png
+│   │       │       │   └── truck_2.png                                  # Archived project asset: truck_2.png
+│   │       │       ├── class_heatmap.png                            # Archived project asset: class_heatmap.png
+│   │       │       └── confusion/                                   # Directory: confusion/
+│   │       │           └── vit_confusion_suite.png                      # Archived project asset: vit_confusion_suite.png
+│   │       ├── generate_appendix_figures.py                 # Archived project asset: generate_appendix_figures.py
+│   │       ├── generate_hero_figures.py                     # Archived project asset: generate_hero_figures.py
+│   │       ├── get_clip_accuracy.py                         # Archived project asset: get_clip_accuracy.py
+│   │       ├── gradcam.py                                   # Archived project asset: gradcam.py
+│   │       ├── human_deep_analysis.py                       # Archived project asset: human_deep_analysis.py
+│   │       ├── latent_space_embeddings.py                   # Archived project asset: latent_space_embeddings.py
+│   │       ├── perturbation_visuals.py                      # Archived project asset: perturbation_visuals.py
+│   │       ├── plot_rhan_curriculum_accomplishments.py      # Archived project asset: plot_rhan_curriculum_accomplishments.py
+│   │       ├── predcoding_residual_analysis.py              # Archived project asset: predcoding_residual_analysis.py
+│   │       ├── predictive_analysis.py                       # Archived project asset: predictive_analysis.py
+│   │       ├── rhan_feedback_maps.py                        # Archived project asset: rhan_feedback_maps.py
+│   │       ├── split_stream_analysis.py                     # Archived project asset: split_stream_analysis.py
+│   │       ├── sufficient_input_subsets.py                  # Archived project asset: sufficient_input_subsets.py
+│   │       ├── threshold_summary.py                         # Archived project asset: threshold_summary.py
+│   │       ├── v3_gate_entropy_analysis.py                  # Archived project asset: v3_gate_entropy_analysis.py
+│   │       └── vit_attention_maps.py                        # Archived project asset: vit_attention_maps.py
+│   ├── gen5-sdt/                                    # Archived Signal Detection Theory calculations and ROC curves
+│   │   └── phase5_sdt/                                  # Signal Detection Theory (SDT) sensitivity d-prime and criterion c calculators
+│   │       ├── RESULTS_INTERPRETATION_GUIDE.md              # Archived project asset: RESULTS_INTERPRETATION_GUIDE.md
+│   │       ├── __init__.py                                  # Archived project asset: __init__.py
+│   │       ├── figures/                                     # Directory: figures/
+│   │       │   ├── .gitkeep                                     # Archived project asset: .gitkeep
+│   │       │   ├── dprime_vs_epsilon.png                        # Archived project asset: dprime_vs_epsilon.png
+│   │       │   ├── partial_dprime_curves.png                    # Archived project asset: partial_dprime_curves.png
+│   │       │   └── perclass_dprime_eps0.10.png                  # Archived project asset: perclass_dprime_eps0.10.png
+│   │       ├── final_report.py                              # Archived project asset: final_report.py
+│   │       ├── final_report.txt                             # Archived project asset: final_report.txt
+│   │       ├── results/                                     # Directory: results/
+│   │       │   ├── .gitkeep                                     # Archived project asset: .gitkeep
+│   │       │   ├── final_report_5model.txt                      # Archived project asset: final_report_5model.txt
+│   │       │   ├── final_report_6model.txt                      # Archived project asset: final_report_6model.txt
+│   │       │   ├── partial_final_report.txt                     # Archived project asset: partial_final_report.txt
+│   │       │   ├── partial_final_report_v2.txt                  # Archived project asset: partial_final_report_v2.txt
+│   │       │   ├── partial_sdt_results.csv                      # Archived project asset: partial_sdt_results.csv
+│   │       │   ├── sdt_results.csv                              # Archived project asset: sdt_results.csv
+│   │       │   └── sdt_results_v4.csv                           # Archived project asset: sdt_results_v4.csv
+│   │       ├── sdt_analysis.py                              # Archived project asset: sdt_analysis.py
+│   │       ├── sdt_core.py                                  # Archived project asset: sdt_core.py
+│   │       └── sdt_plots.py                                 # Archived project asset: sdt_plots.py
+│   ├── historical-report/                           # Prior LaTeX manuscripts, draft papers, and workshop submissions
+│   │   └── RHANv12/                                     # Draft manuscripts and LaTeX figures for RHAN v12
+│   │       └── scripts/                                     # Script utilities for generating figures for RHAN v12 paper
+│   │           ├── _report_common.py                            # Archived project asset: _report_common.py
+│   │           ├── generate_activation_maps.py                  # Archived project asset: generate_activation_maps.py
+│   │           ├── generate_attention_diagrams.py               # Archived project asset: generate_attention_diagrams.py
+│   │           ├── generate_complexity_tables.py                # Archived project asset: generate_complexity_tables.py
+│   │           ├── generate_flowcharts.py                       # Archived project asset: generate_flowcharts.py
+│   │           ├── generate_math_figures.py                     # Archived project asset: generate_math_figures.py
+│   │           ├── generate_parameter_tables.py                 # Archived project asset: generate_parameter_tables.py
+│   │           └── generate_visualtorch.py                      # Archived project asset: generate_visualtorch.py
+│   ├── legacy-evals/                                # Archived evaluation benchmarks, attack scripts, and verification sweeps
+│   │   ├── .vscode/                                     # Directory: .vscode/
+│   │   │   └── sessions.json                                # Archived project asset: sessions.json
+│   │   ├── applications/                                # Directory: applications/
+│   │   │   └── README.md                                    # Master repository overview, empirical benchmark findings, and exhaustive repo map
+│   │   ├── bench_pgd.py                                 # Archived project asset: bench_pgd.py
+│   │   ├── check_parquet.py                             # Archived project asset: check_parquet.py
+│   │   ├── cognitive_vision_lab/                        # Streamlit cognitive vision laboratory interactive app
+│   │   │   ├── .env.example                                 # Archived project asset: .env.example
+│   │   │   ├── .streamlit/                                  # Directory: .streamlit/
+│   │   │   │   └── config.toml                                  # Archived project asset: config.toml
+│   │   │   ├── Dockerfile                                   # Archived project asset: Dockerfile
+│   │   │   ├── README.md                                    # Master repository overview, empirical benchmark findings, and exhaustive repo map
+│   │   │   ├── __init__.py                                  # Archived project asset: __init__.py
+│   │   │   ├── app.py                                       # Interactive web dashboard for visualizing model predictions and attacks
+│   │   │   ├── assets/                                      # Directory: assets/
+│   │   │   │   └── style.css                                    # Archived project asset: style.css
+│   │   │   ├── backend/                                     # Directory: backend/
+│   │   │   │   ├── __init__.py                                  # Archived project asset: __init__.py
+│   │   │   │   ├── attacks.py                                   # Archived project asset: attacks.py
+│   │   │   │   ├── benchmark.py                                 # Archived project asset: benchmark.py
+│   │   │   │   ├── datasets.py                                  # Archived project asset: datasets.py
+│   │   │   │   ├── embeddings.py                                # Archived project asset: embeddings.py
+│   │   │   │   ├── experiments.py                               # Archived project asset: experiments.py
+│   │   │   │   ├── explainability.py                            # Archived project asset: explainability.py
+│   │   │   │   ├── human.py                                     # Archived project asset: human.py
+│   │   │   │   ├── metrics.py                                   # Archived project asset: metrics.py
+│   │   │   │   ├── models.py                                    # Archived project asset: models.py
+│   │   │   │   ├── reports.py                                   # Archived project asset: reports.py
+│   │   │   │   ├── rhan_arch.py                                 # Archived project asset: rhan_arch.py
+│   │   │   │   ├── robustbench.py                               # Archived project asset: robustbench.py
+│   │   │   │   └── state.py                                     # Archived project asset: state.py
+│   │   │   ├── components/                                  # Directory: components/
+│   │   │   │   ├── __init__.py                                  # Archived project asset: __init__.py
+│   │   │   │   ├── cards.py                                     # Archived project asset: cards.py
+│   │   │   │   ├── charts.py                                    # Archived project asset: charts.py
+│   │   │   │   ├── equations.py                                 # Archived project asset: equations.py
+│   │   │   │   ├── layout.py                                    # Archived project asset: layout.py
+│   │   │   │   └── tables.py                                    # Archived project asset: tables.py
+│   │   │   ├── config.py                                    # Archived project asset: config.py
+│   │   │   ├── docker-compose.yml                           # Archived project asset: docker-compose.yml
+│   │   │   ├── pages/                                       # Directory: pages/
+│   │   │   │   ├── 01_Home.py                                   # Archived project asset: 01_Home.py
+│   │   │   │   ├── 02_Model_Zoo.py                              # Archived project asset: 02_Model_Zoo.py
+│   │   │   │   ├── 03_Interactive_Inference.py                  # Archived project asset: 03_Interactive_Inference.py
+│   │   │   │   ├── 04_Adversarial_Lab.py                        # Archived project asset: 04_Adversarial_Lab.py
+│   │   │   │   ├── 05_Attention_Explorer.py                     # Archived project asset: 05_Attention_Explorer.py
+│   │   │   │   ├── 06_Representation_Drift.py                   # Archived project asset: 06_Representation_Drift.py
+│   │   │   │   ├── 07_GradCAM_and_Saliency.py                   # Archived project asset: 07_GradCAM_and_Saliency.py
+│   │   │   │   ├── 08_Human_vs_AI.py                            # Archived project asset: 08_Human_vs_AI.py
+│   │   │   │   ├── 09_RobustBench_Comparison.py                 # Archived project asset: 09_RobustBench_Comparison.py
+│   │   │   │   ├── 10_RHAN_Architecture.py                      # Archived project asset: 10_RHAN_Architecture.py
+│   │   │   │   ├── 11_Benchmark_Results.py                      # Archived project asset: 11_Benchmark_Results.py
+│   │   │   │   ├── 12_Experiment_Manager.py                     # Archived project asset: 12_Experiment_Manager.py
+│   │   │   │   ├── 13_Dataset_Explorer.py                       # Archived project asset: 13_Dataset_Explorer.py
+│   │   │   │   ├── 14_Report_Generator.py                       # Archived project asset: 14_Report_Generator.py
+│   │   │   │   └── 15_Perception_Replay.py                      # Archived project asset: 15_Perception_Replay.py
+│   │   │   ├── requirements.txt                             # Python dependencies (PyTorch, torchvision, timm, torchattacks, scipy)
+│   │   │   ├── tests/                                       # Directory: tests/
+│   │   │   │   ├── test_attacks.py                              # Archived project asset: test_attacks.py
+│   │   │   │   ├── test_benchmark.py                            # Archived project asset: test_benchmark.py
+│   │   │   │   ├── test_datasets.py                             # Archived project asset: test_datasets.py
+│   │   │   │   ├── test_metrics.py                              # Archived project asset: test_metrics.py
+│   │   │   │   ├── test_models.py                               # Archived project asset: test_models.py
+│   │   │   │   └── test_reports.py                              # Archived project asset: test_reports.py
+│   │   │   └── utils/                                       # Directory: utils/
+│   │   │       ├── __init__.py                                  # Archived project asset: __init__.py
+│   │   │       ├── caching.py                                   # Archived project asset: caching.py
+│   │   │       ├── hardware.py                                  # Archived project asset: hardware.py
+│   │   │       ├── io.py                                        # Archived project asset: io.py
+│   │   │       ├── logging.py                                   # Archived project asset: logging.py
+│   │   │       ├── math_helpers.py                              # Archived project asset: math_helpers.py
+│   │   │       └── theme.py                                     # Archived project asset: theme.py
+│   │   ├── concept_ablation.py                          # Archived project asset: concept_ablation.py
+│   │   ├── concept_ablation_results.npz                 # Archived project asset: concept_ablation_results.npz
+│   │   ├── config/                                      # Directory: config/
+│   │   │   ├── attack_config.yaml                           # Archived project asset: attack_config.yaml
+│   │   │   ├── train_config.yaml                            # Archived project asset: train_config.yaml
+│   │   │   └── train_config_vit.yaml                        # Archived project asset: train_config_vit.yaml
+│   │   ├── dashboards/                                  # Directory: dashboards/
+│   │   │   └── lens_app.py                                  # Archived project asset: lens_app.py
+│   │   ├── data_generation/                             # Directory: data_generation/
+│   │   │   ├── __init__.py                                  # Archived project asset: __init__.py
+│   │   │   ├── filter_synthetic_clip.py                     # Archived project asset: filter_synthetic_clip.py
+│   │   │   ├── generate_synthetic_stl10.py                  # Archived project asset: generate_synthetic_stl10.py
+│   │   │   ├── prepare_synthetic_data.py                    # Archived project asset: prepare_synthetic_data.py
+│   │   │   └── upload_synthetic_hf.py                       # Archived project asset: upload_synthetic_hf.py
+│   │   ├── demo.py                                      # Archived project asset: demo.py
+│   │   ├── eval_aa_selfalign.py                         # Archived project asset: eval_aa_selfalign.py
+│   │   ├── eval_aa_v2.py                                # Archived project asset: eval_aa_v2.py
+│   │   ├── eval_pgd_arrow.py                            # Archived project asset: eval_pgd_arrow.py
+│   │   ├── eval_pgd_final.py                            # Archived project asset: eval_pgd_final.py
+│   │   ├── eval_pgd_hf.py                               # Archived project asset: eval_pgd_hf.py
+│   │   ├── eval_pgd_hf2.py                              # Archived project asset: eval_pgd_hf2.py
+│   │   ├── eval_pgd_quick.py                            # Archived project asset: eval_pgd_quick.py
+│   │   ├── eval_pgd_sweep.py                            # Archived project asset: eval_pgd_sweep.py
+│   │   ├── eval_pgd_thresh.py                           # Archived project asset: eval_pgd_thresh.py
+│   │   ├── eval_pgd_v2.py                               # Archived project asset: eval_pgd_v2.py
+│   │   ├── eval_pgd_v3.py                               # Archived project asset: eval_pgd_v3.py
+│   │   ├── eval_pgd_v4.py                               # Archived project asset: eval_pgd_v4.py
+│   │   ├── eval_pgd_v5.py                               # Archived project asset: eval_pgd_v5.py
+│   │   ├── eval_quick_perclass.py                       # Archived project asset: eval_quick_perclass.py
+│   │   ├── eval_quick_perclass_aa.py                    # Archived project asset: eval_quick_perclass_aa.py
+│   │   ├── eval_quick_perclass_aa_correct.py            # Archived project asset: eval_quick_perclass_aa_correct.py
+│   │   ├── eval_stl10.py                                # Archived project asset: eval_stl10.py
+│   │   ├── inspect_checkpoint.py                        # Archived project asset: inspect_checkpoint.py
+│   │   ├── inspect_v10_checkpoint.py                    # Archived project asset: inspect_v10_checkpoint.py
+│   │   ├── logs/                                        # Directory: logs/
+│   │   │   ├── null_ablation_20260724_232518.log            # Archived project asset: null_ablation_20260724_232518.log
+│   │   │   ├── null_ablation_20260724_234145.log            # Archived project asset: null_ablation_20260724_234145.log
+│   │   │   └── null_ablation_20260725_002242.log            # Archived project asset: null_ablation_20260725_002242.log
+│   │   ├── phase2_attacks/                              # Directory: phase2_attacks/
+│   │   │   ├── cw.py                                        # Archived project asset: cw.py
+│   │   │   ├── eval_autoattack.py                           # Archived project asset: eval_autoattack.py
+│   │   │   ├── eval_autoattack_curriculum.py                # Archived project asset: eval_autoattack_curriculum.py
+│   │   │   ├── eval_autoattack_fast.py                      # Archived project asset: eval_autoattack_fast.py
+│   │   │   ├── eval_autoattack_mem.py                       # Archived project asset: eval_autoattack_mem.py
+│   │   │   ├── eval_domain_clipping_validation.py           # Archived project asset: eval_domain_clipping_validation.py
+│   │   │   ├── eval_empirical_epsilon_sweep.py              # Archived project asset: eval_empirical_epsilon_sweep.py
+│   │   │   ├── eval_empirical_sweep_verified.py             # Archived project asset: eval_empirical_sweep_verified.py
+│   │   │   ├── eval_ensemble_curriculum.py                  # Archived project asset: eval_ensemble_curriculum.py
+│   │   │   ├── eval_full_epsilon_sweep.py                   # Archived project asset: eval_full_epsilon_sweep.py
+│   │   │   ├── eval_quick.py                                # Archived project asset: eval_quick.py
+│   │   │   ├── eval_rhan.py                                 # Archived project asset: eval_rhan.py
+│   │   │   ├── eval_rhan_selftest_ref.json                  # Archived project asset: eval_rhan_selftest_ref.json
+│   │   │   ├── eval_rhan_v7.py                              # Archived project asset: eval_rhan_v7.py
+│   │   │   ├── eval_sweep_domain_clamped.py                 # Archived project asset: eval_sweep_domain_clamped.py
+│   │   │   ├── eval_sweep_next.py                           # Archived project asset: eval_sweep_next.py
+│   │   │   ├── evaluate_attacks.py                          # Archived project asset: evaluate_attacks.py
+│   │   │   ├── evaluate_rhan.py                             # Archived project asset: evaluate_rhan.py
+│   │   │   ├── fgsm.py                                      # Archived project asset: fgsm.py
+│   │   │   ├── find_epoch_revision.py                       # Archived project asset: find_epoch_revision.py
+│   │   │   ├── generate_adv_all_models.py                   # Archived project asset: generate_adv_all_models.py
+│   │   │   ├── generate_adv_clip.py                         # Archived project asset: generate_adv_clip.py
+│   │   │   ├── generate_adv_dataset.py                      # Archived project asset: generate_adv_dataset.py
+│   │   │   ├── generate_adv_shaperesnet.py                  # Archived project asset: generate_adv_shaperesnet.py
+│   │   │   ├── merge_sweep_results.py                       # Archived project asset: merge_sweep_results.py
+│   │   │   ├── pgd.py                                       # Archived project asset: pgd.py
+│   │   │   ├── resume_pgd.py                                # Archived project asset: resume_pgd.py
+│   │   │   ├── seed_sweep_comparators.py                    # Archived project asset: seed_sweep_comparators.py
+│   │   │   ├── shard_2gpu.py                                # Archived project asset: shard_2gpu.py
+│   │   │   └── test_gradient_masking.py                     # Archived project asset: test_gradient_masking.py
+│   │   ├── resnet_eval.txt                              # Archived project asset: resnet_eval.txt
+│   │   ├── response_template.csv                        # Archived project asset: response_template.csv
+│   │   ├── rhan_flowchart.png                           # Archived project asset: rhan_flowchart.png
+│   │   ├── run_eval_stl10.py                            # Archived project asset: run_eval_stl10.py
+│   │   ├── simple_inspect.py                            # Archived project asset: simple_inspect.py
+│   │   ├── sweep_results/                               # Directory: sweep_results/
+│   │   │   └── epsilon_sweep_per_seed.csv                   # Archived project asset: epsilon_sweep_per_seed.csv
+│   │   ├── test_ckpt_load.py                            # Archived project asset: test_ckpt_load.py
+│   │   ├── test_load.py                                 # Archived project asset: test_load.py
+│   │   ├── train_norecon.log                            # Archived project asset: train_norecon.log
+│   │   ├── upload_pseudolabel.py                        # Archived project asset: upload_pseudolabel.py
+│   │   ├── utils/                                       # Directory: utils/
+│   │   │   └── metrics.py                                   # Archived project asset: metrics.py
+│   │   └── vit_eval.txt                                 # Archived project asset: vit_eval.txt
+│   ├── pkg-rhan-math/                               # Mathematical derivations, proofs, and vector calculus reports
+│   │   └── rhan_math/                                   # LaTeX source files for mathematical formulation paper
+│   │       ├── assets/                                      # Directory: assets/
+│   │       │   ├── act_halting_steps.png                        # Archived project asset: act_halting_steps.png
+│   │       │   ├── banach_contraction_decay.png                 # Archived project asset: banach_contraction_decay.png
+│   │       │   ├── deq_memory_complexity.png                    # Archived project asset: deq_memory_complexity.png
+│   │       │   ├── dynamic_trades_gating.png                    # Archived project asset: dynamic_trades_gating.png
+│   │       │   ├── gelu_dip.png                                 # Archived project asset: gelu_dip.png
+│   │       │   ├── gradient_masking_surface.png                 # Archived project asset: gradient_masking_surface.png
+│   │       │   ├── groupnorm_projection.png                     # Archived project asset: groupnorm_projection.png
+│   │       │   ├── hessian_conditioning.png                     # Archived project asset: hessian_conditioning.png
+│   │       │   ├── left_null_space.png                          # Archived project asset: left_null_space.png
+│   │       │   ├── pgd100_flatline.png                          # Archived project asset: pgd100_flatline.png
+│   │       │   ├── precision_gating.png                         # Archived project asset: precision_gating.png
+│   │       │   ├── rank_restoration.png                         # Archived project asset: rank_restoration.png
+│   │       │   ├── specimen_trajectory.png                      # Archived project asset: specimen_trajectory.png
+│   │       │   ├── spherical_geometry.png                       # Archived project asset: spherical_geometry.png
+│   │       │   └── stn_grid.png                                 # Archived project asset: stn_grid.png
+│   │       ├── compile_proof_report.py                      # Archived project asset: compile_proof_report.py
+│   │       ├── generate_proof_figures.py                    # Archived project asset: generate_proof_figures.py
+│   │       ├── phase1_proofs.md                             # Archived project asset: phase1_proofs.md
+│   │       ├── phase2_proofs.md                             # Archived project asset: phase2_proofs.md
+│   │       ├── phase3_proofs.md                             # Archived project asset: phase3_proofs.md
+│   │       ├── phase4_proofs.md                             # Archived project asset: phase4_proofs.md
+│   │       └── phase5_proofs.md                             # Archived project asset: phase5_proofs.md
+│   ├── pkg-tier1/                                   # Archived Tier-1 multi-seed reproducibility benchmark suites
+│   │   └── tier1/                                       # Tier-1 evaluation harness and multi-seed result tables
+│   │       ├── ScientificValidationReport.aux               # Archived project asset: ScientificValidationReport.aux
+│   │       ├── ScientificValidationReport.log               # Archived project asset: ScientificValidationReport.log
+│   │       ├── ScientificValidationReport.out               # Archived project asset: ScientificValidationReport.out
+│   │       ├── ScientificValidationReport.tex               # Archived project asset: ScientificValidationReport.tex
+│   │       ├── ScientificValidationReport2.aux              # Archived project asset: ScientificValidationReport2.aux
+│   │       ├── ScientificValidationReport2.log              # Archived project asset: ScientificValidationReport2.log
+│   │       ├── ScientificValidationReport2.out              # Archived project asset: ScientificValidationReport2.out
+│   │       ├── ScientificValidationReport2.tex              # Archived project asset: ScientificValidationReport2.tex
+│   │       ├── results/                                     # Directory: results/
+│   │       │   ├── aggregate_results.json                       # Archived project asset: aggregate_results.json
+│   │       │   ├── comparison_table.csv                         # Archived project asset: comparison_table.csv
+│   │       │   ├── frequency_gate_ablation.csv                  # Archived project asset: frequency_gate_ablation.csv
+│   │       │   ├── plots2/                                      # Directory: plots2/
+│   │       │   │   ├── v11_beta_distribution.png                    # Archived project asset: v11_beta_distribution.png
+│   │       │   │   ├── v11_foraging_trajectory.png                  # Archived project asset: v11_foraging_trajectory.png
+│   │       │   │   ├── v11_generative_prior_recon.png               # Archived project asset: v11_generative_prior_recon.png
+│   │       │   │   ├── v11_pi_distribution.png                      # Archived project asset: v11_pi_distribution.png
+│   │       │   │   └── v11_steps_vs_epsilon.png                     # Archived project asset: v11_steps_vs_epsilon.png
+│   │       │   ├── predictive_coding_ablation.csv               # Archived project asset: predictive_coding_ablation.csv
+│   │       │   ├── representation_drift_stats.csv               # Archived project asset: representation_drift_stats.csv
+│   │       │   ├── seeds/                                       # Directory: seeds/
+│   │       │   │   ├── seed_0.json                                  # Archived project asset: seed_0.json
+│   │       │   │   ├── seed_1337.json                               # Archived project asset: seed_1337.json
+│   │       │   │   ├── seed_2026.json                               # Archived project asset: seed_2026.json
+│   │       │   │   ├── seed_42.json                                 # Archived project asset: seed_42.json
+│   │       │   │   └── seed_9999.json                               # Archived project asset: seed_9999.json
+│   │       │   └── statistical_comparison.csv                   # Archived project asset: statistical_comparison.csv
+│   │       └── validate_rhan.py                             # Archived project asset: validate_rhan.py
+│   ├── rhan-v1-v7/                                  # Early RHAN recurrent prototypes (v1 through v7)
+│   │   ├── model_rhan.py                                # Archived project asset: model_rhan.py
+│   │   ├── model_rhan_v3_adaptive.py                    # Archived project asset: model_rhan_v3_adaptive.py
+│   │   ├── model_rhan_v4.py                             # Archived project asset: model_rhan_v4.py
+│   │   ├── model_rhan_v5.py                             # Archived project asset: model_rhan_v5.py
+│   │   ├── model_rhan_v6.py                             # Archived project asset: model_rhan_v6.py
+│   │   ├── model_rhan_v7.py                             # Archived project asset: model_rhan_v7.py
+│   │   ├── train_rhan.py                                # Archived project asset: train_rhan.py
+│   │   ├── train_rhan_v2.py                             # Archived project asset: train_rhan_v2.py
+│   │   ├── train_rhan_v3.py                             # Archived project asset: train_rhan_v3.py
+│   │   ├── train_rhan_v4.py                             # Archived project asset: train_rhan_v4.py
+│   │   ├── train_rhan_v5.py                             # Archived project asset: train_rhan_v5.py
+│   │   ├── train_rhan_v6.py                             # Archived project asset: train_rhan_v6.py
+│   │   └── train_rhan_v7.py                             # Archived project asset: train_rhan_v7.py
+│   ├── stl10-scaleup/                               # STL-10 self-supervised pretraining and pseudo-labeling experiments
+│   │   ├── dataset_stl10.py                             # Archived project asset: dataset_stl10.py
+│   │   ├── model_rhan_stl10.py                          # Archived project asset: model_rhan_stl10.py
+│   │   ├── model_rhan_stl10_large.py                    # Archived project asset: model_rhan_stl10_large.py
+│   │   ├── model_rhan_stl10_pretrained.py               # Archived project asset: model_rhan_stl10_pretrained.py
+│   │   ├── train_rhan_large_pseudolabel.py              # Archived project asset: train_rhan_large_pseudolabel.py
+│   │   ├── train_rhan_stl10_tdv.py                      # Archived project asset: train_rhan_stl10_tdv.py
+│   │   └── train_rhan_unified.py                        # Archived project asset: train_rhan_unified.py
+│   └── working-scratch/                             # Archived scratch scripts and prototype renderers
+│       └── scratch/                                     # Directory: scratch/
+│           ├── _ckpt_verify/                                # Directory: _ckpt_verify/
+│           │   └── comparison.json                              # Archived project asset: comparison.json
+│           ├── analyze_gaze_perturbation_correlation.py     # Archived project asset: analyze_gaze_perturbation_correlation.py
+│           ├── build_literature_corpus.py                   # Archived project asset: build_literature_corpus.py
+│           ├── build_stage2_run_log_md.py                   # Archived project asset: build_stage2_run_log_md.py
+│           ├── build_synthetic_pt.py                        # Archived project asset: build_synthetic_pt.py
+│           ├── calc_human_acc.py                            # Archived project asset: calc_human_acc.py
+│           ├── check_hf_commits.py                          # Archived project asset: check_hf_commits.py
+│           ├── check_hf_epoch.py                            # Archived project asset: check_hf_epoch.py
+│           ├── check_hf_latest.py                           # Archived project asset: check_hf_latest.py
+│           ├── check_hf_latest_commits.py                   # Archived project asset: check_hf_latest_commits.py
+│           ├── check_hf_rolling.py                          # Archived project asset: check_hf_rolling.py
+│           ├── check_local_epoch.py                         # Archived project asset: check_local_epoch.py
+│           ├── check_stage1_hf.py                           # Archived project asset: check_stage1_hf.py
+│           ├── compile_pdf.py                               # Archived project asset: compile_pdf.py
+│           ├── create_resume_checkpoint.py                  # Archived project asset: create_resume_checkpoint.py
+│           ├── debug_pgd_efficientnet.py                    # Archived project asset: debug_pgd_efficientnet.py
+│           ├── debug_pgd_resnet.py                          # Archived project asset: debug_pgd_resnet.py
+│           ├── debug_pgd_vit.py                             # Archived project asset: debug_pgd_vit.py
+│           ├── diag_cross_mechanism_pi_d.py                 # Archived project asset: diag_cross_mechanism_pi_d.py
+│           ├── diag_hpc_perclass.py                         # Archived project asset: diag_hpc_perclass.py
+│           ├── diag_nan_loss.py                             # Archived project asset: diag_nan_loss.py
+│           ├── diag_nan_source.py                           # Archived project asset: diag_nan_source.py
+│           ├── diag_v7_fr.py                                # Archived project asset: diag_v7_fr.py
+│           ├── edge_map_floor_analysis.py                   # Archived project asset: edge_map_floor_analysis.py
+│           ├── edge_map_floor_model_path.py                 # Archived project asset: edge_map_floor_model_path.py
+│           ├── eval_aa_phase1.py                            # Archived project asset: eval_aa_phase1.py
+│           ├── eval_lens_e1.py                              # Archived project asset: eval_lens_e1.py
+│           ├── eval_linear_probe.py                         # Archived project asset: eval_linear_probe.py
+│           ├── eval_rhan_fast.py                            # Archived project asset: eval_rhan_fast.py
+│           ├── eval_rhan_stl10.py                           # Archived project asset: eval_rhan_stl10.py
+│           ├── eval_rhan_v5.py                              # Archived project asset: eval_rhan_v5.py
+│           ├── eval_rhan_v7.py                              # Archived project asset: eval_rhan_v7.py
+│           ├── eval_sail_phase1.py                          # Archived project asset: eval_sail_phase1.py
+│           ├── eval_stage2_gate_v2.py                       # Archived project asset: eval_stage2_gate_v2.py
+│           ├── eval_stage2_gate_v3.py                       # Archived project asset: eval_stage2_gate_v3.py
+│           ├── eval_v6_fast.py                              # Archived project asset: eval_v6_fast.py
+│           ├── extract_sdt.py                               # Archived project asset: extract_sdt.py
+│           ├── fix_table.py                                 # Archived project asset: fix_table.py
+│           ├── gen0_pull_hf_evals.py                        # Archived project asset: gen0_pull_hf_evals.py
+│           ├── gradient_masking_diagnostic.py               # Archived project asset: gradient_masking_diagnostic.py
+│           ├── inspect_ckpt.py                              # Archived project asset: inspect_ckpt.py
+│           ├── inspect_v5_weights.py                        # Archived project asset: inspect_v5_weights.py
+│           ├── list_private_datasets.py                     # Archived project asset: list_private_datasets.py
+│           ├── literature_corpus_ledger_flat.md             # Archived project asset: literature_corpus_ledger_flat.md
+│           ├── literature_corpus_notes.md                   # Archived project asset: literature_corpus_notes.md
+│           ├── measure_hpc_dw.py                            # Archived project asset: measure_hpc_dw.py
+│           ├── patch_master_stats.py                        # Archived project asset: patch_master_stats.py
+│           ├── plot_gradient_masking_comparison.py          # Archived project asset: plot_gradient_masking_comparison.py
+│           ├── plot_selfalign_comparison.py                 # Archived project asset: plot_selfalign_comparison.py
+│           ├── prototype/                                   # Directory: prototype/
+│           │   ├── prototype_typst.typ                          # Archived project asset: prototype_typst.typ
+│           │   ├── prototype_weasyprint.html                    # Archived project asset: prototype_weasyprint.html
+│           │   ├── rendered_typ/                                # Directory: rendered_typ/
+│           │   │   ├── page-1.png                                   # Archived project asset: page-1.png
+│           │   │   ├── page-2.png                                   # Archived project asset: page-2.png
+│           │   │   ├── page-3.png                                   # Archived project asset: page-3.png
+│           │   │   ├── page-4.png                                   # Archived project asset: page-4.png
+│           │   │   └── page-5.png                                   # Archived project asset: page-5.png
+│           │   └── rendered_wp/                                 # Directory: rendered_wp/
+│           │       ├── page-1.png                                   # Archived project asset: page-1.png
+│           │       ├── page-2.png                                   # Archived project asset: page-2.png
+│           │       ├── page-3.png                                   # Archived project asset: page-3.png
+│           │       ├── page-4.png                                   # Archived project asset: page-4.png
+│           │       └── page-5.png                                   # Archived project asset: page-5.png
+│           ├── quick_eval_hf.py                             # Archived project asset: quick_eval_hf.py
+│           ├── regenerate_e1_table.py                       # Archived project asset: regenerate_e1_table.py
+│           ├── resync_stage1_roadmap.py                     # Archived project asset: resync_stage1_roadmap.py
+│           ├── run_hpc_rerun.sh                             # Archived project asset: run_hpc_rerun.sh
+│           ├── test_bypass.py                               # Archived project asset: test_bypass.py
+│           ├── test_merge_stage1.py                         # Archived project asset: test_merge_stage1.py
+│           ├── test_resume_gate.py                          # Archived project asset: test_resume_gate.py
+│           ├── update_stage1_roadmap_labels.py              # Archived project asset: update_stage1_roadmap_labels.py
+│           ├── update_stage2_roadmap.py                     # Archived project asset: update_stage2_roadmap.py
+│           ├── upload_all_checkpoints.py                    # Archived project asset: upload_all_checkpoints.py
+│           ├── verify_best_vs_rolling.py                    # Archived project asset: verify_best_vs_rolling.py
+│           ├── verify_cached_v12.py                         # Archived project asset: verify_cached_v12.py
+│           ├── verify_master_stats.py                       # Archived project asset: verify_master_stats.py
+│           ├── verify_seed_samples.py                       # Archived project asset: verify_seed_samples.py
+│           ├── verify_twin_stage_notes.py                   # Archived project asset: verify_twin_stage_notes.py
+│           ├── verify_v6_compile.py                         # Archived project asset: verify_v6_compile.py
+│           └── vram_probe.py                                # Archived project asset: vram_probe.py
+├── checkpoints/                                 # Model weights directory (tracked JSON manifests, local cache, and symlinks)
+│   ├── generation1_foundation_roadmap.json          # Stage tracking and checkpoint state metadata for Gen-1 ladder
+│   ├── rhan_stl10_base_video_tdv.pth:Zone.Identifier # Windows filesystem metadata for rhan_stl10_base_video_tdv.pth
+│   ├── rhan_stl10_large_video_tdv.pth:Zone.Identifier # Windows filesystem metadata for rhan_stl10_large_video_tdv.pth
+│   ├── rhan_stl10_pseudolabel_best.pth:Zone.Identifier # Windows filesystem metadata for rhan_stl10_pseudolabel_best.pth
+│   ├── rhan_stl10_pseudolabel_rolling.pth:Zone.Identifier # Windows filesystem metadata for rhan_stl10_pseudolabel_rolling.pth
+│   └── training_complete.json                       # Sentinel JSON indicating completion status of training pipeline
+├── cloud/                                       # Cloud deployment configurations and Slurm cluster specs
+│   ├── canonical/                                   # Canonical production cloud dispatchers
+│   │   └── Kaggle_J1_FOUNDATION.py                      # Cloud execution script / configuration: Kaggle_J1_FOUNDATION.py
+│   ├── gen0/                                        # Historical Gen-0 cloud dispatchers
+│   │   ├── Kaggle_NOESIS.py                             # Cloud execution script / configuration: Kaggle_NOESIS.py
+│   │   └── colab_notebook_noesis.py                     # Cloud execution script / configuration: colab_notebook_noesis.py
+│   ├── gen1/                                        # Generation-1 cloud dispatchers and shell wrappers
+│   │   ├── Kaggle_J1_FOUNDATION.py                      # Cloud execution script / configuration: Kaggle_J1_FOUNDATION.py
+│   │   ├── colab_j1_foundation.py                       # Cloud execution script / configuration: colab_j1_foundation.py
+│   │   ├── colab_j1_foundation_gate.py                  # Cloud execution script / configuration: colab_j1_foundation_gate.py
+│   │   ├── run_j1_local.sh                              # Cloud execution script / configuration: run_j1_local.sh
+│   │   └── run_j1_supervised.sh                         # Cloud execution script / configuration: run_j1_supervised.sh
+│   └── misc/                                        # Historical Colab/Kaggle setup scripts and experimental runners
+│       ├── colab_notebook.py                            # Cloud execution script / configuration: colab_notebook.py
+│       ├── colab_run_pipeline.py                        # Cloud execution script / configuration: colab_run_pipeline.py
+│       ├── colab_run_pseudolabel_pipeline.py            # Cloud execution script / configuration: colab_run_pseudolabel_pipeline.py
+│       ├── colab_train_synthetic.py                     # Cloud execution script / configuration: colab_train_synthetic.py
+│       ├── colab_v11_3seed_protocol.py                  # Cloud execution script / configuration: colab_v11_3seed_protocol.py
+│       ├── colab_v11_isolation_run_a.py                 # Cloud execution script / configuration: colab_v11_isolation_run_a.py
+│       ├── colab_v11_isolation_run_b.py                 # Cloud execution script / configuration: colab_v11_isolation_run_b.py
+│       ├── colab_v12_step0.py                           # Cloud execution script / configuration: colab_v12_step0.py
+│       ├── generate_figures.py                          # Cloud execution script / configuration: generate_figures.py
+│       ├── generate_rhan_visualizations.py              # Cloud execution script / configuration: generate_rhan_visualizations.py
+│       ├── generate_rhan_visualizations_v2.py           # Cloud execution script / configuration: generate_rhan_visualizations_v2.py
+│       ├── kaggle_notebook.py                           # Cloud execution script / configuration: kaggle_notebook.py
+│       ├── kaggle_run_pseudolabel_pipeline.py           # Cloud execution script / configuration: kaggle_run_pseudolabel_pipeline.py
+│       ├── kaggle_train_synthetic.py                    # Cloud execution script / configuration: kaggle_train_synthetic.py
+│       ├── kaggle_v11_3seed_protocol.py                 # Cloud execution script / configuration: kaggle_v11_3seed_protocol.py
+│       ├── kaggle_v11_isolation_run_a.py                # Cloud execution script / configuration: kaggle_v11_isolation_run_a.py
+│       ├── kaggle_v11_isolation_run_b.py                # Cloud execution script / configuration: kaggle_v11_isolation_run_b.py
+│       ├── kaggle_v12_step0.py                          # Cloud execution script / configuration: kaggle_v12_step0.py
+│       ├── kaggle_video_tdv_setup.py                    # Cloud execution script / configuration: kaggle_video_tdv_setup.py
+│       └── lightning_setup.py                           # Cloud execution script / configuration: lightning_setup.py
+├── config/                                      # Central YAML configuration files for models, training, and attack bounds
+│   └── train_config.yaml                            # YAML configuration defining learning rates, attack radii, and curriculum stages
+├── confusion_matrix.png                         # Confusion matrix visualization for baseline ResNet-18
+├── confusion_matrix_efficientnet.png            # Confusion matrix visualization for EfficientNet-B0
+├── confusion_matrix_vit.png                     # Confusion matrix visualization for Vision Transformer (ViT-Small)
+├── deep-research-report.md:Zone.Identifier      # Windows filesystem metadata for deep-research-report.md
+├── diagnostics/                                 # Runtime profiling artifacts and isolation test scripts
+│   └── diagnosis_artifacts/                         # Diagnostic scripts isolating autograd, AMP, and loss landscapes
+│       ├── diag_adv_isolation.py                        # Diagnostic isolation test / trace: diag_adv_isolation.py
+│       ├── diag_adv_isolation_quick.py                  # Diagnostic isolation test / trace: diag_adv_isolation_quick.py
+│       ├── diag_amp_autograd_grad.py                    # Diagnostic isolation test / trace: diag_amp_autograd_grad.py
+│       ├── diag_amp_bisect.py                           # Diagnostic isolation test / trace: diag_amp_bisect.py
+│       ├── diag_amp_cells.py                            # Diagnostic isolation test / trace: diag_amp_cells.py
+│       ├── diag_amp_flip.py                             # Diagnostic isolation test / trace: diag_amp_flip.py
+│       ├── diag_amp_nested.py                           # Diagnostic isolation test / trace: diag_amp_nested.py
+│       ├── diag_amp_probe.py                            # Diagnostic isolation test / trace: diag_amp_probe.py
+│       ├── diag_clean_control.py                        # Diagnostic isolation test / trace: diag_clean_control.py
+│       ├── diag_common.py                               # Diagnostic isolation test / trace: diag_common.py
+│       ├── diag_dataset_forensics.py                    # Diagnostic isolation test / trace: diag_dataset_forensics.py
+│       ├── diag_glimpse_sanity.py                       # Diagnostic isolation test / trace: diag_glimpse_sanity.py
+│       ├── diag_gradient_forensics.py                   # Diagnostic isolation test / trace: diag_gradient_forensics.py
+│       ├── diag_isolations.py                           # Diagnostic isolation test / trace: diag_isolations.py
+│       ├── diag_objective_decomp.py                     # Diagnostic isolation test / trace: diag_objective_decomp.py
+│       ├── diag_output_sanity.py                        # Diagnostic isolation test / trace: diag_output_sanity.py
+│       ├── diag_tiny_overfit.py                         # Diagnostic isolation test / trace: diag_tiny_overfit.py
+│       ├── hf_rolling_adv/                              # Adversarial roadmap diagnostics synced from rolling checkpoint repo
+│       │   └── generation1_foundation_roadmap.json          # Diagnostic isolation test / trace: generation1_foundation_roadmap.json
+│       ├── out/                                         # JSON diagnostic reports on dataset forensics and overfit checks
+│       │   ├── 04_dataset_forensics.json                    # Diagnostic isolation test / trace: 04_dataset_forensics.json
+│       │   ├── 05_tiny_overfit.json                         # Diagnostic isolation test / trace: 05_tiny_overfit.json
+│       │   ├── 06_glimpse_sanity.json                       # Diagnostic isolation test / trace: 06_glimpse_sanity.json
+│       │   ├── 07_output_sanity.json                        # Diagnostic isolation test / trace: 07_output_sanity.json
+│       │   ├── 08_gradient_forensics.json                   # Diagnostic isolation test / trace: 08_gradient_forensics.json
+│       │   ├── 09_objective_decomp.json                     # Diagnostic isolation test / trace: 09_objective_decomp.json
+│       │   ├── 10_section_a_b_ladder.json                   # Diagnostic isolation test / trace: 10_section_a_b_ladder.json
+│       │   ├── 11_12_13_isolations.json                     # Diagnostic isolation test / trace: 11_12_13_isolations.json
+│       │   ├── 15_amp_autograd_grad.json                    # Diagnostic isolation test / trace: 15_amp_autograd_grad.json
+│       │   ├── 15_amp_bisect.json                           # Diagnostic isolation test / trace: 15_amp_bisect.json
+│       │   ├── 15_amp_cells.json                            # Diagnostic isolation test / trace: 15_amp_cells.json
+│       │   ├── 15_amp_flip.json                             # Diagnostic isolation test / trace: 15_amp_flip.json
+│       │   ├── 15_amp_nested.json                           # Diagnostic isolation test / trace: 15_amp_nested.json
+│       │   ├── 15_amp_probe.json                            # Diagnostic isolation test / trace: 15_amp_probe.json
+│       │   └── 17_final_forensic_evidence.json              # Diagnostic isolation test / trace: 17_final_forensic_evidence.json
+│       └── run_all_diag.py                              # Diagnostic isolation test / trace: run_all_diag.py
+├── docs/                                        # Technical manuals, design plans, and forensic reports
+│   ├── ACD_Project_Documentation_v3.pdf             # Source component: ACD_Project_Documentation_v3.pdf
+│   ├── ACD_Project_Documentation_v3.pdf:Zone.Identifier # Windows filesystem metadata for ACD_Project_Documentation_v3.pdf
+│   ├── ACD_paper_v1.tex                             # Source component: ACD_paper_v1.tex
+│   ├── ACD_v4.pdf                                   # Source component: ACD_v4.pdf
+│   ├── ACD_v4.pdf:Zone.Identifier                   # Windows filesystem metadata for ACD_v4.pdf
+│   ├── ARCHITECTURE.md                              # Source component: ARCHITECTURE.md
+│   ├── CANCELLATION_NOTICE_2026-10-03.md            # Source component: CANCELLATION_NOTICE_2026-10-03.md
+│   ├── FORENSIC_REPORT_NXA_GENERATION1.md           # Source component: FORENSIC_REPORT_NXA_GENERATION1.md
+│   ├── Manual Documentation.md                      # Source component: Manual Documentation.md
+│   ├── NOESIS_FOUNDATION.md                         # Source component: NOESIS_FOUNDATION.md
+│   ├── REPOSITORY_MAP.md                            # Source component: REPOSITORY_MAP.md
+│   ├── RHAN_NXA_ARCHITECTURE.md                     # Source component: RHAN_NXA_ARCHITECTURE.md
+│   ├── STAGE2_REFACTOR_PLAN.md                      # Source component: STAGE2_REFACTOR_PLAN.md
+│   ├── Stage_E1-3_Analysis.md                       # Source component: Stage_E1-3_Analysis.md
+│   ├── git_branch_audit_before_cleanup.md           # Source component: git_branch_audit_before_cleanup.md
+│   ├── git_branch_cleanup_report.md                 # Source component: git_branch_cleanup_report.md
+│   ├── historical/                                  # Archived stage reports, early proposal drafts, and pre-registrations
+│   │   ├── COLLABORATING.md                             # Source component: COLLABORATING.md
+│   │   ├── FINDINGS.md                                  # Source component: FINDINGS.md
+│   │   ├── IMPORTANT.md                                 # Source component: IMPORTANT.md
+│   │   ├── NOESIS_IMPROVEMENT_CATALOG.md                # Source component: NOESIS_IMPROVEMENT_CATALOG.md
+│   │   ├── RHAN-history.md                              # Source component: RHAN-history.md
+│   │   ├── RHANv11.md                                   # Source component: RHANv11.md
+│   │   └── deep-research-report.md                      # Source component: deep-research-report.md
+│   ├── repository_reorganization.md                 # Source component: repository_reorganization.md
+│   ├── research/                                    # Research references, citation audits, and empirical seed tables
+│   │   ├── RHAN_NOESIS_CLAIM_IMPLEMENTATION_AUDIT.md    # Source component: RHAN_NOESIS_CLAIM_IMPLEMENTATION_AUDIT.md
+│   │   ├── RHAN_NOESIS_EXPERIMENT_REGISTRY.csv          # Source component: RHAN_NOESIS_EXPERIMENT_REGISTRY.csv
+│   │   ├── RHAN_NOESIS_GENERATION0_LESSONS.md           # Source component: RHAN_NOESIS_GENERATION0_LESSONS.md
+│   │   ├── RHAN_NOESIS_LITERATURE_CORPUS.json           # Source component: RHAN_NOESIS_LITERATURE_CORPUS.json
+│   │   ├── RHAN_NOESIS_LITERATURE_CORPUS.md             # Source component: RHAN_NOESIS_LITERATURE_CORPUS.md
+│   │   ├── RHAN_NOESIS_PROJECT_EVIDENCE_DOSSIER.md      # Source component: RHAN_NOESIS_PROJECT_EVIDENCE_DOSSIER.md
+│   │   └── RHAN_NOESIS_REFERENCE_SEED.csv               # Source component: RHAN_NOESIS_REFERENCE_SEED.csv
+│   ├── rhan_next_roadmap.json                       # Source component: rhan_next_roadmap.json
+│   ├── rhan_nxa/                                    # RHAN-NXA unified handbook, QA reports, and figure gallery
+│   │   ├── DOCUMENTATION_SOURCE_MAP.md                  # Source component: DOCUMENTATION_SOURCE_MAP.md
+│   │   ├── HANDBOOK_QA_REPORT.md                        # Source component: HANDBOOK_QA_REPORT.md
+│   │   ├── RENDERER_DECISION_RECORD.md                  # Source component: RENDERER_DECISION_RECORD.md
+│   │   ├── RHAN_NXA_Handbook_Unified.md                 # Source component: RHAN_NXA_Handbook_Unified.md
+│   │   ├── appendices/                                  # Technical appendices (tensors, ABC interfaces, port tables)
+│   │   │   ├── A_Tensor_Reference.md                        # Handbook appendix: A Tensor Reference
+│   │   │   ├── B_Interface_ABCs.md                          # Handbook appendix: B Interface ABCs
+│   │   │   └── C_Port_Table.md                              # Handbook appendix: C Port Table
+│   │   ├── book/                                        # RHAN-NXA comprehensive textbook chapters (00-26)
+│   │   │   ├── 00_Executive_Overview.md                     # Handbook textbook chapter: 00 Executive Overview
+│   │   │   ├── 01_Why_RHAN_NXA.md                           # Handbook textbook chapter: 01 Why RHAN NXA
+│   │   │   ├── 02_Core_Idea.md                              # Handbook textbook chapter: 02 Core Idea
+│   │   │   ├── 03_Perception_As_Investigation.md            # Handbook textbook chapter: 03 Perception As Investigation
+│   │   │   ├── 04_Belief_State.md                           # Handbook textbook chapter: 04 Belief State
+│   │   │   ├── 05_z_State.md                                # Handbook textbook chapter: 05 z State
+│   │   │   ├── 06_Structure_State.md                        # Handbook textbook chapter: 06 Structure State
+│   │   │   ├── 07_Uncertainty.md                            # Handbook textbook chapter: 07 Uncertainty
+│   │   │   ├── 08_Prediction_Error.md                       # Handbook textbook chapter: 08 Prediction Error
+│   │   │   ├── 09_Recurrence.md                             # Handbook textbook chapter: 09 Recurrence
+│   │   │   ├── 10_Foveation.md                              # Handbook textbook chapter: 10 Foveation
+│   │   │   ├── 11_AIS_v2.md                                 # Handbook textbook chapter: 11 AIS v2
+│   │   │   ├── 12_Complete_Perceptual_Loop.md               # Handbook textbook chapter: 12 Complete Perceptual Loop
+│   │   │   ├── 13_Architecture.md                           # Handbook textbook chapter: 13 Architecture
+│   │   │   ├── 14_Gradient_Flow.md                          # Handbook textbook chapter: 14 Gradient Flow
+│   │   │   ├── 15_Tensor_Shapes.md                          # Handbook textbook chapter: 15 Tensor Shapes
+│   │   │   ├── 16_Training_System.md                        # Handbook textbook chapter: 16 Training System
+│   │   │   ├── 17_Experimental_DAG.md                       # Handbook textbook chapter: 17 Experimental DAG
+│   │   │   ├── 18_Evaluation.md                             # Handbook textbook chapter: 18 Evaluation
+│   │   │   ├── 19_Gen0_Evidence.md                          # Handbook textbook chapter: 19 Gen0 Evidence
+│   │   │   ├── 20_L_stab.md                                 # Handbook textbook chapter: 20 L stab
+│   │   │   ├── 21_Decision_Records.md                       # Handbook textbook chapter: 21 Decision Records
+│   │   │   ├── 22_Common_Misunderstandings.md               # Handbook textbook chapter: 22 Common Misunderstandings
+│   │   │   ├── 23_Glossary.md                               # Handbook textbook chapter: 23 Glossary
+│   │   │   ├── 24_Scope_Boundaries.md                       # Handbook textbook chapter: 24 Scope Boundaries
+│   │   │   ├── 25_Future_Directions.md                      # Handbook textbook chapter: 25 Future Directions
+│   │   │   └── 26_Reproducibility.md                        # Handbook textbook chapter: 26 Reproducibility
+│   │   ├── design/                                      # Directory: design/
+│   │   │   └── DESIGN_SYSTEM.md                             # Source component: DESIGN_SYSTEM.md
+│   │   ├── figure_gallery/                              # Standalone HTML figure gallery and high-res diagram assets
+│   │   │   ├── INDEX.html                                   # Source component: INDEX.html
+│   │   │   ├── ais_v2.png                                   # Source component: ais_v2.png
+│   │   │   ├── belief_state.png                             # Source component: belief_state.png
+│   │   │   ├── checkpoint_resume.png                        # Source component: checkpoint_resume.png
+│   │   │   ├── compact_vit.png                              # Source component: compact_vit.png
+│   │   │   ├── decision_status_system.png                   # Source component: decision_status_system.png
+│   │   │   ├── experiment_isolation.png                     # Source component: experiment_isolation.png
+│   │   │   ├── foveation.png                                # Source component: foveation.png
+│   │   │   ├── future_rhan_llm.png                          # Source component: future_rhan_llm.png
+│   │   │   ├── gen0_confound.png                            # Source component: gen0_confound.png
+│   │   │   ├── gen0_robustness_chart.png                    # Source component: gen0_robustness_chart.png
+│   │   │   ├── gradient_flow.png                            # Source component: gradient_flow.png
+│   │   │   ├── l_stab_stability.png                         # Source component: l_stab_stability.png
+│   │   │   ├── perceptual_loop.png                          # Source component: perceptual_loop.png
+│   │   │   ├── prediction_error.png                         # Source component: prediction_error.png
+│   │   │   ├── recurrence.png                               # Source component: recurrence.png
+│   │   │   ├── system_overview.png                          # Source component: system_overview.png
+│   │   │   ├── tensor_flow.png                              # Source component: tensor_flow.png
+│   │   │   ├── training_dag.png                             # Source component: training_dag.png
+│   │   │   └── uncertainty_dirichlet.png                    # Source component: uncertainty_dirichlet.png
+│   │   ├── figures/                                     # Vector SVG publication diagrams and architecture schematics
+│   │   │   ├── ais_v2.svg                                   # Source component: ais_v2.svg
+│   │   │   ├── belief_state.svg                             # Source component: belief_state.svg
+│   │   │   ├── checkpoint_resume.svg                        # Source component: checkpoint_resume.svg
+│   │   │   ├── compact_vit.svg                              # Source component: compact_vit.svg
+│   │   │   ├── decision_status_system.svg                   # Source component: decision_status_system.svg
+│   │   │   ├── experiment_isolation.svg                     # Source component: experiment_isolation.svg
+│   │   │   ├── foveation.svg                                # Source component: foveation.svg
+│   │   │   ├── future_rhan_llm.svg                          # Source component: future_rhan_llm.svg
+│   │   │   ├── gen0_confound.svg                            # Source component: gen0_confound.svg
+│   │   │   ├── gen0_robustness_chart.svg                    # Source component: gen0_robustness_chart.svg
+│   │   │   ├── gradient_flow.svg                            # Source component: gradient_flow.svg
+│   │   │   ├── l_stab_stability.svg                         # Source component: l_stab_stability.svg
+│   │   │   ├── perceptual_loop.svg                          # Source component: perceptual_loop.svg
+│   │   │   ├── prediction_error.svg                         # Source component: prediction_error.svg
+│   │   │   ├── recurrence.svg                               # Source component: recurrence.svg
+│   │   │   ├── system_overview.svg                          # Source component: system_overview.svg
+│   │   │   ├── tensor_flow.svg                              # Source component: tensor_flow.svg
+│   │   │   ├── training_dag.svg                             # Source component: training_dag.svg
+│   │   │   └── uncertainty_dirichlet.svg                    # Source component: uncertainty_dirichlet.svg
+│   │   └── pdf_qa_pages/                                # Rendered visual QA inspection pages for compiled handbook
+│   │       ├── page-001.png                                 # Source component: page-001.png
+│   │       ├── page-002.png                                 # Source component: page-002.png
+│   │       ├── page-003.png                                 # Source component: page-003.png
+│   │       ├── page-004.png                                 # Source component: page-004.png
+│   │       ├── page-005.png                                 # Source component: page-005.png
+│   │       ├── page-006.png                                 # Source component: page-006.png
+│   │       ├── page-007.png                                 # Source component: page-007.png
+│   │       ├── page-008.png                                 # Source component: page-008.png
+│   │       ├── page-009.png                                 # Source component: page-009.png
+│   │       ├── page-010.png                                 # Source component: page-010.png
+│   │       ├── page-011.png                                 # Source component: page-011.png
+│   │       └── page-012.png                                 # Source component: page-012.png
+│   ├── stage3_environment.json                      # Source component: stage3_environment.json
+│   └── stage3_preregistration.md                    # Source component: stage3_preregistration.md
+├── evaluation/                                  # Evaluation datasets, corruptions, and benchmark protocols
+│   ├── clean_and_robust.py                          # Standardized evaluation runner for clean and Linf PGD robustness
+│   ├── compactness_report.py                        # Profiles model parameter counts, FLOPs, memory, and inference latency
+│   ├── geirhos_loader.py                            # Dataloader for the Geirhos cue-conflict dataset (shape vs. texture bias)
+│   ├── imagenet100_loader.py                        # ImageNet-100 dataset loader with normalization, transforms, and caching
+│   ├── imagenet_c_loader.py                         # ImageNet-C corruption benchmark loader across 15 synthetic noise types
+│   └── shape_texture_bias.py                        # Signal Detection Theory (d') script for shape vs texture classification
+├── figures/                                     # Publication figures v1 (architectures, loss landscapes, information flows)
+│   ├── README.md                                    # Master repository overview, empirical benchmark findings, and exhaustive repo map
+│   ├── architecture/                                # Architectural diagrams for foveation, gist encoder, and predictive loop
+│   │   ├── figure_1_rhan_architecture.pdf               # Figure diagram asset: figure_1_rhan_architecture.pdf
+│   │   ├── figure_1_rhan_architecture.png               # Figure diagram asset: figure_1_rhan_architecture.png
+│   │   ├── figure_1_rhan_architecture.svg               # Figure diagram asset: figure_1_rhan_architecture.svg
+│   │   ├── figure_2_layer_by_layer.pdf                  # Figure diagram asset: figure_2_layer_by_layer.pdf
+│   │   ├── figure_2_layer_by_layer.png                  # Figure diagram asset: figure_2_layer_by_layer.png
+│   │   ├── figure_2_layer_by_layer.svg                  # Figure diagram asset: figure_2_layer_by_layer.svg
+│   │   ├── figure_3_computational_graph.pdf             # Figure diagram asset: figure_3_computational_graph.pdf
+│   │   ├── figure_3_computational_graph.png             # Figure diagram asset: figure_3_computational_graph.png
+│   │   ├── figure_3_computational_graph.svg             # Figure diagram asset: figure_3_computational_graph.svg
+│   │   ├── figure_4_module_hierarchy.pdf                # Figure diagram asset: figure_4_module_hierarchy.pdf
+│   │   ├── figure_4_module_hierarchy.png                # Figure diagram asset: figure_4_module_hierarchy.png
+│   │   ├── figure_4_module_hierarchy.svg                # Figure diagram asset: figure_4_module_hierarchy.svg
+│   │   ├── figure_6_activation_flow.pdf                 # Figure diagram asset: figure_6_activation_flow.pdf
+│   │   ├── figure_6_activation_flow.png                 # Figure diagram asset: figure_6_activation_flow.png
+│   │   ├── figure_6_activation_flow.svg                 # Figure diagram asset: figure_6_activation_flow.svg
+│   │   ├── figure_7_tensor_shape_evolution.pdf          # Figure diagram asset: figure_7_tensor_shape_evolution.pdf
+│   │   ├── figure_7_tensor_shape_evolution.png          # Figure diagram asset: figure_7_tensor_shape_evolution.png
+│   │   └── figure_7_tensor_shape_evolution.svg          # Figure diagram asset: figure_7_tensor_shape_evolution.svg
+│   ├── biological/                                  # Comparative schematics illustrating primate ventral stream parallels
+│   │   ├── figure_10_biological_mapping.pdf             # Figure diagram asset: figure_10_biological_mapping.pdf
+│   │   ├── figure_10_biological_mapping.png             # Figure diagram asset: figure_10_biological_mapping.png
+│   │   └── figure_10_biological_mapping.svg             # Figure diagram asset: figure_10_biological_mapping.svg
+│   ├── concept_activation_ablation.png              # Figure diagram asset: concept_activation_ablation.png
+│   ├── evaluation/                                  # Robustness curves, attack comparison bar plots, and error rate tables
+│   │   ├── figure_16_evaluation_dashboard.pdf           # Figure diagram asset: figure_16_evaluation_dashboard.pdf
+│   │   ├── figure_16_evaluation_dashboard.png           # Figure diagram asset: figure_16_evaluation_dashboard.png
+│   │   ├── figure_16_evaluation_dashboard.svg           # Figure diagram asset: figure_16_evaluation_dashboard.svg
+│   │   ├── figure_8_memory_consumption.pdf              # Figure diagram asset: figure_8_memory_consumption.pdf
+│   │   ├── figure_8_memory_consumption.png              # Figure diagram asset: figure_8_memory_consumption.png
+│   │   ├── figure_8_memory_consumption.svg              # Figure diagram asset: figure_8_memory_consumption.svg
+│   │   ├── figure_9_flops_distribution.pdf              # Figure diagram asset: figure_9_flops_distribution.pdf
+│   │   ├── figure_9_flops_distribution.png              # Figure diagram asset: figure_9_flops_distribution.png
+│   │   └── figure_9_flops_distribution.svg              # Figure diagram asset: figure_9_flops_distribution.svg
+│   ├── explainability/                              # Grad-CAM saliency maps and attention rollouts under adversarial attacks
+│   │   ├── figure_k2_candidate_grid.png                 # Figure diagram asset: figure_k2_candidate_grid.png
+│   │   ├── figure_k2_candidate_grid_eps10.png           # Figure diagram asset: figure_k2_candidate_grid_eps10.png
+│   │   ├── figure_k2_candidate_grid_eps20.png           # Figure diagram asset: figure_k2_candidate_grid_eps20.png
+│   │   ├── figure_k2_metadata.json                      # Figure diagram asset: figure_k2_metadata.json
+│   │   ├── figure_k2_progressive_visual_robustness_dark.png # Figure diagram asset: figure_k2_progressive_visual_robustness_dark.png
+│   │   ├── figure_k2_progressive_visual_robustness_light.pdf # Figure diagram asset: figure_k2_progressive_visual_robustness_light.pdf
+│   │   ├── figure_k2_progressive_visual_robustness_light.png # Figure diagram asset: figure_k2_progressive_visual_robustness_light.png
+│   │   ├── figure_k2_progressive_visual_robustness_light.svg # Figure diagram asset: figure_k2_progressive_visual_robustness_light.svg
+│   │   ├── figure_k2_progressive_visual_robustness_transparent.png # Figure diagram asset: figure_k2_progressive_visual_robustness_transparent.png
+│   │   ├── figure_k3_metadata.json                      # Figure diagram asset: figure_k3_metadata.json
+│   │   ├── figure_k3_progressive_visual_robustness_dark.png # Figure diagram asset: figure_k3_progressive_visual_robustness_dark.png
+│   │   ├── figure_k3_progressive_visual_robustness_light.pdf # Figure diagram asset: figure_k3_progressive_visual_robustness_light.pdf
+│   │   ├── figure_k3_progressive_visual_robustness_light.png # Figure diagram asset: figure_k3_progressive_visual_robustness_light.png
+│   │   ├── figure_k3_progressive_visual_robustness_light.svg # Figure diagram asset: figure_k3_progressive_visual_robustness_light.svg
+│   │   └── figure_k3_progressive_visual_robustness_transparent.png # Figure diagram asset: figure_k3_progressive_visual_robustness_transparent.png
+│   ├── figure_10_training_pipeline.png              # Figure diagram asset: figure_10_training_pipeline.png
+│   ├── figure_10_training_pipeline.svg              # Figure diagram asset: figure_10_training_pipeline.svg
+│   ├── figure_11_loss_landscape.png                 # Figure diagram asset: figure_11_loss_landscape.png
+│   ├── figure_11_loss_landscape.svg                 # Figure diagram asset: figure_11_loss_landscape.svg
+│   ├── figure_12_information_flow.png               # Figure diagram asset: figure_12_information_flow.png
+│   ├── figure_12_information_flow.svg               # Figure diagram asset: figure_12_information_flow.svg
+│   ├── figure_13_rhan_ecosystem.png                 # Figure diagram asset: figure_13_rhan_ecosystem.png
+│   ├── figure_13_rhan_ecosystem.svg                 # Figure diagram asset: figure_13_rhan_ecosystem.svg
+│   ├── figure_1_rhan_architecture.png               # Figure diagram asset: figure_1_rhan_architecture.png
+│   ├── figure_1_rhan_architecture.svg               # Figure diagram asset: figure_1_rhan_architecture.svg
+│   ├── figure_2_biological_inspiration.png          # Figure diagram asset: figure_2_biological_inspiration.png
+│   ├── figure_2_biological_inspiration.svg          # Figure diagram asset: figure_2_biological_inspiration.svg
+│   ├── figure_3_predictive_coding_loop.png          # Figure diagram asset: figure_3_predictive_coding_loop.png
+│   ├── figure_3_predictive_coding_loop.svg          # Figure diagram asset: figure_3_predictive_coding_loop.svg
+│   ├── figure_4_dual_transformer.png                # Figure diagram asset: figure_4_dual_transformer.png
+│   ├── figure_4_dual_transformer.svg                # Figure diagram asset: figure_4_dual_transformer.svg
+│   ├── figure_5_spherical_prototype.png             # Figure diagram asset: figure_5_spherical_prototype.png
+│   ├── figure_5_spherical_prototype.svg             # Figure diagram asset: figure_5_spherical_prototype.svg
+│   ├── figure_6_sail_flowchart.png                  # Figure diagram asset: figure_6_sail_flowchart.png
+│   ├── figure_6_sail_flowchart.svg                  # Figure diagram asset: figure_6_sail_flowchart.svg
+│   ├── figure_7_geometric_sail.png                  # Figure diagram asset: figure_7_geometric_sail.png
+│   ├── figure_7_geometric_sail.svg                  # Figure diagram asset: figure_7_geometric_sail.svg
+│   ├── figure_8_tdv_framework.png                   # Figure diagram asset: figure_8_tdv_framework.png
+│   ├── figure_8_tdv_framework.svg                   # Figure diagram asset: figure_8_tdv_framework.svg
+│   ├── figure_9_adversarial_tdv.png                 # Figure diagram asset: figure_9_adversarial_tdv.png
+│   ├── figure_9_adversarial_tdv.svg                 # Figure diagram asset: figure_9_adversarial_tdv.svg
+│   ├── geometry/                                    # Latent space geometry visualizations and decision boundary plots
+│   │   ├── figure_5_parameter_distribution.pdf          # Figure diagram asset: figure_5_parameter_distribution.pdf
+│   │   ├── figure_5_parameter_distribution.png          # Figure diagram asset: figure_5_parameter_distribution.png
+│   │   ├── figure_5_parameter_distribution.svg          # Figure diagram asset: figure_5_parameter_distribution.svg
+│   │   ├── figure_spherical_prototype.pdf               # Figure diagram asset: figure_spherical_prototype.pdf
+│   │   ├── figure_spherical_prototype.png               # Figure diagram asset: figure_spherical_prototype.png
+│   │   └── figure_spherical_prototype.svg               # Figure diagram asset: figure_spherical_prototype.svg
+│   ├── gradient_masking_comparison.png              # Figure diagram asset: gradient_masking_comparison.png
+│   ├── losses/                                      # Loss surface contour plots and convergence trajectory curves
+│   │   ├── figure_loss_landscape.pdf                    # Figure diagram asset: figure_loss_landscape.pdf
+│   │   ├── figure_loss_landscape.png                    # Figure diagram asset: figure_loss_landscape.png
+│   │   └── figure_loss_landscape.svg                    # Figure diagram asset: figure_loss_landscape.svg
+│   ├── pgd_accuracy_decay.png                       # Figure diagram asset: pgd_accuracy_decay.png
+│   ├── sdt_sensitivity_decay.png                    # Figure diagram asset: sdt_sensitivity_decay.png
+│   ├── selfalign_accuracy_decay.png                 # Figure diagram asset: selfalign_accuracy_decay.png
+│   ├── selfalign_sensitivity_decay.png              # Figure diagram asset: selfalign_sensitivity_decay.png
+│   └── training/                                    # Training loss trajectories, learning rate curves, and gradient norm plots
+│       ├── figure_11_predictive_coding_loop.pdf         # Figure diagram asset: figure_11_predictive_coding_loop.pdf
+│       ├── figure_11_predictive_coding_loop.png         # Figure diagram asset: figure_11_predictive_coding_loop.png
+│       ├── figure_11_predictive_coding_loop.svg         # Figure diagram asset: figure_11_predictive_coding_loop.svg
+│       ├── figure_12_sail_pipeline.pdf                  # Figure diagram asset: figure_12_sail_pipeline.pdf
+│       ├── figure_12_sail_pipeline.png                  # Figure diagram asset: figure_12_sail_pipeline.png
+│       ├── figure_12_sail_pipeline.svg                  # Figure diagram asset: figure_12_sail_pipeline.svg
+│       ├── figure_13_tdv_pipeline.pdf                   # Figure diagram asset: figure_13_tdv_pipeline.pdf
+│       ├── figure_13_tdv_pipeline.png                   # Figure diagram asset: figure_13_tdv_pipeline.png
+│       ├── figure_13_tdv_pipeline.svg                   # Figure diagram asset: figure_13_tdv_pipeline.svg
+│       ├── figure_14_rhan_ecosystem.pdf                 # Figure diagram asset: figure_14_rhan_ecosystem.pdf
+│       ├── figure_14_rhan_ecosystem.png                 # Figure diagram asset: figure_14_rhan_ecosystem.png
+│       ├── figure_14_rhan_ecosystem.svg                 # Figure diagram asset: figure_14_rhan_ecosystem.svg
+│       ├── figure_15_training_pipeline.pdf              # Figure diagram asset: figure_15_training_pipeline.pdf
+│       ├── figure_15_training_pipeline.png              # Figure diagram asset: figure_15_training_pipeline.png
+│       └── figure_15_training_pipeline.svg              # Figure diagram asset: figure_15_training_pipeline.svg
+├── figures_v2/                                  # Publication figures v2 (attention maps, biology, geometry, frequency analysis)
+│   ├── README.md                                    # Master repository overview, empirical benchmark findings, and exhaustive repo map
+│   ├── attention/                                   # Directory: attention/
+│   │   ├── figure_b1_attention_overlay_dark.png         # Extended figure asset: figure_b1_attention_overlay_dark.png
+│   │   ├── figure_b1_attention_overlay_light.pdf        # Extended figure asset: figure_b1_attention_overlay_light.pdf
+│   │   ├── figure_b1_attention_overlay_light.png        # Extended figure asset: figure_b1_attention_overlay_light.png
+│   │   ├── figure_b1_attention_overlay_light.svg        # Extended figure asset: figure_b1_attention_overlay_light.svg
+│   │   ├── figure_b1_attention_overlay_transparent.png  # Extended figure asset: figure_b1_attention_overlay_transparent.png
+│   │   ├── figure_b2_attention_evolution_dark.png       # Extended figure asset: figure_b2_attention_evolution_dark.png
+│   │   ├── figure_b2_attention_evolution_light.pdf      # Extended figure asset: figure_b2_attention_evolution_light.pdf
+│   │   ├── figure_b2_attention_evolution_light.png      # Extended figure asset: figure_b2_attention_evolution_light.png
+│   │   ├── figure_b2_attention_evolution_light.svg      # Extended figure asset: figure_b2_attention_evolution_light.svg
+│   │   ├── figure_b2_attention_evolution_transparent.png # Extended figure asset: figure_b2_attention_evolution_transparent.png
+│   │   ├── figure_b3_feedback_correction_dark.png       # Extended figure asset: figure_b3_feedback_correction_dark.png
+│   │   ├── figure_b3_feedback_correction_light.pdf      # Extended figure asset: figure_b3_feedback_correction_light.pdf
+│   │   ├── figure_b3_feedback_correction_light.png      # Extended figure asset: figure_b3_feedback_correction_light.png
+│   │   ├── figure_b3_feedback_correction_light.svg      # Extended figure asset: figure_b3_feedback_correction_light.svg
+│   │   └── figure_b3_feedback_correction_transparent.png # Extended figure asset: figure_b3_feedback_correction_transparent.png
+│   ├── biology/                                     # Directory: biology/
+│   │   ├── figure_f1_predictive_coding_convergence_dark.png # Extended figure asset: figure_f1_predictive_coding_convergence_dark.png
+│   │   ├── figure_f1_predictive_coding_convergence_light.pdf # Extended figure asset: figure_f1_predictive_coding_convergence_light.pdf
+│   │   ├── figure_f1_predictive_coding_convergence_light.png # Extended figure asset: figure_f1_predictive_coding_convergence_light.png
+│   │   ├── figure_f1_predictive_coding_convergence_light.svg # Extended figure asset: figure_f1_predictive_coding_convergence_light.svg
+│   │   ├── figure_f1_predictive_coding_convergence_transparent.png # Extended figure asset: figure_f1_predictive_coding_convergence_transparent.png
+│   │   ├── figure_f2_act_pondering_dark.png             # Extended figure asset: figure_f2_act_pondering_dark.png
+│   │   ├── figure_f2_act_pondering_light.pdf            # Extended figure asset: figure_f2_act_pondering_light.pdf
+│   │   ├── figure_f2_act_pondering_light.png            # Extended figure asset: figure_f2_act_pondering_light.png
+│   │   ├── figure_f2_act_pondering_light.svg            # Extended figure asset: figure_f2_act_pondering_light.svg
+│   │   ├── figure_f2_act_pondering_transparent.png      # Extended figure asset: figure_f2_act_pondering_transparent.png
+│   │   ├── figure_f3_recurrence_utilization_dark.png    # Extended figure asset: figure_f3_recurrence_utilization_dark.png
+│   │   ├── figure_f3_recurrence_utilization_light.pdf   # Extended figure asset: figure_f3_recurrence_utilization_light.pdf
+│   │   ├── figure_f3_recurrence_utilization_light.png   # Extended figure asset: figure_f3_recurrence_utilization_light.png
+│   │   ├── figure_f3_recurrence_utilization_light.svg   # Extended figure asset: figure_f3_recurrence_utilization_light.svg
+│   │   └── figure_f3_recurrence_utilization_transparent.png # Extended figure asset: figure_f3_recurrence_utilization_transparent.png
+│   ├── diagnostics/                                 # Directory: diagnostics/
+│   │   ├── figure_i1_diagnostics_dashboard_dark.png     # Extended figure asset: figure_i1_diagnostics_dashboard_dark.png
+│   │   ├── figure_i1_diagnostics_dashboard_light.pdf    # Extended figure asset: figure_i1_diagnostics_dashboard_light.pdf
+│   │   ├── figure_i1_diagnostics_dashboard_light.png    # Extended figure asset: figure_i1_diagnostics_dashboard_light.png
+│   │   ├── figure_i1_diagnostics_dashboard_light.svg    # Extended figure asset: figure_i1_diagnostics_dashboard_light.svg
+│   │   └── figure_i1_diagnostics_dashboard_transparent.png # Extended figure asset: figure_i1_diagnostics_dashboard_transparent.png
+│   ├── evaluation/                                  # Directory: evaluation/
+│   │   ├── figure_e1_accuracy_vs_epsilon_dark.png       # Extended figure asset: figure_e1_accuracy_vs_epsilon_dark.png
+│   │   ├── figure_e1_accuracy_vs_epsilon_light.pdf      # Extended figure asset: figure_e1_accuracy_vs_epsilon_light.pdf
+│   │   ├── figure_e1_accuracy_vs_epsilon_light.png      # Extended figure asset: figure_e1_accuracy_vs_epsilon_light.png
+│   │   ├── figure_e1_accuracy_vs_epsilon_light.svg      # Extended figure asset: figure_e1_accuracy_vs_epsilon_light.svg
+│   │   ├── figure_e1_accuracy_vs_epsilon_transparent.png # Extended figure asset: figure_e1_accuracy_vs_epsilon_transparent.png
+│   │   ├── figure_e2_dprime_vs_epsilon_dark.png         # Extended figure asset: figure_e2_dprime_vs_epsilon_dark.png
+│   │   ├── figure_e2_dprime_vs_epsilon_light.pdf        # Extended figure asset: figure_e2_dprime_vs_epsilon_light.pdf
+│   │   ├── figure_e2_dprime_vs_epsilon_light.png        # Extended figure asset: figure_e2_dprime_vs_epsilon_light.png
+│   │   ├── figure_e2_dprime_vs_epsilon_light.svg        # Extended figure asset: figure_e2_dprime_vs_epsilon_light.svg
+│   │   ├── figure_e2_dprime_vs_epsilon_transparent.png  # Extended figure asset: figure_e2_dprime_vs_epsilon_transparent.png
+│   │   ├── figure_e3_robustness_threshold_comparison_dark.png # Extended figure asset: figure_e3_robustness_threshold_comparison_dark.png
+│   │   ├── figure_e3_robustness_threshold_comparison_light.pdf # Extended figure asset: figure_e3_robustness_threshold_comparison_light.pdf
+│   │   ├── figure_e3_robustness_threshold_comparison_light.png # Extended figure asset: figure_e3_robustness_threshold_comparison_light.png
+│   │   ├── figure_e3_robustness_threshold_comparison_light.svg # Extended figure asset: figure_e3_robustness_threshold_comparison_light.svg
+│   │   ├── figure_e3_robustness_threshold_comparison_transparent.png # Extended figure asset: figure_e3_robustness_threshold_comparison_transparent.png
+│   │   ├── figure_e4_class_robustness_heatmap_dark.png  # Extended figure asset: figure_e4_class_robustness_heatmap_dark.png
+│   │   ├── figure_e4_class_robustness_heatmap_light.pdf # Extended figure asset: figure_e4_class_robustness_heatmap_light.pdf
+│   │   ├── figure_e4_class_robustness_heatmap_light.png # Extended figure asset: figure_e4_class_robustness_heatmap_light.png
+│   │   ├── figure_e4_class_robustness_heatmap_light.svg # Extended figure asset: figure_e4_class_robustness_heatmap_light.svg
+│   │   └── figure_e4_class_robustness_heatmap_transparent.png # Extended figure asset: figure_e4_class_robustness_heatmap_transparent.png
+│   ├── explainability/                              # Directory: explainability/
+│   │   ├── figure_j1_explainability_gradcam_dark.png    # Extended figure asset: figure_j1_explainability_gradcam_dark.png
+│   │   ├── figure_j1_explainability_gradcam_light.pdf   # Extended figure asset: figure_j1_explainability_gradcam_light.pdf
+│   │   ├── figure_j1_explainability_gradcam_light.png   # Extended figure asset: figure_j1_explainability_gradcam_light.png
+│   │   ├── figure_j1_explainability_gradcam_light.svg   # Extended figure asset: figure_j1_explainability_gradcam_light.svg
+│   │   └── figure_j1_explainability_gradcam_transparent.png # Extended figure asset: figure_j1_explainability_gradcam_transparent.png
+│   ├── frequency/                                   # Directory: frequency/
+│   │   ├── figure_c1_low_frequency_gate_dark.png        # Extended figure asset: figure_c1_low_frequency_gate_dark.png
+│   │   ├── figure_c1_low_frequency_gate_light.pdf       # Extended figure asset: figure_c1_low_frequency_gate_light.pdf
+│   │   ├── figure_c1_low_frequency_gate_light.png       # Extended figure asset: figure_c1_low_frequency_gate_light.png
+│   │   ├── figure_c1_low_frequency_gate_light.svg       # Extended figure asset: figure_c1_low_frequency_gate_light.svg
+│   │   ├── figure_c1_low_frequency_gate_transparent.png # Extended figure asset: figure_c1_low_frequency_gate_transparent.png
+│   │   ├── figure_c2_high_frequency_gate_dark.png       # Extended figure asset: figure_c2_high_frequency_gate_dark.png
+│   │   ├── figure_c2_high_frequency_gate_light.pdf      # Extended figure asset: figure_c2_high_frequency_gate_light.pdf
+│   │   ├── figure_c2_high_frequency_gate_light.png      # Extended figure asset: figure_c2_high_frequency_gate_light.png
+│   │   ├── figure_c2_high_frequency_gate_light.svg      # Extended figure asset: figure_c2_high_frequency_gate_light.svg
+│   │   ├── figure_c2_high_frequency_gate_transparent.png # Extended figure asset: figure_c2_high_frequency_gate_transparent.png
+│   │   ├── figure_c3_gate_weights_training_dark.png     # Extended figure asset: figure_c3_gate_weights_training_dark.png
+│   │   ├── figure_c3_gate_weights_training_light.pdf    # Extended figure asset: figure_c3_gate_weights_training_light.pdf
+│   │   ├── figure_c3_gate_weights_training_light.png    # Extended figure asset: figure_c3_gate_weights_training_light.png
+│   │   ├── figure_c3_gate_weights_training_light.svg    # Extended figure asset: figure_c3_gate_weights_training_light.svg
+│   │   └── figure_c3_gate_weights_training_transparent.png # Extended figure asset: figure_c3_gate_weights_training_transparent.png
+│   ├── geometry/                                    # Directory: geometry/
+│   │   ├── figure_d1_spherical_prototypes_dark.png      # Extended figure asset: figure_d1_spherical_prototypes_dark.png
+│   │   ├── figure_d1_spherical_prototypes_light.pdf     # Extended figure asset: figure_d1_spherical_prototypes_light.pdf
+│   │   ├── figure_d1_spherical_prototypes_light.png     # Extended figure asset: figure_d1_spherical_prototypes_light.png
+│   │   ├── figure_d1_spherical_prototypes_light.svg     # Extended figure asset: figure_d1_spherical_prototypes_light.svg
+│   │   ├── figure_d1_spherical_prototypes_transparent.png # Extended figure asset: figure_d1_spherical_prototypes_transparent.png
+│   │   ├── figure_d2_angular_decision_boundaries_dark.png # Extended figure asset: figure_d2_angular_decision_boundaries_dark.png
+│   │   ├── figure_d2_angular_decision_boundaries_light.pdf # Extended figure asset: figure_d2_angular_decision_boundaries_light.pdf
+│   │   ├── figure_d2_angular_decision_boundaries_light.png # Extended figure asset: figure_d2_angular_decision_boundaries_light.png
+│   │   ├── figure_d2_angular_decision_boundaries_light.svg # Extended figure asset: figure_d2_angular_decision_boundaries_light.svg
+│   │   ├── figure_d2_angular_decision_boundaries_transparent.png # Extended figure asset: figure_d2_angular_decision_boundaries_transparent.png
+│   │   ├── figure_d3_angular_margin_distribution_dark.png # Extended figure asset: figure_d3_angular_margin_distribution_dark.png
+│   │   ├── figure_d3_angular_margin_distribution_light.pdf # Extended figure asset: figure_d3_angular_margin_distribution_light.pdf
+│   │   ├── figure_d3_angular_margin_distribution_light.png # Extended figure asset: figure_d3_angular_margin_distribution_light.png
+│   │   ├── figure_d3_angular_margin_distribution_light.svg # Extended figure asset: figure_d3_angular_margin_distribution_light.svg
+│   │   └── figure_d3_angular_margin_distribution_transparent.png # Extended figure asset: figure_d3_angular_margin_distribution_transparent.png
+│   ├── representation/                              # Directory: representation/
+│   │   ├── figure_a1_umap_feature_space_dark.png        # Extended figure asset: figure_a1_umap_feature_space_dark.png
+│   │   ├── figure_a1_umap_feature_space_light.pdf       # Extended figure asset: figure_a1_umap_feature_space_light.pdf
+│   │   ├── figure_a1_umap_feature_space_light.png       # Extended figure asset: figure_a1_umap_feature_space_light.png
+│   │   ├── figure_a1_umap_feature_space_light.svg       # Extended figure asset: figure_a1_umap_feature_space_light.svg
+│   │   ├── figure_a1_umap_feature_space_transparent.png # Extended figure asset: figure_a1_umap_feature_space_transparent.png
+│   │   ├── figure_a2_tsne_representation_drift_dark.png # Extended figure asset: figure_a2_tsne_representation_drift_dark.png
+│   │   ├── figure_a2_tsne_representation_drift_light.pdf # Extended figure asset: figure_a2_tsne_representation_drift_light.pdf
+│   │   ├── figure_a2_tsne_representation_drift_light.png # Extended figure asset: figure_a2_tsne_representation_drift_light.png
+│   │   ├── figure_a2_tsne_representation_drift_light.svg # Extended figure asset: figure_a2_tsne_representation_drift_light.svg
+│   │   ├── figure_a2_tsne_representation_drift_transparent.png # Extended figure asset: figure_a2_tsne_representation_drift_transparent.png
+│   │   ├── figure_a3_representation_drift_histogram_dark.png # Extended figure asset: figure_a3_representation_drift_histogram_dark.png
+│   │   ├── figure_a3_representation_drift_histogram_light.pdf # Extended figure asset: figure_a3_representation_drift_histogram_light.pdf
+│   │   ├── figure_a3_representation_drift_histogram_light.png # Extended figure asset: figure_a3_representation_drift_histogram_light.png
+│   │   ├── figure_a3_representation_drift_histogram_light.svg # Extended figure asset: figure_a3_representation_drift_histogram_light.svg
+│   │   ├── figure_a3_representation_drift_histogram_transparent.png # Extended figure asset: figure_a3_representation_drift_histogram_transparent.png
+│   │   ├── figure_h1_decision_boundary_slices_dark.png  # Extended figure asset: figure_h1_decision_boundary_slices_dark.png
+│   │   ├── figure_h1_decision_boundary_slices_light.pdf # Extended figure asset: figure_h1_decision_boundary_slices_light.pdf
+│   │   ├── figure_h1_decision_boundary_slices_light.png # Extended figure asset: figure_h1_decision_boundary_slices_light.png
+│   │   ├── figure_h1_decision_boundary_slices_light.svg # Extended figure asset: figure_h1_decision_boundary_slices_light.svg
+│   │   ├── figure_h1_decision_boundary_slices_transparent.png # Extended figure asset: figure_h1_decision_boundary_slices_transparent.png
+│   │   ├── figure_h2_loss_landscape_dark.png            # Extended figure asset: figure_h2_loss_landscape_dark.png
+│   │   ├── figure_h2_loss_landscape_light.pdf           # Extended figure asset: figure_h2_loss_landscape_light.pdf
+│   │   ├── figure_h2_loss_landscape_light.png           # Extended figure asset: figure_h2_loss_landscape_light.png
+│   │   ├── figure_h2_loss_landscape_light.svg           # Extended figure asset: figure_h2_loss_landscape_light.svg
+│   │   └── figure_h2_loss_landscape_transparent.png     # Extended figure asset: figure_h2_loss_landscape_transparent.png
+│   └── training/                                    # Directory: training/
+│       ├── figure_g1_loss_curves_dark.png               # Extended figure asset: figure_g1_loss_curves_dark.png
+│       ├── figure_g1_loss_curves_light.pdf              # Extended figure asset: figure_g1_loss_curves_light.pdf
+│       ├── figure_g1_loss_curves_light.png              # Extended figure asset: figure_g1_loss_curves_light.png
+│       ├── figure_g1_loss_curves_light.svg              # Extended figure asset: figure_g1_loss_curves_light.svg
+│       ├── figure_g1_loss_curves_transparent.png        # Extended figure asset: figure_g1_loss_curves_transparent.png
+│       ├── figure_g2_learning_rate_schedule_dark.png    # Extended figure asset: figure_g2_learning_rate_schedule_dark.png
+│       ├── figure_g2_learning_rate_schedule_light.pdf   # Extended figure asset: figure_g2_learning_rate_schedule_light.pdf
+│       ├── figure_g2_learning_rate_schedule_light.png   # Extended figure asset: figure_g2_learning_rate_schedule_light.png
+│       ├── figure_g2_learning_rate_schedule_light.svg   # Extended figure asset: figure_g2_learning_rate_schedule_light.svg
+│       ├── figure_g2_learning_rate_schedule_transparent.png # Extended figure asset: figure_g2_learning_rate_schedule_transparent.png
+│       ├── figure_g3_gradient_norm_evolution_dark.png   # Extended figure asset: figure_g3_gradient_norm_evolution_dark.png
+│       ├── figure_g3_gradient_norm_evolution_light.pdf  # Extended figure asset: figure_g3_gradient_norm_evolution_light.pdf
+│       ├── figure_g3_gradient_norm_evolution_light.png  # Extended figure asset: figure_g3_gradient_norm_evolution_light.png
+│       ├── figure_g3_gradient_norm_evolution_light.svg  # Extended figure asset: figure_g3_gradient_norm_evolution_light.svg
+│       ├── figure_g3_gradient_norm_evolution_transparent.png # Extended figure asset: figure_g3_gradient_norm_evolution_transparent.png
+│       ├── figure_g4_parameter_update_magnitude_dark.png # Extended figure asset: figure_g4_parameter_update_magnitude_dark.png
+│       ├── figure_g4_parameter_update_magnitude_light.pdf # Extended figure asset: figure_g4_parameter_update_magnitude_light.pdf
+│       ├── figure_g4_parameter_update_magnitude_light.png # Extended figure asset: figure_g4_parameter_update_magnitude_light.png
+│       ├── figure_g4_parameter_update_magnitude_light.svg # Extended figure asset: figure_g4_parameter_update_magnitude_light.svg
+│       └── figure_g4_parameter_update_magnitude_transparent.png # Extended figure asset: figure_g4_parameter_update_magnitude_transparent.png
+├── figures_v3/                                  # Publication figures v3 (multi-theme light/dark publication-ready SVG/PNG)
+│   ├── README.md                                    # Master repository overview, empirical benchmark findings, and exhaustive repo map
+│   ├── attention/                                   # Directory: attention/
+│   │   ├── figure_b1_attention_overlay_dark.png         # Publication figure v3 asset: figure_b1_attention_overlay_dark.png
+│   │   ├── figure_b1_attention_overlay_light.pdf        # Publication figure v3 asset: figure_b1_attention_overlay_light.pdf
+│   │   ├── figure_b1_attention_overlay_light.png        # Publication figure v3 asset: figure_b1_attention_overlay_light.png
+│   │   ├── figure_b1_attention_overlay_light.svg        # Publication figure v3 asset: figure_b1_attention_overlay_light.svg
+│   │   ├── figure_b2_attention_evolution_dark.png       # Publication figure v3 asset: figure_b2_attention_evolution_dark.png
+│   │   ├── figure_b2_attention_evolution_light.pdf      # Publication figure v3 asset: figure_b2_attention_evolution_light.pdf
+│   │   ├── figure_b2_attention_evolution_light.png      # Publication figure v3 asset: figure_b2_attention_evolution_light.png
+│   │   ├── figure_b2_attention_evolution_light.svg      # Publication figure v3 asset: figure_b2_attention_evolution_light.svg
+│   │   ├── figure_b3_feedback_correction_dark.png       # Publication figure v3 asset: figure_b3_feedback_correction_dark.png
+│   │   ├── figure_b3_feedback_correction_light.pdf      # Publication figure v3 asset: figure_b3_feedback_correction_light.pdf
+│   │   ├── figure_b3_feedback_correction_light.png      # Publication figure v3 asset: figure_b3_feedback_correction_light.png
+│   │   └── figure_b3_feedback_correction_light.svg      # Publication figure v3 asset: figure_b3_feedback_correction_light.svg
+│   ├── biology/                                     # Directory: biology/
+│   │   ├── figure_f1_predictive_coding_convergence_dark.png # Publication figure v3 asset: figure_f1_predictive_coding_convergence_dark.png
+│   │   ├── figure_f1_predictive_coding_convergence_light.pdf # Publication figure v3 asset: figure_f1_predictive_coding_convergence_light.pdf
+│   │   ├── figure_f1_predictive_coding_convergence_light.png # Publication figure v3 asset: figure_f1_predictive_coding_convergence_light.png
+│   │   ├── figure_f1_predictive_coding_convergence_light.svg # Publication figure v3 asset: figure_f1_predictive_coding_convergence_light.svg
+│   │   ├── figure_f2_act_pondering_dark.png             # Publication figure v3 asset: figure_f2_act_pondering_dark.png
+│   │   ├── figure_f2_act_pondering_light.pdf            # Publication figure v3 asset: figure_f2_act_pondering_light.pdf
+│   │   ├── figure_f2_act_pondering_light.png            # Publication figure v3 asset: figure_f2_act_pondering_light.png
+│   │   ├── figure_f2_act_pondering_light.svg            # Publication figure v3 asset: figure_f2_act_pondering_light.svg
+│   │   ├── figure_f3_recurrence_utilization_dark.png    # Publication figure v3 asset: figure_f3_recurrence_utilization_dark.png
+│   │   ├── figure_f3_recurrence_utilization_light.pdf   # Publication figure v3 asset: figure_f3_recurrence_utilization_light.pdf
+│   │   ├── figure_f3_recurrence_utilization_light.png   # Publication figure v3 asset: figure_f3_recurrence_utilization_light.png
+│   │   └── figure_f3_recurrence_utilization_light.svg   # Publication figure v3 asset: figure_f3_recurrence_utilization_light.svg
+│   ├── diagnostics/                                 # Directory: diagnostics/
+│   │   ├── figure_i1_diagnostics_dashboard_dark.png     # Publication figure v3 asset: figure_i1_diagnostics_dashboard_dark.png
+│   │   ├── figure_i1_diagnostics_dashboard_light.pdf    # Publication figure v3 asset: figure_i1_diagnostics_dashboard_light.pdf
+│   │   ├── figure_i1_diagnostics_dashboard_light.png    # Publication figure v3 asset: figure_i1_diagnostics_dashboard_light.png
+│   │   └── figure_i1_diagnostics_dashboard_light.svg    # Publication figure v3 asset: figure_i1_diagnostics_dashboard_light.svg
+│   ├── evaluation/                                  # Directory: evaluation/
+│   │   ├── figure_e1_accuracy_vs_epsilon_dark.png       # Publication figure v3 asset: figure_e1_accuracy_vs_epsilon_dark.png
+│   │   ├── figure_e1_accuracy_vs_epsilon_light.pdf      # Publication figure v3 asset: figure_e1_accuracy_vs_epsilon_light.pdf
+│   │   ├── figure_e1_accuracy_vs_epsilon_light.png      # Publication figure v3 asset: figure_e1_accuracy_vs_epsilon_light.png
+│   │   ├── figure_e1_accuracy_vs_epsilon_light.svg      # Publication figure v3 asset: figure_e1_accuracy_vs_epsilon_light.svg
+│   │   ├── figure_e2_dprime_vs_epsilon_dark.png         # Publication figure v3 asset: figure_e2_dprime_vs_epsilon_dark.png
+│   │   ├── figure_e2_dprime_vs_epsilon_light.pdf        # Publication figure v3 asset: figure_e2_dprime_vs_epsilon_light.pdf
+│   │   ├── figure_e2_dprime_vs_epsilon_light.png        # Publication figure v3 asset: figure_e2_dprime_vs_epsilon_light.png
+│   │   ├── figure_e2_dprime_vs_epsilon_light.svg        # Publication figure v3 asset: figure_e2_dprime_vs_epsilon_light.svg
+│   │   ├── figure_e3_robustness_threshold_comparison_dark.png # Publication figure v3 asset: figure_e3_robustness_threshold_comparison_dark.png
+│   │   ├── figure_e3_robustness_threshold_comparison_light.pdf # Publication figure v3 asset: figure_e3_robustness_threshold_comparison_light.pdf
+│   │   ├── figure_e3_robustness_threshold_comparison_light.png # Publication figure v3 asset: figure_e3_robustness_threshold_comparison_light.png
+│   │   ├── figure_e3_robustness_threshold_comparison_light.svg # Publication figure v3 asset: figure_e3_robustness_threshold_comparison_light.svg
+│   │   ├── figure_e4_class_robustness_heatmap_dark.png  # Publication figure v3 asset: figure_e4_class_robustness_heatmap_dark.png
+│   │   ├── figure_e4_class_robustness_heatmap_light.pdf # Publication figure v3 asset: figure_e4_class_robustness_heatmap_light.pdf
+│   │   ├── figure_e4_class_robustness_heatmap_light.png # Publication figure v3 asset: figure_e4_class_robustness_heatmap_light.png
+│   │   └── figure_e4_class_robustness_heatmap_light.svg # Publication figure v3 asset: figure_e4_class_robustness_heatmap_light.svg
+│   ├── explainability/                              # Directory: explainability/
+│   │   ├── figure_j1_explainability_gradcam_dark.png    # Publication figure v3 asset: figure_j1_explainability_gradcam_dark.png
+│   │   ├── figure_j1_explainability_gradcam_light.pdf   # Publication figure v3 asset: figure_j1_explainability_gradcam_light.pdf
+│   │   ├── figure_j1_explainability_gradcam_light.png   # Publication figure v3 asset: figure_j1_explainability_gradcam_light.png
+│   │   └── figure_j1_explainability_gradcam_light.svg   # Publication figure v3 asset: figure_j1_explainability_gradcam_light.svg
+│   ├── figure_10_training_pipeline_dark.png         # Publication figure v3 asset: figure_10_training_pipeline_dark.png
+│   ├── figure_10_training_pipeline_light.pdf        # Publication figure v3 asset: figure_10_training_pipeline_light.pdf
+│   ├── figure_10_training_pipeline_light.png        # Publication figure v3 asset: figure_10_training_pipeline_light.png
+│   ├── figure_10_training_pipeline_light.svg        # Publication figure v3 asset: figure_10_training_pipeline_light.svg
+│   ├── figure_11_loss_landscape_dark.png            # Publication figure v3 asset: figure_11_loss_landscape_dark.png
+│   ├── figure_11_loss_landscape_light.pdf           # Publication figure v3 asset: figure_11_loss_landscape_light.pdf
+│   ├── figure_11_loss_landscape_light.png           # Publication figure v3 asset: figure_11_loss_landscape_light.png
+│   ├── figure_11_loss_landscape_light.svg           # Publication figure v3 asset: figure_11_loss_landscape_light.svg
+│   ├── figure_12_information_flow_dark.png          # Publication figure v3 asset: figure_12_information_flow_dark.png
+│   ├── figure_12_information_flow_light.pdf         # Publication figure v3 asset: figure_12_information_flow_light.pdf
+│   ├── figure_12_information_flow_light.png         # Publication figure v3 asset: figure_12_information_flow_light.png
+│   ├── figure_12_information_flow_light.svg         # Publication figure v3 asset: figure_12_information_flow_light.svg
+│   ├── figure_13_rhan_ecosystem_dark.png            # Publication figure v3 asset: figure_13_rhan_ecosystem_dark.png
+│   ├── figure_13_rhan_ecosystem_light.pdf           # Publication figure v3 asset: figure_13_rhan_ecosystem_light.pdf
+│   ├── figure_13_rhan_ecosystem_light.png           # Publication figure v3 asset: figure_13_rhan_ecosystem_light.png
+│   ├── figure_13_rhan_ecosystem_light.svg           # Publication figure v3 asset: figure_13_rhan_ecosystem_light.svg
+│   ├── figure_1_rhan_architecture_dark.png          # Publication figure v3 asset: figure_1_rhan_architecture_dark.png
+│   ├── figure_1_rhan_architecture_light.pdf         # Publication figure v3 asset: figure_1_rhan_architecture_light.pdf
+│   ├── figure_1_rhan_architecture_light.png         # Publication figure v3 asset: figure_1_rhan_architecture_light.png
+│   ├── figure_1_rhan_architecture_light.svg         # Publication figure v3 asset: figure_1_rhan_architecture_light.svg
+│   ├── figure_2_biological_inspiration_dark.png     # Publication figure v3 asset: figure_2_biological_inspiration_dark.png
+│   ├── figure_2_biological_inspiration_light.pdf    # Publication figure v3 asset: figure_2_biological_inspiration_light.pdf
+│   ├── figure_2_biological_inspiration_light.png    # Publication figure v3 asset: figure_2_biological_inspiration_light.png
+│   ├── figure_2_biological_inspiration_light.svg    # Publication figure v3 asset: figure_2_biological_inspiration_light.svg
+│   ├── figure_3_predictive_coding_loop_dark.png     # Publication figure v3 asset: figure_3_predictive_coding_loop_dark.png
+│   ├── figure_3_predictive_coding_loop_light.pdf    # Publication figure v3 asset: figure_3_predictive_coding_loop_light.pdf
+│   ├── figure_3_predictive_coding_loop_light.png    # Publication figure v3 asset: figure_3_predictive_coding_loop_light.png
+│   ├── figure_3_predictive_coding_loop_light.svg    # Publication figure v3 asset: figure_3_predictive_coding_loop_light.svg
+│   ├── figure_4_dual_transformer_dark.png           # Publication figure v3 asset: figure_4_dual_transformer_dark.png
+│   ├── figure_4_dual_transformer_light.pdf          # Publication figure v3 asset: figure_4_dual_transformer_light.pdf
+│   ├── figure_4_dual_transformer_light.png          # Publication figure v3 asset: figure_4_dual_transformer_light.png
+│   ├── figure_4_dual_transformer_light.svg          # Publication figure v3 asset: figure_4_dual_transformer_light.svg
+│   ├── figure_5_spherical_prototype_dark.png        # Publication figure v3 asset: figure_5_spherical_prototype_dark.png
+│   ├── figure_5_spherical_prototype_light.pdf       # Publication figure v3 asset: figure_5_spherical_prototype_light.pdf
+│   ├── figure_5_spherical_prototype_light.png       # Publication figure v3 asset: figure_5_spherical_prototype_light.png
+│   ├── figure_5_spherical_prototype_light.svg       # Publication figure v3 asset: figure_5_spherical_prototype_light.svg
+│   ├── figure_6_sail_flowchart_dark.png             # Publication figure v3 asset: figure_6_sail_flowchart_dark.png
+│   ├── figure_6_sail_flowchart_light.pdf            # Publication figure v3 asset: figure_6_sail_flowchart_light.pdf
+│   ├── figure_6_sail_flowchart_light.png            # Publication figure v3 asset: figure_6_sail_flowchart_light.png
+│   ├── figure_6_sail_flowchart_light.svg            # Publication figure v3 asset: figure_6_sail_flowchart_light.svg
+│   ├── figure_7_geometric_sail_dark.png             # Publication figure v3 asset: figure_7_geometric_sail_dark.png
+│   ├── figure_7_geometric_sail_light.pdf            # Publication figure v3 asset: figure_7_geometric_sail_light.pdf
+│   ├── figure_7_geometric_sail_light.png            # Publication figure v3 asset: figure_7_geometric_sail_light.png
+│   ├── figure_7_geometric_sail_light.svg            # Publication figure v3 asset: figure_7_geometric_sail_light.svg
+│   ├── figure_8_tdv_framework_dark.png              # Publication figure v3 asset: figure_8_tdv_framework_dark.png
+│   ├── figure_8_tdv_framework_light.pdf             # Publication figure v3 asset: figure_8_tdv_framework_light.pdf
+│   ├── figure_8_tdv_framework_light.png             # Publication figure v3 asset: figure_8_tdv_framework_light.png
+│   ├── figure_8_tdv_framework_light.svg             # Publication figure v3 asset: figure_8_tdv_framework_light.svg
+│   ├── figure_9_adversarial_tdv_dark.png            # Publication figure v3 asset: figure_9_adversarial_tdv_dark.png
+│   ├── figure_9_adversarial_tdv_light.pdf           # Publication figure v3 asset: figure_9_adversarial_tdv_light.pdf
+│   ├── figure_9_adversarial_tdv_light.png           # Publication figure v3 asset: figure_9_adversarial_tdv_light.png
+│   ├── figure_9_adversarial_tdv_light.svg           # Publication figure v3 asset: figure_9_adversarial_tdv_light.svg
+│   ├── frequency/                                   # Directory: frequency/
+│   │   ├── figure_c1_low_frequency_gate_dark.png        # Publication figure v3 asset: figure_c1_low_frequency_gate_dark.png
+│   │   ├── figure_c1_low_frequency_gate_light.pdf       # Publication figure v3 asset: figure_c1_low_frequency_gate_light.pdf
+│   │   ├── figure_c1_low_frequency_gate_light.png       # Publication figure v3 asset: figure_c1_low_frequency_gate_light.png
+│   │   ├── figure_c1_low_frequency_gate_light.svg       # Publication figure v3 asset: figure_c1_low_frequency_gate_light.svg
+│   │   ├── figure_c2_high_frequency_gate_dark.png       # Publication figure v3 asset: figure_c2_high_frequency_gate_dark.png
+│   │   ├── figure_c2_high_frequency_gate_light.pdf      # Publication figure v3 asset: figure_c2_high_frequency_gate_light.pdf
+│   │   ├── figure_c2_high_frequency_gate_light.png      # Publication figure v3 asset: figure_c2_high_frequency_gate_light.png
+│   │   ├── figure_c2_high_frequency_gate_light.svg      # Publication figure v3 asset: figure_c2_high_frequency_gate_light.svg
+│   │   ├── figure_c3_gate_weights_training_dark.png     # Publication figure v3 asset: figure_c3_gate_weights_training_dark.png
+│   │   ├── figure_c3_gate_weights_training_light.pdf    # Publication figure v3 asset: figure_c3_gate_weights_training_light.pdf
+│   │   ├── figure_c3_gate_weights_training_light.png    # Publication figure v3 asset: figure_c3_gate_weights_training_light.png
+│   │   └── figure_c3_gate_weights_training_light.svg    # Publication figure v3 asset: figure_c3_gate_weights_training_light.svg
+│   ├── geometry/                                    # Directory: geometry/
+│   │   ├── figure_d1_spherical_prototypes_dark.png      # Publication figure v3 asset: figure_d1_spherical_prototypes_dark.png
+│   │   ├── figure_d1_spherical_prototypes_light.pdf     # Publication figure v3 asset: figure_d1_spherical_prototypes_light.pdf
+│   │   ├── figure_d1_spherical_prototypes_light.png     # Publication figure v3 asset: figure_d1_spherical_prototypes_light.png
+│   │   ├── figure_d1_spherical_prototypes_light.svg     # Publication figure v3 asset: figure_d1_spherical_prototypes_light.svg
+│   │   ├── figure_d2_angular_decision_boundaries_dark.png # Publication figure v3 asset: figure_d2_angular_decision_boundaries_dark.png
+│   │   ├── figure_d2_angular_decision_boundaries_light.pdf # Publication figure v3 asset: figure_d2_angular_decision_boundaries_light.pdf
+│   │   ├── figure_d2_angular_decision_boundaries_light.png # Publication figure v3 asset: figure_d2_angular_decision_boundaries_light.png
+│   │   ├── figure_d2_angular_decision_boundaries_light.svg # Publication figure v3 asset: figure_d2_angular_decision_boundaries_light.svg
+│   │   ├── figure_d3_angular_margin_distribution_dark.png # Publication figure v3 asset: figure_d3_angular_margin_distribution_dark.png
+│   │   ├── figure_d3_angular_margin_distribution_light.pdf # Publication figure v3 asset: figure_d3_angular_margin_distribution_light.pdf
+│   │   ├── figure_d3_angular_margin_distribution_light.png # Publication figure v3 asset: figure_d3_angular_margin_distribution_light.png
+│   │   └── figure_d3_angular_margin_distribution_light.svg # Publication figure v3 asset: figure_d3_angular_margin_distribution_light.svg
+│   ├── representation/                              # Directory: representation/
+│   │   ├── figure_a1_umap_feature_space_dark.png        # Publication figure v3 asset: figure_a1_umap_feature_space_dark.png
+│   │   ├── figure_a1_umap_feature_space_light.pdf       # Publication figure v3 asset: figure_a1_umap_feature_space_light.pdf
+│   │   ├── figure_a1_umap_feature_space_light.png       # Publication figure v3 asset: figure_a1_umap_feature_space_light.png
+│   │   ├── figure_a1_umap_feature_space_light.svg       # Publication figure v3 asset: figure_a1_umap_feature_space_light.svg
+│   │   ├── figure_a2_tsne_representation_drift_dark.png # Publication figure v3 asset: figure_a2_tsne_representation_drift_dark.png
+│   │   ├── figure_a2_tsne_representation_drift_light.pdf # Publication figure v3 asset: figure_a2_tsne_representation_drift_light.pdf
+│   │   ├── figure_a2_tsne_representation_drift_light.png # Publication figure v3 asset: figure_a2_tsne_representation_drift_light.png
+│   │   ├── figure_a2_tsne_representation_drift_light.svg # Publication figure v3 asset: figure_a2_tsne_representation_drift_light.svg
+│   │   ├── figure_a3_representation_drift_histogram_dark.png # Publication figure v3 asset: figure_a3_representation_drift_histogram_dark.png
+│   │   ├── figure_a3_representation_drift_histogram_light.pdf # Publication figure v3 asset: figure_a3_representation_drift_histogram_light.pdf
+│   │   ├── figure_a3_representation_drift_histogram_light.png # Publication figure v3 asset: figure_a3_representation_drift_histogram_light.png
+│   │   ├── figure_a3_representation_drift_histogram_light.svg # Publication figure v3 asset: figure_a3_representation_drift_histogram_light.svg
+│   │   ├── figure_h1_decision_boundary_slices_dark.png  # Publication figure v3 asset: figure_h1_decision_boundary_slices_dark.png
+│   │   ├── figure_h1_decision_boundary_slices_light.pdf # Publication figure v3 asset: figure_h1_decision_boundary_slices_light.pdf
+│   │   ├── figure_h1_decision_boundary_slices_light.png # Publication figure v3 asset: figure_h1_decision_boundary_slices_light.png
+│   │   ├── figure_h1_decision_boundary_slices_light.svg # Publication figure v3 asset: figure_h1_decision_boundary_slices_light.svg
+│   │   ├── figure_h2_loss_landscape_dark.png            # Publication figure v3 asset: figure_h2_loss_landscape_dark.png
+│   │   ├── figure_h2_loss_landscape_light.pdf           # Publication figure v3 asset: figure_h2_loss_landscape_light.pdf
+│   │   ├── figure_h2_loss_landscape_light.png           # Publication figure v3 asset: figure_h2_loss_landscape_light.png
+│   │   └── figure_h2_loss_landscape_light.svg           # Publication figure v3 asset: figure_h2_loss_landscape_light.svg
+│   └── training/                                    # Directory: training/
+│       ├── figure_g1_loss_curves_dark.png               # Publication figure v3 asset: figure_g1_loss_curves_dark.png
+│       ├── figure_g1_loss_curves_light.pdf              # Publication figure v3 asset: figure_g1_loss_curves_light.pdf
+│       ├── figure_g1_loss_curves_light.png              # Publication figure v3 asset: figure_g1_loss_curves_light.png
+│       ├── figure_g1_loss_curves_light.svg              # Publication figure v3 asset: figure_g1_loss_curves_light.svg
+│       ├── figure_g2_learning_rate_schedule_dark.png    # Publication figure v3 asset: figure_g2_learning_rate_schedule_dark.png
+│       ├── figure_g2_learning_rate_schedule_light.pdf   # Publication figure v3 asset: figure_g2_learning_rate_schedule_light.pdf
+│       ├── figure_g2_learning_rate_schedule_light.png   # Publication figure v3 asset: figure_g2_learning_rate_schedule_light.png
+│       ├── figure_g2_learning_rate_schedule_light.svg   # Publication figure v3 asset: figure_g2_learning_rate_schedule_light.svg
+│       ├── figure_g3_gradient_norm_evolution_dark.png   # Publication figure v3 asset: figure_g3_gradient_norm_evolution_dark.png
+│       ├── figure_g3_gradient_norm_evolution_light.pdf  # Publication figure v3 asset: figure_g3_gradient_norm_evolution_light.pdf
+│       ├── figure_g3_gradient_norm_evolution_light.png  # Publication figure v3 asset: figure_g3_gradient_norm_evolution_light.png
+│       ├── figure_g3_gradient_norm_evolution_light.svg  # Publication figure v3 asset: figure_g3_gradient_norm_evolution_light.svg
+│       ├── figure_g4_parameter_update_magnitude_dark.png # Publication figure v3 asset: figure_g4_parameter_update_magnitude_dark.png
+│       ├── figure_g4_parameter_update_magnitude_light.pdf # Publication figure v3 asset: figure_g4_parameter_update_magnitude_light.pdf
+│       ├── figure_g4_parameter_update_magnitude_light.png # Publication figure v3 asset: figure_g4_parameter_update_magnitude_light.png
+│       └── figure_g4_parameter_update_magnitude_light.svg # Publication figure v3 asset: figure_g4_parameter_update_magnitude_light.svg
+├── gen2_foundation/                             # Generation-2 foundation model package (DINOv2, TRADES-PGD4, GRU belief)
+│   ├── AUDIT.md                                     # Package forensic audit ledger, test results, and integrity verification
+│   ├── EXPERIMENT_REGISTRY.md                       # Preregistered Gen-2 hypothesis arms, baseline comparisons, and metrics
+│   ├── __init__.py                                  # Package exports and initialization for Gen-2 foundation
+│   ├── ema.py                                       # Exponential Moving Average (EMA) shadow weights tracker for robust evaluation
+│   ├── eot.py                                       # Expectation Over Transformation (EOT-PGD) implementation for stochastic defense
+│   ├── flags.py                                     # Feature flags, experimental toggles, and runtime configuration switches
+│   ├── gist.py                                      # Global gist encoder using DINOv2-small patch embedding and CLS projection
+│   ├── precision.py                                 # Observation reliability scoring and dynamic precision weighting
+│   ├── recipe.py                                    # Layer-wise parameter grouping and AdamW optimizer schedule builder
+│   ├── tests/                                       # Unit test suite for gen2_foundation components
+│   │   ├── __init__.py                                  # Gen-2 unit test asserting   init  
+│   │   ├── test_ema.py                                  # Gen-2 unit test asserting ema
+│   │   ├── test_eot.py                                  # Gen-2 unit test asserting eot
+│   │   ├── test_flags_gating.py                         # Gen-2 unit test asserting flags gating
+│   │   ├── test_gist_parity.py                          # Gen-2 unit test asserting gist parity
+│   │   ├── test_precision.py                            # Gen-2 unit test asserting precision
+│   │   ├── test_recipe.py                               # Gen-2 unit test asserting recipe
+│   │   └── test_update_net_v2.py                        # Gen-2 unit test asserting update net v2
+│   └── update_net_v2.py                             # Bounded recurrent belief update network with residual state dynamics
+├── noesis_vision/                               # NOESIS cognitive vision engine and biological perceptual loop
+│   ├── RHAN_NXA/                                    # RHAN-NXA architecture documentation and master specifications
+│   │   ├── MASTER_PLAN.md                               # Source component: MASTER_PLAN.md
+│   │   └── docs/                                        # 32-chapter comprehensive technical specification handbook
+│   │       ├── 00_README.md                                 # RHAN-NXA technical specification chapter: 00 README
+│   │       ├── 01_What_Is_RHAN_NXA.md                       # RHAN-NXA technical specification chapter: 01 What Is RHAN NXA
+│   │       ├── 02_Why_RHAN_NXA_Exists.md                    # RHAN-NXA technical specification chapter: 02 Why RHAN NXA Exists
+│   │       ├── 03_Perception_As_Investigation.md            # RHAN-NXA technical specification chapter: 03 Perception As Investigation
+│   │       ├── 04_Belief_State.md                           # RHAN-NXA technical specification chapter: 04 Belief State
+│   │       ├── 05_z_State.md                                # RHAN-NXA technical specification chapter: 05 z State
+│   │       ├── 06_Structure_State.md                        # RHAN-NXA technical specification chapter: 06 Structure State
+│   │       ├── 07_Uncertainty.md                            # RHAN-NXA technical specification chapter: 07 Uncertainty
+│   │       ├── 08_Prediction_Error.md                       # RHAN-NXA technical specification chapter: 08 Prediction Error
+│   │       ├── 09_Recurrence.md                             # RHAN-NXA technical specification chapter: 09 Recurrence
+│   │       ├── 10_AIS_v2.md                                 # RHAN-NXA technical specification chapter: 10 AIS v2
+│   │       ├── 11_Complete_Perceptual_Loop.md               # RHAN-NXA technical specification chapter: 11 Complete Perceptual Loop
+│   │       ├── 12_Architecture_Data_Flow.md                 # RHAN-NXA technical specification chapter: 12 Architecture Data Flow
+│   │       ├── 13_Gradient_Flow.md                          # RHAN-NXA technical specification chapter: 13 Gradient Flow
+│   │       ├── 14_Tensor_Shape_Reference.md                 # RHAN-NXA technical specification chapter: 14 Tensor Shape Reference
+│   │       ├── 15_Status_And_Decision_System.md             # RHAN-NXA technical specification chapter: 15 Status And Decision System
+│   │       ├── 16_Gen0_Evidence_And_Confounds.md            # RHAN-NXA technical specification chapter: 16 Gen0 Evidence And Confounds
+│   │       ├── 17_Common_Misunderstandings.md               # RHAN-NXA technical specification chapter: 17 Common Misunderstandings
+│   │       ├── 18_Glossary.md                               # RHAN-NXA technical specification chapter: 18 Glossary
+│   │       ├── 19_Decision_Records.md                       # RHAN-NXA technical specification chapter: 19 Decision Records
+│   │       ├── 20_Scope_Boundaries.md                       # RHAN-NXA technical specification chapter: 20 Scope Boundaries
+│   │       ├── 21_L_stab_Stability.md                       # RHAN-NXA technical specification chapter: 21 L stab Stability
+│   │       ├── 22_Memory.md                                 # RHAN-NXA technical specification chapter: 22 Memory
+│   │       ├── 23_V1_Frontend.md                            # RHAN-NXA technical specification chapter: 23 V1 Frontend
+│   │       ├── 24_Training_Phase_DAG.md                     # RHAN-NXA technical specification chapter: 24 Training Phase DAG
+│   │       ├── 25_Ablation_Matrix.md                        # RHAN-NXA technical specification chapter: 25 Ablation Matrix
+│   │       ├── 26_Agent_Organization.md                     # RHAN-NXA technical specification chapter: 26 Agent Organization
+│   │       ├── 27_Infrastructure_Port_Table.md              # RHAN-NXA technical specification chapter: 27 Infrastructure Port Table
+│   │       ├── 28_Gates_and_Compute_Accounting.md           # RHAN-NXA technical specification chapter: 28 Gates and Compute Accounting
+│   │       ├── 29_Literature_Classification.md              # RHAN-NXA technical specification chapter: 29 Literature Classification
+│   │       ├── 30_Agent0_Interface_Contract.md              # RHAN-NXA technical specification chapter: 30 Agent0 Interface Contract
+│   │       └── Proposed_Plan.md                             # RHAN-NXA technical specification chapter: Proposed Plan
+│   ├── beliefs/                                     # Latent belief state representations (z_t) and spatial memory
+│   │   ├── drift.py                                     # Belief state drift tracking measuring divergence across recurrent steps
+│   │   ├── factory.py                                   # Factory constructor instantiating concrete belief state representations
+│   │   ├── interfaces.py                                # Abstract Base Class defining the belief state interface contract
+│   │   └── vector_belief.py                             # Dense continuous vector representation of the agent's internal world belief
+│   ├── core/                                        # Core cognitive orchestrator, schemas, and optimizer abstractions
+│   │   ├── agent_contract_template.md                   # Interface specification contract template between decoupled agents
+│   │   ├── checkpoint.py                                # Atomic checkpoint serialization, model state dict extraction, and integrity checking
+│   │   ├── consistency_assert.py                        # Runtime invariant assertions for tensor dimensions and state continuity
+│   │   ├── dependency_graph.md                          # Mathematical dependency graph between perceptual modules
+│   │   ├── experiment_registry.py                       # Registry tracking active experiment flags, seeds, and component variants
+│   │   ├── multi_group_optimizer.py                     # Multi-parameter-group AdamW optimizer configuring layer-wise learning rates
+│   │   ├── provenance.py                                # Captures git commit SHA, dependency hashes, and environment metadata
+│   │   ├── schema.py                                    # Data class schemas for configurations, hyperparameters, and experiment records
+│   │   └── seed_management.py                           # Deterministic RNG seeding across PyTorch, NumPy, and Python standard library
+│   ├── gaze/                                        # Adaptive Information Seeking (AIS) candidate generator and gaze policy
+│   │   ├── ais_v2_policy.py                             # Adaptive Information Seeking (AIS) policy ranking candidate gaze fixations
+│   │   ├── candidate_sampler.py                         # Spatial candidate sampler generating prospective fixation bounding coordinates
+│   │   ├── center_bias.py                               # Foveal center-bias measurement and spatial entropy calculation
+│   │   └── gaze_state.py                                # Canonical data structure encapsulating fixation history and trajectory state
+│   ├── models/                                      # Neural backbones, foveation mechanisms, and vision transformers
+│   │   ├── backbone.py                                  # Vision transformer backbone wrapper with positional embedding interpolation
+│   │   ├── foveation.py                                 # Differentiable affine grid transformation and spatial foveated glimpse extractor
+│   │   └── recurrent_block.py                           # Recurrent processing block tying latent state across temporal glimpse steps
+│   ├── predictive_coding/                           # Top-down predictive coding, predictor heads, and error pooling
+│   │   ├── ema_predictor.py                             # Exponential moving average target encoder providing stable prediction targets
+│   │   ├── glimpse_predictor.py                         # Top-down generative predictor forecasting incoming glimpse features
+│   │   ├── interfaces.py                                # Abstract Base Class defining predictive coding predictor/error interfaces
+│   │   ├── precision.py                                 # Spatial and channel-wise precision weighting of incoming sensory error
+│   │   ├── spatial_error_pool.py                        # Spatial pooling layer aggregating localized prediction error residuals
+│   │   └── update_net.py                                # Update network computing belief innovation updates from prediction error
+│   └── uncertainty/                                 # Dirichlet evidential heads, softmax entropy, and calibration modules
+│       └── evidential_head.py                           # Dirichlet Evidential Deep Learning (EDL) head estimating epistemic uncertainty
+├── report/                                      # Experimental results, master tables, and scientific audit reports
+│   ├── GEN1_RESULTS_MASTER.md                       # Master experimental results table for Generation-1 foundation phases
+│   ├── Gen0.md                                      # Historical summary of Generation-0 STL-10 baseline experiments
+│   ├── IEEEtran.cls                                 # IEEE Transactions LaTeX document class for manuscript publication
+│   ├── assets/                                      # Plot assets and visual diagrams for empirical reports
+│   │   ├── foveal_stream_arch.png                       # Report artifact or analysis tool: foveal_stream_arch.png
+│   │   ├── gaze_trajectory.png                          # Report artifact or analysis tool: gaze_trajectory.png
+│   │   ├── precision_init_net_arch.png                  # Report artifact or analysis tool: precision_init_net_arch.png
+│   │   ├── precision_vs_epoch.png                       # Report artifact or analysis tool: precision_vs_epoch.png
+│   │   └── robustness_curve.png                         # Report artifact or analysis tool: robustness_curve.png
+│   ├── empirical_report.json                        # Master JSON database of clean and robust accuracy across all models
+│   ├── final_sweep_results_stl10.json               # Benchmark sweep results across STL-10 recurrent architectures
+│   ├── generate_figures.py                          # Generates vector publication figures from empirical JSON reports
+│   ├── lens_e1_analysis/                            # Comprehensive audit report for Lens E1 introspection experiment
+│   │   └── E1_FULL_AUDIT_REPORT.md                      # Report artifact or analysis tool: E1_FULL_AUDIT_REPORT.md
+│   ├── prior_results.json                           # Historical reference benchmarks and baseline comparison records
+│   ├── rhan_next_ais_v1_isoA_diag.jsonl             # Report artifact or analysis tool: rhan_next_ais_v1_isoA_diag.jsonl
+│   ├── rhan_next_ais_v1_isoB_diag.jsonl             # Report artifact or analysis tool: rhan_next_ais_v1_isoB_diag.jsonl
+│   ├── rhan_next_hpc_only_diag.jsonl                # Report artifact or analysis tool: rhan_next_hpc_only_diag.jsonl
+│   ├── rhan_next_hpc_only_smoke_diag.jsonl          # Report artifact or analysis tool: rhan_next_hpc_only_smoke_diag.jsonl
+│   ├── rhan_next_hpc_only_smoke_v2_diag.jsonl       # Report artifact or analysis tool: rhan_next_hpc_only_smoke_v2_diag.jsonl
+│   ├── rhan_next_hpc_only_smoke_v3_diag.jsonl       # Report artifact or analysis tool: rhan_next_hpc_only_smoke_v3_diag.jsonl
+│   ├── rhan_next_hpc_only_smoke_v4_diag.jsonl       # Report artifact or analysis tool: rhan_next_hpc_only_smoke_v4_diag.jsonl
+│   ├── rhan_nx_generation1_report.md                # Comprehensive experimental audit report for Generation-1
+│   ├── rhan_nx_sbr0_cosine_t0.json                  # Telemetry data for Stage SBR-0 cosine similarity checks at step T=0
+│   ├── rhan_v10_scientific_report.aux               # Report artifact or analysis tool: rhan_v10_scientific_report.aux
+│   ├── rhan_v10_scientific_report.log               # Report artifact or analysis tool: rhan_v10_scientific_report.log
+│   ├── rhan_v10_scientific_report.pdf               # Compiled scientific publication manuscript for RHAN v10
+│   ├── rhan_v10_scientific_report.tex               # LaTeX source for the RHAN v10 comprehensive scientific report
+│   ├── rhan_v10_scientific_report_body.tex          # Body sections and theorem proofs for RHAN v10 report
+│   ├── sbr_feasibility/                             # Spatial belief representation (SBR) slot mask visual feasibility checks
+│   │   ├── README.txt                                   # Report artifact or analysis tool: README.txt
+│   │   ├── slot_masks_sample_000.png                    # Report artifact or analysis tool: slot_masks_sample_000.png
+│   │   ├── slot_masks_sample_001.png                    # Report artifact or analysis tool: slot_masks_sample_001.png
+│   │   ├── slot_masks_sample_002.png                    # Report artifact or analysis tool: slot_masks_sample_002.png
+│   │   └── slot_masks_sample_003.png                    # Report artifact or analysis tool: slot_masks_sample_003.png
+│   ├── stage2_hpc_run_log.md                        # Execution logs for Stage 2 high-performance computing (HPC) training
+│   ├── stage3_D/                                    # Stage 3-D Pareto trade-off analysis, figures, and provenance audits
+│   │   ├── figures/                                     # Visual plots comparing Stage 3-D Pareto trade-offs and seed variance
+│   │   │   ├── fig1_four_way_comparison.png                 # Report artifact or analysis tool: fig1_four_way_comparison.png
+│   │   │   ├── fig2_pareto_tradeoff.png                     # Report artifact or analysis tool: fig2_pareto_tradeoff.png
+│   │   │   ├── fig3_per_seed_distribution.png               # Report artifact or analysis tool: fig3_per_seed_distribution.png
+│   │   │   ├── fig4_masking_check.png                       # Report artifact or analysis tool: fig4_masking_check.png
+│   │   │   └── fig5_d_per_seed_detail.png                   # Report artifact or analysis tool: fig5_d_per_seed_detail.png
+│   │   ├── provenance_audit.md                          # Report artifact or analysis tool: provenance_audit.md
+│   │   └── stage3_D_analysis.md                         # Report artifact or analysis tool: stage3_D_analysis.md
+│   ├── stage3_trainer_audit.md                      # Audit findings and gradient verification for Stage 3 trainer
+│   ├── stage4_E1/                                   # Stage 4-E1 lens introspection, pre-registration scripts, and runners
+│   │   ├── colab_setup.sh                               # Report artifact or analysis tool: colab_setup.sh
+│   │   ├── eval_d_e1.sh                                 # Report artifact or analysis tool: eval_d_e1.sh
+│   │   ├── kaggle_setup.sh                              # Report artifact or analysis tool: kaggle_setup.sh
+│   │   ├── lens_analysis.py                             # Report artifact or analysis tool: lens_analysis.py
+│   │   ├── preregistration.md                           # Report artifact or analysis tool: preregistration.md
+│   │   ├── resume.sh                                    # Report artifact or analysis tool: resume.sh
+│   │   ├── train_e1.sh                                  # Report artifact or analysis tool: train_e1.sh
+│   │   └── verify_experiment.sh                         # Report artifact or analysis tool: verify_experiment.sh
+│   └── supervisor.log                               # Log trace emitted by the autonomous experiment supervisor process
+├── requirements.txt                             # Python dependencies (PyTorch, torchvision, timm, torchattacks, scipy)
+├── rhan_mathematical_report1.pdf:Zone.Identifier # Windows filesystem metadata for rhan_mathematical_report1.pdf
+├── runs/                                        # Experiment output runs containing TensorBoard event logs and metrics
+│   ├── efficientnet_cifar10/                        # Directory: efficientnet_cifar10/
+│   │   ├── events.out.tfevents.1778466115.FerrariKazu.15169.0 # TensorBoard telemetry event log: events.out.tfevents.1778466115.FerrariKazu.15169.0
+│   │   └── events.out.tfevents.1778470167.FerrariKazu.29079.0 # TensorBoard telemetry event log: events.out.tfevents.1778470167.FerrariKazu.29079.0
+│   ├── phase1_training/                             # Directory: phase1_training/
+│   │   ├── events.out.tfevents.1777739614.FerrariKazu.24522.0 # TensorBoard telemetry event log: events.out.tfevents.1777739614.FerrariKazu.24522.0
+│   │   └── events.out.tfevents.1778872582.FerrariKazu.8453.0 # TensorBoard telemetry event log: events.out.tfevents.1778872582.FerrariKazu.8453.0
+│   ├── rhan_adaptive/                               # Directory: rhan_adaptive/
+│   │   └── events.out.tfevents.1779188232.FerrariKazu.16457.0 # TensorBoard telemetry event log: events.out.tfevents.1779188232.FerrariKazu.16457.0
+│   ├── rhan_aligned/                                # Directory: rhan_aligned/
+│   │   ├── events.out.tfevents.1779550047.FerrariKazu.23796.0 # TensorBoard telemetry event log: events.out.tfevents.1779550047.FerrariKazu.23796.0
+│   │   └── events.out.tfevents.1779592274.FerrariKazu.16037.0 # TensorBoard telemetry event log: events.out.tfevents.1779592274.FerrariKazu.16037.0
+│   ├── rhan_clip/                                   # Directory: rhan_clip/
+│   │   ├── events.out.tfevents.1779163684.FerrariKazu.3787.0 # TensorBoard telemetry event log: events.out.tfevents.1779163684.FerrariKazu.3787.0
+│   │   ├── events.out.tfevents.1779163790.FerrariKazu.4790.0 # TensorBoard telemetry event log: events.out.tfevents.1779163790.FerrariKazu.4790.0
+│   │   └── events.out.tfevents.1779163830.FerrariKazu.5098.0 # TensorBoard telemetry event log: events.out.tfevents.1779163830.FerrariKazu.5098.0
+│   ├── rhan_predictive/                             # Directory: rhan_predictive/
+│   │   └── events.out.tfevents.1779550020.FerrariKazu.23088.0 # TensorBoard telemetry event log: events.out.tfevents.1779550020.FerrariKazu.23088.0
+│   ├── rhan_split/                                  # Directory: rhan_split/
+│   │   └── events.out.tfevents.1779609371.FerrariKazu.25141.0 # TensorBoard telemetry event log: events.out.tfevents.1779609371.FerrariKazu.25141.0
+│   ├── rhan_trades_curriculum/                      # Directory: rhan_trades_curriculum/
+│   │   └── events.out.tfevents.1780559412.FerrariKazu.1406.0 # TensorBoard telemetry event log: events.out.tfevents.1780559412.FerrariKazu.1406.0
+│   ├── rhan_trades_hardened/                        # Directory: rhan_trades_hardened/
+│   │   └── events.out.tfevents.1780473769.FerrariKazu.31061.0 # TensorBoard telemetry event log: events.out.tfevents.1780473769.FerrariKazu.31061.0
+│   ├── rhan_v2/                                     # Directory: rhan_v2/
+│   │   ├── events.out.tfevents.1779660118.FerrariKazu.14735.0 # TensorBoard telemetry event log: events.out.tfevents.1779660118.FerrariKazu.14735.0
+│   │   └── events.out.tfevents.1779678161.FerrariKazu.27055.0 # TensorBoard telemetry event log: events.out.tfevents.1779678161.FerrariKazu.27055.0
+│   ├── rhan_v3/                                     # Directory: rhan_v3/
+│   │   └── events.out.tfevents.1779770092.FerrariKazu.1345.0 # TensorBoard telemetry event log: events.out.tfevents.1779770092.FerrariKazu.1345.0
+│   ├── rhan_v3_adaptive/                            # Directory: rhan_v3_adaptive/
+│   │   └── events.out.tfevents.1779980849.FerrariKazu.1208.0 # TensorBoard telemetry event log: events.out.tfevents.1779980849.FerrariKazu.1208.0
+│   ├── rhan_v4/                                     # Directory: rhan_v4/
+│   │   ├── events.out.tfevents.1779859422.FerrariKazu.27521.0 # TensorBoard telemetry event log: events.out.tfevents.1779859422.FerrariKazu.27521.0
+│   │   └── events.out.tfevents.1779944441.FerrariKazu.17667.0 # TensorBoard telemetry event log: events.out.tfevents.1779944441.FerrariKazu.17667.0
+│   ├── rhan_v5/                                     # Directory: rhan_v5/
+│   │   └── events.out.tfevents.1780028511.FerrariKazu.18911.0 # TensorBoard telemetry event log: events.out.tfevents.1780028511.FerrariKazu.18911.0
+│   ├── rhan_v5_trades/                              # Directory: rhan_v5_trades/
+│   │   ├── events.out.tfevents.1780328006.FerrariKazu.30551.0 # TensorBoard telemetry event log: events.out.tfevents.1780328006.FerrariKazu.30551.0
+│   │   ├── events.out.tfevents.1780341819.FerrariKazu.9248.0 # TensorBoard telemetry event log: events.out.tfevents.1780341819.FerrariKazu.9248.0
+│   │   ├── events.out.tfevents.1780352756.FerrariKazu.12175.0 # TensorBoard telemetry event log: events.out.tfevents.1780352756.FerrariKazu.12175.0
+│   │   ├── events.out.tfevents.1780353051.FerrariKazu.14441.0 # TensorBoard telemetry event log: events.out.tfevents.1780353051.FerrariKazu.14441.0
+│   │   ├── events.out.tfevents.1780353260.FerrariKazu.16931.0 # TensorBoard telemetry event log: events.out.tfevents.1780353260.FerrariKazu.16931.0
+│   │   ├── events.out.tfevents.1780357709.FerrariKazu.31698.0 # TensorBoard telemetry event log: events.out.tfevents.1780357709.FerrariKazu.31698.0
+│   │   └── events.out.tfevents.1780358872.FerrariKazu.3098.0 # TensorBoard telemetry event log: events.out.tfevents.1780358872.FerrariKazu.3098.0
+│   ├── rhan_v6/                                     # Directory: rhan_v6/
+│   │   ├── events.out.tfevents.1780110580.FerrariKazu.16876.0 # TensorBoard telemetry event log: events.out.tfevents.1780110580.FerrariKazu.16876.0
+│   │   ├── events.out.tfevents.1780156613.FerrariKazu.26502.0 # TensorBoard telemetry event log: events.out.tfevents.1780156613.FerrariKazu.26502.0
+│   │   ├── events.out.tfevents.1780167479.FerrariKazu.32617.0 # TensorBoard telemetry event log: events.out.tfevents.1780167479.FerrariKazu.32617.0
+│   │   ├── events.out.tfevents.1780195671.FerrariKazu.19923.0 # TensorBoard telemetry event log: events.out.tfevents.1780195671.FerrariKazu.19923.0
+│   │   └── events.out.tfevents.1780282276.FerrariKazu.21306.0 # TensorBoard telemetry event log: events.out.tfevents.1780282276.FerrariKazu.21306.0
+│   └── vit_cifar10/                                 # Directory: vit_cifar10/
+│       ├── events.out.tfevents.1778121334.FerrariKazu.27679.0 # TensorBoard telemetry event log: events.out.tfevents.1778121334.FerrariKazu.27679.0
+│       ├── events.out.tfevents.1778121526.FerrariKazu.28846.0 # TensorBoard telemetry event log: events.out.tfevents.1778121526.FerrariKazu.28846.0
+│       └── events.out.tfevents.1778153893.FerrariKazu.28758.0 # TensorBoard telemetry event log: events.out.tfevents.1778153893.FerrariKazu.28758.0
+├── scripts/                                     # Operational automation, data preparation, gate verification, and reports
+│   ├── build_noesis_pdf.py                          # Compiles NOESIS markdown architecture documentation into PDF format
+│   ├── build_rhan_nx_report.py                      # Generates formal experimental summary report in PDF format
+│   ├── build_rhan_nxa_handbook.py                   # Assembles the complete RHAN-NXA Technical Handbook from book chapters
+│   ├── comparator_registry.py                       # Registry and baseline comparator loader for paired hypothesis tests
+│   ├── consistency_assert.py                        # Assertions verifying architectural and tensor dimension consistency
+│   ├── eval_ais_v2_gate.py                          # Gating assertion evaluating AIS-v2 gaze policy against random/fixed gaze
+│   ├── freeze_run_manifest.py                       # Generates cryptographic SHA-256 manifest of model weights and configs
+│   ├── generate_full_sweep.py                       # Automated script running full hyperparameter and attack evaluation sweeps
+│   ├── measure_group_dw.py                          # Measures parameter update magnitudes (||dW||) across optimizer groups
+│   ├── merge_stage1_seed_extension.py               # Aggregates multi-seed stage 1 evaluation outputs into master dataset
+│   ├── prepare_imagenet100.py                       # Automated download, unpack, and validation for ImageNet-100 dataset
+│   ├── reset_gen1_ladder.py                         # Utility to reset training state machine to restart foundation ladder
+│   ├── sbr0_gate.py                                 # Automated gate checker validating Stage SBR-0 criteria before promotion
+│   ├── stage_state_machine.py                       # State machine script managing transitions between training stages
+│   └── verify_run_complete.py                       # Verifies that all epochs and validation passes finished successfully
+├── tests/                                       # Comprehensive pytest test suite (invariants, regression, gradient flows)
+│   ├── conftest.py                                  # Unit test asserting conftest
+│   ├── test_ablation_matrix.py                      # Unit test asserting ablation matrix
+│   ├── test_adv_curriculum.py                       # Unit test asserting adv curriculum
+│   ├── test_adv_curriculum_integration.py           # Unit test asserting adv curriculum integration
+│   ├── test_ais_ablation_flags.py                   # Unit test asserting ais ablation flags
+│   ├── test_ais_v2_gaze_policy.py                   # Unit test asserting ais v2 gaze policy
+│   ├── test_ais_v2_gradient_flow.py                 # Unit test asserting ais v2 gradient flow
+│   ├── test_backbone_param_count.py                 # Unit test asserting backbone param count
+│   ├── test_belief_state_composition.py             # Unit test asserting belief state composition
+│   ├── test_center_bias_measurement.py              # Unit test asserting center bias measurement
+│   ├── test_checkpoint_never_silently_restarts.py   # Unit test asserting checkpoint never silently restarts
+│   ├── test_comparator_reuse_integrity.py           # Unit test asserting comparator reuse integrity
+│   ├── test_config_backward_compat.py               # Unit test asserting config backward compat
+│   ├── test_consistency_assert_catches_corruption.py # Unit test asserting consistency assert catches corruption
+│   ├── test_detached_copy_isolation.py              # Unit test asserting detached copy isolation
+│   ├── test_diagnostics_next.py                     # Unit test asserting diagnostics next
+│   ├── test_drift_to_gradient_flow.py               # Unit test asserting drift to gradient flow
+│   ├── test_eval_rhan_protocol.py                   # Unit test asserting eval rhan protocol
+│   ├── test_eval_structural_consistency.py          # Unit test asserting eval structural consistency
+│   ├── test_evidential_gradient_flow.py             # Unit test asserting evidential gradient flow
+│   ├── test_evidential_shapes.py                    # Unit test asserting evidential shapes
+│   ├── test_foveation_differentiable.py             # Unit test asserting foveation differentiable
+│   ├── test_gaze_state_canonical.py                 # Unit test asserting gaze state canonical
+│   ├── test_gen0_recipe_freeze.py                   # Unit test asserting gen0 recipe freeze
+│   ├── test_gradient_flow.py                        # Unit test asserting gradient flow
+│   ├── test_hpc_belief_gradient_flow.py             # Unit test asserting hpc belief gradient flow
+│   ├── test_hpc_diag_baseline.py                    # Unit test asserting hpc diag baseline
+│   ├── test_hpc_disable_backward_compat.py          # Unit test asserting hpc disable backward compat
+│   ├── test_hpc_gradient_flow.py                    # Unit test asserting hpc gradient flow
+│   ├── test_hpc_isolated.py                         # Unit test asserting hpc isolated
+│   ├── test_hpc_optimizer_group_resume.py           # Unit test asserting hpc optimizer group resume
+│   ├── test_interface_imports.py                    # Unit test asserting interface imports
+│   ├── test_j2_ais_v2_integration.py                # Unit test asserting j2 ais v2 integration
+│   ├── test_lens_introspection.py                   # Unit test asserting lens introspection
+│   ├── test_live_perception_determinism.py          # Unit test asserting live perception determinism
+│   ├── test_multi_group_optimizer.py                # Unit test asserting multi group optimizer
+│   ├── test_multi_group_optimizer_isolation.py      # Unit test asserting multi group optimizer isolation
+│   ├── test_numerical_stability.py                  # Unit test asserting numerical stability
+│   ├── test_pillar_scaffold_import.py               # Unit test asserting pillar scaffold import
+│   ├── test_precision_own_optimizer_group.py        # Unit test asserting precision own optimizer group
+│   ├── test_predictor_ema_target.py                 # Unit test asserting predictor ema target
+│   ├── test_predictor_is_cheap.py                   # Unit test asserting predictor is cheap
+│   ├── test_preflight_dw.py                         # Unit test asserting preflight dw
+│   ├── test_provenance_manifest.py                  # Unit test asserting provenance manifest
+│   ├── test_recurrent_tied_weights.py               # Unit test asserting recurrent tied weights
+│   ├── test_resume_commit_guard.py                  # Unit test asserting resume commit guard
+│   ├── test_run_report.py                           # Unit test asserting run report
+│   ├── test_sbr0_gate_criteria.py                   # Unit test asserting sbr0 gate criteria
+│   ├── test_sbr_gradient_flow.py                    # Unit test asserting sbr gradient flow
+│   ├── test_schema_version.py                       # Unit test asserting schema version
+│   ├── test_spatial_error_pool.py                   # Unit test asserting spatial error pool
+│   ├── test_stage2_dag_artifacts.py                 # Unit test asserting stage2 dag artifacts
+│   ├── test_stage2_mechanism_seam.py                # Unit test asserting stage2 mechanism seam
+│   ├── test_stage_state_machine.py                  # Unit test asserting stage state machine
+│   ├── test_stage_state_machine_resume.py           # Unit test asserting stage state machine resume
+│   ├── test_sweep_resume.py                         # Unit test asserting sweep resume
+│   ├── test_t0_produces_exact_zero_error.py         # Unit test asserting t0 produces exact zero error
+│   ├── test_uncertainty_monotonic.py                # Unit test asserting uncertainty monotonic
+│   ├── test_update_net_gradient_flow.py             # Unit test asserting update net gradient flow
+│   └── test_warm_start_key_match.py                 # Unit test asserting warm start key match
+└── training/                                    # Training orchestration, adversarial curricula, and cloud persistence
+    ├── HF_PERSISTENCE_README.md                     # Documentation for HuggingFace automated backup and recovery
+    ├── adv_curriculum.py                            # Adversarial curriculum scheduler controlling epsilon ramp and step sizes
+    ├── adv_curriculum_freeze.py                     # Curriculum state freezing and deterministic trajectory reproduction
+    ├── epoch_summary.py                             # Formats and computes per-epoch training metrics and loss breakdowns
+    ├── hf_persistence.py                            # HuggingFace automated checkpoint sync, resume, and model upload handlers
+    ├── measure_training_health.py                   # Monitors gradient norms, loss landscape sharpness, and numerical stability
+    ├── production_halt.py                           # Safety guard halting training upon NaN detection or diverging loss
+    ├── run_report.py                                # Generates human-readable experimental reports at training completion
+    ├── run_report_jsonl.py                          # Streams structured telemetry metrics to JSONL log files per epoch
+    ├── stage2_pipeline.py                           # Multi-phase pipeline state machine coordinating ladder progressions
+    ├── stage_state_machine.py                       # Manages discrete stage transitions and gate criteria checks
+    ├── summarize_run.py                             # Generates summary tables and comparative charts across completed runs
+    ├── sync_log.py                                  # Utility syncing local training event logs with remote telemetry sinks
+    ├── sync_utils.py                                # Low-level retry logic and file locking helpers for cloud synchronization
+    ├── test_hf_persistence.py                       # Self-test verifying HuggingFace upload, download, and resume mechanisms
+    ├── train_generation1_foundation.py              # Training pipeline driver for the 6-phase Gen-1 foundation ladder
+    └── verify_hf_checkpoint_chain.py                # Validates cryptographic integrity and lineage of checkpoint chains
 ```
 
 ## References
