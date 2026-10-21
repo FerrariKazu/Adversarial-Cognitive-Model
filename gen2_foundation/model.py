@@ -79,7 +79,7 @@ class Gen2FoundationModel(nn.Module):
         )
 
         # Phase flags
-        self.is_gist_only = (phase in ("g2_gist_only", "ff_112", "feedforward_112"))
+        self.is_gist_only = (phase in ("g2_gist_only", "ff_112", "feedforward_112", "ff_56", "g2_gist_only_cont"))
         self.use_refinement = not self.is_gist_only
         self.use_recurrence = phase in ("recurrence_only", "belief_no_f", "belief_with_f", "ais_v2_swap", "gen1_core")
         self.carry_belief = phase in ("belief_no_f", "belief_with_f", "ais_v2_swap", "gen1_core")

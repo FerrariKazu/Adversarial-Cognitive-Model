@@ -142,8 +142,10 @@ PHASE_TOTAL_EPOCHS = {
     "ais_v2_swap": 15,
     "gen1_core": 15,
     # J2 baselines
-    "ff_112": 15,   # 112-px feedforward reference baseline
-    "ff_56":  15,   # 56-px feedforward control (resolution ablation)
+    "ff_112": 15,           # 112-px feedforward reference baseline
+    "ff_56":  15,           # 56-px feedforward control (resolution ablation)
+    # J3 recipe-matched 56-px controls
+    "g2_gist_only_cont": 15,  # g2_gist_only continued at Rung 3 (epoch-matched control)
 }
 
 GATE_W_REFERENCE_ACC = 0.5852  # Gate W passed score
@@ -697,12 +699,23 @@ def run_gen2_phase(
     ).to(device)
 
     # Weights initialization / inheritance
-    if phase in ("g2_gist_only", "ff_112", "feedforward_112"):
+    if phase in ("g2_gist_only", "ff_112", "feedforward_112", "ff_56"):
+        # DINOv2 warm-start: applies to all feedforward baselines that start fresh
         print(f"Loading official DINOv2-small warm-start from {dino_path}...")
         rep = model.backbone.load_dino_warm_start(dino_path)
         print(f"Warm-start load: accepted={rep['accepted']}, "
               f"matched={rep['matched_trunk_keys']}/{rep['trunk_keys']} "
               f"({rep['matched_fraction']*100:.1f}%)")
+    elif phase == "g2_gist_only_cont":
+        # Recipe-matched control: inherit g2_gist_only_final.pth and continue at Rung 3
+        parent_path = os.path.join(ckpt_dir, "foundation_g2_gist_only_final.pth")
+        if os.path.exists(parent_path):
+            print(f"[g2_gist_only_cont] Inheriting weights from {parent_path}")
+            st = torch.load(parent_path, map_location="cpu")
+            model.load_state_dict(st.get("model", st), strict=False)
+        else:
+            print(f"WARNING: Parent checkpoint {parent_path} not found. Cold start.")
+        prev_final_path = parent_path  # used for logging only
     else:
         # S4: Later phases inherit previous phase's FINAL-epoch weights (not best.pth)
         prev_idx = PHASE_LADDER.index(phase) - 1
@@ -1065,7 +1078,7 @@ Examples:
     # ── Architecture ──────────────────────────────────────────────────────────
     parser.add_argument(
         "--phase", type=str, default="g2_gist_only",
-        choices=PHASE_LADDER + ["ff_112", "ff_56", "all"],
+        choices=PHASE_LADDER + ["ff_112", "ff_56", "g2_gist_only_cont", "all"],
         help="Architecture phase to train.  Use 'all' to run the full Gen-2 ladder.",
     )
     parser.add_argument(
