@@ -145,7 +145,9 @@ PHASE_TOTAL_EPOCHS = {
     "ff_112": 15,           # 112-px feedforward reference baseline
     "ff_56":  15,           # 56-px feedforward control (resolution ablation)
     # J3 recipe-matched 56-px controls
-    "g2_gist_only_cont": 15,  # g2_gist_only continued at Rung 3 (epoch-matched control)
+    "g2_gist_only_cont":      15,  # g2_gist_only continued at Rung 3 (epoch-matched control)
+    "c3_refine_single":       15,  # C3: g2_gist_only continued at Rung 3 with refinement active (depth control)
+    "c4_four_views_no_refine": 15,  # C4: 4 views without refinement (multi-view control)
 }
 
 GATE_W_REFERENCE_ACC = 0.5852  # Gate W passed score
@@ -706,12 +708,16 @@ def run_gen2_phase(
         print(f"Warm-start load: accepted={rep['accepted']}, "
               f"matched={rep['matched_trunk_keys']}/{rep['trunk_keys']} "
               f"({rep['matched_fraction']*100:.1f}%)")
-    elif phase == "g2_gist_only_cont":
-        # Recipe-matched control: inherit g2_gist_only_final.pth and continue at Rung 3
+    elif phase in ("g2_gist_only_cont", "c3_refine_single", "c4_four_views_no_refine"):
+        # Recipe-matched controls: inherit g2_gist_only_final and continue at Rung 3
         parent_path = os.path.join(ckpt_dir, "foundation_g2_gist_only_final.pth")
+        if not os.path.exists(parent_path):
+            parent_zip = os.path.join(ckpt_dir, "foundation_g2_gist_only_final.zip")
+            if os.path.exists(parent_zip):
+                parent_path = parent_zip
         if os.path.exists(parent_path):
-            print(f"[g2_gist_only_cont] Inheriting weights from {parent_path}")
-            st = torch.load(parent_path, map_location="cpu")
+            print(f"[{phase}] Inheriting weights from {parent_path}")
+            st = torch.load(parent_path, map_location="cpu", weights_only=False)
             model.load_state_dict(st.get("model", st), strict=False)
         else:
             print(f"WARNING: Parent checkpoint {parent_path} not found. Cold start.")
@@ -1078,7 +1084,7 @@ Examples:
     # ── Architecture ──────────────────────────────────────────────────────────
     parser.add_argument(
         "--phase", type=str, default="g2_gist_only",
-        choices=PHASE_LADDER + ["ff_112", "ff_56", "g2_gist_only_cont", "all"],
+        choices=PHASE_LADDER + ["ff_112", "ff_56", "g2_gist_only_cont", "c3_refine_single", "c4_four_views_no_refine", "all"],
         help="Architecture phase to train.  Use 'all' to run the full Gen-2 ladder.",
     )
     parser.add_argument(

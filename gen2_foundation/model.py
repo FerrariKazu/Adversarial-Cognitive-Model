@@ -79,6 +79,8 @@ class Gen2FoundationModel(nn.Module):
         )
 
         # Phase flags
+        self.is_refine_single = (phase in ("c3_refine_single", "g2_refine_single"))
+        self.is_four_views_no_refine = (phase in ("c4_four_views_no_refine", "g2_four_views_no_refine"))
         self.is_gist_only = (phase in ("g2_gist_only", "ff_112", "feedforward_112", "ff_56", "g2_gist_only_cont"))
         self.use_refinement = not self.is_gist_only
         self.use_recurrence = phase in ("recurrence_only", "belief_no_f", "belief_with_f", "ais_v2_swap", "gen1_core")
@@ -143,6 +145,33 @@ class Gen2FoundationModel(nn.Module):
         """Forward pass taking full image x of shape (B, 3, H, W)."""
         B = x.shape[0]
         device = x.device
+
+        # Single view with refinement block active (Control 3: Depth ablation)
+        if self.is_refine_single:
+            if self.center_crop_mode:
+                crop = foveal_sample(x, torch.zeros(B, 2, device=device), fovea_size=self.fovea_size)
+            else:
+                crop = nn.functional.interpolate(x, size=(self.fovea_size, self.fovea_size), mode="bilinear", align_corners=False)
+            pooled_z, _ = self.backbone(crop)
+            return self.cls_head(pooled_z)
+
+        # 4 views without refinement (Control 4: Multi-view translation ablation)
+        if self.is_four_views_no_refine:
+            gist_tokens = self.gist_encoder(x)
+            z_t = gist_tokens.mean(dim=1)
+            gaze_schedule = [
+                torch.zeros(B, 2, device=device),
+                torch.tensor([[0.3, 0.3]], device=device).expand(B, -1),
+                torch.tensor([[-0.3, 0.3]], device=device).expand(B, -1),
+                torch.tensor([[0.0, -0.3]], device=device).expand(B, -1),
+            ]
+            for t in range(min(self.num_glimpses, len(gaze_schedule))):
+                crop = foveal_sample(x, gaze_schedule[t], fovea_size=self.fovea_size)
+                x_prep = self.backbone._prep(crop)
+                x_trunk = self.backbone._trunk_forward(x_prep)
+                pooled_g = x_trunk[:, 0]
+                z_t = 0.5 * z_t + 0.5 * pooled_g
+            return self.cls_head(z_t)
 
         # Gist representation produced from the full frame
         if self.is_gist_only:

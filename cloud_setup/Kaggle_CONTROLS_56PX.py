@@ -293,9 +293,27 @@ if "C2" not in CONTROLS_JOBS:
     print("\nCONTROL 2 (ff_56) skipped (not in CONTROLS_JOBS).")
 else:
     C2_FINAL = "checkpoints/foundation_ff_56_final.pth"
-    if os.path.exists(C2_FINAL):
-        print(f"\nCONTROL 2 already done ({C2_FINAL}). Skipping to eval.")
+    def _is_valid_ff56(path):
+        if not os.path.exists(path):
+            return False
+        try:
+            st = torch.load(path, map_location="cpu")
+            if st.get("phase") != "ff_56":
+                print(f"  [ff_56 skip-guard] {path} has phase='{st.get('phase')}', NOT 'ff_56' (defective Oct-19). Ignoring.")
+                return False
+            if st.get("epoch") != 15:
+                print(f"  [ff_56 skip-guard] {path} has epoch={st.get('epoch')}, expected 15.")
+                return False
+            return True
+        except Exception as e:
+            return False
+
+    if _is_valid_ff56(C2_FINAL):
+        print(f"\nCONTROL 2 already done ({C2_FINAL}) with verified ff_56 recipe. Skipping to eval.")
     else:
+        if os.path.exists(C2_FINAL):
+            shutil.move(C2_FINAL, "checkpoints/foundation_ff_56_defective.pth")
+            print(f"  Archived defective checkpoint to checkpoints/foundation_ff_56_defective.pth")
         print(f"\n{'='*70}")
         print(f"CONTROL 2: ff_56  (56px, DINOv2 warm-start, Rung 3, eps=0.094, 15 epochs)")
         print(f"{'='*70}")
@@ -320,6 +338,61 @@ else:
             subprocess.run(
                 f"python3 training/train_gen2_foundation.py "
                 f"--phase ff_56 "
+                f"--arm v1 "
+                f"--data-root {DATA_ROOT} "
+                f"--ckpt-dir checkpoints "
+                f"--report-dir report/controls "
+                f"--dino-path {DINO_PATH} "
+                f"--batch-size {BATCH_SIZE} "
+                f"--img-size 56 "
+                f"--n-epochs 15",
+                shell=True, check=True,
+            )
+        sync_to_hf()
+
+# ── 7b. CONTROL 3 — c3_refine_single (depth ablation: refinement active, 1 view) ──
+# Continues g2_gist_only for 15 epochs at Rung 3 (eps=0.094) with refinement block active.
+# Single 56px view — isolates whether the +5.8 pp clean gain is extra depth vs recurrence.
+
+if "C3" not in CONTROLS_JOBS:
+    print("\nCONTROL 3 (c3_refine_single) skipped (not in CONTROLS_JOBS).")
+else:
+    C3_FINAL = "checkpoints/foundation_c3_refine_single_final.pth"
+    if os.path.exists(C3_FINAL):
+        print(f"\nCONTROL 3 already done ({C3_FINAL}). Skipping to eval.")
+    else:
+        parent = "checkpoints/foundation_g2_gist_only_final.pth"
+        if not os.path.exists(parent):
+            parent_zip = "checkpoints/foundation_g2_gist_only_final.zip"
+            if os.path.exists(parent_zip):
+                parent = parent_zip
+            else:
+                raise RuntimeError("CONTROL 3 requires foundation_g2_gist_only_final (.pth or .zip).")
+        print(f"\n{'='*70}")
+        print(f"CONTROL 3: c3_refine_single  (56px, Rung 3, eps=0.094, 15 epochs, refinement active)")
+        print(f"  Inheriting: {parent}")
+        print(f"{'='*70}")
+        try:
+            run_gen2_phase(
+                phase="c3_refine_single",
+                arm="v1",
+                data_root=DATA_ROOT,
+                ckpt_dir="checkpoints",
+                report_dir="report/controls",
+                dino_path=DINO_PATH,
+                batch_size=BATCH_SIZE,
+                num_workers=4,
+                smoke=False,
+                img_size=56,
+                n_epochs=15,
+                epoch_callback=lambda p, ep: sync_to_hf(),
+            )
+            print("CONTROL 3 training complete.")
+        except TypeError as e:
+            print(f"  run_gen2_phase signature mismatch ({e}); CLI fallback.")
+            subprocess.run(
+                f"python3 training/train_gen2_foundation.py "
+                f"--phase c3_refine_single "
                 f"--arm v1 "
                 f"--data-root {DATA_ROOT} "
                 f"--ckpt-dir checkpoints "
@@ -399,6 +472,7 @@ EVAL_TARGETS = []
 for label, phase, img_size, ckpt in [
     ("g2_gist_only_cont", "g2_gist_only", 56, "checkpoints/foundation_g2_gist_only_cont_final.pth"),
     ("ff_56",             "ff_56",         56, "checkpoints/foundation_ff_56_final.pth"),
+    ("c3_refine_single",  "c3_refine_single", 56, "checkpoints/foundation_c3_refine_single_final.pth"),
     # Include recurrence_only for direct comparison
     ("recurrence_only",   "recurrence_only", 56, "checkpoints/foundation_recurrence_only_final.pth"),
 ]:
