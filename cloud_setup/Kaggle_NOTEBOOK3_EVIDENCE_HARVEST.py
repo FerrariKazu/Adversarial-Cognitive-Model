@@ -409,10 +409,11 @@ for label, phase, img_size, ckpt in TARGET_MODELS:
         elif attack_outcomes["apgd_dlr"][idx] == 0:
             failure_idx[idx] = 2
 
-    # Step-by-Step Belief Evolution (for recurrence_only and gen1_core)
+    # Step-by-Step Belief Evolution (recurrence_only only — gen1_core has
+    # incompatible cls_head input dim and does not use the Gen-2 gist pipeline)
     step_logits = []
     step_uncertainty = []
-    if phase in ("recurrence_only", "gen1_core"):
+    if phase == "recurrence_only":
         print(f"  Harvesting step-by-step internal trajectory (T=4)...", end="", flush=True)
         t_step = time.time()
         for x, y in loader:
