@@ -120,6 +120,7 @@ for mod in list(sys.modules.keys()):
         del sys.modules[mod]
 
 from gen2_foundation.model import Gen2FoundationModel
+from noesis_vision.models.foveation import foveal_sample
 from training.curriculum_gen2 import IMAGENET_MEAN, IMAGENET_STD
 from evaluation.harness import (
     get_canonical_slice,
