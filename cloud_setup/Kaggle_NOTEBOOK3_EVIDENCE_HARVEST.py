@@ -232,7 +232,21 @@ def compute_linear_cka(x1: np.ndarray, x2: np.ndarray) -> float:
     denom = np.sqrt(tr_k1_k1 * tr_k2_k2)
     return float(tr_k1_k2 / max(denom, 1e-12))
 
-# ── 6. PGD with Per-Iteration Loss Logging ────────────────────────────────────
+# ── 6. PGD Helpers ────────────────────────────────────────────────────────────
+def run_pgd_pixel_space(model, x, y, eps=DEFAULT_EPS_PIXEL, steps=50):
+    """Standard PGD-n in pixel space (L-inf). Returns adversarial example only."""
+    alpha = (2.5 * eps) / steps
+    x_adv = (x + torch.empty_like(x).uniform_(-eps, eps)).clamp(0.0, 1.0)
+    x_adv = x_adv.detach()
+    for _ in range(steps):
+        x_adv.requires_grad_(True)
+        with torch.enable_grad():
+            loss = F.cross_entropy(model(x_adv), y)
+        grad = torch.autograd.grad(loss, x_adv)[0]
+        with torch.no_grad():
+            x_adv = (x_adv + alpha * grad.sign()).clamp(x - eps, x + eps).clamp(0.0, 1.0)
+    return x_adv.detach()
+
 def run_pgd_with_loss_trajectory(model, x, y, eps=DEFAULT_EPS_PIXEL, steps=50):
     alpha = (2.5 * eps) / steps
     x_adv = (x + torch.empty_like(x).uniform_(-eps, eps)).clamp(0.0, 1.0)
