@@ -84,9 +84,9 @@ USAGE ON KAGGLE
 
 ENV KNOBS (all optional)
   CLOSURE_C4          auto | on | off   (default auto: follows the 1.1 gate)
-  CLOSURE_DISTILL     auto | on | off   (default auto: evaluates if present, trains if on)
-  CLOSURE_TOKEN_MATCH auto | on | off   (default auto: evaluates if present, trains if on)
-  CLOSURE_SEED_VAR    auto | on | off   (default auto: evaluates if present, trains if on)
+  CLOSURE_DISTILL     on | auto | off   (default on: trains distillation student if missing, then evaluates)
+  CLOSURE_TOKEN_MATCH on | auto | off   (default on: trains patch-7 control if missing, then evaluates)
+  CLOSURE_SEED_VAR    on | auto | off   (default on: trains seeds 43/44 if missing, then evaluates)
   CLOSURE_SMALL_TARGET auto | on | off  (default auto: builds 384px benchmark if missing)
   CLOSURE_GATE_S      auto | on | off   (default auto: evaluates baselines a-e)
   CLOSURE_GEN3_LADDER auto | on | off   (default auto: evaluates 5 rungs under canonical harness)
@@ -2000,7 +2000,7 @@ json_dump(OUT_DIR / "p13_c4.json", P13)
 # ============================================================================
 banner("L. PHASE 1.4 -- TEACHER DISTILLATION (ff_112 -> ff_56)")
 
-DISTILL_MODE = os.environ.get("CLOSURE_DISTILL", "auto").lower()
+DISTILL_MODE = os.environ.get("CLOSURE_DISTILL", "on").lower()
 P14: Dict[str, Any] = {
     "id": "P1.4",
     "status": "not_run",
@@ -2123,7 +2123,7 @@ def train_distillation_ff56(
 distill_ckpt = CKPT_DIR / "foundation_distill_ff56_final.pth"
 fetch_from_hf(distill_ckpt.name)
 
-if not distill_ckpt.exists() and DISTILL_MODE == "on":
+if not distill_ckpt.exists() and DISTILL_MODE in ("on", "1", "true"):
     est_distill_h = 3.5
     if elapsed_h() + est_distill_h <= SESSION_BUDGET_H:
         teacher_path = CKPT_DIR / "foundation_ff_112_final.pth"
@@ -2201,7 +2201,7 @@ json_dump(OUT_DIR / "p14_distill.json", P14)
 # ============================================================================
 banner("M. PHASE 1.5 -- TOKEN-MATCHED CONTROL (56 px, patch 7)")
 
-TOKEN_MATCH_MODE = os.environ.get("CLOSURE_TOKEN_MATCH", "auto").lower()
+TOKEN_MATCH_MODE = os.environ.get("CLOSURE_TOKEN_MATCH", "on").lower()
 P15: Dict[str, Any] = {
     "id": "P1.5",
     "status": "not_run",
@@ -2296,7 +2296,7 @@ def train_patch7_control(
 p7_ckpt = CKPT_DIR / "foundation_ff_56_p7_final.pth"
 fetch_from_hf(p7_ckpt.name)
 
-if not p7_ckpt.exists() and TOKEN_MATCH_MODE == "on":
+if not p7_ckpt.exists() and TOKEN_MATCH_MODE in ("on", "1", "true"):
     est_p7_h = 4.5
     if elapsed_h() + est_p7_h <= SESSION_BUDGET_H:
         try:
@@ -2354,7 +2354,7 @@ json_dump(OUT_DIR / "p15_token_match.json", P15)
 # ============================================================================
 banner("N. PHASE 1.6 -- SEED VARIANCE (ff_56)")
 
-SEED_VAR_MODE = os.environ.get("CLOSURE_SEED_VAR", "auto").lower()
+SEED_VAR_MODE = os.environ.get("CLOSURE_SEED_VAR", "on").lower()
 P16: Dict[str, Any] = {
     "id": "P1.6",
     "status": "not_run",
@@ -2381,7 +2381,7 @@ for s in EXTRA_SEEDS:
     cand_path = CKPT_DIR / cand_name
     fetch_from_hf(cand_name)
 
-    if not cand_path.exists() and SEED_VAR_MODE == "on":
+    if not cand_path.exists() and SEED_VAR_MODE in ("on", "1", "true"):
         est_seed_h = 2.5
         if elapsed_h() + est_seed_h <= SESSION_BUDGET_H:
             print(f"  training ff_56 seed {s} (15 epochs, Rung 3)...")
