@@ -146,6 +146,45 @@ def print_preregistration() -> None:
 # B. HARDWARE & ENVIRONMENT
 # ============================================================================
 
+# Auto-install dependencies on Kaggle
+for pkg, mod in [
+    ("huggingface_hub", "huggingface_hub"),
+    ("torchattacks", "torchattacks"),
+    ("scipy", "scipy"),
+    ("scikit-learn", "sklearn"),
+    ("pyarrow", "pyarrow"),
+]:
+    try:
+        __import__(mod)
+    except ImportError:
+        print(f"Installing {pkg}...")
+        subprocess.run(f"pip install -q {pkg}", shell=True, check=True)
+
+# HuggingFace Auth
+hf_token = os.environ.get("HF_TOKEN")
+if not hf_token:
+    try:
+        from kaggle_secrets import UserSecretsClient
+        hf_token = UserSecretsClient().get_secret("HF_TOKEN")
+        os.environ["HF_TOKEN"] = hf_token
+    except Exception:
+        pass
+
+# Kaggle repo bootstrap
+if os.path.exists("/kaggle/working"):
+    work_dir = Path("/kaggle/working/Adversarial-Cognitive-Model")
+    if not work_dir.exists():
+        print("Cloning repository on Kaggle...")
+        subprocess.run("git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git /kaggle/working/Adversarial-Cognitive-Model", shell=True, check=True)
+    os.chdir(str(work_dir))
+    subprocess.run("git fetch origin && git checkout feature/gen2-rebuild", shell=True, check=False)
+    REPO_DIR = work_dir
+else:
+    REPO_DIR = Path(".").resolve()
+
+sys.path.insert(0, str(REPO_DIR))
+os.environ["PYTHONPATH"] = f"{REPO_DIR}:{os.environ.get('PYTHONPATH', '')}"
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -162,8 +201,6 @@ if DEVICE.type == "cuda":
     print(f"GPU: {torch.cuda.get_device_name(0)} ({torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB VRAM)")
     torch.backends.cudnn.benchmark = True
 
-REPO_DIR = Path("/kaggle/working/repo") if Path("/kaggle/working").exists() else Path(".").resolve()
-sys.path.insert(0, str(REPO_DIR))
 
 # Import substrate architecture
 from gen2_foundation.model import Gen2FoundationModel
