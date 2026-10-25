@@ -458,6 +458,23 @@ OUT_DIR = Path("report/closure")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 CKPT_DIR = Path("checkpoints")
 CKPT_DIR.mkdir(exist_ok=True)
+DINO_PATH = "checkpoints/dinov2_vits14_pretrain.pth"
+
+
+def ensure_dino_weights(path: str = DINO_PATH) -> str:
+    """Ensure official DINOv2-small weights are downloaded and valid (>80MB)."""
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if not p.exists() or p.stat().st_size < 80 * 1024 * 1024:
+        print(f"Downloading official DINOv2-small weights to {path}...")
+        subprocess.run(
+            "wget -q -c https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/"
+            f"dinov2_vits14_pretrain.pth -O {path}",
+            shell=True,
+            check=True,
+        )
+    return path
+
 
 HF_ACTIONS: List[Dict[str, Any]] = []
 
@@ -1902,11 +1919,7 @@ if want_c4:
 
     if P13["status"] == "not_run":   # neither already trained nor deferred
         print(f"  training C4 for 15 epochs at Rung 3 (elapsed {elapsed_h():.2f} h)")
-        DINO_PATH = "checkpoints/dinov2_vits14_pretrain.pth"
-        if not os.path.exists(DINO_PATH) or os.path.getsize(DINO_PATH) < 80 * 1024 * 1024:
-            subprocess.run(
-                "wget -q -c https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/"
-                f"dinov2_vits14_pretrain.pth -O {DINO_PATH}", shell=True, check=True)
+        ensure_dino_weights(DINO_PATH)
 
         def _sync_train_state():
             for p in (C4_ROLLING, C4_FINAL,
@@ -2044,6 +2057,7 @@ def train_distillation_ff56(
         p.requires_grad = False
 
     student = build_base("ff_56", 56).to(DEVICE).train()
+    ensure_dino_weights(dino_path)
     if Path(dino_path).exists() and hasattr(student, "backbone"):
         student.backbone.load_dino_warm_start(dino_path)
 
@@ -2237,6 +2251,7 @@ def train_patch7_control(
                               num_workers=4, pin_memory=True, drop_last=True)
 
     model = Patch7FeedforwardModel(img_size=56, patch_size=7).to(DEVICE).train()
+    ensure_dino_weights(dino_path)
     if Path(dino_path).exists():
         model.load_dino_warm_start(dino_path)
 
@@ -2385,9 +2400,10 @@ for s in EXTRA_SEEDS:
         est_seed_h = 2.5
         if elapsed_h() + est_seed_h <= SESSION_BUDGET_H:
             print(f"  training ff_56 seed {s} (15 epochs, Rung 3)...")
+            ensure_dino_weights(DINO_PATH)
             from training.train_gen2_foundation import run_gen2_phase
             try:
-                run_gen2_phase(phase="ff_56", phase_name=f"ff_56_seed{s}", arm="v1",
+                run_gen2_phase(phase="ff_56", phase_override_name=f"ff_56_seed{s}", arm="v1",
                                data_root=DATA_ROOT, ckpt_dir="checkpoints",
                                report_dir=str(OUT_DIR), dino_path=DINO_PATH,
                                batch_size=48, num_workers=4, smoke=False,
