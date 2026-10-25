@@ -251,13 +251,24 @@ def sha256_file(path: str | Path, chunk: int = 1 << 20) -> str:
 
 
 def bootstrap_imagenet100(data_dir: Path) -> None:
-    if (data_dir / "val").exists() and (data_dir / "train").exists():
-        n_val = sum(1 for _ in (data_dir / "val").glob("*/*.JPEG")) + sum(1 for _ in (data_dir / "val").glob("*/*.jpg"))
+    data_dir = Path(data_dir).resolve()
+    td, vd = data_dir / "train", data_dir / "val"
+    if td.is_dir() and vd.is_dir():
+        n_val = sum(1 for _ in vd.glob("*/*.JPEG")) + sum(1 for _ in vd.glob("*/*.jpg"))
         if n_val == 5000:
             print(f"ImageNet-100 already bootstrapped at {data_dir} (val=5000).")
             return
 
     data_dir.mkdir(parents=True, exist_ok=True)
+    prep_script = REPO_DIR / "scripts" / "prepare_imagenet100.py"
+    if prep_script.exists():
+        print(f"Running official {prep_script} --root {data_dir} ...")
+        res = subprocess.run([sys.executable, str(prep_script), "--root", str(data_dir)])
+        if res.returncode == 0:
+            print("ImageNet-100 bootstrap via prepare_imagenet100.py complete.")
+            return
+        print(f"prepare_imagenet100.py exited with {res.returncode}; falling back to direct parquet extraction...")
+
     banner("BOOTSTRAPPING IMAGENET-100 FROM HUGGINGFACE")
     import pyarrow.parquet as pq
     import io
@@ -277,14 +288,14 @@ def bootstrap_imagenet100(data_dir: Path) -> None:
         for shard in shard_list:
             local_parquet = hf_hub_download(repo_id=repo_id, filename=shard, repo_type="dataset")
             table = pq.read_table(local_parquet)
-            cols = table.to_dict()
+            cols = table.to_pydict()
             imgs = cols["image"]
             lbls = cols["label"]
-            for img_dict, lbl in zip(imgs, lbls):
+            for img_data, lbl in zip(imgs, lbls):
                 class_name = str(lbl)
                 target_folder = split_dir / class_name
                 target_folder.mkdir(parents=True, exist_ok=True)
-                img_bytes = img_dict["bytes"]
+                img_bytes = img_data["bytes"] if isinstance(img_data, dict) else img_data
                 img_path = target_folder / f"{hashlib.md5(img_bytes).hexdigest()[:12]}.JPEG"
                 if not img_path.exists():
                     with open(img_path, "wb") as f_out:
