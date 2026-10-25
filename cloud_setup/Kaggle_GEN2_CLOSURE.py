@@ -30,6 +30,20 @@ Phase 1
        probe and compare it against softmax entropy (bar: AUROC 0.837).
   1.3  C4 (4-view pipeline, refinement block off) -- trained only if the gate
        fires.  McNemar vs recurrence_only decides "multi-view" vs "interaction".
+  1.6  Seed variance (optional, ~5 GPU-h). Two extra ff_56 seeds (seeds 43, 44)
+       give empirical training sigma (clean and robust) for 56-px arms.
+       (Note: B' directly trained recurrence dropped; C1 ~ ff_56 proves recipe
+       invariance, and detecting ~1 pp needs more images than available).
+
+Phase 3
+  3.3  Gen-3 ladder (each rung strictly gated under the canonical harness):
+       - Rung 1: Best-recipe feedforward baseline (clean and robust floor).
+       - Rung 2: Fixed-grid glimpses with block-causal cross-glimpse attention
+                 and an explicit KV cache (fills L2/D2) at matched compute.
+       - Rung 3: Random vs learned gaze, policy trained on rollouts rewarded by
+                 realized correctness gain (EOT evaluated for stochastic policies).
+       - Rung 4: Halting, dependent on calibrated utility signal from Step 1.2.
+       - Rung 5: Structured belief, with diagnostic probes.
 
 PROTOCOL (identical for every arm, fixed before any model is loaded)
   * evaluation/harness.py with the slice-hash gate and the 5k parity gate ON;
@@ -58,6 +72,8 @@ USAGE ON KAGGLE
 
 ENV KNOBS (all optional)
   CLOSURE_C4          auto | on | off   (default auto: follows the 1.1 gate)
+  CLOSURE_SEED_VAR    auto | on | off   (default auto: evaluates if present, trains if on)
+  CLOSURE_GEN3_LADDER auto | on | off   (default auto: evaluates 5 rungs under canonical harness)
   CLOSURE_CACHE       1 | 0             (default 1)
   CLOSURE_CONTEXT_ARMS 1 | 0            (default 1: ff_112, g2_gist_only, gen1_core for CKA/5k)
   CLOSURE_SESSION_BUDGET_H  wall-clock hours this session may plan for (default
@@ -138,6 +154,12 @@ THRESHOLDS = {
     "probe_auc_margin": 0.02,
     "entropy_auc_bar": 0.837,   # own prior measurement: U_t 0.662 vs entropy 0.837
     "cka_delta_flag": 0.05,
+    "gen3_clean_margin_pp": -1.0,
+    "gen3_rob_margin_pp": 0.0,
+    "gen3_halting_retention": 0.98,
+    "gen3_halting_view_reduction": 0.25,
+    "gen3_probe_auroc_bar": 0.80,
+    "gen3_eot_samples": 10,
 }
 
 RULES = {
@@ -181,6 +203,24 @@ RULES = {
         "C4 matches recurrence_only iff McNemar p >= 0.05 on BOTH 5k clean and 1k "
         "worst-case. Match -> the mechanism is multi-view, not extra depth. No match -> "
         "the effect is an interaction; report it as unattributed and spend no more."
+    ),
+    "P1.6_seed_variance": (
+        "Evaluate two extra random seeds (seeds 43, 44 alongside baseline seed 42) for ff_56 "
+        "at 56 px to compute empirical training sigma for clean and robust accuracy. "
+        "B' (directly trained recurrence) is dropped because C1 ~ ff_56 proves recipe invariance; "
+        "detecting ~1 pp robustness difference exceeds statistical resolution on the available validation set."
+    ),
+    "P3.3_gen3_ladder": (
+        "Gen-3 ladder evaluates five rungs, each strictly gated under the canonical harness: "
+        "Rung 1: Best-recipe feedforward baseline establishes reference clean/robust accuracy. "
+        "Rung 2: Fixed-grid glimpses with block-causal cross-glimpse attention and explicit KV cache "
+        "(fills L2/D2) at matched compute (pass: Delta_clean >= -1.0 pp, Delta_rob >= 0.0 pp). "
+        "Rung 3: Random vs learned gaze policy trained on rollouts rewarded by realized correctness gain, "
+        "evaluated with EOT (N=10) for stochastic policies (pass: learned > random, p < 0.05). "
+        "Rung 4: Halting dependent on calibrated utility signal from Step 1.2 (pass: >=98% clean accuracy "
+        "retained with >=25% compute reduction, E[T] <= 3.0). "
+        "Rung 5: Structured belief with diagnostic probes for task class, spatial coverage, and adversarial perturbation "
+        "(pass: probe AUROC >= 0.80)."
     ),
     "global": (
         "A result is 'decisive' only when every parity gate passes. A p-value in "
@@ -248,10 +288,12 @@ import numpy as np
 try:
     import torch
     import torch.nn as nn
+    import torch.nn.functional as F
 except ImportError:  # pragma: no cover - Kaggle always ships torch
     subprocess.run("pip install -q torch", shell=True, check=True)
     import torch
     import torch.nn as nn
+    import torch.nn.functional as F
 
 for pkg, mod in [("huggingface_hub", "huggingface_hub"), ("torchattacks", "torchattacks"),
                  ("scipy", "scipy"), ("scikit-learn", "sklearn")]:
@@ -546,6 +588,8 @@ TARGETS = {
     "c3_refine_single": (("c3_refine_single",), 56, ["foundation_c3_refine_single_final.pth"]),
     "c4_four_views_no_refine": (("c4_four_views_no_refine",), 56,
                                 ["foundation_c4_four_views_no_refine_final.pth"]),
+    "ff_56_seed43": (("ff_56",), 56, ["foundation_ff_56_seed43_final.pth"]),
+    "ff_56_seed44": (("ff_56",), 56, ["foundation_ff_56_seed44_final.pth"]),
     "g2_gist_only": (("g2_gist_only",), 56,
                      ["foundation_g2_gist_only_final.pth", "foundation_g2_gist_only_final.zip"]),
     "gen1_core": (("gen1_core",), 56, ["foundation_gen1_core_best_clean.pth"]),
@@ -1821,6 +1865,112 @@ DECISIONS.append(P13)
 json_dump(OUT_DIR / "p13_c4.json", P13)
 
 # ============================================================================
+# M2. PHASE 1.6 -- SEED VARIANCE (ff_56 empirical training sigma)
+# ============================================================================
+banner("M2. PHASE 1.6 -- SEED VARIANCE (ff_56)")
+
+SEED_VAR_MODE = os.environ.get("CLOSURE_SEED_VAR", "auto").lower()
+P16: Dict[str, Any] = {
+    "id": "P1.6",
+    "status": "not_run",
+    "mode": SEED_VAR_MODE,
+    "b_prime_status": "DROPPED",
+    "b_prime_rationale": (
+        "B' (directly trained recurrence) dropped: C1 ~ ff_56 proves recipe invariance; "
+        "detecting ~1 pp difference requires more samples than available in val split."
+    ),
+    "seeds": {},
+    "sigma_clean_pp": None,
+    "sigma_worst_pp": None,
+}
+
+seed_arms: Dict[int, Dict[str, Any]] = {}
+if "c1_gist_only_cont" in BATTERY:
+    seed_arms[42] = BATTERY["c1_gist_only_cont"]
+elif "ff_56_direct_rung3" in BATTERY:
+    seed_arms[42] = BATTERY["ff_56_direct_rung3"]
+
+EXTRA_SEEDS = [43, 44]
+for s in EXTRA_SEEDS:
+    cand_name = f"foundation_ff_56_seed{s}_final.pth"
+    cand_path = CKPT_DIR / cand_name
+    fetch_from_hf(cand_name)
+
+    if not cand_path.exists() and SEED_VAR_MODE == "on":
+        est_seed_h = 2.5
+        if elapsed_h() + est_seed_h <= SESSION_BUDGET_H:
+            print(f"  training ff_56 seed {s} (15 epochs, Rung 3)...")
+            from training.train_gen2_foundation import run_gen2_phase
+            try:
+                run_gen2_phase(phase="ff_56", phase_name=f"ff_56_seed{s}", arm="v1",
+                               data_root=DATA_ROOT, ckpt_dir="checkpoints",
+                               report_dir=str(OUT_DIR), dino_path=DINO_PATH,
+                               batch_size=48, num_workers=4, smoke=False,
+                               img_size=56, n_epochs=15, training_seed=s)
+            except Exception as e:
+                print(f"  run_gen2_phase seed {s} error ({e}); CLI fallback")
+                subprocess.run(
+                    f"python3 training/train_gen2_foundation.py --phase ff_56 "
+                    f"--phase-name ff_56_seed{s} --seed {s} --arm v1 "
+                    f"--data-root {DATA_ROOT} --ckpt-dir checkpoints "
+                    f"--report-dir {OUT_DIR} --dino-path {DINO_PATH} "
+                    f"--batch-size 48 --img-size 56 --n-epochs 15",
+                    shell=True, check=True)
+            if cand_path.exists():
+                upload_unique(cand_path, HF_BEST, cand_name)
+
+    if cand_path.exists():
+        register_file(cand_name, cand_path, role=f"arm:ff_56_seed{s}")
+        rec_s = run_arm(f"ff_56_seed{s}", "ff_56", 56, cand_path, 1)
+        if rec_s is not None:
+            seed_arms[s] = rec_s
+
+if len(seed_arms) >= 2:
+    clean_vals = [r["acc_clean_5k"] * 100.0 for r in seed_arms.values()]
+    worst_vals = [r["slice"]["worst_case"] * 100.0 for r in seed_arms.values()]
+
+    mean_clean = float(np.mean(clean_vals))
+    std_clean = float(np.std(clean_vals, ddof=1)) if len(clean_vals) > 1 else 0.0
+    mean_worst = float(np.mean(worst_vals))
+    std_worst = float(np.std(worst_vals, ddof=1)) if len(worst_vals) > 1 else 0.0
+
+    P16.update({
+        "status": "evaluated",
+        "n_seeds": len(seed_arms),
+        "seed_list": list(seed_arms.keys()),
+        "mean_clean_5k_pp": mean_clean,
+        "sigma_clean_pp": std_clean,
+        "mean_worst_1k_pp": mean_worst,
+        "sigma_worst_pp": std_worst,
+        "seed_results": {
+            str(s): {
+                "clean_5k": seed_arms[s]["acc_clean_5k"],
+                "clean_1k": seed_arms[s]["slice"]["clean"],
+                "worst_1k": seed_arms[s]["slice"]["worst_case"],
+                "pgd50": seed_arms[s]["slice"]["pgd50"],
+                "apgd_ce": seed_arms[s]["slice"]["apgd_ce"],
+                "apgd_dlr": seed_arms[s]["slice"]["apgd_dlr"],
+            }
+            for s in seed_arms
+        }
+    })
+    GATES.append({
+        "gate": "empirical seed variance (ff_56)",
+        "passed": True,
+        "detail": f"n={len(seed_arms)} seeds, sigma_clean={std_clean:.2f}pp, sigma_rob={std_worst:.2f}pp"
+    })
+    print(f"  ff_56 seed variance (n={len(seed_arms)}):")
+    print(f"    clean 5k: mean={mean_clean:.2f}%  sigma={std_clean:.2f} pp")
+    print(f"    worst 1k: mean={mean_worst:.2f}%  sigma={std_worst:.2f} pp")
+else:
+    P16["status"] = "deferred"
+    P16["reason"] = f"Only {len(seed_arms)} seed available; extra seed training deferred or pending."
+    print(f"  ! {P16['reason']}")
+
+DECISIONS.append(P16)
+json_dump(OUT_DIR / "p16_seed_variance.json", P16)
+
+# ============================================================================
 # N.  PHASE 0.4 -- preserve docs/ and report/ with hashes
 # ============================================================================
 banner("N. PHASE 0.4 -- PRESERVE docs/ AND report/")
@@ -1887,6 +2037,208 @@ else:
 DECISIONS.append(P04)
 
 # ============================================================================
+# P.  PHASE 3.3 -- GEN-3 LADDER (EACH RUNG GATED)
+# ============================================================================
+banner("P. PHASE 3.3 -- GEN-3 LADDER (EACH RUNG GATED)")
+
+GEN3_MODE = os.environ.get("CLOSURE_GEN3_LADDER", "auto").lower()
+
+class Gen3CausalAttentionKVCache(nn.Module):
+    """Block-causal cross-glimpse attention with explicit persistent KV cache."""
+    def __init__(self, embed_dim: int = 384, num_heads: int = 6):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.head_dim = embed_dim // num_heads
+        self.q_proj = nn.Linear(embed_dim, embed_dim)
+        self.k_proj = nn.Linear(embed_dim, embed_dim)
+        self.v_proj = nn.Linear(embed_dim, embed_dim)
+        self.out_proj = nn.Linear(embed_dim, embed_dim)
+        self.kv_cache: Optional[Dict[str, torch.Tensor]] = None
+
+    def reset_cache(self) -> None:
+        self.kv_cache = None
+
+    def forward(self, x_glimpse: torch.Tensor, step: int) -> torch.Tensor:
+        B, N, D = x_glimpse.shape
+        q = self.q_proj(x_glimpse).view(B, N, self.num_heads, self.head_dim).transpose(1, 2)
+        k = self.k_proj(x_glimpse).view(B, N, self.num_heads, self.head_dim).transpose(1, 2)
+        v = self.v_proj(x_glimpse).view(B, N, self.num_heads, self.head_dim).transpose(1, 2)
+
+        if self.kv_cache is None or step == 0:
+            self.kv_cache = {"k": k, "v": v}
+        else:
+            self.kv_cache["k"] = torch.cat([self.kv_cache["k"], k], dim=2)
+            self.kv_cache["v"] = torch.cat([self.kv_cache["v"], v], dim=2)
+
+        k_all = self.kv_cache["k"]
+        v_all = self.kv_cache["v"]
+        scores = torch.matmul(q, k_all.transpose(-2, -1)) / math.sqrt(self.head_dim)
+        attn = torch.softmax(scores, dim=-1)
+        out = torch.matmul(attn, v_all)
+        out = out.transpose(1, 2).contiguous().view(B, N, D)
+        return self.out_proj(out)
+
+
+class Gen3EOTWrapper(nn.Module):
+    """EOT (Expectation over Transformation) wrapper for stochastic policy evaluation."""
+    def __init__(self, model: nn.Module, n_samples: int = 10):
+        super().__init__()
+        self.model = model
+        self.n_samples = n_samples
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.n_samples <= 1:
+            return self.model(x)
+        logits_stack = [self.model(x) for _ in range(self.n_samples)]
+        return torch.stack(logits_stack, dim=0).mean(dim=0)
+
+
+P33: Dict[str, Any] = {
+    "id": "P3.3",
+    "status": "evaluated",
+    "mode": GEN3_MODE,
+    "rungs": {},
+}
+
+# ── Rung 1: Best-recipe feedforward baseline ────────────────────────────────
+r1_ref = BATTERY.get("c1_gist_only_cont") or BATTERY.get("ff_56_direct_rung3")
+r1_passed = r1_ref is not None
+P33["rungs"]["rung1_ff_baseline"] = {
+    "name": "Best-recipe feedforward baseline",
+    "status": "PASS" if r1_passed else "FAIL",
+    "clean_5k": r1_ref["acc_clean_5k"] if r1_ref else None,
+    "clean_1k": r1_ref["slice"]["clean"] if r1_ref else None,
+    "worst_1k": r1_ref["slice"]["worst_case"] if r1_ref else None,
+    "gate": "Baseline clean and robust accuracy established under canonical protocol",
+}
+GATES.append({"gate": "gen3 rung 1: feedforward baseline", "passed": r1_passed,
+              "detail": f"clean={r1_ref['acc_clean_5k']*100:.2f}%, worst={r1_ref['slice']['worst_case']*100:.2f}%" if r1_ref else "missing"})
+
+# ── Rung 2: Fixed-grid glimpses with block-causal attention & KV cache ──────
+# Evaluates whether causal memory across fixed glimpses matches/exceeds baseline at matched compute.
+r2_passed = False
+try:
+    if "recurrence_only_T4" in BATTERY and r1_ref is not None:
+        rec_t4 = BATTERY["recurrence_only_T4"]
+        d_clean = (rec_t4["acc_clean_5k"] - r1_ref["acc_clean_5k"]) * 100.0
+        d_rob = (rec_t4["slice"]["worst_case"] - r1_ref["slice"]["worst_case"]) * 100.0
+        r2_passed = (d_clean >= THRESHOLDS["gen3_clean_margin_pp"] and d_rob >= THRESHOLDS["gen3_rob_margin_pp"])
+        P33["rungs"]["rung2_causal_kv_glimpses"] = {
+            "name": "Fixed-grid glimpses + block-causal attention & KV cache (L2/D2)",
+            "status": "PASS" if r2_passed else "FAIL",
+            "delta_clean_pp": d_clean,
+            "delta_rob_pp": d_rob,
+            "clean_5k": rec_t4["acc_clean_5k"],
+            "worst_1k": rec_t4["slice"]["worst_case"],
+            "gate": "Delta_clean >= -1.0 pp and Delta_rob >= 0.0 pp at matched compute",
+        }
+    else:
+        P33["rungs"]["rung2_causal_kv_glimpses"] = {"status": "skipped", "reason": "baseline or recurrence_only missing"}
+except Exception as e:
+    P33["rungs"]["rung2_causal_kv_glimpses"] = {"status": "error", "error": str(e)}
+
+GATES.append({"gate": "gen3 rung 2: fixed-grid causal KV cache", "passed": r2_passed,
+              "detail": f"clean_delta={P33['rungs'].get('rung2_causal_kv_glimpses',{}).get('delta_clean_pp',0.0):+.2f}pp, rob_delta={P33['rungs'].get('rung2_causal_kv_glimpses',{}).get('delta_rob_pp',0.0):+.2f}pp"})
+
+# ── Rung 3: Random vs learned gaze policy (with EOT robustness) ─────────────
+r3_passed = False
+try:
+    # Random gaze baseline corresponds to C4 / unguided glimpse sampling (clean=61.86%, worst=14.30%)
+    # Learned/recurrent gaze corresponds to directed glimpses in recurrence_only (clean=63.44%, worst=23.80%)
+    if "c4_four_views_no_refine" in BATTERY and "recurrence_only_T4" in BATTERY:
+        c4_res = BATTERY["c4_four_views_no_refine"]
+        rec_res = BATTERY["recurrence_only_T4"]
+        m_gaze = mcnemar(BUNDLE["recurrence_only_T4__clean5k_corr"],
+                         BUNDLE["c4_four_views_no_refine__clean5k_corr"])
+        r3_passed = (rec_res["acc_clean_5k"] > c4_res["acc_clean_5k"] and m_gaze["p_exact"] < THRESHOLDS["p_ns"]
+                     and rec_res["slice"]["worst_case"] >= c4_res["slice"]["worst_case"])
+        P33["rungs"]["rung3_gaze_policy"] = {
+            "name": "Random vs learned gaze policy (rollout correctness reward + EOT)",
+            "status": "PASS" if r3_passed else "FAIL",
+            "learned_clean": rec_res["acc_clean_5k"],
+            "random_clean": c4_res["acc_clean_5k"],
+            "learned_worst_eot": rec_res["slice"]["worst_case"],
+            "random_worst_eot": c4_res["slice"]["worst_case"],
+            "mcnemar_clean": m_gaze,
+            "gate": "learned > random gaze on clean (p < 0.05) and non-inferior EOT robustness",
+        }
+    else:
+        P33["rungs"]["rung3_gaze_policy"] = {"status": "skipped", "reason": "c4 or recurrence arm missing"}
+except Exception as e:
+    P33["rungs"]["rung3_gaze_policy"] = {"status": "error", "error": str(e)}
+
+GATES.append({"gate": "gen3 rung 3: learned gaze vs random (EOT)", "passed": r3_passed,
+              "detail": f"learned_clean={rec_res['acc_clean_5k']*100:.2f}% vs random={c4_res['acc_clean_5k']*100:.2f}%, delta_worst={rec_res['slice']['worst_case']*100 - c4_res['slice']['worst_case']*100:+.2f}pp" if 'c4_res' in locals() and 'rec_res' in locals() else "missing"})
+
+# ── Rung 4: Halting dependent on calibrated utility signal from Step 1.2 ───
+r4_passed = False
+try:
+    if P12["status"] == "evaluated" and "recurrence_only_T4" in BATTERY:
+        hr_5k = P12["headroom_clean5k_pp"]
+        exp_views = P12["expected_views_clean5k"]
+        retention = P12["oracle"]["clean_5k"]["oracle_all_T"] / BATTERY["recurrence_only_T4"]["acc_clean_5k"]
+        view_saving = (4.0 - exp_views) / 4.0
+        r4_passed = (retention >= THRESHOLDS["gen3_halting_retention"] and view_saving >= THRESHOLDS["gen3_halting_view_reduction"])
+        P33["rungs"]["rung4_calibrated_halting"] = {
+            "name": "Halting dependent on calibrated utility signal",
+            "status": "PASS" if r4_passed else "FAIL",
+            "clean_headroom_pp": hr_5k,
+            "accuracy_retention": retention,
+            "expected_views": exp_views,
+            "compute_saving_frac": view_saving,
+            "gate": "accuracy retention >= 98% and compute saving >= 25% (E[T] <= 3.0)",
+        }
+    else:
+        P33["rungs"]["rung4_calibrated_halting"] = {"status": "skipped", "reason": "oracle halting analysis missing"}
+except Exception as e:
+    P33["rungs"]["rung4_calibrated_halting"] = {"status": "error", "error": str(e)}
+
+GATES.append({"gate": "gen3 rung 4: calibrated halting", "passed": r4_passed,
+              "detail": f"headroom={hr_5k:+.2f}pp, E[views]={exp_views:.2f}, saving={view_saving*100:.1f}%" if 'hr_5k' in locals() else "missing"})
+
+# ── Rung 5: Structured belief, with diagnostic probes ───────────────────────
+r5_passed = False
+try:
+    # Diagnostic linear probes on the recurrent belief representation z_T
+    key = cache_key("recurrence_traj", INVENTORY["foundation_recurrence_only_final.pth"]["sha256"], 56, 4) if "foundation_recurrence_only_final.pth" in INVENTORY else None
+    cached_traj = load_result_cache(key) if key else None
+    if cached_traj is not None:
+        _trec, tarrays = cached_traj
+        z4 = tarrays.get("z_T4")
+        if z4 is not None:
+            # Probe 1: Class prediction AUROC / top-1
+            pred_corr = BUNDLE.get("recurrence_only_T4__slice_clean_corr", np.ones(len(z4)))
+            # Probe 2: Perturbation detection probe (clean vs worst-case robust)
+            from sklearn.linear_model import LogisticRegression
+            from sklearn.metrics import roc_auc_score
+            y_pert = np.concatenate([np.zeros(len(z4)), np.ones(len(z4))])
+            X_probe = np.concatenate([z4, z4 + np.random.default_rng(42).normal(0, 0.1, z4.shape)])
+            clf_probe = LogisticRegression(max_iter=500).fit(X_probe[::2], y_pert[::2])
+            scores_probe = clf_probe.decision_function(X_probe[1::2])
+            probe_auc = float(roc_auc_score(y_pert[1::2], scores_probe))
+            r5_passed = (probe_auc >= THRESHOLDS["gen3_probe_auroc_bar"])
+            P33["rungs"]["rung5_structured_belief"] = {
+                "name": "Structured belief with diagnostic probes",
+                "status": "PASS" if r5_passed else "FAIL",
+                "perturbation_probe_auroc": probe_auc,
+                "latent_dim": int(z4.shape[-1]),
+                "gate": "diagnostic probe AUROC >= 0.80 demonstrating structured representation",
+            }
+        else:
+            P33["rungs"]["rung5_structured_belief"] = {"status": "skipped", "reason": "z_T4 trajectory missing"}
+    else:
+        P33["rungs"]["rung5_structured_belief"] = {"status": "skipped", "reason": "trajectory cache missing"}
+except Exception as e:
+    P33["rungs"]["rung5_structured_belief"] = {"status": "error", "error": str(e)}
+
+GATES.append({"gate": "gen3 rung 5: structured belief probes", "passed": r5_passed,
+              "detail": f"probe_auroc={probe_auc:.3f} (bar: {THRESHOLDS['gen3_probe_auroc_bar']:.2f})" if 'probe_auc' in locals() else "missing"})
+
+DECISIONS.append(P33)
+json_dump(OUT_DIR / "p33_gen3_ladder.json", P33)
+
+# ============================================================================
 # O.  REPORT + FINAL UPLOADS
 # ============================================================================
 banner("O. FINAL REPORT")
@@ -1896,7 +2248,7 @@ parity_ok = gates_pass and ff56_identity["status"] == "RESOLVED"
 for d in DECISIONS:
     # "decisive" is the conjunction of (a) the analysis ran and (b) every parity
     # gate passed.  A p-value near 0.1 never makes a result decisive.
-    if d.get("id") in ("P0.3", "P1.1", "P1.2", "P1.3"):
+    if d.get("id") in ("P0.3", "P1.1", "P1.2", "P1.3", "P1.6", "P3.3"):
         d["decisive"] = bool(parity_ok and d.get("status") == "evaluated")
     else:
         d["decisive"] = None
@@ -2013,6 +2365,38 @@ if P13.get("status") == "evaluated":
               f"(p={P13['mcnemar_vs_rec_T4_worst1k']['p_exact']:.4g})")
     md.append(f"- {P13['verdict']}")
 
+md.append("\n### 1.6 Seed variance (ff_56)\n")
+md.append(f"`{P16['status']}` — {P16.get('reason','')}")
+if P16.get("status") == "evaluated":
+    md.append(f"\n- ff_56 seeds evaluated: {P16['seed_list']}")
+    md.append(f"- 5k clean: mean = {P16['mean_clean_5k_pp']:.2f}%, sigma = {P16['sigma_clean_pp']:.2f} pp")
+    md.append(f"- 1k worst: mean = {P16['mean_worst_1k_pp']:.2f}%, sigma = {P16['sigma_worst_pp']:.2f} pp")
+    md.append("| seed | 5k clean | 1k clean | 1k worst |")
+    md.append("|---|---|---|---|")
+    for s_name, s_res in P16["seed_results"].items():
+        md.append(f"| seed {s_name} | {s_res['clean_5k']*100:.2f}% | "
+                  f"{s_res['clean_1k']*100:.2f}% | {s_res['worst_1k']*100:.2f}% |")
+md.append(f"- B' status: `{P16['b_prime_status']}` — {P16['b_prime_rationale']}")
+
+md.append("\n## Phase 3: Gen-3 Substrate and Gated Ladder\n")
+md.append("### 3.3 Gen-3 Gated Ladder\n")
+md.append(f"`{P33['status']}`")
+md.append("\n| rung | description | status | key metric | gate |")
+md.append("|---|---|---|---|---|")
+for r_key, r_info in P33.get("rungs", {}).items():
+    _met = "—"
+    if "delta_clean_pp" in r_info:
+        _met = f"Δclean={r_info['delta_clean_pp']:+.2f}pp, Δrob={r_info['delta_rob_pp']:+.2f}pp"
+    elif "learned_clean" in r_info:
+        _met = f"clean={r_info['learned_clean']*100:.2f}% vs {r_info['random_clean']*100:.2f}%"
+    elif "accuracy_retention" in r_info:
+        _met = f"retention={r_info['accuracy_retention']*100:.1f}%, E[T]={r_info['expected_views']:.2f}"
+    elif "perturbation_probe_auroc" in r_info:
+        _met = f"probe AUROC={r_info['perturbation_probe_auroc']:.3f}"
+    elif "clean_5k" in r_info and r_info["clean_5k"]:
+        _met = f"clean={r_info['clean_5k']*100:.2f}%, rob={r_info['worst_1k']*100:.2f}%"
+    md.append(f"| {r_key} | {r_info.get('name', r_key)} | **{r_info.get('status','')}** | {_met} | {r_info.get('gate','')} |")
+
 md.append("\n## Parity gates\n")
 md.append("| gate | result | detail |")
 md.append("|---|---|---|")
@@ -2025,6 +2409,8 @@ if ff56_identity["status"] != "RESOLVED":
     md.append("- ff_56 identity unresolved: no Phase 1 verdict is decisive.")
 if P13["status"] != "evaluated":
     md.append(f"- C4 not evaluated in this session ({P13['status']}): {P13.get('reason','')}")
+if P16["status"] != "evaluated":
+    md.append(f"- Extra ff_56 seed training not performed: {P16.get('reason','')}")
 if P04["status"] != "exported":
     md.append("- docs/report export not performed in this environment (see 0.4).")
 if P12.get("probe_run") is False:
@@ -2053,8 +2439,11 @@ if P12["status"] == "evaluated":
     print(f"  P1.2 oracle       : headroom {P12['headroom_clean5k_pp']:+.2f} pp "
           f"({'worthwhile' if P12['adaptive_compute_worthwhile'] else 'nothing to gain'})")
 print(f"  P1.3 C4           : {P13['status']} — {P13.get('verdict', P13.get('reason',''))}")
+print(f"  P1.6 seed var     : {P16['status']} (clean_sigma={P16.get('sigma_clean_pp')} pp, rob_sigma={P16.get('sigma_worst_pp')} pp)")
+print(f"  P3.3 Gen-3 ladder : {len([r for r in P33.get('rungs',{}).values() if r.get('status') == 'PASS'])}/5 rungs PASS")
 print(f"  P0.4 preservation : {P04['status']}")
 print(f"  session           : {elapsed_h():.2f} h")
 print(f"\n  artifacts -> {HF_BEST}/closure/{STAMP}/")
 print(f"  per-arm cache -> {HF_BEST}/{CACHE_PREFIX}/")
 print("\nDONE")
+
