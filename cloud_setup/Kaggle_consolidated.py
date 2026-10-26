@@ -468,36 +468,62 @@ def train_consolidated_seed(seed: int) -> Path:
 # G. FULL 5,000-IMAGE EVALUATION BATTERY
 # ============================================================================
 
+class _NormWrap(nn.Module):
+    """Re-normalise inside forward so torchattacks can work in [0,1] pixel space."""
+    def __init__(self, base: nn.Module):
+        super().__init__()
+        self.base = base
+        m = torch.tensor(IMAGENET_MEAN).view(1, 3, 1, 1)
+        s = torch.tensor(IMAGENET_STD).view(1, 3, 1, 1)
+        self.register_buffer("_m", m)
+        self.register_buffer("_s", s)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:  # x in [0,1]
+        return self.base((x - self._m.to(x)) / self._s.to(x))
+
+
 def full_5k_battery(model: nn.Module, label: str) -> Dict[str, Any]:
     """Clean + PGD-50 + APGD-CE + APGD-DLR on all 5,000 validation images."""
     banner(f"FULL 5k EVALUATION -- {label}")
+    # Two transforms: normalised (for PGD/clean) and raw [0,1] (for torchattacks)
     tf_val = transforms.Compose([
         transforms.Resize((112, 112)),
         transforms.ToTensor(),
         transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
     ])
+    tf_val_01 = transforms.Compose([
+        transforms.Resize((112, 112)),
+        transforms.ToTensor(),  # [0,1] — no normalise; NormWrap handles it
+    ])
     val_ds = datasets.ImageFolder(VAL_ROOT, transform=tf_val)
+    val_ds_01 = datasets.ImageFolder(VAL_ROOT, transform=tf_val_01)
     loader = DataLoader(val_ds, batch_size=32, shuffle=False, num_workers=4, pin_memory=True)
+    loader_01 = DataLoader(val_ds_01, batch_size=32, shuffle=False, num_workers=4, pin_memory=True)
 
-    apgd_ce = torchattacks.APGD(model, norm="Linf", eps=EPS_NORM, steps=100, n_restarts=1, loss="ce", verbose=False)
-    apgd_dlr = torchattacks.APGD(model, norm="Linf", eps=EPS_NORM, steps=100, n_restarts=1, loss="dlr", verbose=False)
+    # NormWrap so torchattacks applies eps in [0,1] pixel domain
+    model_01 = _NormWrap(model).to(DEVICE)
+    model_01.eval()
+    apgd_ce = torchattacks.APGD(model_01, norm="Linf", eps=EPS_PIXEL, steps=100, n_restarts=1, loss="ce", verbose=False)
+    apgd_dlr = torchattacks.APGD(model_01, norm="Linf", eps=EPS_PIXEL, steps=100, n_restarts=1, loss="dlr", verbose=False)
 
     preds_dict: Dict[str, List[np.ndarray]] = {"clean": [], "pgd50": [], "apgd_ce": [], "apgd_dlr": []}
     corr_dict: Dict[str, List[np.ndarray]] = {"clean": [], "pgd50": [], "apgd_ce": [], "apgd_dlr": []}
 
     model.eval()
+    loader_01_iter = iter(loader_01)
     for b_idx, (x, y) in enumerate(loader):
         x, y = x.to(DEVICE), y.to(DEVICE)
+        x_01, _ = next(loader_01_iter)  # unnormalised [0,1] for torchattacks
+        x_01 = x_01.to(DEVICE)
         y_np = y.cpu().numpy()
 
-        # 1. Clean
+        # 1. Clean (use normalised x)
         with torch.no_grad():
             with torch.amp.autocast("cuda", enabled=(DEVICE.type == "cuda")):
                 p_clean = model(x).argmax(dim=-1).cpu().numpy()
         preds_dict["clean"].append(p_clean)
         corr_dict["clean"].append((p_clean == y_np).astype(np.int8))
 
-        # 2. PGD-50
+        # 2. PGD-50 (normalised domain, our custom loop handles clamp correctly)
         x_pgd50 = run_pgd_ce_monitor(model, x, y, eps=EPS_NORM, steps=50)
         with torch.no_grad():
             with torch.amp.autocast("cuda", enabled=(DEVICE.type == "cuda")):
@@ -505,19 +531,19 @@ def full_5k_battery(model: nn.Module, label: str) -> Dict[str, Any]:
         preds_dict["pgd50"].append(p_pgd50)
         corr_dict["pgd50"].append((p_pgd50 == y_np).astype(np.int8))
 
-        # 3. APGD-CE
-        x_apgd_ce = apgd_ce(x, y)
+        # 3. APGD-CE (torchattacks, [0,1] domain via NormWrap, eps=EPS_PIXEL)
+        x_apgd_ce = apgd_ce(x_01, y)
         with torch.no_grad():
             with torch.amp.autocast("cuda", enabled=(DEVICE.type == "cuda")):
-                p_apgd_ce = model(x_apgd_ce).argmax(dim=-1).cpu().numpy()
+                p_apgd_ce = model_01(x_apgd_ce).argmax(dim=-1).cpu().numpy()
         preds_dict["apgd_ce"].append(p_apgd_ce)
         corr_dict["apgd_ce"].append((p_apgd_ce == y_np).astype(np.int8))
 
-        # 4. APGD-DLR
-        x_apgd_dlr = apgd_dlr(x, y)
+        # 4. APGD-DLR (torchattacks, [0,1] domain via NormWrap, eps=EPS_PIXEL)
+        x_apgd_dlr = apgd_dlr(x_01, y)
         with torch.no_grad():
             with torch.amp.autocast("cuda", enabled=(DEVICE.type == "cuda")):
-                p_apgd_dlr = model(x_apgd_dlr).argmax(dim=-1).cpu().numpy()
+                p_apgd_dlr = model_01(x_apgd_dlr).argmax(dim=-1).cpu().numpy()
         preds_dict["apgd_dlr"].append(p_apgd_dlr)
         corr_dict["apgd_dlr"].append((p_apgd_dlr == y_np).astype(np.int8))
 
@@ -701,12 +727,26 @@ def main() -> None:
         from huggingface_hub import HfApi
         api = HfApi(token=hf_token)
         repo_id = "FerrariKazu/rhan-nxa-g2-checkpoints"
-        prefix = f"closure/consolidated_112/{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        _ts_up = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        prefix = f"closure/consolidated_112/{_ts_up}"
 
         api.upload_file(path_or_fileobj=str(report_path), path_in_repo=f"{prefix}/report.json", repo_id=repo_id)
         api.upload_file(path_or_fileobj=str(bundle_path), path_in_repo=f"{prefix}/per_sample_bundle.npz", repo_id=repo_id)
         for s in PROTOCOL["seeds"]:
-            api.upload_file(path_or_fileobj=str(flagship_ckpts[s]), path_in_repo=f"{prefix}/foundation_recurrence_112_seed{s}_final.pth", repo_id=repo_id)
+            ckpt_path = str(flagship_ckpts[s])
+            # Archive copy (timestamped, for provenance)
+            api.upload_file(
+                path_or_fileobj=ckpt_path,
+                path_in_repo=f"{prefix}/foundation_recurrence_112_seed{s}_final.pth",
+                repo_id=repo_id,
+            )
+            # Canonical top-level copy (required for OPAL gate in colab_j2_eval_train.py)
+            api.upload_file(
+                path_or_fileobj=ckpt_path,
+                path_in_repo=f"foundation_recurrence_112_seed{s}_final.pth",
+                repo_id=repo_id,
+            )
+            print(f"  Uploaded flagship seed {s} (archive + top-level canonical)")
         print("Upload complete!")
 
     banner("RUN COMPLETE")
