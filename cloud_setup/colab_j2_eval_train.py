@@ -744,3 +744,410 @@ else:
 print("\n" + "=" * 70)
 print(f"J2 DISPATCH COMPLETE. Jobs run: {sorted(GEN2_JOBS)}")
 print("=" * 70)
+
+
+# ============================================================================
+# %% [markdown]
+# ## PHASE 4: Full AutoAttack Battery + Table Quarantine + ff_56 Upload + OPAL Gate
+#
+# Runs the complete AutoAttack suite (APGD-CE, APGD-T, FAB-T, Square) on the
+# two primary models (ff_112, recurrence_only) at matched eps = 5.417/255
+# on the canonical N=1000 seed-42 slice.
+#
+# This closes the "AA-core" caveat: prior reports used only PGD-50 and a
+# partial APGD-CE and omitted FAB-T and Square, leaving a gradient-masking
+# loophole open.
+#
+# Additionally:
+#   - Quarantines all result rows that lack per-sample arrays (cannot be
+#     McNemar-tested), marking them INVALID in the regenerated table.
+#   - Regenerates the canonical comparison table from raw numpy arrays only.
+#   - Uploads foundation_ff_56_final.pth under a unique timestamped name to
+#     FerrariKazu/rhan-nxa-g2-checkpoints so the stale file is not silently
+#     overwritten.
+#   - OPAL gate: checks for any foundation_recurrence_112_seed*_final.pth
+#     on HF; if none exist, prints a deferred notice and exits cleanly.
+# ============================================================================
+
+# %%
+if "D" not in GEN2_JOBS:
+    print("\nPHASE 4 (Job D) skipped. Set GEN2_JOBS to include 'D' to run.")
+else:
+    import datetime as _dt
+    import math as _math
+    import numpy as _np
+    import scipy.stats as _stats
+
+    # ── shared eval constants (same as JOB A) ───────────────────────────────
+    _EVAL_SEED   = 42
+    _EVAL_N      = 1000
+    _BATCH_D     = 32
+    _EPS_NORM    = 0.094
+    _EPS_PIX     = _EPS_NORM * 0.226      # IMAGENET_STD mean = 0.226
+    _IMAGENET_MEAN = [0.485, 0.456, 0.406]
+    _IMAGENET_STD  = [0.229, 0.224, 0.225]
+    _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    for _pkg in ["torchattacks", "autoattack"]:
+        try:
+            __import__(_pkg.replace("-", "_"))
+        except ImportError:
+            subprocess.run(["pip", "install", "--quiet", _pkg], check=True)
+
+    for mod in list(sys.modules.keys()):
+        if any(mod.startswith(p) for p in ["training", "gen2_foundation", "noesis_vision"]):
+            del sys.modules[mod]
+
+    from gen2_foundation.model import Gen2FoundationModel
+    from torchvision import datasets, transforms
+    from torch.utils.data import DataLoader, Subset
+
+    def _build_loader_d(img_size):
+        tf = transforms.Compose([
+            transforms.Resize((img_size, img_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=_IMAGENET_MEAN, std=_IMAGENET_STD),
+        ])
+        val_ds = datasets.ImageFolder(os.path.join(DATA_ROOT, "val"), transform=tf)
+        g = torch.Generator().manual_seed(_EVAL_SEED)
+        idx = torch.randperm(len(val_ds), generator=g)[:_EVAL_N].tolist()
+        return DataLoader(Subset(val_ds, idx), batch_size=_BATCH_D,
+                          shuffle=False, num_workers=2, pin_memory=True)
+
+    def _load_model_d(phase, img_size, ckpt_path):
+        m = Gen2FoundationModel(phase=phase, arm="v1", fovea_size=img_size).to(_DEVICE)
+        sd = torch.load(ckpt_path, map_location=_DEVICE, weights_only=False)
+        m.load_state_dict(sd.get("model", sd), strict=False)
+        m.eval()
+        return m
+
+    class _NormWrap(torch.nn.Module):
+        """Wrap a normalized model to accept [0,1] inputs for torchattacks."""
+        def __init__(self, base):
+            super().__init__()
+            self.base = base
+            m = torch.tensor(_IMAGENET_MEAN).view(1, 3, 1, 1)
+            s = torch.tensor(_IMAGENET_STD).view(1, 3, 1, 1)
+            self.register_buffer("_m", m)
+            self.register_buffer("_s", s)
+        def forward(self, x):
+            return self.base((x - self._m) / self._s)
+
+    def _run_full_aa(model_raw, loader, eps_norm):
+        """
+        Run the full AutoAttack suite (APGD-CE, APGD-T, FAB-T, Square).
+        model_raw: already normalised model (accepts standardised inputs).
+        Returns dict of {attack_name: np.ndarray(shape N, dtype int8)} correctness arrays.
+        """
+        import torchattacks
+
+        # torchattacks expects unnormalised [0,1] inputs
+        model_01 = _NormWrap(model_raw).to(_DEVICE)
+        model_01.eval()
+
+        # Collect all images and labels first (needed for torchattacks batch API)
+        all_x, all_y = [], []
+        for xb, yb in loader:
+            all_x.append(xb); all_y.append(yb)
+        all_x = torch.cat(all_x)
+        all_y = torch.cat(all_y)
+
+        attacks = {
+            "apgd_ce":  torchattacks.APGD(model_01, norm="Linf", eps=eps_norm,
+                                           steps=100, n_restarts=1, loss="ce", verbose=False),
+            "apgd_t":   torchattacks.APGDT(model_01, norm="Linf", eps=eps_norm,
+                                            steps=100, n_restarts=1, n_classes=100, verbose=False),
+            "fab_t":    torchattacks.FAB(model_01, norm="Linf", eps=eps_norm,
+                                         steps=100, n_restarts=1, n_classes=100, verbose=False),
+            "square":   torchattacks.Square(model_01, norm="Linf", eps=eps_norm,
+                                            n_queries=5000, n_restarts=1, verbose=False),
+        }
+
+        results = {}
+        for atk_name, atk in attacks.items():
+            print(f"    Running {atk_name} (n={len(all_x)}, eps={eps_norm:.4f})...", flush=True)
+            t0 = time.time()
+            correct = []
+            # process in smaller batches to avoid OOM
+            bs = 50
+            for i in range(0, len(all_x), bs):
+                xb = all_x[i:i+bs].to(_DEVICE)
+                yb = all_y[i:i+bs].to(_DEVICE)
+                # un-normalise for torchattacks (expects [0,1])
+                m = torch.tensor(_IMAGENET_MEAN).view(1,3,1,1).to(_DEVICE)
+                s = torch.tensor(_IMAGENET_STD).view(1,3,1,1).to(_DEVICE)
+                xb_01 = (xb * s + m).clamp(0, 1)
+                x_adv_01 = atk(xb_01, yb)
+                with torch.no_grad():
+                    preds = model_01(x_adv_01).argmax(-1)
+                correct.extend((preds == yb).cpu().numpy().tolist())
+            results[atk_name] = _np.array(correct, dtype=_np.int8)
+            acc = results[atk_name].mean() * 100
+            print(f"    {atk_name}: {acc:.2f}% ({time.time()-t0:.0f}s)", flush=True)
+
+        return results
+
+    # ── Target models ────────────────────────────────────────────────────────
+    _PHASE4_MODELS = [
+        ("ff_112",          "ff_112",          112, "checkpoints/foundation_ff_112_final.pth"),
+        ("recurrence_only", "recurrence_only",  56, "checkpoints/foundation_recurrence_only_final.pth"),
+    ]
+
+    _ts = _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%d_%H%M%S")
+    _phase4_dir = "report/audit_rev1"
+    os.makedirs(_phase4_dir, exist_ok=True)
+
+    _all_phase4 = {}  # label -> {clean, aa_results}
+    _all_arrays = {}  # label -> {attack_name: np.ndarray}
+
+    print(f"\n{'='*70}")
+    print(f"PHASE 4: Full AutoAttack Battery  (N={_EVAL_N}, seed={_EVAL_SEED}, eps={_EPS_NORM})")
+    print(f"{'='*70}")
+
+    for _label, _phase, _img_size, _ckpt in _PHASE4_MODELS:
+        if not os.path.exists(_ckpt):
+            print(f"\n  SKIP {_label}: checkpoint not found at {_ckpt}")
+            continue
+
+        print(f"\n{'─'*60}")
+        print(f"  {_label}  (img={_img_size}px  ckpt={os.path.basename(_ckpt)})")
+        print(f"{'─'*60}")
+
+        _loader = _build_loader_d(_img_size)
+        _model  = _load_model_d(_phase, _img_size, _ckpt)
+
+        # Clean
+        _clean_correct = []
+        _model.eval()
+        with torch.no_grad():
+            for _xb, _yb in _loader:
+                _xb, _yb = _xb.to(_DEVICE), _yb.to(_DEVICE)
+                _preds = _model(_xb).argmax(-1)
+                _clean_correct.extend((_preds == _yb).cpu().numpy().tolist())
+        _corr_clean = _np.array(_clean_correct, dtype=_np.int8)
+        print(f"    clean: {_corr_clean.mean()*100:.2f}%")
+
+        # Full AutoAttack
+        _aa_results = _run_full_aa(_model, _loader, _EPS_NORM)
+
+        # Worst-case = bitwise AND across all four attacks
+        _corr_worst = _np.stack(list(_aa_results.values()), axis=0).min(axis=0)
+        print(f"    Worst-case (AA-core): {_corr_worst.mean()*100:.2f}%")
+
+        _all_phase4[_label] = {
+            "clean_acc":      float(_corr_clean.mean()),
+            "apgd_ce_acc":    float(_aa_results["apgd_ce"].mean()),
+            "apgd_t_acc":     float(_aa_results["apgd_t"].mean()),
+            "fab_t_acc":      float(_aa_results["fab_t"].mean()),
+            "square_acc":     float(_aa_results["square"].mean()),
+            "worst_case_acc": float(_corr_worst.mean()),
+        }
+        _all_arrays[_label] = {
+            "clean":    _corr_clean,
+            "apgd_ce":  _aa_results["apgd_ce"],
+            "apgd_t":   _aa_results["apgd_t"],
+            "fab_t":    _aa_results["fab_t"],
+            "square":   _aa_results["square"],
+            "worst":    _corr_worst,
+        }
+
+    # ── Paired McNemar from raw arrays ──────────────────────────────────────
+    _mcnemar_phase4 = {}
+    _labels_present = [l for l in _all_arrays if "worst" in _all_arrays[l]]
+    if len(_labels_present) == 2:
+        _la, _lb = _labels_present[0], _labels_present[1]
+        _a_arr = _all_arrays[_la]["worst"]
+        _b_arr = _all_arrays[_lb]["worst"]
+        _b_count = int(((_a_arr == 1) & (_b_arr == 0)).sum())
+        _c_count = int(((_a_arr == 0) & (_b_arr == 1)).sum())
+        _n_disc  = _b_count + _c_count
+        _delta   = float(_a_arr.mean() - _b_arr.mean()) * 100.0
+        if _n_disc > 0:
+            _p_exact = float(_stats.binomtest(_b_count, _n_disc, 0.5, alternative="two-sided").pvalue)
+        else:
+            _p_exact = 1.0
+        _mcnemar_phase4[f"{_la}_vs_{_lb}"] = {
+            "b": _b_count, "c": _c_count,
+            "n_discordant": _n_disc,
+            "delta_pp": round(_delta, 3),
+            "p_exact": _p_exact,
+        }
+        print(f"\n  McNemar (worst-case AA-core, N={_EVAL_N}):")
+        print(f"    {_la} vs {_lb}: b={_b_count}, c={_c_count}, "
+              f"delta={_delta:+.2f}pp, p={_p_exact:.3e}")
+
+    # ── Summary table from raw arrays only ──────────────────────────────────
+    print(f"\n{'='*70}")
+    print(f"  PHASE 4 REGENERATED TABLE (from raw per-sample arrays, N={_EVAL_N})")
+    print(f"  eps={_EPS_NORM:.4f} (~{_EPS_PIX*255:.2f}/255)   seed={_EVAL_SEED}")
+    print(f"{'='*70}")
+    print(f"  {'Model':<20} {'Clean':>7} {'APGD-CE':>9} {'APGD-T':>8} "
+          f"{'FAB-T':>7} {'Square':>8} {'Worst':>7}")
+    print(f"  {'─'*20} {'─'*7} {'─'*9} {'─'*8} {'─'*7} {'─'*8} {'─'*7}")
+    for _lbl, _r in _all_phase4.items():
+        print(f"  {_lbl:<20} "
+              f"{_r['clean_acc']*100:>6.2f}% "
+              f"{_r['apgd_ce_acc']*100:>8.2f}% "
+              f"{_r['apgd_t_acc']*100:>7.2f}% "
+              f"{_r['fab_t_acc']*100:>6.2f}% "
+              f"{_r['square_acc']*100:>7.2f}% "
+              f"{_r['worst_case_acc']*100:>6.2f}%")
+
+    # ── Quarantine: mark any existing JOB A results that lack per-sample arrays
+    print(f"\n  QUARANTINE: Results without per-sample arrays cannot be McNemar-tested.")
+    _quarantine_log = []
+    for _jf in Path("report/audit_rev1").glob("joba_matched_eps_*.json"):
+        with open(_jf) as _f:
+            _j = json.load(_f)
+        _has_arrays = any(
+            "worst" in _all_arrays.get(_lbl, {})
+            for _lbl in _j.get("results", {})
+        )
+        if not _has_arrays:
+            _quarantine_log.append({
+                "file": str(_jf),
+                "reason": "No per-sample arrays; McNemar counts unverifiable",
+                "status": "INVALID",
+                "quarantined_at": _ts,
+            })
+            print(f"  QUARANTINE: {_jf.name} (no raw arrays, counts unverifiable)")
+
+    # ── Save Phase 4 artifact ────────────────────────────────────────────────
+    _p4_artifact = {
+        "phase": 4,
+        "timestamp": _ts,
+        "git_sha": sha,
+        "eval_n": _EVAL_N,
+        "eval_seed": _EVAL_SEED,
+        "eps_norm": _EPS_NORM,
+        "eps_pixel_255": round(_EPS_PIX * 255, 3),
+        "attacks": ["apgd_ce", "apgd_t", "fab_t", "square"],
+        "worst_case_note": "bitwise AND of all 4 attacks per sample",
+        "results": _all_phase4,
+        "mcnemar_worst_case": _mcnemar_phase4,
+        "quarantined_priors": _quarantine_log,
+    }
+    _p4_path = f"report/audit_rev1/phase4_full_aa_{_ts}.json"
+    with open(_p4_path, "w") as _f:
+        json.dump(_p4_artifact, _f, indent=2)
+    print(f"\n  Phase 4 artifact saved: {_p4_path}")
+
+    # Save per-sample arrays as .npz
+    _arr_flat = {}
+    for _lbl, _arrs in _all_arrays.items():
+        for _atk, _arr in _arrs.items():
+            _arr_flat[f"{_lbl}_{_atk}"] = _arr
+    _npz_path = f"report/audit_rev1/phase4_arrays_{_ts}.npz"
+    _np.savez_compressed(_npz_path, **_arr_flat)
+    print(f"  Per-sample arrays saved: {_npz_path}")
+
+    # Upload Phase 4 artifacts to HF
+    if hf_token:
+        try:
+            api.upload_file(path_or_fileobj=_p4_path,
+                            path_in_repo=os.path.basename(_p4_path),
+                            repo_id=HF_BEST, repo_type="dataset", token=hf_token)
+            api.upload_file(path_or_fileobj=_npz_path,
+                            path_in_repo=os.path.basename(_npz_path),
+                            repo_id=HF_BEST, repo_type="dataset", token=hf_token)
+            print("  Phase 4 artifacts uploaded to HuggingFace.")
+        except Exception as _e:
+            print(f"  Warning: HF upload failed: {_e}")
+
+    # ── Upload local ff_56 under a unique, timestamped name ─────────────────
+    print(f"\n{'─'*60}")
+    print("  UPLOADING LOCAL ff_56 UNDER UNIQUE NAME (no overwrite of stale HF copy)")
+    print(f"{'─'*60}")
+    _FF56_LOCAL = "checkpoints/foundation_ff_56_final.pth"
+    if os.path.exists(_FF56_LOCAL):
+        import hashlib as _hl
+        _h = _hl.sha256()
+        with open(_FF56_LOCAL, "rb") as _f:
+            for _chunk in iter(lambda: _f.read(1 << 20), b""):
+                _h.update(_chunk)
+        _ff56_sha = _h.hexdigest()[:12]
+        # Unique name includes timestamp + first 12 chars of sha256
+        _ff56_hf_name = f"foundation_ff_56_local_{_ts}_{_ff56_sha}.pth"
+        print(f"  Local file: {_FF56_LOCAL}")
+        print(f"  SHA-256 prefix: {_ff56_sha}")
+        print(f"  HF target name: {_ff56_hf_name}")
+        if hf_token:
+            try:
+                api.upload_file(
+                    path_or_fileobj=_FF56_LOCAL,
+                    path_in_repo=_ff56_hf_name,
+                    repo_id=HF_BEST,
+                    repo_type="dataset",
+                    token=hf_token,
+                )
+                print(f"  Uploaded: {_ff56_hf_name}")
+                # Record provenance
+                _ff56_prov = {
+                    "uploaded_at": _ts,
+                    "local_file": _FF56_LOCAL,
+                    "hf_name": _ff56_hf_name,
+                    "sha256_prefix": _ff56_sha,
+                    "note": (
+                        "True local ff_56 retrained with corrected TRADES-PGD4. "
+                        "Uploaded under unique name to preserve the stale HF copy "
+                        "for provenance tracing. Do NOT use 'foundation_ff_56_final.pth' "
+                        "on HF — use this file."
+                    ),
+                }
+                _prov_path = f"report/audit_rev1/ff56_upload_provenance_{_ts}.json"
+                with open(_prov_path, "w") as _f:
+                    json.dump(_ff56_prov, _f, indent=2)
+                api.upload_file(path_or_fileobj=_prov_path,
+                                path_in_repo=os.path.basename(_prov_path),
+                                repo_id=HF_BEST, repo_type="dataset", token=hf_token)
+                print(f"  Provenance record uploaded: {os.path.basename(_prov_path)}")
+            except Exception as _e:
+                print(f"  Warning: ff_56 HF upload failed: {_e}")
+        else:
+            print("  HF_TOKEN not set; skipping ff_56 upload.")
+    else:
+        print(f"  SKIP: {_FF56_LOCAL} not found locally.")
+
+    # ── OPAL GATE: Check if consolidated flagship exists ────────────────────
+    print(f"\n{'='*70}")
+    print("  OPAL GATE: Checking for consolidated flagship checkpoints")
+    print(f"{'='*70}")
+    _flagship_found = []
+    for _seed in [17, 42, 99]:
+        _local_path = f"checkpoints/foundation_recurrence_112_seed{_seed}_final.pth"
+        if os.path.exists(_local_path):
+            _flagship_found.append((_seed, _local_path, "local"))
+        elif hf_token:
+            # Check HF
+            try:
+                _hf_files = list(list_repo_files(repo_id=HF_BEST, repo_type="dataset", token=hf_token))
+                _hf_name = f"foundation_recurrence_112_seed{_seed}_final.pth"
+                if any(_hf_name in _fn for _fn in _hf_files):
+                    _flagship_found.append((_seed, _hf_name, "hf"))
+            except Exception:
+                pass
+
+    if not _flagship_found:
+        print("  OPAL: No consolidated flagship checkpoints found.")
+        print("  OPAL: The Kaggle run (seed 17) is currently training.")
+        print("  OPAL: This gate will pass once all 3 seeds complete and are uploaded.")
+        print("  OPAL STATUS: DEFERRED — all downstream OPAL analysis blocked until flagship exists.")
+    else:
+        print(f"  OPAL: Found {len(_flagship_found)}/3 flagship checkpoints:")
+        for _s, _p, _src in _flagship_found:
+            print(f"    seed={_s}  source={_src}  path={_p}")
+        if len(_flagship_found) < 3:
+            print(f"  OPAL STATUS: PARTIAL ({len(_flagship_found)}/3 seeds present) — wait for all 3.")
+        else:
+            print("  OPAL STATUS: GATE OPEN — all 3 flagship seeds available. OPAL may proceed.")
+
+    print(f"\n{'='*70}")
+    print("PHASE 4 COMPLETE.")
+    print(f"{'='*70}")
+
+
+# Dispatch complete banner
+print("\n" + "=" * 70)
+print(f"J2+PHASE4 DISPATCH COMPLETE. Jobs run: {sorted(GEN2_JOBS)}")
+print("=" * 70)
+
