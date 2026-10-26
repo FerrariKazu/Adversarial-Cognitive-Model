@@ -1,0 +1,84 @@
+{
+  "timestamp": "20261021_135827",
+  "eval_seed": 42,
+  "eval_n": 1000,
+  "target_eps_pixel_255": 5.417,
+  "target_eps_pixel_float": 0.02124313725490196,
+  "results": {
+    "ff_112": {
+      "clean_acc": 0.739,
+      "pgd50_acc": 0.385,
+      "apgd_ce_fp32_acc": 0.374,
+      "apgd_ce_amp_acc": 0.375,
+      "pgd200_3restarts_acc": 0.377,
+      "apgd_dlr_acc": 0.381,
+      "autoattack_core_acc": 0.362,
+      "worst_case_all_acc": 0.362,
+      "realized_linfs_pix255": {
+        "clean": 0.0,
+        "pgd50": 5.4170045256614685,
+        "apgd_ce_fp32": 5.4170045256614685,
+        "apgd_ce_autocast": 5.4170045256614685,
+        "pgd200_3restarts": 5.4170045256614685,
+        "apgd_dlr": 5.4170045256614685
+      }
+    },
+    "recurrence_only": {
+      "clean_acc": 0.652,
+      "pgd50_acc": 0.266,
+      "apgd_ce_fp32_acc": 0.249,
+      "apgd_ce_amp_acc": 0.25,
+      "pgd200_3restarts_acc": 0.25,
+      "apgd_dlr_acc": 0.253,
+      "autoattack_core_acc": 0.238,
+      "worst_case_all_acc": 0.237,
+      "realized_linfs_pix255": {
+        "clean": 0.0,
+        "pgd50": 5.4170045256614685,
+        "apgd_ce_fp32": 5.4170045256614685,
+        "apgd_ce_autocast": 5.4170045256614685,
+        "pgd200_3restarts": 5.4170045256614685,
+        "apgd_dlr": 5.4170045256614685
+      },
+      "transfer_from_ff112_acc": 0.478
+    },
+    "g2_gist_only": {
+      "clean_acc": 0.633,
+      "pgd50_acc": 0.211,
+      "apgd_ce_fp32_acc": 0.196,
+      "apgd_ce_amp_acc": 0.195,
+      "pgd200_3restarts_acc": 0.197,
+      "apgd_dlr_acc": 0.2,
+      "autoattack_core_acc": 0.185,
+      "worst_case_all_acc": 0.184,
+      "realized_linfs_pix255": {
+        "clean": 0.0,
+        "pgd50": 5.4170045256614685,
+        "apgd_ce_fp32": 5.4170045256614685,
+        "apgd_ce_autocast": 5.4170045256614685,
+        "pgd200_3restarts": 5.4170045256614685,
+        "apgd_dlr": 5.4170045256614685
+      },
+      "transfer_from_ff112_acc": 0.46
+    },
+    "gen1_core": {
+      "clean_acc": 0.588,
+      "pgd50_acc": 0.223,
+      "apgd_ce_fp32_acc": 0.222,
+      "apgd_ce_amp_acc": 0.219,
+      "pgd200_3restarts_acc": 0.209,
+      "apgd_dlr_acc": 0.239,
+      "autoattack_core_acc": 0.212,
+      "worst_case_all_acc": 0.193,
+      "realized_linfs_pix255": {
+        "clean": 0.0,
+        "pgd50": 5.4170045256614685,
+        "apgd_ce_fp32": 5.4170045256614685,
+        "apgd_ce_autocast": 5.4170045256614685,
+        "pgd200_3restarts": 5.4170045256614685,
+        "apgd_dlr": 5.4170045256614685
+      },
+      "transfer_from_ff112_acc": 0.447
+    }
+  }
+}

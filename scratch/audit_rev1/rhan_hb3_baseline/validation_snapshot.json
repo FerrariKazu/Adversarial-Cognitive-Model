@@ -1,0 +1,26 @@
+{
+  "schema": "rhan-validation-snapshot/1",
+  "captured_utc": "2026-10-21T04:45:04.663158",
+  "findings": [
+    {
+      "severity": "INFO",
+      "check": "D5b",
+      "detail": "11 part-divider page(s) (expected): ['p003-003.png', 'p023-023.png', 'p034-034.png', 'p053-053.png', 'p076-076.png', 'p086-086.png', 'p107-107.png', 'p114-114.png', 'p121-121.png', 'p134-134.png', 'p145-145.png']"
+    },
+    {
+      "severity": "INFO",
+      "check": "D6",
+      "detail": "rendered and measured 168 of 168 pages"
+    },
+    {
+      "severity": "WARN",
+      "check": "D8",
+      "detail": "92 overfull hbox warning(s) in the LaTeX log"
+    },
+    {
+      "severity": "WARN",
+      "check": "D8",
+      "detail": "48 underfull hbox warning(s) in the LaTeX log"
+    }
+  ]
+}

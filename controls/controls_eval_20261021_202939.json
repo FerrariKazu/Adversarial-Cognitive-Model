@@ -1,0 +1,33 @@
+{
+  "timestamp": "20261021_202939",
+  "eval_seed": 42,
+  "eval_n": 1000,
+  "eps_pixel_255": 5.417,
+  "controls_jobs": [
+    "C1",
+    "C2"
+  ],
+  "results": {
+    "g2_gist_only_cont": {
+      "clean_acc": 0.598,
+      "pgd50_acc": 0.24,
+      "apgd_ce_acc": 0.234,
+      "apgd_dlr_acc": 0.237,
+      "worst_case_acc": 0.225
+    },
+    "ff_56": {
+      "clean_acc": 0.679,
+      "pgd50_acc": 0.085,
+      "apgd_ce_acc": 0.063,
+      "apgd_dlr_acc": 0.084,
+      "worst_case_acc": 0.061
+    },
+    "recurrence_only": {
+      "clean_acc": 0.652,
+      "pgd50_acc": 0.266,
+      "apgd_ce_acc": 0.249,
+      "apgd_dlr_acc": 0.253,
+      "worst_case_acc": 0.238
+    }
+  }
+}

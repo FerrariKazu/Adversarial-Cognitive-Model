@@ -1,0 +1,1090 @@
+
+======================================================================
+[Gen-2] Launching: arch_phase='c4_four_views_no_refine'  eff_name='c4_four_views_no_refine'  arm=v1  device=cuda
+======================================================================
+Gen-2 Curriculum Mapping (Normalized Space -> Pixel Space Equivalence):
+  ImageNet std: (0.229, 0.224, 0.225) (mean std: 0.2260)
+  eps_norm=0.000  ->  eps_pixel=0.0000  (~0.0/255)
+  eps_norm=0.031  ->  eps_pixel=0.0070  (~1.8/255)
+  eps_norm=0.062  ->  eps_pixel=0.0140  (~3.6/255)
+  eps_norm=0.094  ->  eps_pixel=0.0212  (~5.4/255)
+======================================================================
+[c4_four_views_no_refine] Inheriting weights from checkpoints/foundation_g2_gist_only_final.pth
+[Curriculum] c4_four_views_no_refine ep 1/15 -> eps_norm=0.0940 (pix=0.0212) beta=2.5 pgd=4 w_trades=0.55
+  [c4_four_views_no_refine] Ep 1/15 [   1/1979 |   0.1%] loss: 1.2112 (ce: 1.3211, kl: 0.3524) | lr: 1.67e-05 | gnorm: 10.65 | 3.8 img/s | eta: 558.0m
+  [c4_four_views_no_refine] Ep 1/15 [  25/1979 |   1.3%] loss: 1.1162 (ce: 1.0064, kl: 0.4092) | lr: 1.67e-05 | gnorm: 11.29 | 35.5 img/s | eta: 58.7m
+  [c4_four_views_no_refine] Ep 1/15 [  50/1979 |   2.5%] loss: 1.1346 (ce: 1.0017, kl: 0.4245) | lr: 1.67e-05 | gnorm: 12.01 | 44.1 img/s | eta: 46.7m
+  [c4_four_views_no_refine] Ep 1/15 [  75/1979 |   3.8%] loss: 1.1433 (ce: 1.0013, kl: 0.4310) | lr: 1.67e-05 | gnorm: 12.22 | 48.3 img/s | eta: 42.0m
+  [c4_four_views_no_refine] Ep 1/15 [ 100/1979 |   5.1%] loss: 1.1467 (ce: 0.9977, kl: 0.4349) | lr: 1.67e-05 | gnorm: 10.97 | 51.0 img/s | eta: 39.3m
+  [c4_four_views_no_refine] Ep 1/15 [ 125/1979 |   6.3%] loss: 1.1528 (ce: 0.9859, kl: 0.4440) | lr: 1.67e-05 | gnorm: 12.52 | 52.7 img/s | eta: 37.5m
+  [c4_four_views_no_refine] Ep 1/15 [ 150/1979 |   7.6%] loss: 1.1563 (ce: 0.9838, kl: 0.4475) | lr: 1.67e-05 | gnorm: 13.71 | 53.9 img/s | eta: 36.2m
+  [c4_four_views_no_refine] Ep 1/15 [ 175/1979 |   8.8%] loss: 1.1560 (ce: 0.9806, kl: 0.4485) | lr: 1.67e-05 | gnorm: 13.75 | 54.7 img/s | eta: 35.2m
+  [c4_four_views_no_refine] Ep 1/15 [ 200/1979 |  10.1%] loss: 1.1590 (ce: 0.9795, kl: 0.4511) | lr: 1.67e-05 | gnorm: 14.00 | 55.3 img/s | eta: 34.3m
+  [c4_four_views_no_refine] Ep 1/15 [ 225/1979 |  11.4%] loss: 1.1578 (ce: 0.9753, kl: 0.4519) | lr: 1.67e-05 | gnorm: 13.57 | 55.7 img/s | eta: 33.6m
+  [c4_four_views_no_refine] Ep 1/15 [ 250/1979 |  12.6%] loss: 1.1585 (ce: 0.9654, kl: 0.4564) | lr: 1.67e-05 | gnorm: 13.63 | 56.1 img/s | eta: 32.9m
+  [c4_four_views_no_refine] Ep 1/15 [ 275/1979 |  13.9%] loss: 1.1596 (ce: 0.9622, kl: 0.4585) | lr: 1.67e-05 | gnorm: 11.34 | 56.5 img/s | eta: 32.2m
+  [c4_four_views_no_refine] Ep 1/15 [ 300/1979 |  15.2%] loss: 1.1618 (ce: 0.9622, kl: 0.4601) | lr: 1.67e-05 | gnorm: 14.77 | 56.8 img/s | eta: 31.5m
+  [c4_four_views_no_refine] Ep 1/15 [ 325/1979 |  16.4%] loss: 1.1631 (ce: 0.9618, kl: 0.4612) | lr: 1.67e-05 | gnorm: 10.06 | 56.8 img/s | eta: 31.1m
+  [c4_four_views_no_refine] Ep 1/15 [ 350/1979 |  17.7%] loss: 1.1601 (ce: 0.9596, kl: 0.4599) | lr: 1.67e-05 | gnorm: 11.55 | 57.1 img/s | eta: 30.4m
+  [c4_four_views_no_refine] Ep 1/15 [ 375/1979 |  18.9%] loss: 1.1595 (ce: 0.9583, kl: 0.4600) | lr: 1.67e-05 | gnorm: 13.39 | 57.5 img/s | eta: 29.8m
+  [c4_four_views_no_refine] Ep 1/15 [ 400/1979 |  20.2%] loss: 1.1589 (ce: 0.9578, kl: 0.4597) | lr: 1.67e-05 | gnorm: 10.93 | 57.2 img/s | eta: 29.4m
+  [c4_four_views_no_refine] Ep 1/15 [ 425/1979 |  21.5%] loss: 1.1567 (ce: 0.9556, kl: 0.4590) | lr: 1.67e-05 | gnorm: 13.78 | 58.2 img/s | eta: 28.5m
+  [c4_four_views_no_refine] Ep 1/15 [ 450/1979 |  22.7%] loss: 1.1579 (ce: 0.9551, kl: 0.4601) | lr: 1.67e-05 | gnorm: 12.49 | 59.1 img/s | eta: 27.6m
+  [c4_four_views_no_refine] Ep 1/15 [ 475/1979 |  24.0%] loss: 1.1571 (ce: 0.9532, kl: 0.4602) | lr: 1.67e-05 | gnorm: 12.14 | 59.3 img/s | eta: 27.0m
+  [c4_four_views_no_refine] Ep 1/15 [ 500/1979 |  25.3%] loss: 1.1575 (ce: 0.9513, kl: 0.4613) | lr: 1.67e-05 | gnorm: 10.60 | 59.4 img/s | eta: 26.6m
+  [c4_four_views_no_refine] Ep 1/15 [ 525/1979 |  26.5%] loss: 1.1579 (ce: 0.9503, kl: 0.4620) | lr: 1.67e-05 | gnorm: 14.36 | 60.0 img/s | eta: 25.9m
+  [c4_four_views_no_refine] Ep 1/15 [ 550/1979 |  27.8%] loss: 1.1581 (ce: 0.9486, kl: 0.4628) | lr: 1.67e-05 | gnorm: 15.23 | 60.6 img/s | eta: 25.1m
+  [c4_four_views_no_refine] Ep 1/15 [ 575/1979 |  29.1%] loss: 1.1564 (ce: 0.9462, kl: 0.4625) | lr: 1.67e-05 | gnorm: 12.59 | 61.3 img/s | eta: 24.4m
+  [c4_four_views_no_refine] Ep 1/15 [ 600/1979 |  30.3%] loss: 1.1563 (ce: 0.9464, kl: 0.4624) | lr: 1.67e-05 | gnorm: 14.08 | 62.0 img/s | eta: 23.7m
+  [c4_four_views_no_refine] Ep 1/15 [ 625/1979 |  31.6%] loss: 1.1571 (ce: 0.9462, kl: 0.4630) | lr: 1.67e-05 | gnorm: 15.08 | 62.5 img/s | eta: 23.1m
+  [c4_four_views_no_refine] Ep 1/15 [ 650/1979 |  32.8%] loss: 1.1574 (ce: 0.9473, kl: 0.4628) | lr: 1.67e-05 | gnorm: 10.59 | 63.1 img/s | eta: 22.5m
+  [c4_four_views_no_refine] Ep 1/15 [ 675/1979 |  34.1%] loss: 1.1567 (ce: 0.9459, kl: 0.4629) | lr: 1.67e-05 | gnorm: 13.20 | 63.6 img/s | eta: 21.9m
+  [c4_four_views_no_refine] Ep 1/15 [ 700/1979 |  35.4%] loss: 1.1574 (ce: 0.9456, kl: 0.4635) | lr: 1.67e-05 | gnorm: 15.29 | 64.0 img/s | eta: 21.3m
+  [c4_four_views_no_refine] Ep 1/15 [ 725/1979 |  36.6%] loss: 1.1583 (ce: 0.9459, kl: 0.4640) | lr: 1.67e-05 | gnorm: 13.74 | 64.5 img/s | eta: 20.7m
+  [c4_four_views_no_refine] Ep 1/15 [ 750/1979 |  37.9%] loss: 1.1575 (ce: 0.9451, kl: 0.4638) | lr: 1.67e-05 | gnorm: 12.30 | 64.9 img/s | eta: 20.2m
+  [c4_four_views_no_refine] Ep 1/15 [ 775/1979 |  39.2%] loss: 1.1575 (ce: 0.9440, kl: 0.4642) | lr: 1.67e-05 | gnorm: 13.38 | 65.3 img/s | eta: 19.7m
+  [c4_four_views_no_refine] Ep 1/15 [ 800/1979 |  40.4%] loss: 1.1581 (ce: 0.9432, kl: 0.4650) | lr: 1.67e-05 | gnorm: 12.93 | 65.7 img/s | eta: 19.1m
+  [c4_four_views_no_refine] Ep 1/15 [ 825/1979 |  41.7%] loss: 1.1574 (ce: 0.9425, kl: 0.4648) | lr: 1.67e-05 | gnorm: 11.66 | 66.1 img/s | eta: 18.6m
+  [c4_four_views_no_refine] Ep 1/15 [ 850/1979 |  43.0%] loss: 1.1579 (ce: 0.9420, kl: 0.4653) | lr: 1.67e-05 | gnorm: 11.08 | 66.5 img/s | eta: 18.1m
+  [c4_four_views_no_refine] Ep 1/15 [ 875/1979 |  44.2%] loss: 1.1581 (ce: 0.9426, kl: 0.4652) | lr: 1.67e-05 | gnorm: 14.48 | 66.8 img/s | eta: 17.6m
+  [c4_four_views_no_refine] Ep 1/15 [ 900/1979 |  45.5%] loss: 1.1587 (ce: 0.9428, kl: 0.4656) | lr: 1.67e-05 | gnorm: 14.46 | 67.2 img/s | eta: 17.1m
+  [c4_four_views_no_refine] Ep 1/15 [ 925/1979 |  46.7%] loss: 1.1585 (ce: 0.9427, kl: 0.4655) | lr: 1.67e-05 | gnorm: 11.25 | 67.5 img/s | eta: 16.7m
+  [c4_four_views_no_refine] Ep 1/15 [ 950/1979 |  48.0%] loss: 1.1586 (ce: 0.9420, kl: 0.4658) | lr: 1.67e-05 | gnorm: 11.91 | 67.8 img/s | eta: 16.2m
+  [c4_four_views_no_refine] Ep 1/15 [ 975/1979 |  49.3%] loss: 1.1586 (ce: 0.9420, kl: 0.4658) | lr: 1.67e-05 | gnorm: 13.38 | 67.9 img/s | eta: 15.8m
+  [c4_four_views_no_refine] Ep 1/15 [1000/1979 |  50.5%] loss: 1.1578 (ce: 0.9418, kl: 0.4653) | lr: 1.67e-05 | gnorm: 14.56 | 67.6 img/s | eta: 15.4m
+  [c4_four_views_no_refine] Ep 1/15 [1025/1979 |  51.8%] loss: 1.1579 (ce: 0.9414, kl: 0.4656) | lr: 1.67e-05 | gnorm: 11.51 | 67.3 img/s | eta: 15.1m
+  [c4_four_views_no_refine] Ep 1/15 [1050/1979 |  53.1%] loss: 1.1584 (ce: 0.9416, kl: 0.4658) | lr: 1.67e-05 | gnorm: 14.12 | 66.7 img/s | eta: 14.8m
+  [c4_four_views_no_refine] Ep 1/15 [1075/1979 |  54.3%] loss: 1.1579 (ce: 0.9404, kl: 0.4659) | lr: 1.67e-05 | gnorm: 14.22 | 66.3 img/s | eta: 14.5m
+  [c4_four_views_no_refine] Ep 1/15 [1100/1979 |  55.6%] loss: 1.1572 (ce: 0.9391, kl: 0.4660) | lr: 1.67e-05 | gnorm: 12.38 | 66.3 img/s | eta: 14.1m
+  [c4_four_views_no_refine] Ep 1/15 [1125/1979 |  56.8%] loss: 1.1578 (ce: 0.9395, kl: 0.4662) | lr: 1.67e-05 | gnorm: 13.52 | 66.6 img/s | eta: 13.7m
+  [c4_four_views_no_refine] Ep 1/15 [1150/1979 |  58.1%] loss: 1.1568 (ce: 0.9387, kl: 0.4658) | lr: 1.67e-05 | gnorm: 11.85 | 66.8 img/s | eta: 13.2m
+  [c4_four_views_no_refine] Ep 1/15 [1175/1979 |  59.4%] loss: 1.1575 (ce: 0.9392, kl: 0.4661) | lr: 1.67e-05 | gnorm: 11.42 | 67.0 img/s | eta: 12.8m
+  [c4_four_views_no_refine] Ep 1/15 [1200/1979 |  60.6%] loss: 1.1573 (ce: 0.9393, kl: 0.4660) | lr: 1.67e-05 | gnorm: 11.34 | 67.3 img/s | eta: 12.4m
+  [c4_four_views_no_refine] Ep 1/15 [1225/1979 |  61.9%] loss: 1.1569 (ce: 0.9382, kl: 0.4661) | lr: 1.67e-05 | gnorm: 13.86 | 67.5 img/s | eta: 11.9m
+  [c4_four_views_no_refine] Ep 1/15 [1250/1979 |  63.2%] loss: 1.1576 (ce: 0.9378, kl: 0.4667) | lr: 1.67e-05 | gnorm: 12.50 | 67.7 img/s | eta: 11.5m
+  [c4_four_views_no_refine] Ep 1/15 [1275/1979 |  64.4%] loss: 1.1577 (ce: 0.9373, kl: 0.4671) | lr: 1.67e-05 | gnorm: 13.85 | 67.9 img/s | eta: 11.1m
+  [c4_four_views_no_refine] Ep 1/15 [1300/1979 |  65.7%] loss: 1.1580 (ce: 0.9381, kl: 0.4669) | lr: 1.67e-05 | gnorm: 10.09 | 68.1 img/s | eta: 10.6m
+  [c4_four_views_no_refine] Ep 1/15 [1325/1979 |  67.0%] loss: 1.1577 (ce: 0.9373, kl: 0.4670) | lr: 1.67e-05 | gnorm: 12.18 | 68.3 img/s | eta: 10.2m
+  [c4_four_views_no_refine] Ep 1/15 [1350/1979 |  68.2%] loss: 1.1571 (ce: 0.9367, kl: 0.4669) | lr: 1.67e-05 | gnorm: 11.69 | 68.5 img/s | eta: 9.8m
+  [c4_four_views_no_refine] Ep 1/15 [1375/1979 |  69.5%] loss: 1.1571 (ce: 0.9366, kl: 0.4669) | lr: 1.67e-05 | gnorm: 15.21 | 68.7 img/s | eta: 9.4m
+  [c4_four_views_no_refine] Ep 1/15 [1400/1979 |  70.7%] loss: 1.1566 (ce: 0.9365, kl: 0.4666) | lr: 1.67e-05 | gnorm: 12.97 | 68.8 img/s | eta: 9.0m
+  [c4_four_views_no_refine] Ep 1/15 [1425/1979 |  72.0%] loss: 1.1570 (ce: 0.9366, kl: 0.4668) | lr: 1.67e-05 | gnorm: 14.19 | 68.9 img/s | eta: 8.6m
+  [c4_four_views_no_refine] Ep 1/15 [1450/1979 |  73.3%] loss: 1.1571 (ce: 0.9366, kl: 0.4669) | lr: 1.67e-05 | gnorm: 14.15 | 69.1 img/s | eta: 8.2m
+  [c4_four_views_no_refine] Ep 1/15 [1475/1979 |  74.5%] loss: 1.1570 (ce: 0.9366, kl: 0.4668) | lr: 1.67e-05 | gnorm: 11.90 | 69.2 img/s | eta: 7.8m
+  [c4_four_views_no_refine] Ep 1/15 [1500/1979 |  75.8%] loss: 1.1576 (ce: 0.9366, kl: 0.4672) | lr: 1.67e-05 | gnorm: 13.65 | 69.3 img/s | eta: 7.4m
+  [c4_four_views_no_refine] Ep 1/15 [1525/1979 |  77.1%] loss: 1.1579 (ce: 0.9371, kl: 0.4673) | lr: 1.67e-05 | gnorm: 11.25 | 69.5 img/s | eta: 7.0m
+  [c4_four_views_no_refine] Ep 1/15 [1550/1979 |  78.3%] loss: 1.1575 (ce: 0.9361, kl: 0.4674) | lr: 1.67e-05 | gnorm: 10.16 | 69.7 img/s | eta: 6.6m
+  [c4_four_views_no_refine] Ep 1/15 [1575/1979 |  79.6%] loss: 1.1578 (ce: 0.9356, kl: 0.4678) | lr: 1.67e-05 | gnorm: 12.15 | 69.8 img/s | eta: 6.2m
+  [c4_four_views_no_refine] Ep 1/15 [1600/1979 |  80.8%] loss: 1.1574 (ce: 0.9357, kl: 0.4675) | lr: 1.67e-05 | gnorm: 11.30 | 70.0 img/s | eta: 5.8m
+  [c4_four_views_no_refine] Ep 1/15 [1625/1979 |  82.1%] loss: 1.1575 (ce: 0.9358, kl: 0.4675) | lr: 1.67e-05 | gnorm: 12.73 | 70.1 img/s | eta: 5.4m
+  [c4_four_views_no_refine] Ep 1/15 [1650/1979 |  83.4%] loss: 1.1571 (ce: 0.9349, kl: 0.4676) | lr: 1.67e-05 | gnorm: 11.52 | 70.2 img/s | eta: 5.0m
+  [c4_four_views_no_refine] Ep 1/15 [1675/1979 |  84.6%] loss: 1.1570 (ce: 0.9351, kl: 0.4674) | lr: 1.67e-05 | gnorm: 13.54 | 70.2 img/s | eta: 4.6m
+  [c4_four_views_no_refine] Ep 1/15 [1700/1979 |  85.9%] loss: 1.1567 (ce: 0.9347, kl: 0.4673) | lr: 1.67e-05 | gnorm: 13.69 | 70.1 img/s | eta: 4.2m
+  [c4_four_views_no_refine] Ep 1/15 [1725/1979 |  87.2%] loss: 1.1560 (ce: 0.9342, kl: 0.4671) | lr: 1.67e-05 | gnorm: 11.63 | 70.2 img/s | eta: 3.9m
+  [c4_four_views_no_refine] Ep 1/15 [1750/1979 |  88.4%] loss: 1.1560 (ce: 0.9344, kl: 0.4670) | lr: 1.67e-05 | gnorm: 13.61 | 70.4 img/s | eta: 3.5m
+  [c4_four_views_no_refine] Ep 1/15 [1775/1979 |  89.7%] loss: 1.1564 (ce: 0.9350, kl: 0.4670) | lr: 1.67e-05 | gnorm: 14.88 | 70.6 img/s | eta: 3.1m
+  [c4_four_views_no_refine] Ep 1/15 [1800/1979 |  91.0%] loss: 1.1566 (ce: 0.9353, kl: 0.4671) | lr: 1.67e-05 | gnorm: 13.39 | 70.8 img/s | eta: 2.7m
+  [c4_four_views_no_refine] Ep 1/15 [1825/1979 |  92.2%] loss: 1.1568 (ce: 0.9357, kl: 0.4670) | lr: 1.67e-05 | gnorm: 13.29 | 71.0 img/s | eta: 2.3m
+  [c4_four_views_no_refine] Ep 1/15 [1850/1979 |  93.5%] loss: 1.1567 (ce: 0.9356, kl: 0.4670) | lr: 1.67e-05 | gnorm: 12.04 | 71.2 img/s | eta: 1.9m
+  [c4_four_views_no_refine] Ep 1/15 [1875/1979 |  94.7%] loss: 1.1566 (ce: 0.9351, kl: 0.4671) | lr: 1.67e-05 | gnorm: 12.23 | 71.4 img/s | eta: 1.6m
+  [c4_four_views_no_refine] Ep 1/15 [1900/1979 |  96.0%] loss: 1.1565 (ce: 0.9346, kl: 0.4673) | lr: 1.67e-05 | gnorm: 12.74 | 71.2 img/s | eta: 1.2m
+  [c4_four_views_no_refine] Ep 1/15 [1925/1979 |  97.3%] loss: 1.1563 (ce: 0.9344, kl: 0.4672) | lr: 1.67e-05 | gnorm: 14.91 | 71.1 img/s | eta: 0.8m
+  [c4_four_views_no_refine] Ep 1/15 [1950/1979 |  98.5%] loss: 1.1567 (ce: 0.9350, kl: 0.4672) | lr: 1.67e-05 | gnorm: 11.76 | 71.0 img/s | eta: 0.4m
+  [c4_four_views_no_refine] Ep 1/15 [1975/1979 |  99.8%] loss: 1.1570 (ce: 0.9355, kl: 0.4672) | lr: 1.67e-05 | gnorm: 12.20 | 70.8 img/s | eta: 0.1m
+  [c4_four_views_no_refine] Ep 1/15 [1979/1979 | 100.0%] loss: 1.1569 (ce: 0.9354, kl: 0.4672) | lr: 1.67e-05 | gnorm: 13.09 | 70.9 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Running clean validation (5,000 images)...
+  [c4_four_views_no_refine] Running robust validation (512 images, PGD-10 @ eps=0.094)...
+----------------------------------------------------------------------
+[c4_four_views_no_refine] Epoch 1/15 (1803.0s, VRAM: 2016MB) | session: 0.50h/11h | phase ETA: 420.7m
+  val_acc[CLEAN]:  60.90% (best: 60.90%)
+  val_acc[ROBUST]: 21.29% (eps=0.094, best: 21.29%)
+  loss: total=1.1569 ce=0.9354 kl=0.4672
+  lr: backbone_decay: 3.33e-05, backbone_no_decay: 3.33e-05, classifier_decay: 3.33e-04
+  gnorm: backbone_decay: 13.09, backbone_no_decay: 1.44, classifier_decay: 1.57, classifier_no_decay: 0.08
+  health flags: ['OK']
+----------------------------------------------------------------------
+[Curriculum] c4_four_views_no_refine ep 2/15 -> eps_norm=0.0940 (pix=0.0212) beta=2.5 pgd=4 w_trades=0.55
+  [c4_four_views_no_refine] Ep 2/15 [   1/1979 |   0.1%] loss: 1.2575 (ce: 1.0437, kl: 0.4971) | lr: 3.33e-05 | gnorm: 13.65 | 39.8 img/s | eta: 53.0m
+  [c4_four_views_no_refine] Ep 2/15 [  25/1979 |   1.3%] loss: 1.1275 (ce: 0.8560, kl: 0.4776) | lr: 3.33e-05 | gnorm: 13.96 | 69.0 img/s | eta: 30.2m
+  [c4_four_views_no_refine] Ep 2/15 [  50/1979 |   2.5%] loss: 1.1650 (ce: 0.9104, kl: 0.4831) | lr: 3.33e-05 | gnorm: 11.18 | 75.4 img/s | eta: 27.3m
+  [c4_four_views_no_refine] Ep 2/15 [  75/1979 |   3.8%] loss: 1.1632 (ce: 0.9090, kl: 0.4824) | lr: 3.33e-05 | gnorm: 13.19 | 77.4 img/s | eta: 26.2m
+  [c4_four_views_no_refine] Ep 2/15 [ 100/1979 |   5.1%] loss: 1.1581 (ce: 0.9089, kl: 0.4787) | lr: 3.33e-05 | gnorm: 11.12 | 77.0 img/s | eta: 26.0m
+  [c4_four_views_no_refine] Ep 2/15 [ 125/1979 |   6.3%] loss: 1.1614 (ce: 0.9234, kl: 0.4753) | lr: 3.33e-05 | gnorm: 14.20 | 76.6 img/s | eta: 25.8m
+  [c4_four_views_no_refine] Ep 2/15 [ 150/1979 |   7.6%] loss: 1.1632 (ce: 0.9384, kl: 0.4706) | lr: 3.33e-05 | gnorm: 12.03 | 77.4 img/s | eta: 25.2m
+  [c4_four_views_no_refine] Ep 2/15 [ 175/1979 |   8.8%] loss: 1.1643 (ce: 0.9469, kl: 0.4680) | lr: 3.33e-05 | gnorm: 10.64 | 78.0 img/s | eta: 24.7m
+  [c4_four_views_no_refine] Ep 2/15 [ 200/1979 |  10.1%] loss: 1.1610 (ce: 0.9531, kl: 0.4631) | lr: 3.33e-05 | gnorm: 12.56 | 77.7 img/s | eta: 24.4m
+  [c4_four_views_no_refine] Ep 2/15 [ 225/1979 |  11.4%] loss: 1.1609 (ce: 0.9563, kl: 0.4617) | lr: 3.33e-05 | gnorm: 11.62 | 77.7 img/s | eta: 24.1m
+  [c4_four_views_no_refine] Ep 2/15 [ 250/1979 |  12.6%] loss: 1.1632 (ce: 0.9639, kl: 0.4604) | lr: 3.33e-05 | gnorm: 12.74 | 77.9 img/s | eta: 23.7m
+  [c4_four_views_no_refine] Ep 2/15 [ 275/1979 |  13.9%] loss: 1.1655 (ce: 0.9682, kl: 0.4603) | lr: 3.33e-05 | gnorm: 12.06 | 78.0 img/s | eta: 23.3m
+  [c4_four_views_no_refine] Ep 2/15 [ 300/1979 |  15.2%] loss: 1.1662 (ce: 0.9753, kl: 0.4580) | lr: 3.33e-05 | gnorm: 11.75 | 77.8 img/s | eta: 23.0m
+  [c4_four_views_no_refine] Ep 2/15 [ 325/1979 |  16.4%] loss: 1.1666 (ce: 0.9770, kl: 0.4576) | lr: 3.33e-05 | gnorm: 10.44 | 77.4 img/s | eta: 22.8m
+  [c4_four_views_no_refine] Ep 2/15 [ 350/1979 |  17.7%] loss: 1.1680 (ce: 0.9778, kl: 0.4583) | lr: 3.33e-05 | gnorm: 13.03 | 77.7 img/s | eta: 22.4m
+  [c4_four_views_no_refine] Ep 2/15 [ 375/1979 |  18.9%] loss: 1.1681 (ce: 0.9776, kl: 0.4585) | lr: 3.33e-05 | gnorm: 10.95 | 78.0 img/s | eta: 21.9m
+  [c4_four_views_no_refine] Ep 2/15 [ 400/1979 |  20.2%] loss: 1.1688 (ce: 0.9795, kl: 0.4582) | lr: 3.33e-05 | gnorm: 15.34 | 78.1 img/s | eta: 21.6m
+  [c4_four_views_no_refine] Ep 2/15 [ 425/1979 |  21.5%] loss: 1.1724 (ce: 0.9829, kl: 0.4595) | lr: 3.33e-05 | gnorm: 11.93 | 77.9 img/s | eta: 21.3m
+  [c4_four_views_no_refine] Ep 2/15 [ 450/1979 |  22.7%] loss: 1.1724 (ce: 0.9853, kl: 0.4585) | lr: 3.33e-05 | gnorm: 11.47 | 78.0 img/s | eta: 20.9m
+  [c4_four_views_no_refine] Ep 2/15 [ 475/1979 |  24.0%] loss: 1.1753 (ce: 0.9904, kl: 0.4586) | lr: 3.33e-05 | gnorm: 12.37 | 78.3 img/s | eta: 20.5m
+  [c4_four_views_no_refine] Ep 2/15 [ 500/1979 |  25.3%] loss: 1.1764 (ce: 0.9911, kl: 0.4591) | lr: 3.33e-05 | gnorm: 13.02 | 78.4 img/s | eta: 20.1m
+  [c4_four_views_no_refine] Ep 2/15 [ 525/1979 |  26.5%] loss: 1.1771 (ce: 0.9948, kl: 0.4582) | lr: 3.33e-05 | gnorm: 12.15 | 78.2 img/s | eta: 19.8m
+  [c4_four_views_no_refine] Ep 2/15 [ 550/1979 |  27.8%] loss: 1.1782 (ce: 0.9952, kl: 0.4588) | lr: 3.33e-05 | gnorm: 12.98 | 78.4 img/s | eta: 19.5m
+  [c4_four_views_no_refine] Ep 2/15 [ 575/1979 |  29.1%] loss: 1.1789 (ce: 0.9968, kl: 0.4587) | lr: 3.33e-05 | gnorm: 12.29 | 78.4 img/s | eta: 19.1m
+  [c4_four_views_no_refine] Ep 2/15 [ 600/1979 |  30.3%] loss: 1.1802 (ce: 0.9980, kl: 0.4591) | lr: 3.33e-05 | gnorm: 13.45 | 78.4 img/s | eta: 18.8m
+  [c4_four_views_no_refine] Ep 2/15 [ 625/1979 |  31.6%] loss: 1.1810 (ce: 0.9996, kl: 0.4591) | lr: 3.33e-05 | gnorm: 10.46 | 78.5 img/s | eta: 18.4m
+  [c4_four_views_no_refine] Ep 2/15 [ 650/1979 |  32.8%] loss: 1.1803 (ce: 0.9988, kl: 0.4589) | lr: 3.33e-05 | gnorm: 12.10 | 78.6 img/s | eta: 18.0m
+  [c4_four_views_no_refine] Ep 2/15 [ 675/1979 |  34.1%] loss: 1.1811 (ce: 1.0005, kl: 0.4588) | lr: 3.33e-05 | gnorm: 14.14 | 78.5 img/s | eta: 17.7m
+  [c4_four_views_no_refine] Ep 2/15 [ 700/1979 |  35.4%] loss: 1.1827 (ce: 1.0028, kl: 0.4590) | lr: 3.33e-05 | gnorm: 14.86 | 78.3 img/s | eta: 17.4m
+  [c4_four_views_no_refine] Ep 2/15 [ 725/1979 |  36.6%] loss: 1.1830 (ce: 1.0048, kl: 0.4585) | lr: 3.33e-05 | gnorm: 12.58 | 78.2 img/s | eta: 17.1m
+  [c4_four_views_no_refine] Ep 2/15 [ 750/1979 |  37.9%] loss: 1.1839 (ce: 1.0061, kl: 0.4585) | lr: 3.33e-05 | gnorm: 11.61 | 78.3 img/s | eta: 16.7m
+  [c4_four_views_no_refine] Ep 2/15 [ 775/1979 |  39.2%] loss: 1.1841 (ce: 1.0078, kl: 0.4581) | lr: 3.33e-05 | gnorm: 12.41 | 78.5 img/s | eta: 16.4m
+  [c4_four_views_no_refine] Ep 2/15 [ 800/1979 |  40.4%] loss: 1.1840 (ce: 1.0086, kl: 0.4576) | lr: 3.33e-05 | gnorm: 11.40 | 78.3 img/s | eta: 16.1m
+  [c4_four_views_no_refine] Ep 2/15 [ 825/1979 |  41.7%] loss: 1.1835 (ce: 1.0083, kl: 0.4574) | lr: 3.33e-05 | gnorm: 10.90 | 78.3 img/s | eta: 15.7m
+  [c4_four_views_no_refine] Ep 2/15 [ 850/1979 |  43.0%] loss: 1.1831 (ce: 1.0087, kl: 0.4570) | lr: 3.33e-05 | gnorm: 13.90 | 78.3 img/s | eta: 15.4m
+  [c4_four_views_no_refine] Ep 2/15 [ 875/1979 |  44.2%] loss: 1.1840 (ce: 1.0097, kl: 0.4572) | lr: 3.33e-05 | gnorm: 11.90 | 78.4 img/s | eta: 15.0m
+  [c4_four_views_no_refine] Ep 2/15 [ 900/1979 |  45.5%] loss: 1.1845 (ce: 1.0106, kl: 0.4572) | lr: 3.33e-05 | gnorm: 12.28 | 78.4 img/s | eta: 14.7m
+  [c4_four_views_no_refine] Ep 2/15 [ 925/1979 |  46.7%] loss: 1.1852 (ce: 1.0128, kl: 0.4569) | lr: 3.33e-05 | gnorm: 11.56 | 78.3 img/s | eta: 14.4m
+  [c4_four_views_no_refine] Ep 2/15 [ 950/1979 |  48.0%] loss: 1.1856 (ce: 1.0156, kl: 0.4560) | lr: 3.33e-05 | gnorm: 14.02 | 78.2 img/s | eta: 14.0m
+  [c4_four_views_no_refine] Ep 2/15 [ 975/1979 |  49.3%] loss: 1.1860 (ce: 1.0168, kl: 0.4558) | lr: 3.33e-05 | gnorm: 12.27 | 78.3 img/s | eta: 13.7m
+  [c4_four_views_no_refine] Ep 2/15 [1000/1979 |  50.5%] loss: 1.1861 (ce: 1.0164, kl: 0.4560) | lr: 3.33e-05 | gnorm: 11.99 | 78.4 img/s | eta: 13.3m
+  [c4_four_views_no_refine] Ep 2/15 [1025/1979 |  51.8%] loss: 1.1856 (ce: 1.0174, kl: 0.4553) | lr: 3.33e-05 | gnorm: 13.71 | 78.4 img/s | eta: 13.0m
+  [c4_four_views_no_refine] Ep 2/15 [1050/1979 |  53.1%] loss: 1.1858 (ce: 1.0191, kl: 0.4547) | lr: 3.33e-05 | gnorm: 12.05 | 78.4 img/s | eta: 12.6m
+  [c4_four_views_no_refine] Ep 2/15 [1075/1979 |  54.3%] loss: 1.1859 (ce: 1.0206, kl: 0.4542) | lr: 3.33e-05 | gnorm: 12.09 | 78.5 img/s | eta: 12.3m
+  [c4_four_views_no_refine] Ep 2/15 [1100/1979 |  55.6%] loss: 1.1863 (ce: 1.0203, kl: 0.4546) | lr: 3.33e-05 | gnorm: 11.02 | 78.6 img/s | eta: 11.9m
+  [c4_four_views_no_refine] Ep 2/15 [1125/1979 |  56.8%] loss: 1.1860 (ce: 1.0198, kl: 0.4547) | lr: 3.33e-05 | gnorm: 11.31 | 78.6 img/s | eta: 11.6m
+  [c4_four_views_no_refine] Ep 2/15 [1150/1979 |  58.1%] loss: 1.1870 (ce: 1.0220, kl: 0.4545) | lr: 3.33e-05 | gnorm: 11.95 | 78.6 img/s | eta: 11.3m
+  [c4_four_views_no_refine] Ep 2/15 [1175/1979 |  59.4%] loss: 1.1869 (ce: 1.0219, kl: 0.4544) | lr: 3.33e-05 | gnorm: 13.05 | 78.5 img/s | eta: 10.9m
+  [c4_four_views_no_refine] Ep 2/15 [1200/1979 |  60.6%] loss: 1.1870 (ce: 1.0212, kl: 0.4548) | lr: 3.33e-05 | gnorm: 11.69 | 78.7 img/s | eta: 10.6m
+  [c4_four_views_no_refine] Ep 2/15 [1225/1979 |  61.9%] loss: 1.1864 (ce: 1.0211, kl: 0.4544) | lr: 3.33e-05 | gnorm: 10.60 | 78.8 img/s | eta: 10.2m
+  [c4_four_views_no_refine] Ep 2/15 [1250/1979 |  63.2%] loss: 1.1866 (ce: 1.0218, kl: 0.4543) | lr: 3.33e-05 | gnorm: 11.40 | 78.8 img/s | eta: 9.9m
+  [c4_four_views_no_refine] Ep 2/15 [1275/1979 |  64.4%] loss: 1.1868 (ce: 1.0223, kl: 0.4542) | lr: 3.33e-05 | gnorm: 11.58 | 78.9 img/s | eta: 9.5m
+  [c4_four_views_no_refine] Ep 2/15 [1300/1979 |  65.7%] loss: 1.1872 (ce: 1.0228, kl: 0.4543) | lr: 3.33e-05 | gnorm: 11.92 | 78.9 img/s | eta: 9.2m
+  [c4_four_views_no_refine] Ep 2/15 [1325/1979 |  67.0%] loss: 1.1875 (ce: 1.0231, kl: 0.4544) | lr: 3.33e-05 | gnorm: 12.32 | 78.9 img/s | eta: 8.8m
+  [c4_four_views_no_refine] Ep 2/15 [1350/1979 |  68.2%] loss: 1.1878 (ce: 1.0239, kl: 0.4543) | lr: 3.33e-05 | gnorm: 11.68 | 78.9 img/s | eta: 8.5m
+  [c4_four_views_no_refine] Ep 2/15 [1375/1979 |  69.5%] loss: 1.1882 (ce: 1.0250, kl: 0.4541) | lr: 3.33e-05 | gnorm: 9.52 | 79.0 img/s | eta: 8.2m
+  [c4_four_views_no_refine] Ep 2/15 [1400/1979 |  70.7%] loss: 1.1884 (ce: 1.0260, kl: 0.4539) | lr: 3.33e-05 | gnorm: 13.35 | 79.0 img/s | eta: 7.8m
+  [c4_four_views_no_refine] Ep 2/15 [1425/1979 |  72.0%] loss: 1.1887 (ce: 1.0277, kl: 0.4535) | lr: 3.33e-05 | gnorm: 11.26 | 79.0 img/s | eta: 7.5m
+  [c4_four_views_no_refine] Ep 2/15 [1450/1979 |  73.3%] loss: 1.1885 (ce: 1.0286, kl: 0.4529) | lr: 3.33e-05 | gnorm: 11.02 | 79.0 img/s | eta: 7.1m
+  [c4_four_views_no_refine] Ep 2/15 [1475/1979 |  74.5%] loss: 1.1890 (ce: 1.0291, kl: 0.4531) | lr: 3.33e-05 | gnorm: 10.84 | 79.0 img/s | eta: 6.8m
+  [c4_four_views_no_refine] Ep 2/15 [1500/1979 |  75.8%] loss: 1.1901 (ce: 1.0308, kl: 0.4532) | lr: 3.33e-05 | gnorm: 13.78 | 79.1 img/s | eta: 6.5m
+  [c4_four_views_no_refine] Ep 2/15 [1525/1979 |  77.1%] loss: 1.1906 (ce: 1.0321, kl: 0.4531) | lr: 3.33e-05 | gnorm: 9.83 | 79.1 img/s | eta: 6.1m
+  [c4_four_views_no_refine] Ep 2/15 [1550/1979 |  78.3%] loss: 1.1911 (ce: 1.0342, kl: 0.4526) | lr: 3.33e-05 | gnorm: 9.04 | 79.1 img/s | eta: 5.8m
+  [c4_four_views_no_refine] Ep 2/15 [1575/1979 |  79.6%] loss: 1.1915 (ce: 1.0359, kl: 0.4521) | lr: 3.33e-05 | gnorm: 10.02 | 79.1 img/s | eta: 5.4m
+  [c4_four_views_no_refine] Ep 2/15 [1600/1979 |  80.8%] loss: 1.1916 (ce: 1.0374, kl: 0.4516) | lr: 3.33e-05 | gnorm: 11.05 | 79.2 img/s | eta: 5.1m
+  [c4_four_views_no_refine] Ep 2/15 [1625/1979 |  82.1%] loss: 1.1912 (ce: 1.0384, kl: 0.4510) | lr: 3.33e-05 | gnorm: 10.17 | 79.3 img/s | eta: 4.8m
+  [c4_four_views_no_refine] Ep 2/15 [1650/1979 |  83.4%] loss: 1.1909 (ce: 1.0379, kl: 0.4510) | lr: 3.33e-05 | gnorm: 9.97 | 79.3 img/s | eta: 4.4m
+  [c4_four_views_no_refine] Ep 2/15 [1675/1979 |  84.6%] loss: 1.1912 (ce: 1.0381, kl: 0.4511) | lr: 3.33e-05 | gnorm: 13.89 | 79.4 img/s | eta: 4.1m
+  [c4_four_views_no_refine] Ep 2/15 [1700/1979 |  85.9%] loss: 1.1912 (ce: 1.0386, kl: 0.4509) | lr: 3.33e-05 | gnorm: 12.26 | 79.4 img/s | eta: 3.7m
+  [c4_four_views_no_refine] Ep 2/15 [1725/1979 |  87.2%] loss: 1.1918 (ce: 1.0387, kl: 0.4513) | lr: 3.33e-05 | gnorm: 13.64 | 79.4 img/s | eta: 3.4m
+  [c4_four_views_no_refine] Ep 2/15 [1750/1979 |  88.4%] loss: 1.1923 (ce: 1.0391, kl: 0.4515) | lr: 3.33e-05 | gnorm: 10.17 | 79.4 img/s | eta: 3.1m
+  [c4_four_views_no_refine] Ep 2/15 [1775/1979 |  89.7%] loss: 1.1923 (ce: 1.0388, kl: 0.4516) | lr: 3.33e-05 | gnorm: 10.35 | 79.5 img/s | eta: 2.7m
+  [c4_four_views_no_refine] Ep 2/15 [1800/1979 |  91.0%] loss: 1.1921 (ce: 1.0389, kl: 0.4514) | lr: 3.33e-05 | gnorm: 9.29 | 79.5 img/s | eta: 2.4m
+  [c4_four_views_no_refine] Ep 2/15 [1825/1979 |  92.2%] loss: 1.1923 (ce: 1.0400, kl: 0.4511) | lr: 3.33e-05 | gnorm: 11.96 | 79.5 img/s | eta: 2.1m
+  [c4_four_views_no_refine] Ep 2/15 [1850/1979 |  93.5%] loss: 1.1923 (ce: 1.0401, kl: 0.4511) | lr: 3.33e-05 | gnorm: 12.49 | 79.5 img/s | eta: 1.7m
+  [c4_four_views_no_refine] Ep 2/15 [1875/1979 |  94.7%] loss: 1.1924 (ce: 1.0406, kl: 0.4509) | lr: 3.33e-05 | gnorm: 11.92 | 79.5 img/s | eta: 1.4m
+  [c4_four_views_no_refine] Ep 2/15 [1900/1979 |  96.0%] loss: 1.1926 (ce: 1.0412, kl: 0.4508) | lr: 3.33e-05 | gnorm: 11.12 | 79.4 img/s | eta: 1.1m
+  [c4_four_views_no_refine] Ep 2/15 [1925/1979 |  97.3%] loss: 1.1925 (ce: 1.0417, kl: 0.4506) | lr: 3.33e-05 | gnorm: 11.78 | 79.5 img/s | eta: 0.7m
+  [c4_four_views_no_refine] Ep 2/15 [1950/1979 |  98.5%] loss: 1.1926 (ce: 1.0420, kl: 0.4506) | lr: 3.33e-05 | gnorm: 13.34 | 79.5 img/s | eta: 0.4m
+  [c4_four_views_no_refine] Ep 2/15 [1975/1979 |  99.8%] loss: 1.1927 (ce: 1.0430, kl: 0.4502) | lr: 3.33e-05 | gnorm: 11.15 | 79.5 img/s | eta: 0.1m
+  [c4_four_views_no_refine] Ep 2/15 [1979/1979 | 100.0%] loss: 1.1926 (ce: 1.0428, kl: 0.4502) | lr: 3.33e-05 | gnorm: 11.73 | 79.5 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Running clean validation (5,000 images)...
+  [c4_four_views_no_refine] Running robust validation (512 images, PGD-10 @ eps=0.094)...
+----------------------------------------------------------------------
+[c4_four_views_no_refine] Epoch 2/15 (1606.9s, VRAM: 2021MB) | session: 0.95h/11h | phase ETA: 369.4m
+  val_acc[CLEAN]:  59.22% (best: 60.90%)
+  val_acc[ROBUST]: 20.12% (eps=0.094, best: 21.29%)
+  loss: total=1.1926 ce=1.0428 kl=0.4502
+  lr: backbone_decay: 5.00e-05, backbone_no_decay: 5.00e-05, classifier_decay: 5.00e-04
+  gnorm: backbone_decay: 11.73, backbone_no_decay: 1.30, classifier_decay: 1.55, classifier_no_decay: 0.08
+  health flags: ['OK']
+----------------------------------------------------------------------
+[Curriculum] c4_four_views_no_refine ep 3/15 -> eps_norm=0.0940 (pix=0.0212) beta=2.5 pgd=4 w_trades=0.55
+  [c4_four_views_no_refine] Ep 3/15 [   1/1979 |   0.1%] loss: 1.1584 (ce: 0.9908, kl: 0.4461) | lr: 5.00e-05 | gnorm: 11.80 | 60.0 img/s | eta: 35.2m
+  [c4_four_views_no_refine] Ep 3/15 [  25/1979 |   1.3%] loss: 1.1302 (ce: 0.9402, kl: 0.4459) | lr: 5.00e-05 | gnorm: 12.58 | 78.4 img/s | eta: 26.6m
+  [c4_four_views_no_refine] Ep 3/15 [  50/1979 |   2.5%] loss: 1.1466 (ce: 0.9488, kl: 0.4543) | lr: 5.00e-05 | gnorm: 13.45 | 82.1 img/s | eta: 25.1m
+  [c4_four_views_no_refine] Ep 3/15 [  75/1979 |   3.8%] loss: 1.1555 (ce: 0.9852, kl: 0.4463) | lr: 5.00e-05 | gnorm: 12.96 | 82.7 img/s | eta: 24.6m
+  [c4_four_views_no_refine] Ep 3/15 [ 100/1979 |   5.1%] loss: 1.1757 (ce: 1.0235, kl: 0.4456) | lr: 5.00e-05 | gnorm: 11.64 | 82.1 img/s | eta: 24.4m
+  [c4_four_views_no_refine] Ep 3/15 [ 125/1979 |   6.3%] loss: 1.1820 (ce: 1.0421, kl: 0.4428) | lr: 5.00e-05 | gnorm: 10.97 | 82.2 img/s | eta: 24.1m
+  [c4_four_views_no_refine] Ep 3/15 [ 150/1979 |   7.6%] loss: 1.1794 (ce: 1.0463, kl: 0.4393) | lr: 5.00e-05 | gnorm: 10.42 | 82.5 img/s | eta: 23.6m
+  [c4_four_views_no_refine] Ep 3/15 [ 175/1979 |   8.8%] loss: 1.1824 (ce: 1.0556, kl: 0.4377) | lr: 5.00e-05 | gnorm: 12.06 | 82.6 img/s | eta: 23.3m
+  [c4_four_views_no_refine] Ep 3/15 [ 200/1979 |  10.1%] loss: 1.1848 (ce: 1.0633, kl: 0.4364) | lr: 5.00e-05 | gnorm: 11.19 | 82.5 img/s | eta: 23.0m
+  [c4_four_views_no_refine] Ep 3/15 [ 225/1979 |  11.4%] loss: 1.1894 (ce: 1.0703, kl: 0.4369) | lr: 5.00e-05 | gnorm: 10.38 | 82.3 img/s | eta: 22.7m
+  [c4_four_views_no_refine] Ep 3/15 [ 250/1979 |  12.6%] loss: 1.1876 (ce: 1.0716, kl: 0.4350) | lr: 5.00e-05 | gnorm: 10.93 | 82.5 img/s | eta: 22.4m
+  [c4_four_views_no_refine] Ep 3/15 [ 275/1979 |  13.9%] loss: 1.1907 (ce: 1.0747, kl: 0.4361) | lr: 5.00e-05 | gnorm: 13.09 | 82.2 img/s | eta: 22.1m
+  [c4_four_views_no_refine] Ep 3/15 [ 300/1979 |  15.2%] loss: 1.1922 (ce: 1.0774, kl: 0.4361) | lr: 5.00e-05 | gnorm: 11.31 | 82.3 img/s | eta: 21.8m
+  [c4_four_views_no_refine] Ep 3/15 [ 325/1979 |  16.4%] loss: 1.1933 (ce: 1.0820, kl: 0.4351) | lr: 5.00e-05 | gnorm: 11.67 | 82.4 img/s | eta: 21.4m
+  [c4_four_views_no_refine] Ep 3/15 [ 350/1979 |  17.7%] loss: 1.1963 (ce: 1.0848, kl: 0.4361) | lr: 5.00e-05 | gnorm: 11.95 | 82.3 img/s | eta: 21.1m
+  [c4_four_views_no_refine] Ep 3/15 [ 375/1979 |  18.9%] loss: 1.1957 (ce: 1.0879, kl: 0.4344) | lr: 5.00e-05 | gnorm: 12.30 | 82.2 img/s | eta: 20.8m
+  [c4_four_views_no_refine] Ep 3/15 [ 400/1979 |  20.2%] loss: 1.1977 (ce: 1.0916, kl: 0.4344) | lr: 5.00e-05 | gnorm: 11.43 | 82.1 img/s | eta: 20.5m
+  [c4_four_views_no_refine] Ep 3/15 [ 425/1979 |  21.5%] loss: 1.2008 (ce: 1.0962, kl: 0.4348) | lr: 5.00e-05 | gnorm: 10.91 | 82.0 img/s | eta: 20.2m
+  [c4_four_views_no_refine] Ep 3/15 [ 450/1979 |  22.7%] loss: 1.2001 (ce: 1.0947, kl: 0.4350) | lr: 5.00e-05 | gnorm: 11.82 | 82.0 img/s | eta: 19.9m
+  [c4_four_views_no_refine] Ep 3/15 [ 475/1979 |  24.0%] loss: 1.2008 (ce: 1.0978, kl: 0.4342) | lr: 5.00e-05 | gnorm: 12.68 | 81.8 img/s | eta: 19.6m
+  [c4_four_views_no_refine] Ep 3/15 [ 500/1979 |  25.3%] loss: 1.2011 (ce: 1.1002, kl: 0.4335) | lr: 5.00e-05 | gnorm: 11.88 | 81.7 img/s | eta: 19.3m
+  [c4_four_views_no_refine] Ep 3/15 [ 525/1979 |  26.5%] loss: 1.2026 (ce: 1.1005, kl: 0.4345) | lr: 5.00e-05 | gnorm: 11.93 | 81.4 img/s | eta: 19.0m
+  [c4_four_views_no_refine] Ep 3/15 [ 550/1979 |  27.8%] loss: 1.2061 (ce: 1.1060, kl: 0.4347) | lr: 5.00e-05 | gnorm: 13.25 | 80.5 img/s | eta: 18.9m
+  [c4_four_views_no_refine] Ep 3/15 [ 575/1979 |  29.1%] loss: 1.2077 (ce: 1.1086, kl: 0.4349) | lr: 5.00e-05 | gnorm: 11.61 | 80.8 img/s | eta: 18.5m
+  [c4_four_views_no_refine] Ep 3/15 [ 600/1979 |  30.3%] loss: 1.2079 (ce: 1.1080, kl: 0.4352) | lr: 5.00e-05 | gnorm: 10.55 | 80.9 img/s | eta: 18.2m
+  [c4_four_views_no_refine] Ep 3/15 [ 625/1979 |  31.6%] loss: 1.2079 (ce: 1.1106, kl: 0.4342) | lr: 5.00e-05 | gnorm: 11.16 | 81.1 img/s | eta: 17.8m
+  [c4_four_views_no_refine] Ep 3/15 [ 650/1979 |  32.8%] loss: 1.2090 (ce: 1.1134, kl: 0.4339) | lr: 5.00e-05 | gnorm: 11.17 | 81.1 img/s | eta: 17.5m
+  [c4_four_views_no_refine] Ep 3/15 [ 675/1979 |  34.1%] loss: 1.2094 (ce: 1.1161, kl: 0.4331) | lr: 5.00e-05 | gnorm: 10.58 | 81.3 img/s | eta: 17.1m
+  [c4_four_views_no_refine] Ep 3/15 [ 700/1979 |  35.4%] loss: 1.2088 (ce: 1.1148, kl: 0.4332) | lr: 5.00e-05 | gnorm: 11.52 | 81.5 img/s | eta: 16.7m
+  [c4_four_views_no_refine] Ep 3/15 [ 725/1979 |  36.6%] loss: 1.2089 (ce: 1.1161, kl: 0.4328) | lr: 5.00e-05 | gnorm: 10.70 | 81.5 img/s | eta: 16.4m
+  [c4_four_views_no_refine] Ep 3/15 [ 750/1979 |  37.9%] loss: 1.2089 (ce: 1.1166, kl: 0.4326) | lr: 5.00e-05 | gnorm: 11.13 | 81.7 img/s | eta: 16.0m
+  [c4_four_views_no_refine] Ep 3/15 [ 775/1979 |  39.2%] loss: 1.2093 (ce: 1.1195, kl: 0.4317) | lr: 5.00e-05 | gnorm: 10.29 | 81.9 img/s | eta: 15.7m
+  [c4_four_views_no_refine] Ep 3/15 [ 800/1979 |  40.4%] loss: 1.2114 (ce: 1.1224, kl: 0.4320) | lr: 5.00e-05 | gnorm: 13.38 | 81.9 img/s | eta: 15.4m
+  [c4_four_views_no_refine] Ep 3/15 [ 825/1979 |  41.7%] loss: 1.2110 (ce: 1.1231, kl: 0.4315) | lr: 5.00e-05 | gnorm: 9.59 | 81.7 img/s | eta: 15.1m
+  [c4_four_views_no_refine] Ep 3/15 [ 850/1979 |  43.0%] loss: 1.2115 (ce: 1.1240, kl: 0.4315) | lr: 5.00e-05 | gnorm: 11.19 | 81.9 img/s | eta: 14.7m
+  [c4_four_views_no_refine] Ep 3/15 [ 875/1979 |  44.2%] loss: 1.2113 (ce: 1.1240, kl: 0.4314) | lr: 5.00e-05 | gnorm: 10.18 | 82.0 img/s | eta: 14.4m
+  [c4_four_views_no_refine] Ep 3/15 [ 900/1979 |  45.5%] loss: 1.2121 (ce: 1.1249, kl: 0.4316) | lr: 5.00e-05 | gnorm: 10.97 | 82.1 img/s | eta: 14.0m
+  [c4_four_views_no_refine] Ep 3/15 [ 925/1979 |  46.7%] loss: 1.2136 (ce: 1.1249, kl: 0.4326) | lr: 5.00e-05 | gnorm: 10.16 | 82.2 img/s | eta: 13.7m
+  [c4_four_views_no_refine] Ep 3/15 [ 950/1979 |  48.0%] loss: 1.2136 (ce: 1.1258, kl: 0.4323) | lr: 5.00e-05 | gnorm: 11.34 | 82.2 img/s | eta: 13.3m
+  [c4_four_views_no_refine] Ep 3/15 [ 975/1979 |  49.3%] loss: 1.2135 (ce: 1.1268, kl: 0.4319) | lr: 5.00e-05 | gnorm: 10.65 | 81.9 img/s | eta: 13.1m
+  [c4_four_views_no_refine] Ep 3/15 [1000/1979 |  50.5%] loss: 1.2145 (ce: 1.1294, kl: 0.4315) | lr: 5.00e-05 | gnorm: 11.57 | 81.9 img/s | eta: 12.7m
+  [c4_four_views_no_refine] Ep 3/15 [1025/1979 |  51.8%] loss: 1.2147 (ce: 1.1300, kl: 0.4314) | lr: 5.00e-05 | gnorm: 10.41 | 82.3 img/s | eta: 12.4m
+  [c4_four_views_no_refine] Ep 3/15 [1050/1979 |  53.1%] loss: 1.2148 (ce: 1.1302, kl: 0.4314) | lr: 5.00e-05 | gnorm: 12.56 | 82.6 img/s | eta: 12.0m
+  [c4_four_views_no_refine] Ep 3/15 [1075/1979 |  54.3%] loss: 1.2157 (ce: 1.1323, kl: 0.4313) | lr: 5.00e-05 | gnorm: 13.73 | 82.9 img/s | eta: 11.6m
+  [c4_four_views_no_refine] Ep 3/15 [1100/1979 |  55.6%] loss: 1.2172 (ce: 1.1337, kl: 0.4318) | lr: 5.00e-05 | gnorm: 10.41 | 83.1 img/s | eta: 11.3m
+  [c4_four_views_no_refine] Ep 3/15 [1125/1979 |  56.8%] loss: 1.2169 (ce: 1.1334, kl: 0.4317) | lr: 5.00e-05 | gnorm: 10.62 | 81.9 img/s | eta: 11.1m
+  [c4_four_views_no_refine] Ep 3/15 [1150/1979 |  58.1%] loss: 1.2172 (ce: 1.1346, kl: 0.4314) | lr: 5.00e-05 | gnorm: 11.28 | 80.7 img/s | eta: 11.0m
+  [c4_four_views_no_refine] Ep 3/15 [1175/1979 |  59.4%] loss: 1.2179 (ce: 1.1356, kl: 0.4315) | lr: 5.00e-05 | gnorm: 11.11 | 79.5 img/s | eta: 10.8m
+  [c4_four_views_no_refine] Ep 3/15 [1200/1979 |  60.6%] loss: 1.2188 (ce: 1.1373, kl: 0.4315) | lr: 5.00e-05 | gnorm: 12.21 | 78.4 img/s | eta: 10.6m
+  [c4_four_views_no_refine] Ep 3/15 [1225/1979 |  61.9%] loss: 1.2199 (ce: 1.1398, kl: 0.4313) | lr: 5.00e-05 | gnorm: 11.17 | 77.4 img/s | eta: 10.4m
+  [c4_four_views_no_refine] Ep 3/15 [1250/1979 |  63.2%] loss: 1.2205 (ce: 1.1412, kl: 0.4311) | lr: 5.00e-05 | gnorm: 10.12 | 76.4 img/s | eta: 10.2m
+  [c4_four_views_no_refine] Ep 3/15 [1275/1979 |  64.4%] loss: 1.2209 (ce: 1.1427, kl: 0.4309) | lr: 5.00e-05 | gnorm: 11.63 | 75.5 img/s | eta: 9.9m
+  [c4_four_views_no_refine] Ep 3/15 [1300/1979 |  65.7%] loss: 1.2213 (ce: 1.1436, kl: 0.4308) | lr: 5.00e-05 | gnorm: 11.65 | 74.7 img/s | eta: 9.7m
+  [c4_four_views_no_refine] Ep 3/15 [1325/1979 |  67.0%] loss: 1.2217 (ce: 1.1432, kl: 0.4312) | lr: 5.00e-05 | gnorm: 10.18 | 73.9 img/s | eta: 9.4m
+  [c4_four_views_no_refine] Ep 3/15 [1350/1979 |  68.2%] loss: 1.2223 (ce: 1.1438, kl: 0.4314) | lr: 5.00e-05 | gnorm: 12.20 | 73.2 img/s | eta: 9.2m
+  [c4_four_views_no_refine] Ep 3/15 [1375/1979 |  69.5%] loss: 1.2231 (ce: 1.1453, kl: 0.4314) | lr: 5.00e-05 | gnorm: 12.14 | 72.5 img/s | eta: 8.9m
+  [c4_four_views_no_refine] Ep 3/15 [1400/1979 |  70.7%] loss: 1.2235 (ce: 1.1459, kl: 0.4315) | lr: 5.00e-05 | gnorm: 11.82 | 71.8 img/s | eta: 8.6m
+  [c4_four_views_no_refine] Ep 3/15 [1425/1979 |  72.0%] loss: 1.2236 (ce: 1.1468, kl: 0.4312) | lr: 5.00e-05 | gnorm: 10.66 | 71.2 img/s | eta: 8.3m
+  [c4_four_views_no_refine] Ep 3/15 [1450/1979 |  73.3%] loss: 1.2239 (ce: 1.1472, kl: 0.4312) | lr: 5.00e-05 | gnorm: 11.33 | 70.6 img/s | eta: 8.0m
+  [c4_four_views_no_refine] Ep 3/15 [1475/1979 |  74.5%] loss: 1.2246 (ce: 1.1484, kl: 0.4313) | lr: 5.00e-05 | gnorm: 11.83 | 70.0 img/s | eta: 7.7m
+  [c4_four_views_no_refine] Ep 3/15 [1500/1979 |  75.8%] loss: 1.2251 (ce: 1.1492, kl: 0.4313) | lr: 5.00e-05 | gnorm: 8.61 | 69.5 img/s | eta: 7.4m
+  [c4_four_views_no_refine] Ep 3/15 [1525/1979 |  77.1%] loss: 1.2250 (ce: 1.1501, kl: 0.4309) | lr: 5.00e-05 | gnorm: 11.29 | 68.9 img/s | eta: 7.0m
+  [c4_four_views_no_refine] Ep 3/15 [1550/1979 |  78.3%] loss: 1.2252 (ce: 1.1501, kl: 0.4310) | lr: 5.00e-05 | gnorm: 11.95 | 68.4 img/s | eta: 6.7m
+  [c4_four_views_no_refine] Ep 3/15 [1575/1979 |  79.6%] loss: 1.2252 (ce: 1.1504, kl: 0.4309) | lr: 5.00e-05 | gnorm: 10.71 | 68.0 img/s | eta: 6.3m
+  [c4_four_views_no_refine] Ep 3/15 [1600/1979 |  80.8%] loss: 1.2256 (ce: 1.1514, kl: 0.4308) | lr: 5.00e-05 | gnorm: 10.18 | 67.5 img/s | eta: 6.0m
+  [c4_four_views_no_refine] Ep 3/15 [1625/1979 |  82.1%] loss: 1.2269 (ce: 1.1536, kl: 0.4308) | lr: 5.00e-05 | gnorm: 13.30 | 67.1 img/s | eta: 5.6m
+  [c4_four_views_no_refine] Ep 3/15 [1650/1979 |  83.4%] loss: 1.2267 (ce: 1.1544, kl: 0.4304) | lr: 5.00e-05 | gnorm: 9.87 | 66.7 img/s | eta: 5.3m
+  [c4_four_views_no_refine] Ep 3/15 [1675/1979 |  84.6%] loss: 1.2270 (ce: 1.1550, kl: 0.4304) | lr: 5.00e-05 | gnorm: 10.94 | 66.3 img/s | eta: 4.9m
+  [c4_four_views_no_refine] Ep 3/15 [1700/1979 |  85.9%] loss: 1.2270 (ce: 1.1551, kl: 0.4303) | lr: 5.00e-05 | gnorm: 9.68 | 65.9 img/s | eta: 4.5m
+  [c4_four_views_no_refine] Ep 3/15 [1725/1979 |  87.2%] loss: 1.2267 (ce: 1.1551, kl: 0.4301) | lr: 5.00e-05 | gnorm: 11.31 | 65.5 img/s | eta: 4.1m
+  [c4_four_views_no_refine] Ep 3/15 [1750/1979 |  88.4%] loss: 1.2272 (ce: 1.1564, kl: 0.4300) | lr: 5.00e-05 | gnorm: 13.41 | 65.2 img/s | eta: 3.7m
+  [c4_four_views_no_refine] Ep 3/15 [1775/1979 |  89.7%] loss: 1.2277 (ce: 1.1572, kl: 0.4300) | lr: 5.00e-05 | gnorm: 11.13 | 64.8 img/s | eta: 3.4m
+  [c4_four_views_no_refine] Ep 3/15 [1800/1979 |  91.0%] loss: 1.2281 (ce: 1.1577, kl: 0.4301) | lr: 5.00e-05 | gnorm: 10.67 | 64.5 img/s | eta: 3.0m
+  [c4_four_views_no_refine] Ep 3/15 [1825/1979 |  92.2%] loss: 1.2281 (ce: 1.1580, kl: 0.4300) | lr: 5.00e-05 | gnorm: 11.78 | 64.2 img/s | eta: 2.6m
+  [c4_four_views_no_refine] Ep 3/15 [1850/1979 |  93.5%] loss: 1.2280 (ce: 1.1586, kl: 0.4297) | lr: 5.00e-05 | gnorm: 10.04 | 63.9 img/s | eta: 2.2m
+  [c4_four_views_no_refine] Ep 3/15 [1875/1979 |  94.7%] loss: 1.2287 (ce: 1.1606, kl: 0.4294) | lr: 5.00e-05 | gnorm: 9.45 | 63.8 img/s | eta: 1.7m
+  [c4_four_views_no_refine] Ep 3/15 [1900/1979 |  96.0%] loss: 1.2289 (ce: 1.1618, kl: 0.4291) | lr: 5.00e-05 | gnorm: 9.85 | 63.7 img/s | eta: 1.3m
+  [c4_four_views_no_refine] Ep 3/15 [1925/1979 |  97.3%] loss: 1.2287 (ce: 1.1619, kl: 0.4289) | lr: 5.00e-05 | gnorm: 11.65 | 63.5 img/s | eta: 0.9m
+  [c4_four_views_no_refine] Ep 3/15 [1950/1979 |  98.5%] loss: 1.2290 (ce: 1.1629, kl: 0.4287) | lr: 5.00e-05 | gnorm: 8.94 | 63.3 img/s | eta: 0.5m
+  [c4_four_views_no_refine] Ep 3/15 [1975/1979 |  99.8%] loss: 1.2287 (ce: 1.1624, kl: 0.4287) | lr: 5.00e-05 | gnorm: 8.73 | 63.1 img/s | eta: 0.1m
+  [c4_four_views_no_refine] Ep 3/15 [1979/1979 | 100.0%] loss: 1.2287 (ce: 1.1622, kl: 0.4287) | lr: 5.00e-05 | gnorm: 11.35 | 63.0 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Running clean validation (5,000 images)...
+  [c4_four_views_no_refine] Running robust validation (512 images, PGD-10 @ eps=0.094)...
+----------------------------------------------------------------------
+[c4_four_views_no_refine] Epoch 3/15 (2032.8s, VRAM: 2022MB) | session: 1.52h/11h | phase ETA: 362.8m
+  val_acc[CLEAN]:  57.82% (best: 60.90%)
+  val_acc[ROBUST]: 22.46% (eps=0.094, best: 22.46%)
+  loss: total=1.2287 ce=1.1622 kl=0.4287
+  lr: backbone_decay: 5.00e-05, backbone_no_decay: 5.00e-05, classifier_decay: 5.00e-04
+  gnorm: backbone_decay: 11.35, backbone_no_decay: 1.35, classifier_decay: 1.55, classifier_no_decay: 0.09
+  health flags: ['OK']
+----------------------------------------------------------------------
+[Curriculum] c4_four_views_no_refine ep 4/15 -> eps_norm=0.0940 (pix=0.0212) beta=2.5 pgd=4 w_trades=0.55
+  [c4_four_views_no_refine] Ep 4/15 [   1/1979 |   0.1%] loss: 1.1824 (ce: 1.0561, kl: 0.4375) | lr: 5.00e-05 | gnorm: 10.74 | 34.6 img/s | eta: 61.0m
+  [c4_four_views_no_refine] Ep 4/15 [  25/1979 |   1.3%] loss: 1.1859 (ce: 1.1130, kl: 0.4172) | lr: 5.00e-05 | gnorm: 11.66 | 43.5 img/s | eta: 47.9m
+  [c4_four_views_no_refine] Ep 4/15 [  50/1979 |   2.5%] loss: 1.1935 (ce: 1.1045, kl: 0.4262) | lr: 5.00e-05 | gnorm: 11.28 | 45.9 img/s | eta: 44.9m
+  [c4_four_views_no_refine] Ep 4/15 [  75/1979 |   3.8%] loss: 1.1874 (ce: 1.0925, kl: 0.4266) | lr: 5.00e-05 | gnorm: 11.60 | 51.2 img/s | eta: 39.7m
+  [c4_four_views_no_refine] Ep 4/15 [ 100/1979 |   5.1%] loss: 1.1825 (ce: 1.0865, kl: 0.4254) | lr: 5.00e-05 | gnorm: 11.03 | 55.1 img/s | eta: 36.3m
+  [c4_four_views_no_refine] Ep 4/15 [ 125/1979 |   6.3%] loss: 1.1835 (ce: 1.0791, kl: 0.4291) | lr: 5.00e-05 | gnorm: 11.25 | 58.3 img/s | eta: 33.9m
+  [c4_four_views_no_refine] Ep 4/15 [ 150/1979 |   7.6%] loss: 1.1808 (ce: 1.0731, kl: 0.4295) | lr: 5.00e-05 | gnorm: 10.33 | 61.2 img/s | eta: 31.9m
+  [c4_four_views_no_refine] Ep 4/15 [ 175/1979 |   8.8%] loss: 1.1784 (ce: 1.0706, kl: 0.4288) | lr: 5.00e-05 | gnorm: 11.68 | 63.0 img/s | eta: 30.6m
+  [c4_four_views_no_refine] Ep 4/15 [ 200/1979 |  10.1%] loss: 1.1844 (ce: 1.0801, kl: 0.4294) | lr: 5.00e-05 | gnorm: 11.38 | 64.1 img/s | eta: 29.6m
+  [c4_four_views_no_refine] Ep 4/15 [ 225/1979 |  11.4%] loss: 1.1833 (ce: 1.0790, kl: 0.4290) | lr: 5.00e-05 | gnorm: 11.36 | 64.9 img/s | eta: 28.8m
+  [c4_four_views_no_refine] Ep 4/15 [ 250/1979 |  12.6%] loss: 1.1848 (ce: 1.0834, kl: 0.4283) | lr: 5.00e-05 | gnorm: 10.82 | 65.8 img/s | eta: 28.0m
+  [c4_four_views_no_refine] Ep 4/15 [ 275/1979 |  13.9%] loss: 1.1874 (ce: 1.0876, kl: 0.4285) | lr: 5.00e-05 | gnorm: 11.90 | 67.2 img/s | eta: 27.0m
+  [c4_four_views_no_refine] Ep 4/15 [ 300/1979 |  15.2%] loss: 1.1878 (ce: 1.0904, kl: 0.4277) | lr: 5.00e-05 | gnorm: 8.51 | 68.8 img/s | eta: 26.0m
+  [c4_four_views_no_refine] Ep 4/15 [ 325/1979 |  16.4%] loss: 1.1865 (ce: 1.0933, kl: 0.4256) | lr: 5.00e-05 | gnorm: 9.76 | 69.9 img/s | eta: 25.2m
+  [c4_four_views_no_refine] Ep 4/15 [ 350/1979 |  17.7%] loss: 1.1868 (ce: 1.0940, kl: 0.4256) | lr: 5.00e-05 | gnorm: 10.72 | 71.0 img/s | eta: 24.5m
+  [c4_four_views_no_refine] Ep 4/15 [ 375/1979 |  18.9%] loss: 1.1871 (ce: 1.0925, kl: 0.4264) | lr: 5.00e-05 | gnorm: 9.40 | 72.1 img/s | eta: 23.7m
+  [c4_four_views_no_refine] Ep 4/15 [ 400/1979 |  20.2%] loss: 1.1873 (ce: 1.0914, kl: 0.4269) | lr: 5.00e-05 | gnorm: 10.74 | 73.0 img/s | eta: 23.1m
+  [c4_four_views_no_refine] Ep 4/15 [ 425/1979 |  21.5%] loss: 1.1872 (ce: 1.0903, kl: 0.4273) | lr: 5.00e-05 | gnorm: 12.12 | 73.7 img/s | eta: 22.5m
+  [c4_four_views_no_refine] Ep 4/15 [ 450/1979 |  22.7%] loss: 1.1900 (ce: 1.0964, kl: 0.4269) | lr: 5.00e-05 | gnorm: 9.78 | 74.3 img/s | eta: 22.0m
+  [c4_four_views_no_refine] Ep 4/15 [ 475/1979 |  24.0%] loss: 1.1904 (ce: 1.0994, kl: 0.4260) | lr: 5.00e-05 | gnorm: 10.40 | 75.0 img/s | eta: 21.4m
+  [c4_four_views_no_refine] Ep 4/15 [ 500/1979 |  25.3%] loss: 1.1921 (ce: 1.0996, kl: 0.4271) | lr: 5.00e-05 | gnorm: 12.72 | 75.7 img/s | eta: 20.8m
+  [c4_four_views_no_refine] Ep 4/15 [ 525/1979 |  26.5%] loss: 1.1939 (ce: 1.1039, kl: 0.4268) | lr: 5.00e-05 | gnorm: 9.91 | 76.4 img/s | eta: 20.3m
+  [c4_four_views_no_refine] Ep 4/15 [ 550/1979 |  27.8%] loss: 1.1946 (ce: 1.1076, kl: 0.4258) | lr: 5.00e-05 | gnorm: 10.83 | 76.9 img/s | eta: 19.8m
+  [c4_four_views_no_refine] Ep 4/15 [ 575/1979 |  29.1%] loss: 1.1947 (ce: 1.1088, kl: 0.4253) | lr: 5.00e-05 | gnorm: 9.88 | 77.4 img/s | eta: 19.3m
+  [c4_four_views_no_refine] Ep 4/15 [ 600/1979 |  30.3%] loss: 1.1965 (ce: 1.1117, kl: 0.4255) | lr: 5.00e-05 | gnorm: 10.54 | 78.0 img/s | eta: 18.9m
+  [c4_four_views_no_refine] Ep 4/15 [ 625/1979 |  31.6%] loss: 1.1959 (ce: 1.1129, kl: 0.4246) | lr: 5.00e-05 | gnorm: 11.58 | 78.5 img/s | eta: 18.4m
+  [c4_four_views_no_refine] Ep 4/15 [ 650/1979 |  32.8%] loss: 1.1965 (ce: 1.1147, kl: 0.4243) | lr: 5.00e-05 | gnorm: 9.69 | 78.9 img/s | eta: 18.0m
+  [c4_four_views_no_refine] Ep 4/15 [ 675/1979 |  34.1%] loss: 1.1987 (ce: 1.1159, kl: 0.4254) | lr: 5.00e-05 | gnorm: 10.70 | 79.3 img/s | eta: 17.5m
+  [c4_four_views_no_refine] Ep 4/15 [ 700/1979 |  35.4%] loss: 1.1992 (ce: 1.1180, kl: 0.4249) | lr: 5.00e-05 | gnorm: 11.26 | 79.7 img/s | eta: 17.1m
+  [c4_four_views_no_refine] Ep 4/15 [ 725/1979 |  36.6%] loss: 1.2000 (ce: 1.1196, kl: 0.4249) | lr: 5.00e-05 | gnorm: 11.55 | 80.0 img/s | eta: 16.7m
+  [c4_four_views_no_refine] Ep 4/15 [ 750/1979 |  37.9%] loss: 1.2005 (ce: 1.1194, kl: 0.4253) | lr: 5.00e-05 | gnorm: 10.95 | 80.4 img/s | eta: 16.3m
+  [c4_four_views_no_refine] Ep 4/15 [ 775/1979 |  39.2%] loss: 1.2008 (ce: 1.1194, kl: 0.4255) | lr: 5.00e-05 | gnorm: 12.16 | 80.8 img/s | eta: 15.9m
+  [c4_four_views_no_refine] Ep 4/15 [ 800/1979 |  40.4%] loss: 1.2028 (ce: 1.1212, kl: 0.4262) | lr: 5.00e-05 | gnorm: 12.67 | 81.1 img/s | eta: 15.5m
+  [c4_four_views_no_refine] Ep 4/15 [ 825/1979 |  41.7%] loss: 1.2019 (ce: 1.1214, kl: 0.4255) | lr: 5.00e-05 | gnorm: 11.80 | 81.3 img/s | eta: 15.1m
+  [c4_four_views_no_refine] Ep 4/15 [ 850/1979 |  43.0%] loss: 1.2012 (ce: 1.1205, kl: 0.4254) | lr: 5.00e-05 | gnorm: 11.38 | 81.6 img/s | eta: 14.8m
+  [c4_four_views_no_refine] Ep 4/15 [ 875/1979 |  44.2%] loss: 1.2020 (ce: 1.1227, kl: 0.4251) | lr: 5.00e-05 | gnorm: 11.58 | 81.9 img/s | eta: 14.4m
+  [c4_four_views_no_refine] Ep 4/15 [ 900/1979 |  45.5%] loss: 1.2025 (ce: 1.1226, kl: 0.4255) | lr: 5.00e-05 | gnorm: 11.09 | 82.2 img/s | eta: 14.0m
+  [c4_four_views_no_refine] Ep 4/15 [ 925/1979 |  46.7%] loss: 1.2035 (ce: 1.1250, kl: 0.4253) | lr: 5.00e-05 | gnorm: 11.14 | 82.2 img/s | eta: 13.7m
+  [c4_four_views_no_refine] Ep 4/15 [ 950/1979 |  48.0%] loss: 1.2036 (ce: 1.1251, kl: 0.4253) | lr: 5.00e-05 | gnorm: 10.44 | 82.4 img/s | eta: 13.3m
+  [c4_four_views_no_refine] Ep 4/15 [ 975/1979 |  49.3%] loss: 1.2036 (ce: 1.1245, kl: 0.4255) | lr: 5.00e-05 | gnorm: 14.54 | 82.7 img/s | eta: 13.0m
+  [c4_four_views_no_refine] Ep 4/15 [1000/1979 |  50.5%] loss: 1.2040 (ce: 1.1259, kl: 0.4253) | lr: 5.00e-05 | gnorm: 9.48 | 82.9 img/s | eta: 12.6m
+  [c4_four_views_no_refine] Ep 4/15 [1025/1979 |  51.8%] loss: 1.2037 (ce: 1.1249, kl: 0.4255) | lr: 5.00e-05 | gnorm: 12.43 | 83.1 img/s | eta: 12.2m
+  [c4_four_views_no_refine] Ep 4/15 [1050/1979 |  53.1%] loss: 1.2040 (ce: 1.1264, kl: 0.4251) | lr: 5.00e-05 | gnorm: 11.55 | 83.2 img/s | eta: 11.9m
+  [c4_four_views_no_refine] Ep 4/15 [1075/1979 |  54.3%] loss: 1.2036 (ce: 1.1259, kl: 0.4249) | lr: 5.00e-05 | gnorm: 9.53 | 83.4 img/s | eta: 11.6m
+  [c4_four_views_no_refine] Ep 4/15 [1100/1979 |  55.6%] loss: 1.2035 (ce: 1.1264, kl: 0.4247) | lr: 5.00e-05 | gnorm: 12.18 | 83.4 img/s | eta: 11.2m
+  [c4_four_views_no_refine] Ep 4/15 [1125/1979 |  56.8%] loss: 1.2034 (ce: 1.1263, kl: 0.4246) | lr: 5.00e-05 | gnorm: 12.41 | 83.6 img/s | eta: 10.9m
+  [c4_four_views_no_refine] Ep 4/15 [1150/1979 |  58.1%] loss: 1.2041 (ce: 1.1280, kl: 0.4245) | lr: 5.00e-05 | gnorm: 11.54 | 83.8 img/s | eta: 10.6m
+  [c4_four_views_no_refine] Ep 4/15 [1175/1979 |  59.4%] loss: 1.2046 (ce: 1.1291, kl: 0.4244) | lr: 5.00e-05 | gnorm: 9.21 | 84.0 img/s | eta: 10.2m
+  [c4_four_views_no_refine] Ep 4/15 [1200/1979 |  60.6%] loss: 1.2054 (ce: 1.1316, kl: 0.4240) | lr: 5.00e-05 | gnorm: 8.51 | 84.2 img/s | eta: 9.9m
+  [c4_four_views_no_refine] Ep 4/15 [1225/1979 |  61.9%] loss: 1.2057 (ce: 1.1325, kl: 0.4239) | lr: 5.00e-05 | gnorm: 10.38 | 84.3 img/s | eta: 9.5m
+  [c4_four_views_no_refine] Ep 4/15 [1250/1979 |  63.2%] loss: 1.2057 (ce: 1.1334, kl: 0.4235) | lr: 5.00e-05 | gnorm: 10.39 | 84.4 img/s | eta: 9.2m
+  [c4_four_views_no_refine] Ep 4/15 [1275/1979 |  64.4%] loss: 1.2058 (ce: 1.1335, kl: 0.4235) | lr: 5.00e-05 | gnorm: 10.44 | 84.5 img/s | eta: 8.9m
+  [c4_four_views_no_refine] Ep 4/15 [1300/1979 |  65.7%] loss: 1.2058 (ce: 1.1339, kl: 0.4234) | lr: 5.00e-05 | gnorm: 10.61 | 84.7 img/s | eta: 8.6m
+  [c4_four_views_no_refine] Ep 4/15 [1325/1979 |  67.0%] loss: 1.2057 (ce: 1.1335, kl: 0.4235) | lr: 5.00e-05 | gnorm: 11.11 | 84.8 img/s | eta: 8.2m
+  [c4_four_views_no_refine] Ep 4/15 [1350/1979 |  68.2%] loss: 1.2060 (ce: 1.1340, kl: 0.4235) | lr: 5.00e-05 | gnorm: 11.33 | 84.9 img/s | eta: 7.9m
+  [c4_four_views_no_refine] Ep 4/15 [1375/1979 |  69.5%] loss: 1.2068 (ce: 1.1356, kl: 0.4234) | lr: 5.00e-05 | gnorm: 9.78 | 85.0 img/s | eta: 7.6m
+  [c4_four_views_no_refine] Ep 4/15 [1400/1979 |  70.7%] loss: 1.2076 (ce: 1.1368, kl: 0.4235) | lr: 5.00e-05 | gnorm: 11.65 | 85.1 img/s | eta: 7.3m
+  [c4_four_views_no_refine] Ep 4/15 [1425/1979 |  72.0%] loss: 1.2080 (ce: 1.1379, kl: 0.4233) | lr: 5.00e-05 | gnorm: 12.70 | 85.2 img/s | eta: 6.9m
+  [c4_four_views_no_refine] Ep 4/15 [1450/1979 |  73.3%] loss: 1.2080 (ce: 1.1386, kl: 0.4231) | lr: 5.00e-05 | gnorm: 11.53 | 85.3 img/s | eta: 6.6m
+  [c4_four_views_no_refine] Ep 4/15 [1475/1979 |  74.5%] loss: 1.2079 (ce: 1.1396, kl: 0.4226) | lr: 5.00e-05 | gnorm: 10.51 | 85.4 img/s | eta: 6.3m
+  [c4_four_views_no_refine] Ep 4/15 [1500/1979 |  75.8%] loss: 1.2077 (ce: 1.1397, kl: 0.4225) | lr: 5.00e-05 | gnorm: 11.16 | 85.5 img/s | eta: 6.0m
+  [c4_four_views_no_refine] Ep 4/15 [1525/1979 |  77.1%] loss: 1.2080 (ce: 1.1415, kl: 0.4219) | lr: 5.00e-05 | gnorm: 10.36 | 85.6 img/s | eta: 5.7m
+  [c4_four_views_no_refine] Ep 4/15 [1550/1979 |  78.3%] loss: 1.2083 (ce: 1.1428, kl: 0.4216) | lr: 5.00e-05 | gnorm: 9.75 | 85.7 img/s | eta: 5.3m
+  [c4_four_views_no_refine] Ep 4/15 [1575/1979 |  79.6%] loss: 1.2082 (ce: 1.1429, kl: 0.4215) | lr: 5.00e-05 | gnorm: 10.91 | 85.8 img/s | eta: 5.0m
+  [c4_four_views_no_refine] Ep 4/15 [1600/1979 |  80.8%] loss: 1.2090 (ce: 1.1437, kl: 0.4218) | lr: 5.00e-05 | gnorm: 9.79 | 85.8 img/s | eta: 4.7m
+  [c4_four_views_no_refine] Ep 4/15 [1625/1979 |  82.1%] loss: 1.2095 (ce: 1.1446, kl: 0.4218) | lr: 5.00e-05 | gnorm: 10.25 | 85.8 img/s | eta: 4.4m
+  [c4_four_views_no_refine] Ep 4/15 [1650/1979 |  83.4%] loss: 1.2096 (ce: 1.1460, kl: 0.4213) | lr: 5.00e-05 | gnorm: 9.97 | 85.9 img/s | eta: 4.1m
+  [c4_four_views_no_refine] Ep 4/15 [1675/1979 |  84.6%] loss: 1.2101 (ce: 1.1469, kl: 0.4213) | lr: 5.00e-05 | gnorm: 11.83 | 85.9 img/s | eta: 3.8m
+  [c4_four_views_no_refine] Ep 4/15 [1700/1979 |  85.9%] loss: 1.2104 (ce: 1.1473, kl: 0.4214) | lr: 5.00e-05 | gnorm: 12.58 | 85.9 img/s | eta: 3.5m
+  [c4_four_views_no_refine] Ep 4/15 [1725/1979 |  87.2%] loss: 1.2106 (ce: 1.1472, kl: 0.4216) | lr: 5.00e-05 | gnorm: 10.93 | 85.9 img/s | eta: 3.2m
+  [c4_four_views_no_refine] Ep 4/15 [1750/1979 |  88.4%] loss: 1.2107 (ce: 1.1476, kl: 0.4215) | lr: 5.00e-05 | gnorm: 10.72 | 86.0 img/s | eta: 2.8m
+  [c4_four_views_no_refine] Ep 4/15 [1775/1979 |  89.7%] loss: 1.2112 (ce: 1.1485, kl: 0.4215) | lr: 5.00e-05 | gnorm: 11.29 | 86.1 img/s | eta: 2.5m
+  [c4_four_views_no_refine] Ep 4/15 [1800/1979 |  91.0%] loss: 1.2114 (ce: 1.1488, kl: 0.4215) | lr: 5.00e-05 | gnorm: 10.00 | 86.1 img/s | eta: 2.2m
+  [c4_four_views_no_refine] Ep 4/15 [1825/1979 |  92.2%] loss: 1.2116 (ce: 1.1494, kl: 0.4214) | lr: 5.00e-05 | gnorm: 10.01 | 86.1 img/s | eta: 1.9m
+  [c4_four_views_no_refine] Ep 4/15 [1850/1979 |  93.5%] loss: 1.2118 (ce: 1.1501, kl: 0.4213) | lr: 5.00e-05 | gnorm: 8.93 | 86.1 img/s | eta: 1.6m
+  [c4_four_views_no_refine] Ep 4/15 [1875/1979 |  94.7%] loss: 1.2123 (ce: 1.1504, kl: 0.4215) | lr: 5.00e-05 | gnorm: 10.95 | 86.2 img/s | eta: 1.3m
+  [c4_four_views_no_refine] Ep 4/15 [1900/1979 |  96.0%] loss: 1.2122 (ce: 1.1503, kl: 0.4214) | lr: 5.00e-05 | gnorm: 10.29 | 86.3 img/s | eta: 1.0m
+  [c4_four_views_no_refine] Ep 4/15 [1925/1979 |  97.3%] loss: 1.2123 (ce: 1.1506, kl: 0.4214) | lr: 5.00e-05 | gnorm: 7.77 | 86.3 img/s | eta: 0.7m
+  [c4_four_views_no_refine] Ep 4/15 [1950/1979 |  98.5%] loss: 1.2126 (ce: 1.1510, kl: 0.4215) | lr: 5.00e-05 | gnorm: 10.98 | 86.3 img/s | eta: 0.4m
+  [c4_four_views_no_refine] Ep 4/15 [1975/1979 |  99.8%] loss: 1.2127 (ce: 1.1521, kl: 0.4211) | lr: 5.00e-05 | gnorm: 9.76 | 86.3 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Ep 4/15 [1979/1979 | 100.0%] loss: 1.2127 (ce: 1.1522, kl: 0.4211) | lr: 5.00e-05 | gnorm: 9.56 | 86.4 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Running clean validation (5,000 images)...
+  [c4_four_views_no_refine] Running robust validation (512 images, PGD-10 @ eps=0.094)...
+----------------------------------------------------------------------
+[c4_four_views_no_refine] Epoch 4/15 (1479.2s, VRAM: 2022MB) | session: 1.93h/11h | phase ETA: 312.8m
+  val_acc[CLEAN]:  56.92% (best: 60.90%)
+  val_acc[ROBUST]: 22.85% (eps=0.094, best: 22.85%)
+  loss: total=1.2127 ce=1.1522 kl=0.4211
+  lr: backbone_decay: 4.91e-05, backbone_no_decay: 4.91e-05, classifier_decay: 4.91e-04
+  gnorm: backbone_decay: 9.56, backbone_no_decay: 1.07, classifier_decay: 1.40, classifier_no_decay: 0.09
+  health flags: ['OK']
+----------------------------------------------------------------------
+[Curriculum] c4_four_views_no_refine ep 5/15 -> eps_norm=0.0940 (pix=0.0212) beta=2.5 pgd=4 w_trades=0.55
+  [c4_four_views_no_refine] Ep 5/15 [   1/1979 |   0.1%] loss: 1.2688 (ce: 1.1908, kl: 0.4464) | lr: 4.91e-05 | gnorm: 10.58 | 60.4 img/s | eta: 34.9m
+  [c4_four_views_no_refine] Ep 5/15 [  25/1979 |   1.3%] loss: 1.1781 (ce: 1.1177, kl: 0.4097) | lr: 4.91e-05 | gnorm: 8.94 | 90.2 img/s | eta: 23.1m
+  [c4_four_views_no_refine] Ep 5/15 [  50/1979 |   2.5%] loss: 1.1695 (ce: 1.0933, kl: 0.4132) | lr: 4.91e-05 | gnorm: 11.74 | 89.5 img/s | eta: 23.0m
+  [c4_four_views_no_refine] Ep 5/15 [  75/1979 |   3.8%] loss: 1.1785 (ce: 1.0875, kl: 0.4220) | lr: 4.91e-05 | gnorm: 11.96 | 88.5 img/s | eta: 22.9m
+  [c4_four_views_no_refine] Ep 5/15 [ 100/1979 |   5.1%] loss: 1.1722 (ce: 1.0930, kl: 0.4153) | lr: 4.91e-05 | gnorm: 11.02 | 88.1 img/s | eta: 22.8m
+  [c4_four_views_no_refine] Ep 5/15 [ 125/1979 |   6.3%] loss: 1.1657 (ce: 1.0749, kl: 0.4178) | lr: 4.91e-05 | gnorm: 11.59 | 88.8 img/s | eta: 22.3m
+  [c4_four_views_no_refine] Ep 5/15 [ 150/1979 |   7.6%] loss: 1.1717 (ce: 1.0764, kl: 0.4216) | lr: 4.91e-05 | gnorm: 11.75 | 89.0 img/s | eta: 21.9m
+  [c4_four_views_no_refine] Ep 5/15 [ 175/1979 |   8.8%] loss: 1.1690 (ce: 1.0715, kl: 0.4216) | lr: 4.91e-05 | gnorm: 11.81 | 89.4 img/s | eta: 21.5m
+  [c4_four_views_no_refine] Ep 5/15 [ 200/1979 |  10.1%] loss: 1.1712 (ce: 1.0690, kl: 0.4242) | lr: 4.91e-05 | gnorm: 12.78 | 89.5 img/s | eta: 21.2m
+  [c4_four_views_no_refine] Ep 5/15 [ 225/1979 |  11.4%] loss: 1.1733 (ce: 1.0707, kl: 0.4251) | lr: 4.91e-05 | gnorm: 11.62 | 89.5 img/s | eta: 20.9m
+  [c4_four_views_no_refine] Ep 5/15 [ 250/1979 |  12.6%] loss: 1.1726 (ce: 1.0733, kl: 0.4235) | lr: 4.91e-05 | gnorm: 11.53 | 89.3 img/s | eta: 20.6m
+  [c4_four_views_no_refine] Ep 5/15 [ 275/1979 |  13.9%] loss: 1.1736 (ce: 1.0732, kl: 0.4243) | lr: 4.91e-05 | gnorm: 9.68 | 88.9 img/s | eta: 20.4m
+  [c4_four_views_no_refine] Ep 5/15 [ 300/1979 |  15.2%] loss: 1.1752 (ce: 1.0780, kl: 0.4235) | lr: 4.91e-05 | gnorm: 9.49 | 88.7 img/s | eta: 20.2m
+  [c4_four_views_no_refine] Ep 5/15 [ 325/1979 |  16.4%] loss: 1.1744 (ce: 1.0773, kl: 0.4232) | lr: 4.91e-05 | gnorm: 10.89 | 88.8 img/s | eta: 19.9m
+  [c4_four_views_no_refine] Ep 5/15 [ 350/1979 |  17.7%] loss: 1.1765 (ce: 1.0809, kl: 0.4233) | lr: 4.91e-05 | gnorm: 10.68 | 89.0 img/s | eta: 19.5m
+  [c4_four_views_no_refine] Ep 5/15 [ 375/1979 |  18.9%] loss: 1.1785 (ce: 1.0812, kl: 0.4246) | lr: 4.91e-05 | gnorm: 11.54 | 89.2 img/s | eta: 19.2m
+  [c4_four_views_no_refine] Ep 5/15 [ 400/1979 |  20.2%] loss: 1.1771 (ce: 1.0812, kl: 0.4236) | lr: 4.91e-05 | gnorm: 12.13 | 89.4 img/s | eta: 18.8m
+  [c4_four_views_no_refine] Ep 5/15 [ 425/1979 |  21.5%] loss: 1.1784 (ce: 1.0835, kl: 0.4236) | lr: 4.91e-05 | gnorm: 10.33 | 89.3 img/s | eta: 18.6m
+  [c4_four_views_no_refine] Ep 5/15 [ 450/1979 |  22.7%] loss: 1.1785 (ce: 1.0814, kl: 0.4245) | lr: 4.91e-05 | gnorm: 9.41 | 89.2 img/s | eta: 18.3m
+  [c4_four_views_no_refine] Ep 5/15 [ 475/1979 |  24.0%] loss: 1.1799 (ce: 1.0857, kl: 0.4238) | lr: 4.91e-05 | gnorm: 11.07 | 89.3 img/s | eta: 18.0m
+  [c4_four_views_no_refine] Ep 5/15 [ 500/1979 |  25.3%] loss: 1.1799 (ce: 1.0864, kl: 0.4236) | lr: 4.91e-05 | gnorm: 11.55 | 89.4 img/s | eta: 17.6m
+  [c4_four_views_no_refine] Ep 5/15 [ 525/1979 |  26.5%] loss: 1.1812 (ce: 1.0881, kl: 0.4238) | lr: 4.91e-05 | gnorm: 11.05 | 89.6 img/s | eta: 17.3m
+  [c4_four_views_no_refine] Ep 5/15 [ 550/1979 |  27.8%] loss: 1.1813 (ce: 1.0872, kl: 0.4243) | lr: 4.91e-05 | gnorm: 11.54 | 89.7 img/s | eta: 17.0m
+  [c4_four_views_no_refine] Ep 5/15 [ 575/1979 |  29.1%] loss: 1.1804 (ce: 1.0867, kl: 0.4238) | lr: 4.91e-05 | gnorm: 10.74 | 89.6 img/s | eta: 16.7m
+  [c4_four_views_no_refine] Ep 5/15 [ 600/1979 |  30.3%] loss: 1.1809 (ce: 1.0881, kl: 0.4236) | lr: 4.91e-05 | gnorm: 9.33 | 89.5 img/s | eta: 16.4m
+  [c4_four_views_no_refine] Ep 5/15 [ 625/1979 |  31.6%] loss: 1.1809 (ce: 1.0881, kl: 0.4236) | lr: 4.91e-05 | gnorm: 8.86 | 89.7 img/s | eta: 16.1m
+  [c4_four_views_no_refine] Ep 5/15 [ 650/1979 |  32.8%] loss: 1.1803 (ce: 1.0884, kl: 0.4230) | lr: 4.91e-05 | gnorm: 12.98 | 89.8 img/s | eta: 15.8m
+  [c4_four_views_no_refine] Ep 5/15 [ 675/1979 |  34.1%] loss: 1.1802 (ce: 1.0889, kl: 0.4227) | lr: 4.91e-05 | gnorm: 11.42 | 89.9 img/s | eta: 15.5m
+  [c4_four_views_no_refine] Ep 5/15 [ 700/1979 |  35.4%] loss: 1.1791 (ce: 1.0875, kl: 0.4225) | lr: 4.91e-05 | gnorm: 10.23 | 89.9 img/s | eta: 15.2m
+  [c4_four_views_no_refine] Ep 5/15 [ 725/1979 |  36.6%] loss: 1.1792 (ce: 1.0889, kl: 0.4221) | lr: 4.91e-05 | gnorm: 9.70 | 89.8 img/s | eta: 14.9m
+  [c4_four_views_no_refine] Ep 5/15 [ 750/1979 |  37.9%] loss: 1.1792 (ce: 1.0888, kl: 0.4221) | lr: 4.91e-05 | gnorm: 9.96 | 90.0 img/s | eta: 14.6m
+  [c4_four_views_no_refine] Ep 5/15 [ 775/1979 |  39.2%] loss: 1.1794 (ce: 1.0893, kl: 0.4220) | lr: 4.91e-05 | gnorm: 11.34 | 90.0 img/s | eta: 14.3m
+  [c4_four_views_no_refine] Ep 5/15 [ 800/1979 |  40.4%] loss: 1.1802 (ce: 1.0910, kl: 0.4219) | lr: 4.91e-05 | gnorm: 11.12 | 90.0 img/s | eta: 14.0m
+  [c4_four_views_no_refine] Ep 5/15 [ 825/1979 |  41.7%] loss: 1.1808 (ce: 1.0913, kl: 0.4222) | lr: 4.91e-05 | gnorm: 11.55 | 90.3 img/s | eta: 13.6m
+  [c4_four_views_no_refine] Ep 5/15 [ 850/1979 |  43.0%] loss: 1.1806 (ce: 1.0926, kl: 0.4216) | lr: 4.91e-05 | gnorm: 9.27 | 89.1 img/s | eta: 13.5m
+  [c4_four_views_no_refine] Ep 5/15 [ 875/1979 |  44.2%] loss: 1.1808 (ce: 1.0952, kl: 0.4207) | lr: 4.91e-05 | gnorm: 11.20 | 87.5 img/s | eta: 13.5m
+  [c4_four_views_no_refine] Ep 5/15 [ 900/1979 |  45.5%] loss: 1.1805 (ce: 1.0963, kl: 0.4200) | lr: 4.91e-05 | gnorm: 10.91 | 86.0 img/s | eta: 13.4m
+  [c4_four_views_no_refine] Ep 5/15 [ 925/1979 |  46.7%] loss: 1.1810 (ce: 1.0963, kl: 0.4204) | lr: 4.91e-05 | gnorm: 11.01 | 84.7 img/s | eta: 13.3m
+  [c4_four_views_no_refine] Ep 5/15 [ 950/1979 |  48.0%] loss: 1.1809 (ce: 1.0958, kl: 0.4205) | lr: 4.91e-05 | gnorm: 12.19 | 83.5 img/s | eta: 13.1m
+  [c4_four_views_no_refine] Ep 5/15 [ 975/1979 |  49.3%] loss: 1.1801 (ce: 1.0954, kl: 0.4201) | lr: 4.91e-05 | gnorm: 10.45 | 82.4 img/s | eta: 13.0m
+  [c4_four_views_no_refine] Ep 5/15 [1000/1979 |  50.5%] loss: 1.1800 (ce: 1.0957, kl: 0.4199) | lr: 4.91e-05 | gnorm: 9.05 | 81.5 img/s | eta: 12.8m
+  [c4_four_views_no_refine] Ep 5/15 [1025/1979 |  51.8%] loss: 1.1806 (ce: 1.0969, kl: 0.4199) | lr: 4.91e-05 | gnorm: 10.12 | 81.4 img/s | eta: 12.5m
+  [c4_four_views_no_refine] Ep 5/15 [1050/1979 |  53.1%] loss: 1.1807 (ce: 1.0970, kl: 0.4199) | lr: 4.91e-05 | gnorm: 9.73 | 81.6 img/s | eta: 12.1m
+  [c4_four_views_no_refine] Ep 5/15 [1075/1979 |  54.3%] loss: 1.1806 (ce: 1.0964, kl: 0.4201) | lr: 4.91e-05 | gnorm: 9.74 | 81.6 img/s | eta: 11.8m
+  [c4_four_views_no_refine] Ep 5/15 [1100/1979 |  55.6%] loss: 1.1810 (ce: 1.0965, kl: 0.4203) | lr: 4.91e-05 | gnorm: 8.74 | 80.7 img/s | eta: 11.6m
+  [c4_four_views_no_refine] Ep 5/15 [1125/1979 |  56.8%] loss: 1.1808 (ce: 1.0975, kl: 0.4198) | lr: 4.91e-05 | gnorm: 10.79 | 79.6 img/s | eta: 11.4m
+  [c4_four_views_no_refine] Ep 5/15 [1150/1979 |  58.1%] loss: 1.1813 (ce: 1.0982, kl: 0.4198) | lr: 4.91e-05 | gnorm: 10.42 | 78.3 img/s | eta: 11.3m
+  [c4_four_views_no_refine] Ep 5/15 [1175/1979 |  59.4%] loss: 1.1817 (ce: 1.0993, kl: 0.4197) | lr: 4.91e-05 | gnorm: 14.81 | 77.7 img/s | eta: 11.0m
+  [c4_four_views_no_refine] Ep 5/15 [1200/1979 |  60.6%] loss: 1.1817 (ce: 1.0983, kl: 0.4201) | lr: 4.91e-05 | gnorm: inf | 76.9 img/s | eta: 10.8m
+  [c4_four_views_no_refine] Ep 5/15 [1225/1979 |  61.9%] loss: 1.1822 (ce: 1.0979, kl: 0.4207) | lr: 4.91e-05 | gnorm: 14.01 | 76.0 img/s | eta: 10.6m
+  [c4_four_views_no_refine] Ep 5/15 [1250/1979 |  63.2%] loss: 1.1825 (ce: 1.0985, kl: 0.4206) | lr: 4.91e-05 | gnorm: 13.73 | 74.9 img/s | eta: 10.4m
+  [c4_four_views_no_refine] Ep 5/15 [1275/1979 |  64.4%] loss: 1.1820 (ce: 1.0977, kl: 0.4205) | lr: 4.91e-05 | gnorm: 12.47 | 74.1 img/s | eta: 10.1m
+  [c4_four_views_no_refine] Ep 5/15 [1300/1979 |  65.7%] loss: 1.1822 (ce: 1.0972, kl: 0.4209) | lr: 4.91e-05 | gnorm: 9.85 | 74.3 img/s | eta: 9.8m
+  [c4_four_views_no_refine] Ep 5/15 [1325/1979 |  67.0%] loss: 1.1825 (ce: 1.0991, kl: 0.4203) | lr: 4.91e-05 | gnorm: 9.89 | 74.5 img/s | eta: 9.4m
+  [c4_four_views_no_refine] Ep 5/15 [1350/1979 |  68.2%] loss: 1.1831 (ce: 1.1002, kl: 0.4204) | lr: 4.91e-05 | gnorm: 10.15 | 74.7 img/s | eta: 9.0m
+  [c4_four_views_no_refine] Ep 5/15 [1375/1979 |  69.5%] loss: 1.1829 (ce: 1.1004, kl: 0.4202) | lr: 4.91e-05 | gnorm: 11.28 | 75.0 img/s | eta: 8.6m
+  [c4_four_views_no_refine] Ep 5/15 [1400/1979 |  70.7%] loss: 1.1828 (ce: 1.1006, kl: 0.4200) | lr: 4.91e-05 | gnorm: 10.74 | 75.2 img/s | eta: 8.2m
+  [c4_four_views_no_refine] Ep 5/15 [1425/1979 |  72.0%] loss: 1.1836 (ce: 1.1015, kl: 0.4202) | lr: 4.91e-05 | gnorm: 10.79 | 75.3 img/s | eta: 7.8m
+  [c4_four_views_no_refine] Ep 5/15 [1450/1979 |  73.3%] loss: 1.1846 (ce: 1.1025, kl: 0.4205) | lr: 4.91e-05 | gnorm: 10.94 | 75.5 img/s | eta: 7.5m
+  [c4_four_views_no_refine] Ep 5/15 [1475/1979 |  74.5%] loss: 1.1849 (ce: 1.1030, kl: 0.4206) | lr: 4.91e-05 | gnorm: 11.31 | 75.7 img/s | eta: 7.1m
+  [c4_four_views_no_refine] Ep 5/15 [1500/1979 |  75.8%] loss: 1.1856 (ce: 1.1041, kl: 0.4206) | lr: 4.91e-05 | gnorm: 11.24 | 75.9 img/s | eta: 6.7m
+  [c4_four_views_no_refine] Ep 5/15 [1525/1979 |  77.1%] loss: 1.1863 (ce: 1.1049, kl: 0.4208) | lr: 4.91e-05 | gnorm: 10.50 | 76.2 img/s | eta: 6.4m
+  [c4_four_views_no_refine] Ep 5/15 [1550/1979 |  78.3%] loss: 1.1862 (ce: 1.1054, kl: 0.4205) | lr: 4.91e-05 | gnorm: 10.81 | 76.3 img/s | eta: 6.0m
+  [c4_four_views_no_refine] Ep 5/15 [1575/1979 |  79.6%] loss: 1.1867 (ce: 1.1060, kl: 0.4206) | lr: 4.91e-05 | gnorm: 10.87 | 76.6 img/s | eta: 5.6m
+  [c4_four_views_no_refine] Ep 5/15 [1600/1979 |  80.8%] loss: 1.1867 (ce: 1.1064, kl: 0.4205) | lr: 4.91e-05 | gnorm: 11.40 | 76.8 img/s | eta: 5.3m
+  [c4_four_views_no_refine] Ep 5/15 [1625/1979 |  82.1%] loss: 1.1866 (ce: 1.1067, kl: 0.4203) | lr: 4.91e-05 | gnorm: 9.55 | 77.0 img/s | eta: 4.9m
+  [c4_four_views_no_refine] Ep 5/15 [1650/1979 |  83.4%] loss: 1.1863 (ce: 1.1064, kl: 0.4202) | lr: 4.91e-05 | gnorm: 11.61 | 77.1 img/s | eta: 4.6m
+  [c4_four_views_no_refine] Ep 5/15 [1675/1979 |  84.6%] loss: 1.1862 (ce: 1.1071, kl: 0.4198) | lr: 4.91e-05 | gnorm: 10.48 | 77.2 img/s | eta: 4.2m
+  [c4_four_views_no_refine] Ep 5/15 [1700/1979 |  85.9%] loss: 1.1863 (ce: 1.1077, kl: 0.4197) | lr: 4.91e-05 | gnorm: 9.73 | 77.4 img/s | eta: 3.8m
+  [c4_four_views_no_refine] Ep 5/15 [1725/1979 |  87.2%] loss: 1.1864 (ce: 1.1088, kl: 0.4193) | lr: 4.91e-05 | gnorm: 10.39 | 77.6 img/s | eta: 3.5m
+  [c4_four_views_no_refine] Ep 5/15 [1750/1979 |  88.4%] loss: 1.1868 (ce: 1.1091, kl: 0.4195) | lr: 4.91e-05 | gnorm: 12.41 | 77.8 img/s | eta: 3.1m
+  [c4_four_views_no_refine] Ep 5/15 [1775/1979 |  89.7%] loss: 1.1871 (ce: 1.1093, kl: 0.4197) | lr: 4.91e-05 | gnorm: 11.09 | 77.9 img/s | eta: 2.8m
+  [c4_four_views_no_refine] Ep 5/15 [1800/1979 |  91.0%] loss: 1.1880 (ce: 1.1099, kl: 0.4200) | lr: 4.91e-05 | gnorm: 12.98 | 78.1 img/s | eta: 2.4m
+  [c4_four_views_no_refine] Ep 5/15 [1825/1979 |  92.2%] loss: 1.1883 (ce: 1.1104, kl: 0.4200) | lr: 4.91e-05 | gnorm: 9.43 | 78.3 img/s | eta: 2.1m
+  [c4_four_views_no_refine] Ep 5/15 [1850/1979 |  93.5%] loss: 1.1883 (ce: 1.1105, kl: 0.4200) | lr: 4.91e-05 | gnorm: 9.47 | 78.4 img/s | eta: 1.8m
+  [c4_four_views_no_refine] Ep 5/15 [1875/1979 |  94.7%] loss: 1.1885 (ce: 1.1115, kl: 0.4198) | lr: 4.91e-05 | gnorm: 12.77 | 78.6 img/s | eta: 1.4m
+  [c4_four_views_no_refine] Ep 5/15 [1900/1979 |  96.0%] loss: 1.1882 (ce: 1.1117, kl: 0.4194) | lr: 4.91e-05 | gnorm: 10.76 | 78.7 img/s | eta: 1.1m
+  [c4_four_views_no_refine] Ep 5/15 [1925/1979 |  97.3%] loss: 1.1885 (ce: 1.1126, kl: 0.4193) | lr: 4.91e-05 | gnorm: 10.09 | 78.9 img/s | eta: 0.7m
+  [c4_four_views_no_refine] Ep 5/15 [1950/1979 |  98.5%] loss: 1.1888 (ce: 1.1136, kl: 0.4191) | lr: 4.91e-05 | gnorm: 9.35 | 79.1 img/s | eta: 0.4m
+  [c4_four_views_no_refine] Ep 5/15 [1975/1979 |  99.8%] loss: 1.1889 (ce: 1.1136, kl: 0.4192) | lr: 4.91e-05 | gnorm: 9.55 | 79.1 img/s | eta: 0.1m
+  [c4_four_views_no_refine] Ep 5/15 [1979/1979 | 100.0%] loss: 1.1888 (ce: 1.1137, kl: 0.4191) | lr: 4.91e-05 | gnorm: 8.86 | 79.2 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Running clean validation (5,000 images)...
+  [c4_four_views_no_refine] Running robust validation (512 images, PGD-10 @ eps=0.094)...
+----------------------------------------------------------------------
+[c4_four_views_no_refine] Epoch 5/15 (1614.5s, VRAM: 2022MB) | session: 2.38h/11h | phase ETA: 284.8m
+  val_acc[CLEAN]:  58.22% (best: 60.90%)
+  val_acc[ROBUST]: 21.88% (eps=0.094, best: 22.85%)
+  loss: total=1.1888 ce=1.1137 kl=0.4191
+  lr: backbone_decay: 4.67e-05, backbone_no_decay: 4.67e-05, classifier_decay: 4.67e-04
+  gnorm: backbone_decay: 8.86, backbone_no_decay: 0.98, classifier_decay: 1.18, classifier_no_decay: 0.07
+  health flags: ['OK']
+  feature drift: mean |dW|/|W0| = 4.88%
+----------------------------------------------------------------------
+[Curriculum] c4_four_views_no_refine ep 6/15 -> eps_norm=0.0940 (pix=0.0212) beta=2.5 pgd=4 w_trades=0.55
+  [c4_four_views_no_refine] Ep 6/15 [   1/1979 |   0.1%] loss: 1.1248 (ce: 1.1032, kl: 0.3767) | lr: 4.67e-05 | gnorm: 11.05 | 59.2 img/s | eta: 35.6m
+  [c4_four_views_no_refine] Ep 6/15 [  25/1979 |   1.3%] loss: 1.1003 (ce: 0.9745, kl: 0.4104) | lr: 4.67e-05 | gnorm: 11.73 | 89.6 img/s | eta: 23.3m
+  [c4_four_views_no_refine] Ep 6/15 [  50/1979 |   2.5%] loss: 1.1180 (ce: 0.9866, kl: 0.4184) | lr: 4.67e-05 | gnorm: 10.29 | 92.3 img/s | eta: 22.3m
+  [c4_four_views_no_refine] Ep 6/15 [  75/1979 |   3.8%] loss: 1.1202 (ce: 0.9940, kl: 0.4171) | lr: 4.67e-05 | gnorm: 10.60 | 91.9 img/s | eta: 22.1m
+  [c4_four_views_no_refine] Ep 6/15 [ 100/1979 |   5.1%] loss: 1.1258 (ce: 1.0084, kl: 0.4154) | lr: 4.67e-05 | gnorm: 9.32 | 91.0 img/s | eta: 22.0m
+  [c4_four_views_no_refine] Ep 6/15 [ 125/1979 |   6.3%] loss: 1.1258 (ce: 1.0071, kl: 0.4160) | lr: 4.67e-05 | gnorm: 10.84 | 91.1 img/s | eta: 21.7m
+  [c4_four_views_no_refine] Ep 6/15 [ 150/1979 |   7.6%] loss: 1.1318 (ce: 1.0163, kl: 0.4166) | lr: 4.67e-05 | gnorm: 11.12 | 91.8 img/s | eta: 21.2m
+  [c4_four_views_no_refine] Ep 6/15 [ 175/1979 |   8.8%] loss: 1.1361 (ce: 1.0194, kl: 0.4185) | lr: 4.67e-05 | gnorm: 12.59 | 92.0 img/s | eta: 20.9m
+  [c4_four_views_no_refine] Ep 6/15 [ 200/1979 |  10.1%] loss: 1.1369 (ce: 1.0176, kl: 0.4198) | lr: 4.67e-05 | gnorm: 11.56 | 91.5 img/s | eta: 20.7m
+  [c4_four_views_no_refine] Ep 6/15 [ 225/1979 |  11.4%] loss: 1.1321 (ce: 1.0131, kl: 0.4181) | lr: 4.67e-05 | gnorm: 9.50 | 91.4 img/s | eta: 20.5m
+  [c4_four_views_no_refine] Ep 6/15 [ 250/1979 |  12.6%] loss: 1.1309 (ce: 1.0131, kl: 0.4173) | lr: 4.67e-05 | gnorm: 11.38 | 92.0 img/s | eta: 20.0m
+  [c4_four_views_no_refine] Ep 6/15 [ 275/1979 |  13.9%] loss: 1.1315 (ce: 1.0134, kl: 0.4176) | lr: 4.67e-05 | gnorm: 9.97 | 92.3 img/s | eta: 19.7m
+  [c4_four_views_no_refine] Ep 6/15 [ 300/1979 |  15.2%] loss: 1.1321 (ce: 1.0153, kl: 0.4172) | lr: 4.67e-05 | gnorm: 9.87 | 92.2 img/s | eta: 19.4m
+  [c4_four_views_no_refine] Ep 6/15 [ 325/1979 |  16.4%] loss: 1.1344 (ce: 1.0213, kl: 0.4165) | lr: 4.67e-05 | gnorm: 10.37 | 92.1 img/s | eta: 19.2m
+  [c4_four_views_no_refine] Ep 6/15 [ 350/1979 |  17.7%] loss: 1.1344 (ce: 1.0199, kl: 0.4171) | lr: 4.67e-05 | gnorm: 11.09 | 92.3 img/s | eta: 18.8m
+  [c4_four_views_no_refine] Ep 6/15 [ 375/1979 |  18.9%] loss: 1.1354 (ce: 1.0233, kl: 0.4164) | lr: 4.67e-05 | gnorm: 11.44 | 92.4 img/s | eta: 18.5m
+  [c4_four_views_no_refine] Ep 6/15 [ 400/1979 |  20.2%] loss: 1.1355 (ce: 1.0262, kl: 0.4153) | lr: 4.67e-05 | gnorm: 11.37 | 92.3 img/s | eta: 18.3m
+  [c4_four_views_no_refine] Ep 6/15 [ 425/1979 |  21.5%] loss: 1.1346 (ce: 1.0243, kl: 0.4155) | lr: 4.67e-05 | gnorm: 10.94 | 91.9 img/s | eta: 18.0m
+  [c4_four_views_no_refine] Ep 6/15 [ 450/1979 |  22.7%] loss: 1.1360 (ce: 1.0263, kl: 0.4156) | lr: 4.67e-05 | gnorm: 10.79 | 91.6 img/s | eta: 17.8m
+  [c4_four_views_no_refine] Ep 6/15 [ 475/1979 |  24.0%] loss: 1.1355 (ce: 1.0271, kl: 0.4149) | lr: 4.67e-05 | gnorm: 10.27 | 91.5 img/s | eta: 17.5m
+  [c4_four_views_no_refine] Ep 6/15 [ 500/1979 |  25.3%] loss: 1.1364 (ce: 1.0269, kl: 0.4157) | lr: 4.67e-05 | gnorm: 11.13 | 91.6 img/s | eta: 17.2m
+  [c4_four_views_no_refine] Ep 6/15 [ 525/1979 |  26.5%] loss: 1.1344 (ce: 1.0264, kl: 0.4144) | lr: 4.67e-05 | gnorm: 9.44 | 91.8 img/s | eta: 16.9m
+  [c4_four_views_no_refine] Ep 6/15 [ 550/1979 |  27.8%] loss: 1.1347 (ce: 1.0279, kl: 0.4141) | lr: 4.67e-05 | gnorm: 10.93 | 91.8 img/s | eta: 16.6m
+  [c4_four_views_no_refine] Ep 6/15 [ 575/1979 |  29.1%] loss: 1.1355 (ce: 1.0268, kl: 0.4151) | lr: 4.67e-05 | gnorm: 10.99 | 91.5 img/s | eta: 16.4m
+  [c4_four_views_no_refine] Ep 6/15 [ 600/1979 |  30.3%] loss: 1.1374 (ce: 1.0302, kl: 0.4151) | lr: 4.67e-05 | gnorm: 9.29 | 91.5 img/s | eta: 16.1m
+  [c4_four_views_no_refine] Ep 6/15 [ 625/1979 |  31.6%] loss: 1.1382 (ce: 1.0308, kl: 0.4155) | lr: 4.67e-05 | gnorm: 9.31 | 91.5 img/s | eta: 15.8m
+  [c4_four_views_no_refine] Ep 6/15 [ 650/1979 |  32.8%] loss: 1.1403 (ce: 1.0327, kl: 0.4162) | lr: 4.67e-05 | gnorm: 10.77 | 91.7 img/s | eta: 15.5m
+  [c4_four_views_no_refine] Ep 6/15 [ 675/1979 |  34.1%] loss: 1.1405 (ce: 1.0341, kl: 0.4158) | lr: 4.67e-05 | gnorm: 11.83 | 91.8 img/s | eta: 15.1m
+  [c4_four_views_no_refine] Ep 6/15 [ 700/1979 |  35.4%] loss: 1.1413 (ce: 1.0342, kl: 0.4164) | lr: 4.67e-05 | gnorm: 10.67 | 91.7 img/s | eta: 14.9m
+  [c4_four_views_no_refine] Ep 6/15 [ 725/1979 |  36.6%] loss: 1.1417 (ce: 1.0340, kl: 0.4167) | lr: 4.67e-05 | gnorm: 10.85 | 91.5 img/s | eta: 14.6m
+  [c4_four_views_no_refine] Ep 6/15 [ 750/1979 |  37.9%] loss: 1.1424 (ce: 1.0339, kl: 0.4173) | lr: 4.67e-05 | gnorm: 9.83 | 91.2 img/s | eta: 14.4m
+  [c4_four_views_no_refine] Ep 6/15 [ 775/1979 |  39.2%] loss: 1.1431 (ce: 1.0342, kl: 0.4176) | lr: 4.67e-05 | gnorm: 9.76 | 91.3 img/s | eta: 14.1m
+  [c4_four_views_no_refine] Ep 6/15 [ 800/1979 |  40.4%] loss: 1.1429 (ce: 1.0352, kl: 0.4171) | lr: 4.67e-05 | gnorm: 10.49 | 91.3 img/s | eta: 13.8m
+  [c4_four_views_no_refine] Ep 6/15 [ 825/1979 |  41.7%] loss: 1.1434 (ce: 1.0359, kl: 0.4172) | lr: 4.67e-05 | gnorm: 10.97 | 91.2 img/s | eta: 13.5m
+  [c4_four_views_no_refine] Ep 6/15 [ 850/1979 |  43.0%] loss: 1.1433 (ce: 1.0361, kl: 0.4171) | lr: 4.67e-05 | gnorm: 11.68 | 91.2 img/s | eta: 13.2m
+  [c4_four_views_no_refine] Ep 6/15 [ 875/1979 |  44.2%] loss: 1.1448 (ce: 1.0374, kl: 0.4176) | lr: 4.67e-05 | gnorm: 9.78 | 91.0 img/s | eta: 12.9m
+  [c4_four_views_no_refine] Ep 6/15 [ 900/1979 |  45.5%] loss: 1.1452 (ce: 1.0378, kl: 0.4178) | lr: 4.67e-05 | gnorm: 9.87 | 90.7 img/s | eta: 12.7m
+  [c4_four_views_no_refine] Ep 6/15 [ 925/1979 |  46.7%] loss: 1.1467 (ce: 1.0384, kl: 0.4186) | lr: 4.67e-05 | gnorm: 12.07 | 90.7 img/s | eta: 12.4m
+  [c4_four_views_no_refine] Ep 6/15 [ 950/1979 |  48.0%] loss: 1.1462 (ce: 1.0376, kl: 0.4185) | lr: 4.67e-05 | gnorm: 10.50 | 90.8 img/s | eta: 12.1m
+  [c4_four_views_no_refine] Ep 6/15 [ 975/1979 |  49.3%] loss: 1.1464 (ce: 1.0382, kl: 0.4185) | lr: 4.67e-05 | gnorm: 9.68 | 90.8 img/s | eta: 11.8m
+  [c4_four_views_no_refine] Ep 6/15 [1000/1979 |  50.5%] loss: 1.1463 (ce: 1.0381, kl: 0.4184) | lr: 4.67e-05 | gnorm: 8.92 | 90.8 img/s | eta: 11.5m
+  [c4_four_views_no_refine] Ep 6/15 [1025/1979 |  51.8%] loss: 1.1466 (ce: 1.0388, kl: 0.4184) | lr: 4.67e-05 | gnorm: 9.57 | 90.7 img/s | eta: 11.2m
+  [c4_four_views_no_refine] Ep 6/15 [1050/1979 |  53.1%] loss: 1.1461 (ce: 1.0386, kl: 0.4180) | lr: 4.67e-05 | gnorm: 10.39 | 90.6 img/s | eta: 10.9m
+  [c4_four_views_no_refine] Ep 6/15 [1075/1979 |  54.3%] loss: 1.1464 (ce: 1.0389, kl: 0.4182) | lr: 4.67e-05 | gnorm: 9.98 | 90.7 img/s | eta: 10.6m
+  [c4_four_views_no_refine] Ep 6/15 [1100/1979 |  55.6%] loss: 1.1466 (ce: 1.0402, kl: 0.4178) | lr: 4.67e-05 | gnorm: 10.76 | 90.7 img/s | eta: 10.3m
+  [c4_four_views_no_refine] Ep 6/15 [1125/1979 |  56.8%] loss: 1.1473 (ce: 1.0419, kl: 0.4176) | lr: 4.67e-05 | gnorm: 9.84 | 90.7 img/s | eta: 10.0m
+  [c4_four_views_no_refine] Ep 6/15 [1150/1979 |  58.1%] loss: 1.1480 (ce: 1.0429, kl: 0.4177) | lr: 4.67e-05 | gnorm: 11.80 | 90.6 img/s | eta: 9.8m
+  [c4_four_views_no_refine] Ep 6/15 [1175/1979 |  59.4%] loss: 1.1479 (ce: 1.0432, kl: 0.4176) | lr: 4.67e-05 | gnorm: 10.27 | 90.5 img/s | eta: 9.5m
+  [c4_four_views_no_refine] Ep 6/15 [1200/1979 |  60.6%] loss: 1.1484 (ce: 1.0434, kl: 0.4178) | lr: 4.67e-05 | gnorm: 10.70 | 90.5 img/s | eta: 9.2m
+  [c4_four_views_no_refine] Ep 6/15 [1225/1979 |  61.9%] loss: 1.1495 (ce: 1.0456, kl: 0.4178) | lr: 4.67e-05 | gnorm: 9.75 | 90.6 img/s | eta: 8.9m
+  [c4_four_views_no_refine] Ep 6/15 [1250/1979 |  63.2%] loss: 1.1504 (ce: 1.0457, kl: 0.4184) | lr: 4.67e-05 | gnorm: 12.18 | 90.6 img/s | eta: 8.6m
+  [c4_four_views_no_refine] Ep 6/15 [1275/1979 |  64.4%] loss: 1.1505 (ce: 1.0463, kl: 0.4182) | lr: 4.67e-05 | gnorm: 10.95 | 90.4 img/s | eta: 8.3m
+  [c4_four_views_no_refine] Ep 6/15 [1300/1979 |  65.7%] loss: 1.1512 (ce: 1.0469, kl: 0.4185) | lr: 4.67e-05 | gnorm: 8.76 | 90.3 img/s | eta: 8.0m
+  [c4_four_views_no_refine] Ep 6/15 [1325/1979 |  67.0%] loss: 1.1515 (ce: 1.0471, kl: 0.4186) | lr: 4.67e-05 | gnorm: 11.45 | 90.1 img/s | eta: 7.7m
+  [c4_four_views_no_refine] Ep 6/15 [1350/1979 |  68.2%] loss: 1.1515 (ce: 1.0478, kl: 0.4183) | lr: 4.67e-05 | gnorm: 10.73 | 90.1 img/s | eta: 7.4m
+  [c4_four_views_no_refine] Ep 6/15 [1375/1979 |  69.5%] loss: 1.1518 (ce: 1.0493, kl: 0.4180) | lr: 4.67e-05 | gnorm: 8.81 | 90.2 img/s | eta: 7.1m
+  [c4_four_views_no_refine] Ep 6/15 [1400/1979 |  70.7%] loss: 1.1521 (ce: 1.0508, kl: 0.4176) | lr: 4.67e-05 | gnorm: 10.91 | 90.2 img/s | eta: 6.9m
+  [c4_four_views_no_refine] Ep 6/15 [1425/1979 |  72.0%] loss: 1.1527 (ce: 1.0521, kl: 0.4175) | lr: 4.67e-05 | gnorm: 11.26 | 90.2 img/s | eta: 6.6m
+  [c4_four_views_no_refine] Ep 6/15 [1450/1979 |  73.3%] loss: 1.1529 (ce: 1.0533, kl: 0.4172) | lr: 4.67e-05 | gnorm: 9.19 | 90.1 img/s | eta: 6.3m
+  [c4_four_views_no_refine] Ep 6/15 [1475/1979 |  74.5%] loss: 1.1538 (ce: 1.0537, kl: 0.4177) | lr: 4.67e-05 | gnorm: 11.42 | 90.1 img/s | eta: 6.0m
+  [c4_four_views_no_refine] Ep 6/15 [1500/1979 |  75.8%] loss: 1.1539 (ce: 1.0537, kl: 0.4177) | lr: 4.67e-05 | gnorm: 11.82 | 90.1 img/s | eta: 5.7m
+  [c4_four_views_no_refine] Ep 6/15 [1525/1979 |  77.1%] loss: 1.1542 (ce: 1.0534, kl: 0.4180) | lr: 4.67e-05 | gnorm: 12.76 | 90.2 img/s | eta: 5.4m
+  [c4_four_views_no_refine] Ep 6/15 [1550/1979 |  78.3%] loss: 1.1551 (ce: 1.0540, kl: 0.4185) | lr: 4.67e-05 | gnorm: 9.54 | 90.1 img/s | eta: 5.1m
+  [c4_four_views_no_refine] Ep 6/15 [1575/1979 |  79.6%] loss: 1.1555 (ce: 1.0546, kl: 0.4185) | lr: 4.67e-05 | gnorm: 9.63 | 90.0 img/s | eta: 4.8m
+  [c4_four_views_no_refine] Ep 6/15 [1600/1979 |  80.8%] loss: 1.1553 (ce: 1.0551, kl: 0.4182) | lr: 4.67e-05 | gnorm: 8.98 | 90.0 img/s | eta: 4.5m
+  [c4_four_views_no_refine] Ep 6/15 [1625/1979 |  82.1%] loss: 1.1553 (ce: 1.0555, kl: 0.4180) | lr: 4.67e-05 | gnorm: 11.05 | 90.0 img/s | eta: 4.2m
+  [c4_four_views_no_refine] Ep 6/15 [1650/1979 |  83.4%] loss: 1.1554 (ce: 1.0556, kl: 0.4181) | lr: 4.67e-05 | gnorm: 10.69 | 90.0 img/s | eta: 3.9m
+  [c4_four_views_no_refine] Ep 6/15 [1675/1979 |  84.6%] loss: 1.1555 (ce: 1.0559, kl: 0.4180) | lr: 4.67e-05 | gnorm: 9.69 | 90.0 img/s | eta: 3.6m
+  [c4_four_views_no_refine] Ep 6/15 [1700/1979 |  85.9%] loss: 1.1557 (ce: 1.0561, kl: 0.4180) | lr: 4.67e-05 | gnorm: 9.32 | 90.0 img/s | eta: 3.3m
+  [c4_four_views_no_refine] Ep 6/15 [1725/1979 |  87.2%] loss: 1.1558 (ce: 1.0565, kl: 0.4180) | lr: 4.67e-05 | gnorm: 10.29 | 89.9 img/s | eta: 3.0m
+  [c4_four_views_no_refine] Ep 6/15 [1750/1979 |  88.4%] loss: 1.1557 (ce: 1.0558, kl: 0.4182) | lr: 4.67e-05 | gnorm: 13.47 | 89.9 img/s | eta: 2.7m
+  [c4_four_views_no_refine] Ep 6/15 [1775/1979 |  89.7%] loss: 1.1560 (ce: 1.0564, kl: 0.4182) | lr: 4.67e-05 | gnorm: 12.71 | 90.0 img/s | eta: 2.4m
+  [c4_four_views_no_refine] Ep 6/15 [1800/1979 |  91.0%] loss: 1.1561 (ce: 1.0568, kl: 0.4181) | lr: 4.67e-05 | gnorm: 11.62 | 90.1 img/s | eta: 2.1m
+  [c4_four_views_no_refine] Ep 6/15 [1825/1979 |  92.2%] loss: 1.1566 (ce: 1.0577, kl: 0.4181) | lr: 4.67e-05 | gnorm: 10.17 | 90.0 img/s | eta: 1.8m
+  [c4_four_views_no_refine] Ep 6/15 [1850/1979 |  93.5%] loss: 1.1565 (ce: 1.0577, kl: 0.4180) | lr: 4.67e-05 | gnorm: 10.93 | 89.8 img/s | eta: 1.5m
+  [c4_four_views_no_refine] Ep 6/15 [1875/1979 |  94.7%] loss: 1.1565 (ce: 1.0582, kl: 0.4178) | lr: 4.67e-05 | gnorm: 10.74 | 89.4 img/s | eta: 1.2m
+  [c4_four_views_no_refine] Ep 6/15 [1900/1979 |  96.0%] loss: 1.1569 (ce: 1.0590, kl: 0.4178) | lr: 4.67e-05 | gnorm: 10.26 | 89.4 img/s | eta: 0.9m
+  [c4_four_views_no_refine] Ep 6/15 [1925/1979 |  97.3%] loss: 1.1567 (ce: 1.0592, kl: 0.4176) | lr: 4.67e-05 | gnorm: 10.10 | 89.4 img/s | eta: 0.6m
+  [c4_four_views_no_refine] Ep 6/15 [1950/1979 |  98.5%] loss: 1.1568 (ce: 1.0591, kl: 0.4177) | lr: 4.67e-05 | gnorm: 9.09 | 89.5 img/s | eta: 0.3m
+  [c4_four_views_no_refine] Ep 6/15 [1975/1979 |  99.8%] loss: 1.1568 (ce: 1.0596, kl: 0.4174) | lr: 4.67e-05 | gnorm: 9.51 | 89.6 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Ep 6/15 [1979/1979 | 100.0%] loss: 1.1568 (ce: 1.0598, kl: 0.4174) | lr: 4.67e-05 | gnorm: 9.82 | 89.6 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Running clean validation (5,000 images)...
+  [c4_four_views_no_refine] Running robust validation (512 images, PGD-10 @ eps=0.094)...
+----------------------------------------------------------------------
+[c4_four_views_no_refine] Epoch 6/15 (1425.8s, VRAM: 2022MB) | session: 2.77h/11h | phase ETA: 226.0m
+  val_acc[CLEAN]:  57.76% (best: 60.90%)
+  val_acc[ROBUST]: 21.48% (eps=0.094, best: 22.85%)
+  loss: total=1.1568 ce=1.0598 kl=0.4174
+  lr: backbone_decay: 4.27e-05, backbone_no_decay: 4.27e-05, classifier_decay: 4.27e-04
+  gnorm: backbone_decay: 9.82, backbone_no_decay: 1.12, classifier_decay: 1.37, classifier_no_decay: 0.09
+  health flags: ['OK']
+----------------------------------------------------------------------
+[Curriculum] c4_four_views_no_refine ep 7/15 -> eps_norm=0.0940 (pix=0.0212) beta=2.5 pgd=4 w_trades=0.55
+  [c4_four_views_no_refine] Ep 7/15 [   1/1979 |   0.1%] loss: 1.2554 (ce: 1.2148, kl: 0.4271) | lr: 4.27e-05 | gnorm: 10.94 | 58.9 img/s | eta: 35.8m
+  [c4_four_views_no_refine] Ep 7/15 [  25/1979 |   1.3%] loss: 1.1046 (ce: 0.9660, kl: 0.4170) | lr: 4.27e-05 | gnorm: 9.59 | 86.1 img/s | eta: 24.2m
+  [c4_four_views_no_refine] Ep 7/15 [  50/1979 |   2.5%] loss: 1.1136 (ce: 0.9932, kl: 0.4126) | lr: 4.27e-05 | gnorm: 10.70 | 88.5 img/s | eta: 23.3m
+  [c4_four_views_no_refine] Ep 7/15 [  75/1979 |   3.8%] loss: 1.1102 (ce: 0.9930, kl: 0.4102) | lr: 4.27e-05 | gnorm: 9.84 | 91.0 img/s | eta: 22.3m
+  [c4_four_views_no_refine] Ep 7/15 [ 100/1979 |   5.1%] loss: 1.1070 (ce: 0.9783, kl: 0.4138) | lr: 4.27e-05 | gnorm: 10.87 | 91.9 img/s | eta: 21.8m
+  [c4_four_views_no_refine] Ep 7/15 [ 125/1979 |   6.3%] loss: 1.1094 (ce: 0.9896, kl: 0.4110) | lr: 4.27e-05 | gnorm: 10.00 | 92.8 img/s | eta: 21.3m
+  [c4_four_views_no_refine] Ep 7/15 [ 150/1979 |   7.6%] loss: 1.1057 (ce: 0.9799, kl: 0.4122) | lr: 4.27e-05 | gnorm: 11.49 | 94.3 img/s | eta: 20.7m
+  [c4_four_views_no_refine] Ep 7/15 [ 175/1979 |   8.8%] loss: 1.1092 (ce: 0.9777, kl: 0.4156) | lr: 4.27e-05 | gnorm: 11.35 | 87.9 img/s | eta: 21.9m
+  [c4_four_views_no_refine] Ep 7/15 [ 200/1979 |  10.1%] loss: 1.1107 (ce: 0.9727, kl: 0.4187) | lr: 4.27e-05 | gnorm: 10.01 | 79.1 img/s | eta: 24.0m
+  [c4_four_views_no_refine] Ep 7/15 [ 225/1979 |  11.4%] loss: 1.1089 (ce: 0.9701, kl: 0.4184) | lr: 4.27e-05 | gnorm: 12.39 | 76.8 img/s | eta: 24.4m
+  [c4_four_views_no_refine] Ep 7/15 [ 250/1979 |  12.6%] loss: 1.1079 (ce: 0.9633, kl: 0.4204) | lr: 4.27e-05 | gnorm: 11.37 | 76.0 img/s | eta: 24.3m
+  [c4_four_views_no_refine] Ep 7/15 [ 275/1979 |  13.9%] loss: 1.1071 (ce: 0.9626, kl: 0.4201) | lr: 4.27e-05 | gnorm: 12.99 | 75.8 img/s | eta: 24.0m
+  [c4_four_views_no_refine] Ep 7/15 [ 300/1979 |  15.2%] loss: 1.1085 (ce: 0.9609, kl: 0.4218) | lr: 4.27e-05 | gnorm: 10.58 | 76.4 img/s | eta: 23.4m
+  [c4_four_views_no_refine] Ep 7/15 [ 325/1979 |  16.4%] loss: 1.1123 (ce: 0.9657, kl: 0.4227) | lr: 4.27e-05 | gnorm: 12.91 | 77.3 img/s | eta: 22.8m
+  [c4_four_views_no_refine] Ep 7/15 [ 350/1979 |  17.7%] loss: 1.1127 (ce: 0.9687, kl: 0.4217) | lr: 4.27e-05 | gnorm: 10.55 | 77.6 img/s | eta: 22.4m
+  [c4_four_views_no_refine] Ep 7/15 [ 375/1979 |  18.9%] loss: 1.1149 (ce: 0.9703, kl: 0.4227) | lr: 4.27e-05 | gnorm: 11.69 | 78.0 img/s | eta: 21.9m
+  [c4_four_views_no_refine] Ep 7/15 [ 400/1979 |  20.2%] loss: 1.1145 (ce: 0.9724, kl: 0.4216) | lr: 4.27e-05 | gnorm: 10.66 | 78.7 img/s | eta: 21.4m
+  [c4_four_views_no_refine] Ep 7/15 [ 425/1979 |  21.5%] loss: 1.1152 (ce: 0.9740, kl: 0.4215) | lr: 4.27e-05 | gnorm: 11.67 | 79.3 img/s | eta: 20.9m
+  [c4_four_views_no_refine] Ep 7/15 [ 450/1979 |  22.7%] loss: 1.1153 (ce: 0.9734, kl: 0.4217) | lr: 4.27e-05 | gnorm: 10.75 | 79.9 img/s | eta: 20.4m
+  [c4_four_views_no_refine] Ep 7/15 [ 475/1979 |  24.0%] loss: 1.1163 (ce: 0.9740, kl: 0.4222) | lr: 4.27e-05 | gnorm: 9.67 | 80.3 img/s | eta: 20.0m
+  [c4_four_views_no_refine] Ep 7/15 [ 500/1979 |  25.3%] loss: 1.1165 (ce: 0.9758, kl: 0.4217) | lr: 4.27e-05 | gnorm: 10.04 | 80.6 img/s | eta: 19.6m
+  [c4_four_views_no_refine] Ep 7/15 [ 525/1979 |  26.5%] loss: 1.1172 (ce: 0.9766, kl: 0.4219) | lr: 4.27e-05 | gnorm: 11.14 | 80.8 img/s | eta: 19.2m
+  [c4_four_views_no_refine] Ep 7/15 [ 550/1979 |  27.8%] loss: 1.1178 (ce: 0.9774, kl: 0.4220) | lr: 4.27e-05 | gnorm: 10.56 | 81.3 img/s | eta: 18.7m
+  [c4_four_views_no_refine] Ep 7/15 [ 575/1979 |  29.1%] loss: 1.1179 (ce: 0.9782, kl: 0.4217) | lr: 4.27e-05 | gnorm: 9.85 | 81.8 img/s | eta: 18.3m
+  [c4_four_views_no_refine] Ep 7/15 [ 600/1979 |  30.3%] loss: 1.1178 (ce: 0.9791, kl: 0.4213) | lr: 4.27e-05 | gnorm: 12.69 | 82.2 img/s | eta: 17.9m
+  [c4_four_views_no_refine] Ep 7/15 [ 625/1979 |  31.6%] loss: 1.1178 (ce: 0.9777, kl: 0.4219) | lr: 4.27e-05 | gnorm: 12.22 | 82.2 img/s | eta: 17.6m
+  [c4_four_views_no_refine] Ep 7/15 [ 650/1979 |  32.8%] loss: 1.1175 (ce: 0.9784, kl: 0.4214) | lr: 4.27e-05 | gnorm: 9.80 | 81.9 img/s | eta: 17.3m
+  [c4_four_views_no_refine] Ep 7/15 [ 675/1979 |  34.1%] loss: 1.1180 (ce: 0.9785, kl: 0.4217) | lr: 4.27e-05 | gnorm: 11.10 | 82.2 img/s | eta: 16.9m
+  [c4_four_views_no_refine] Ep 7/15 [ 700/1979 |  35.4%] loss: 1.1189 (ce: 0.9781, kl: 0.4225) | lr: 4.27e-05 | gnorm: 11.30 | 82.6 img/s | eta: 16.5m
+  [c4_four_views_no_refine] Ep 7/15 [ 725/1979 |  36.6%] loss: 1.1193 (ce: 0.9795, kl: 0.4222) | lr: 4.27e-05 | gnorm: 10.71 | 83.0 img/s | eta: 16.1m
+  [c4_four_views_no_refine] Ep 7/15 [ 750/1979 |  37.9%] loss: 1.1198 (ce: 0.9810, kl: 0.4220) | lr: 4.27e-05 | gnorm: 11.41 | 83.3 img/s | eta: 15.7m
+  [c4_four_views_no_refine] Ep 7/15 [ 775/1979 |  39.2%] loss: 1.1190 (ce: 0.9820, kl: 0.4210) | lr: 4.27e-05 | gnorm: 10.00 | 83.3 img/s | eta: 15.4m
+  [c4_four_views_no_refine] Ep 7/15 [ 800/1979 |  40.4%] loss: 1.1185 (ce: 0.9820, kl: 0.4207) | lr: 4.27e-05 | gnorm: 10.82 | 83.5 img/s | eta: 15.1m
+  [c4_four_views_no_refine] Ep 7/15 [ 825/1979 |  41.7%] loss: 1.1171 (ce: 0.9811, kl: 0.4200) | lr: 4.27e-05 | gnorm: 10.40 | 83.8 img/s | eta: 14.7m
+  [c4_four_views_no_refine] Ep 7/15 [ 850/1979 |  43.0%] loss: 1.1175 (ce: 0.9823, kl: 0.4198) | lr: 4.27e-05 | gnorm: 10.01 | 84.1 img/s | eta: 14.3m
+  [c4_four_views_no_refine] Ep 7/15 [ 875/1979 |  44.2%] loss: 1.1173 (ce: 0.9820, kl: 0.4197) | lr: 4.27e-05 | gnorm: 10.92 | 84.2 img/s | eta: 14.0m
+  [c4_four_views_no_refine] Ep 7/15 [ 900/1979 |  45.5%] loss: 1.1170 (ce: 0.9812, kl: 0.4198) | lr: 4.27e-05 | gnorm: 10.38 | 84.3 img/s | eta: 13.7m
+  [c4_four_views_no_refine] Ep 7/15 [ 925/1979 |  46.7%] loss: 1.1174 (ce: 0.9814, kl: 0.4201) | lr: 4.27e-05 | gnorm: 11.24 | 84.5 img/s | eta: 13.3m
+  [c4_four_views_no_refine] Ep 7/15 [ 950/1979 |  48.0%] loss: 1.1180 (ce: 0.9815, kl: 0.4205) | lr: 4.27e-05 | gnorm: 11.35 | 84.7 img/s | eta: 13.0m
+  [c4_four_views_no_refine] Ep 7/15 [ 975/1979 |  49.3%] loss: 1.1183 (ce: 0.9819, kl: 0.4206) | lr: 4.27e-05 | gnorm: 12.52 | 84.9 img/s | eta: 12.6m
+  [c4_four_views_no_refine] Ep 7/15 [1000/1979 |  50.5%] loss: 1.1186 (ce: 0.9812, kl: 0.4211) | lr: 4.27e-05 | gnorm: 10.66 | 84.9 img/s | eta: 12.3m
+  [c4_four_views_no_refine] Ep 7/15 [1025/1979 |  51.8%] loss: 1.1192 (ce: 0.9829, kl: 0.4208) | lr: 4.27e-05 | gnorm: 12.73 | 84.8 img/s | eta: 12.0m
+  [c4_four_views_no_refine] Ep 7/15 [1050/1979 |  53.1%] loss: 1.1191 (ce: 0.9810, kl: 0.4215) | lr: 4.27e-05 | gnorm: 13.50 | 84.9 img/s | eta: 11.7m
+  [c4_four_views_no_refine] Ep 7/15 [1075/1979 |  54.3%] loss: 1.1193 (ce: 0.9819, kl: 0.4213) | lr: 4.27e-05 | gnorm: 13.09 | 85.2 img/s | eta: 11.3m
+  [c4_four_views_no_refine] Ep 7/15 [1100/1979 |  55.6%] loss: 1.1203 (ce: 0.9833, kl: 0.4214) | lr: 4.27e-05 | gnorm: 11.50 | 85.3 img/s | eta: 11.0m
+  [c4_four_views_no_refine] Ep 7/15 [1125/1979 |  56.8%] loss: 1.1201 (ce: 0.9834, kl: 0.4213) | lr: 4.27e-05 | gnorm: 11.60 | 85.4 img/s | eta: 10.7m
+  [c4_four_views_no_refine] Ep 7/15 [1150/1979 |  58.1%] loss: 1.1213 (ce: 0.9840, kl: 0.4219) | lr: 4.27e-05 | gnorm: 9.65 | 85.4 img/s | eta: 10.3m
+  [c4_four_views_no_refine] Ep 7/15 [1175/1979 |  59.4%] loss: 1.1212 (ce: 0.9841, kl: 0.4218) | lr: 4.27e-05 | gnorm: 10.16 | 85.5 img/s | eta: 10.0m
+  [c4_four_views_no_refine] Ep 7/15 [1200/1979 |  60.6%] loss: 1.1208 (ce: 0.9843, kl: 0.4214) | lr: 4.27e-05 | gnorm: 10.08 | 85.5 img/s | eta: 9.7m
+  [c4_four_views_no_refine] Ep 7/15 [1225/1979 |  61.9%] loss: 1.1211 (ce: 0.9849, kl: 0.4214) | lr: 4.27e-05 | gnorm: 9.82 | 85.6 img/s | eta: 9.4m
+  [c4_four_views_no_refine] Ep 7/15 [1250/1979 |  63.2%] loss: 1.1212 (ce: 0.9860, kl: 0.4210) | lr: 4.27e-05 | gnorm: 9.42 | 85.8 img/s | eta: 9.1m
+  [c4_four_views_no_refine] Ep 7/15 [1275/1979 |  64.4%] loss: 1.1215 (ce: 0.9871, kl: 0.4208) | lr: 4.27e-05 | gnorm: 10.82 | 86.0 img/s | eta: 8.7m
+  [c4_four_views_no_refine] Ep 7/15 [1300/1979 |  65.7%] loss: 1.1215 (ce: 0.9865, kl: 0.4211) | lr: 4.27e-05 | gnorm: 11.33 | 86.1 img/s | eta: 8.4m
+  [c4_four_views_no_refine] Ep 7/15 [1325/1979 |  67.0%] loss: 1.1212 (ce: 0.9871, kl: 0.4206) | lr: 4.27e-05 | gnorm: 13.43 | 86.2 img/s | eta: 8.1m
+  [c4_four_views_no_refine] Ep 7/15 [1350/1979 |  68.2%] loss: 1.1212 (ce: 0.9859, kl: 0.4211) | lr: 4.27e-05 | gnorm: 10.01 | 86.2 img/s | eta: 7.8m
+  [c4_four_views_no_refine] Ep 7/15 [1375/1979 |  69.5%] loss: 1.1215 (ce: 0.9861, kl: 0.4212) | lr: 4.27e-05 | gnorm: 10.86 | 86.4 img/s | eta: 7.5m
+  [c4_four_views_no_refine] Ep 7/15 [1400/1979 |  70.7%] loss: 1.1219 (ce: 0.9858, kl: 0.4216) | lr: 4.27e-05 | gnorm: 11.21 | 86.5 img/s | eta: 7.1m
+  [c4_four_views_no_refine] Ep 7/15 [1425/1979 |  72.0%] loss: 1.1217 (ce: 0.9855, kl: 0.4216) | lr: 4.27e-05 | gnorm: 9.84 | 86.5 img/s | eta: 6.8m
+  [c4_four_views_no_refine] Ep 7/15 [1450/1979 |  73.3%] loss: 1.1219 (ce: 0.9851, kl: 0.4219) | lr: 4.27e-05 | gnorm: 10.99 | 86.5 img/s | eta: 6.5m
+  [c4_four_views_no_refine] Ep 7/15 [1475/1979 |  74.5%] loss: 1.1213 (ce: 0.9850, kl: 0.4215) | lr: 4.27e-05 | gnorm: 11.62 | 86.6 img/s | eta: 6.2m
+  [c4_four_views_no_refine] Ep 7/15 [1500/1979 |  75.8%] loss: 1.1217 (ce: 0.9864, kl: 0.4212) | lr: 4.27e-05 | gnorm: 11.61 | 86.7 img/s | eta: 5.9m
+  [c4_four_views_no_refine] Ep 7/15 [1525/1979 |  77.1%] loss: 1.1220 (ce: 0.9868, kl: 0.4212) | lr: 4.27e-05 | gnorm: 9.21 | 86.7 img/s | eta: 5.6m
+  [c4_four_views_no_refine] Ep 7/15 [1550/1979 |  78.3%] loss: 1.1224 (ce: 0.9876, kl: 0.4212) | lr: 4.27e-05 | gnorm: 10.51 | 86.8 img/s | eta: 5.3m
+  [c4_four_views_no_refine] Ep 7/15 [1575/1979 |  79.6%] loss: 1.1222 (ce: 0.9877, kl: 0.4211) | lr: 4.27e-05 | gnorm: 9.56 | 86.8 img/s | eta: 5.0m
+  [c4_four_views_no_refine] Ep 7/15 [1600/1979 |  80.8%] loss: 1.1229 (ce: 0.9886, kl: 0.4212) | lr: 4.27e-05 | gnorm: 13.01 | 86.8 img/s | eta: 4.7m
+  [c4_four_views_no_refine] Ep 7/15 [1625/1979 |  82.1%] loss: 1.1234 (ce: 0.9888, kl: 0.4215) | lr: 4.27e-05 | gnorm: 12.57 | 86.8 img/s | eta: 4.4m
+  [c4_four_views_no_refine] Ep 7/15 [1650/1979 |  83.4%] loss: 1.1237 (ce: 0.9889, kl: 0.4217) | lr: 4.27e-05 | gnorm: 11.08 | 86.8 img/s | eta: 4.0m
+  [c4_four_views_no_refine] Ep 7/15 [1675/1979 |  84.6%] loss: 1.1240 (ce: 0.9898, kl: 0.4215) | lr: 4.27e-05 | gnorm: 9.93 | 86.9 img/s | eta: 3.7m
+  [c4_four_views_no_refine] Ep 7/15 [1700/1979 |  85.9%] loss: 1.1243 (ce: 0.9904, kl: 0.4215) | lr: 4.27e-05 | gnorm: 10.53 | 87.0 img/s | eta: 3.4m
+  [c4_four_views_no_refine] Ep 7/15 [1725/1979 |  87.2%] loss: 1.1245 (ce: 0.9909, kl: 0.4215) | lr: 4.27e-05 | gnorm: 11.74 | 87.0 img/s | eta: 3.1m
+  [c4_four_views_no_refine] Ep 7/15 [1750/1979 |  88.4%] loss: 1.1249 (ce: 0.9916, kl: 0.4215) | lr: 4.27e-05 | gnorm: 11.23 | 87.0 img/s | eta: 2.8m
+  [c4_four_views_no_refine] Ep 7/15 [1775/1979 |  89.7%] loss: 1.1254 (ce: 0.9924, kl: 0.4215) | lr: 4.27e-05 | gnorm: 10.76 | 87.0 img/s | eta: 2.5m
+  [c4_four_views_no_refine] Ep 7/15 [1800/1979 |  91.0%] loss: 1.1253 (ce: 0.9921, kl: 0.4215) | lr: 4.27e-05 | gnorm: 11.38 | 87.1 img/s | eta: 2.2m
+  [c4_four_views_no_refine] Ep 7/15 [1825/1979 |  92.2%] loss: 1.1258 (ce: 0.9937, kl: 0.4213) | lr: 4.27e-05 | gnorm: 9.96 | 87.2 img/s | eta: 1.9m
+  [c4_four_views_no_refine] Ep 7/15 [1850/1979 |  93.5%] loss: 1.1257 (ce: 0.9945, kl: 0.4209) | lr: 4.27e-05 | gnorm: 10.40 | 87.3 img/s | eta: 1.6m
+  [c4_four_views_no_refine] Ep 7/15 [1875/1979 |  94.7%] loss: 1.1260 (ce: 0.9950, kl: 0.4209) | lr: 4.27e-05 | gnorm: 14.10 | 87.4 img/s | eta: 1.3m
+  [c4_four_views_no_refine] Ep 7/15 [1900/1979 |  96.0%] loss: 1.1260 (ce: 0.9949, kl: 0.4209) | lr: 4.27e-05 | gnorm: 9.15 | 87.4 img/s | eta: 1.0m
+  [c4_four_views_no_refine] Ep 7/15 [1925/1979 |  97.3%] loss: 1.1260 (ce: 0.9951, kl: 0.4209) | lr: 4.27e-05 | gnorm: 10.42 | 87.4 img/s | eta: 0.7m
+  [c4_four_views_no_refine] Ep 7/15 [1950/1979 |  98.5%] loss: 1.1263 (ce: 0.9956, kl: 0.4209) | lr: 4.27e-05 | gnorm: 12.90 | 87.5 img/s | eta: 0.4m
+  [c4_four_views_no_refine] Ep 7/15 [1975/1979 |  99.8%] loss: 1.1266 (ce: 0.9956, kl: 0.4211) | lr: 4.27e-05 | gnorm: 11.30 | 87.5 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Ep 7/15 [1979/1979 | 100.0%] loss: 1.1265 (ce: 0.9956, kl: 0.4211) | lr: 4.27e-05 | gnorm: 11.99 | 87.5 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Running clean validation (5,000 images)...
+  [c4_four_views_no_refine] Running robust validation (512 images, PGD-10 @ eps=0.094)...
+----------------------------------------------------------------------
+[c4_four_views_no_refine] Epoch 7/15 (1459.8s, VRAM: 2022MB) | session: 3.18h/11h | phase ETA: 200.0m
+  val_acc[CLEAN]:  59.16% (best: 60.90%)
+  val_acc[ROBUST]: 22.07% (eps=0.094, best: 22.85%)
+  loss: total=1.1265 ce=0.9956 kl=0.4211
+  lr: backbone_decay: 3.75e-05, backbone_no_decay: 3.75e-05, classifier_decay: 3.75e-04
+  gnorm: backbone_decay: 11.99, backbone_no_decay: 1.25, classifier_decay: 1.47, classifier_no_decay: 0.09
+  health flags: ['OK']
+----------------------------------------------------------------------
+[Curriculum] c4_four_views_no_refine ep 8/15 -> eps_norm=0.0940 (pix=0.0212) beta=2.5 pgd=4 w_trades=0.55
+  [c4_four_views_no_refine] Ep 8/15 [   1/1979 |   0.1%] loss: 0.8626 (ce: 0.6476, kl: 0.3683) | lr: 3.75e-05 | gnorm: 10.31 | 66.2 img/s | eta: 31.9m
+  [c4_four_views_no_refine] Ep 8/15 [  25/1979 |   1.3%] loss: 1.0768 (ce: 0.9170, kl: 0.4163) | lr: 3.75e-05 | gnorm: 9.53 | 93.8 img/s | eta: 22.2m
+  [c4_four_views_no_refine] Ep 8/15 [  50/1979 |   2.5%] loss: 1.0573 (ce: 0.9008, kl: 0.4086) | lr: 3.75e-05 | gnorm: 11.12 | 93.7 img/s | eta: 22.0m
+  [c4_four_views_no_refine] Ep 8/15 [  75/1979 |   3.8%] loss: 1.0469 (ce: 0.8874, kl: 0.4065) | lr: 3.75e-05 | gnorm: 12.44 | 91.1 img/s | eta: 22.3m
+  [c4_four_views_no_refine] Ep 8/15 [ 100/1979 |   5.1%] loss: 1.0504 (ce: 0.8818, kl: 0.4112) | lr: 3.75e-05 | gnorm: 10.30 | 90.5 img/s | eta: 22.2m
+  [c4_four_views_no_refine] Ep 8/15 [ 125/1979 |   6.3%] loss: 1.0574 (ce: 0.8773, kl: 0.4181) | lr: 3.75e-05 | gnorm: 11.92 | 90.8 img/s | eta: 21.8m
+  [c4_four_views_no_refine] Ep 8/15 [ 150/1979 |   7.6%] loss: 1.0657 (ce: 0.8835, kl: 0.4216) | lr: 3.75e-05 | gnorm: 10.38 | 91.2 img/s | eta: 21.4m
+  [c4_four_views_no_refine] Ep 8/15 [ 175/1979 |   8.8%] loss: 1.0658 (ce: 0.8882, kl: 0.4198) | lr: 3.75e-05 | gnorm: 13.47 | 91.2 img/s | eta: 21.1m
+  [c4_four_views_no_refine] Ep 8/15 [ 200/1979 |  10.1%] loss: 1.0667 (ce: 0.8871, kl: 0.4210) | lr: 3.75e-05 | gnorm: 10.19 | 91.2 img/s | eta: 20.8m
+  [c4_four_views_no_refine] Ep 8/15 [ 225/1979 |  11.4%] loss: 1.0692 (ce: 0.8883, kl: 0.4223) | lr: 3.75e-05 | gnorm: 10.82 | 91.0 img/s | eta: 20.6m
+  [c4_four_views_no_refine] Ep 8/15 [ 250/1979 |  12.6%] loss: 1.0704 (ce: 0.8889, kl: 0.4229) | lr: 3.75e-05 | gnorm: 11.53 | 90.1 img/s | eta: 20.5m
+  [c4_four_views_no_refine] Ep 8/15 [ 275/1979 |  13.9%] loss: 1.0706 (ce: 0.8848, kl: 0.4247) | lr: 3.75e-05 | gnorm: 11.43 | 89.8 img/s | eta: 20.2m
+  [c4_four_views_no_refine] Ep 8/15 [ 300/1979 |  15.2%] loss: 1.0716 (ce: 0.8853, kl: 0.4252) | lr: 3.75e-05 | gnorm: 12.89 | 90.2 img/s | eta: 19.9m
+  [c4_four_views_no_refine] Ep 8/15 [ 325/1979 |  16.4%] loss: 1.0757 (ce: 0.8902, kl: 0.4262) | lr: 3.75e-05 | gnorm: 11.14 | 90.5 img/s | eta: 19.5m
+  [c4_four_views_no_refine] Ep 8/15 [ 350/1979 |  17.7%] loss: 1.0753 (ce: 0.8894, kl: 0.4263) | lr: 3.75e-05 | gnorm: 11.75 | 90.6 img/s | eta: 19.2m
+  [c4_four_views_no_refine] Ep 8/15 [ 375/1979 |  18.9%] loss: 1.0727 (ce: 0.8864, kl: 0.4256) | lr: 3.75e-05 | gnorm: 12.12 | 90.5 img/s | eta: 18.9m
+  [c4_four_views_no_refine] Ep 8/15 [ 400/1979 |  20.2%] loss: 1.0740 (ce: 0.8881, kl: 0.4259) | lr: 3.75e-05 | gnorm: 10.66 | 90.3 img/s | eta: 18.7m
+  [c4_four_views_no_refine] Ep 8/15 [ 425/1979 |  21.5%] loss: 1.0706 (ce: 0.8843, kl: 0.4249) | lr: 3.75e-05 | gnorm: 13.03 | 90.2 img/s | eta: 18.4m
+  [c4_four_views_no_refine] Ep 8/15 [ 450/1979 |  22.7%] loss: 1.0737 (ce: 0.8888, kl: 0.4253) | lr: 3.75e-05 | gnorm: 12.61 | 90.3 img/s | eta: 18.1m
+  [c4_four_views_no_refine] Ep 8/15 [ 475/1979 |  24.0%] loss: 1.0736 (ce: 0.8908, kl: 0.4244) | lr: 3.75e-05 | gnorm: 13.19 | 90.3 img/s | eta: 17.8m
+  [c4_four_views_no_refine] Ep 8/15 [ 500/1979 |  25.3%] loss: 1.0754 (ce: 0.8940, kl: 0.4245) | lr: 3.75e-05 | gnorm: 11.34 | 90.5 img/s | eta: 17.4m
+  [c4_four_views_no_refine] Ep 8/15 [ 525/1979 |  26.5%] loss: 1.0766 (ce: 0.8932, kl: 0.4257) | lr: 3.75e-05 | gnorm: 10.59 | 90.6 img/s | eta: 17.1m
+  [c4_four_views_no_refine] Ep 8/15 [ 550/1979 |  27.8%] loss: 1.0771 (ce: 0.8965, kl: 0.4247) | lr: 3.75e-05 | gnorm: 13.99 | 90.9 img/s | eta: 16.8m
+  [c4_four_views_no_refine] Ep 8/15 [ 575/1979 |  29.1%] loss: 1.0787 (ce: 0.8985, kl: 0.4251) | lr: 3.75e-05 | gnorm: 11.00 | 88.9 img/s | eta: 16.8m
+  [c4_four_views_no_refine] Ep 8/15 [ 600/1979 |  30.3%] loss: 1.0785 (ce: 0.8983, kl: 0.4251) | lr: 3.75e-05 | gnorm: 10.93 | 86.1 img/s | eta: 17.1m
+  [c4_four_views_no_refine] Ep 8/15 [ 625/1979 |  31.6%] loss: 1.0790 (ce: 0.9012, kl: 0.4243) | lr: 3.75e-05 | gnorm: 11.20 | 84.0 img/s | eta: 17.2m
+  [c4_four_views_no_refine] Ep 8/15 [ 650/1979 |  32.8%] loss: 1.0793 (ce: 0.9024, kl: 0.4240) | lr: 3.75e-05 | gnorm: 10.87 | 81.7 img/s | eta: 17.4m
+  [c4_four_views_no_refine] Ep 8/15 [ 675/1979 |  34.1%] loss: 1.0796 (ce: 0.9010, kl: 0.4247) | lr: 3.75e-05 | gnorm: 12.47 | 79.1 img/s | eta: 17.6m
+  [c4_four_views_no_refine] Ep 8/15 [ 700/1979 |  35.4%] loss: 1.0794 (ce: 0.9010, kl: 0.4246) | lr: 3.75e-05 | gnorm: 11.52 | 77.4 img/s | eta: 17.6m
+  [c4_four_views_no_refine] Ep 8/15 [ 725/1979 |  36.6%] loss: 1.0792 (ce: 0.8994, kl: 0.4251) | lr: 3.75e-05 | gnorm: 11.23 | 77.6 img/s | eta: 17.2m
+  [c4_four_views_no_refine] Ep 8/15 [ 750/1979 |  37.9%] loss: 1.0787 (ce: 0.8993, kl: 0.4248) | lr: 3.75e-05 | gnorm: 11.52 | 77.8 img/s | eta: 16.8m
+  [c4_four_views_no_refine] Ep 8/15 [ 775/1979 |  39.2%] loss: 1.0781 (ce: 0.8983, kl: 0.4248) | lr: 3.75e-05 | gnorm: 12.31 | 78.1 img/s | eta: 16.4m
+  [c4_four_views_no_refine] Ep 8/15 [ 800/1979 |  40.4%] loss: 1.0783 (ce: 0.8999, kl: 0.4242) | lr: 3.75e-05 | gnorm: 10.40 | 78.4 img/s | eta: 16.0m
+  [c4_four_views_no_refine] Ep 8/15 [ 825/1979 |  41.7%] loss: 1.0790 (ce: 0.9009, kl: 0.4244) | lr: 3.75e-05 | gnorm: 11.83 | 78.7 img/s | eta: 15.6m
+  [c4_four_views_no_refine] Ep 8/15 [ 850/1979 |  43.0%] loss: 1.0796 (ce: 0.9025, kl: 0.4241) | lr: 3.75e-05 | gnorm: 10.86 | 78.9 img/s | eta: 15.3m
+  [c4_four_views_no_refine] Ep 8/15 [ 875/1979 |  44.2%] loss: 1.0797 (ce: 0.9040, kl: 0.4236) | lr: 3.75e-05 | gnorm: 10.54 | 79.0 img/s | eta: 14.9m
+  [c4_four_views_no_refine] Ep 8/15 [ 900/1979 |  45.5%] loss: 1.0809 (ce: 0.9054, kl: 0.4240) | lr: 3.75e-05 | gnorm: 11.68 | 79.2 img/s | eta: 14.5m
+  [c4_four_views_no_refine] Ep 8/15 [ 925/1979 |  46.7%] loss: 1.0812 (ce: 0.9067, kl: 0.4237) | lr: 3.75e-05 | gnorm: 12.23 | 79.5 img/s | eta: 14.1m
+  [c4_four_views_no_refine] Ep 8/15 [ 950/1979 |  48.0%] loss: 1.0803 (ce: 0.9057, kl: 0.4234) | lr: 3.75e-05 | gnorm: 10.09 | 79.7 img/s | eta: 13.8m
+  [c4_four_views_no_refine] Ep 8/15 [ 975/1979 |  49.3%] loss: 1.0803 (ce: 0.9062, kl: 0.4232) | lr: 3.75e-05 | gnorm: 12.90 | 79.9 img/s | eta: 13.4m
+  [c4_four_views_no_refine] Ep 8/15 [1000/1979 |  50.5%] loss: 1.0807 (ce: 0.9059, kl: 0.4236) | lr: 3.75e-05 | gnorm: 11.98 | 80.1 img/s | eta: 13.0m
+  [c4_four_views_no_refine] Ep 8/15 [1025/1979 |  51.8%] loss: 1.0816 (ce: 0.9062, kl: 0.4241) | lr: 3.75e-05 | gnorm: 10.70 | 80.2 img/s | eta: 12.7m
+  [c4_four_views_no_refine] Ep 8/15 [1050/1979 |  53.1%] loss: 1.0812 (ce: 0.9047, kl: 0.4245) | lr: 3.75e-05 | gnorm: 11.23 | 80.5 img/s | eta: 12.3m
+  [c4_four_views_no_refine] Ep 8/15 [1075/1979 |  54.3%] loss: 1.0816 (ce: 0.9054, kl: 0.4245) | lr: 3.75e-05 | gnorm: 10.58 | 80.7 img/s | eta: 11.9m
+  [c4_four_views_no_refine] Ep 8/15 [1100/1979 |  55.6%] loss: 1.0813 (ce: 0.9069, kl: 0.4237) | lr: 3.75e-05 | gnorm: 11.74 | 80.9 img/s | eta: 11.6m
+  [c4_four_views_no_refine] Ep 8/15 [1125/1979 |  56.8%] loss: 1.0821 (ce: 0.9089, kl: 0.4234) | lr: 3.75e-05 | gnorm: 8.55 | 81.0 img/s | eta: 11.2m
+  [c4_four_views_no_refine] Ep 8/15 [1150/1979 |  58.1%] loss: 1.0822 (ce: 0.9083, kl: 0.4237) | lr: 3.75e-05 | gnorm: 10.69 | 81.1 img/s | eta: 10.9m
+  [c4_four_views_no_refine] Ep 8/15 [1175/1979 |  59.4%] loss: 1.0828 (ce: 0.9093, kl: 0.4238) | lr: 3.75e-05 | gnorm: 10.86 | 81.3 img/s | eta: 10.5m
+  [c4_four_views_no_refine] Ep 8/15 [1200/1979 |  60.6%] loss: 1.0838 (ce: 0.9108, kl: 0.4239) | lr: 3.75e-05 | gnorm: 12.07 | 81.4 img/s | eta: 10.2m
+  [c4_four_views_no_refine] Ep 8/15 [1225/1979 |  61.9%] loss: 1.0838 (ce: 0.9105, kl: 0.4240) | lr: 3.75e-05 | gnorm: 10.25 | 81.6 img/s | eta: 9.9m
+  [c4_four_views_no_refine] Ep 8/15 [1250/1979 |  63.2%] loss: 1.0846 (ce: 0.9112, kl: 0.4243) | lr: 3.75e-05 | gnorm: 11.08 | 81.6 img/s | eta: 9.5m
+  [c4_four_views_no_refine] Ep 8/15 [1275/1979 |  64.4%] loss: 1.0847 (ce: 0.9112, kl: 0.4244) | lr: 3.75e-05 | gnorm: 11.02 | 81.6 img/s | eta: 9.2m
+  [c4_four_views_no_refine] Ep 8/15 [1300/1979 |  65.7%] loss: 1.0853 (ce: 0.9120, kl: 0.4245) | lr: 3.75e-05 | gnorm: 10.99 | 81.8 img/s | eta: 8.9m
+  [c4_four_views_no_refine] Ep 8/15 [1325/1979 |  67.0%] loss: 1.0851 (ce: 0.9121, kl: 0.4243) | lr: 3.75e-05 | gnorm: 9.82 | 81.9 img/s | eta: 8.5m
+  [c4_four_views_no_refine] Ep 8/15 [1350/1979 |  68.2%] loss: 1.0851 (ce: 0.9125, kl: 0.4242) | lr: 3.75e-05 | gnorm: 10.21 | 82.1 img/s | eta: 8.2m
+  [c4_four_views_no_refine] Ep 8/15 [1375/1979 |  69.5%] loss: 1.0848 (ce: 0.9115, kl: 0.4243) | lr: 3.75e-05 | gnorm: 12.65 | 82.1 img/s | eta: 7.8m
+  [c4_four_views_no_refine] Ep 8/15 [1400/1979 |  70.7%] loss: 1.0847 (ce: 0.9119, kl: 0.4241) | lr: 3.75e-05 | gnorm: 11.76 | 82.2 img/s | eta: 7.5m
+  [c4_four_views_no_refine] Ep 8/15 [1425/1979 |  72.0%] loss: 1.0842 (ce: 0.9112, kl: 0.4240) | lr: 3.75e-05 | gnorm: 12.89 | 82.4 img/s | eta: 7.2m
+  [c4_four_views_no_refine] Ep 8/15 [1450/1979 |  73.3%] loss: 1.0848 (ce: 0.9112, kl: 0.4245) | lr: 3.75e-05 | gnorm: 10.58 | 82.5 img/s | eta: 6.8m
+  [c4_four_views_no_refine] Ep 8/15 [1475/1979 |  74.5%] loss: 1.0853 (ce: 0.9119, kl: 0.4245) | lr: 3.75e-05 | gnorm: 12.46 | 82.5 img/s | eta: 6.5m
+  [c4_four_views_no_refine] Ep 8/15 [1500/1979 |  75.8%] loss: 1.0851 (ce: 0.9123, kl: 0.4242) | lr: 3.75e-05 | gnorm: 12.02 | 82.6 img/s | eta: 6.2m
+  [c4_four_views_no_refine] Ep 8/15 [1525/1979 |  77.1%] loss: 1.0852 (ce: 0.9121, kl: 0.4244) | lr: 3.75e-05 | gnorm: 10.14 | 82.6 img/s | eta: 5.9m
+  [c4_four_views_no_refine] Ep 8/15 [1550/1979 |  78.3%] loss: 1.0852 (ce: 0.9126, kl: 0.4242) | lr: 3.75e-05 | gnorm: 10.32 | 82.6 img/s | eta: 5.5m
+  [c4_four_views_no_refine] Ep 8/15 [1575/1979 |  79.6%] loss: 1.0855 (ce: 0.9127, kl: 0.4244) | lr: 3.75e-05 | gnorm: 12.89 | 82.6 img/s | eta: 5.2m
+  [c4_four_views_no_refine] Ep 8/15 [1600/1979 |  80.8%] loss: 1.0854 (ce: 0.9125, kl: 0.4243) | lr: 3.75e-05 | gnorm: 12.39 | 82.7 img/s | eta: 4.9m
+  [c4_four_views_no_refine] Ep 8/15 [1625/1979 |  82.1%] loss: 1.0855 (ce: 0.9129, kl: 0.4243) | lr: 3.75e-05 | gnorm: 11.99 | 82.8 img/s | eta: 4.6m
+  [c4_four_views_no_refine] Ep 8/15 [1650/1979 |  83.4%] loss: 1.0851 (ce: 0.9133, kl: 0.4239) | lr: 3.75e-05 | gnorm: 10.76 | 82.9 img/s | eta: 4.2m
+  [c4_four_views_no_refine] Ep 8/15 [1675/1979 |  84.6%] loss: 1.0847 (ce: 0.9126, kl: 0.4238) | lr: 3.75e-05 | gnorm: 11.75 | 83.0 img/s | eta: 3.9m
+  [c4_four_views_no_refine] Ep 8/15 [1700/1979 |  85.9%] loss: 1.0845 (ce: 0.9127, kl: 0.4237) | lr: 3.75e-05 | gnorm: 9.73 | 83.1 img/s | eta: 3.6m
+  [c4_four_views_no_refine] Ep 8/15 [1725/1979 |  87.2%] loss: 1.0846 (ce: 0.9139, kl: 0.4232) | lr: 3.75e-05 | gnorm: 12.30 | 83.1 img/s | eta: 3.3m
+  [c4_four_views_no_refine] Ep 8/15 [1750/1979 |  88.4%] loss: 1.0850 (ce: 0.9145, kl: 0.4233) | lr: 3.75e-05 | gnorm: 11.95 | 83.2 img/s | eta: 2.9m
+  [c4_four_views_no_refine] Ep 8/15 [1775/1979 |  89.7%] loss: 1.0850 (ce: 0.9152, kl: 0.4230) | lr: 3.75e-05 | gnorm: 9.61 | 83.2 img/s | eta: 2.6m
+  [c4_four_views_no_refine] Ep 8/15 [1800/1979 |  91.0%] loss: 1.0849 (ce: 0.9154, kl: 0.4229) | lr: 3.75e-05 | gnorm: 10.70 | 83.4 img/s | eta: 2.3m
+  [c4_four_views_no_refine] Ep 8/15 [1825/1979 |  92.2%] loss: 1.0853 (ce: 0.9158, kl: 0.4230) | lr: 3.75e-05 | gnorm: 13.27 | 83.5 img/s | eta: 2.0m
+  [c4_four_views_no_refine] Ep 8/15 [1850/1979 |  93.5%] loss: 1.0856 (ce: 0.9167, kl: 0.4229) | lr: 3.75e-05 | gnorm: 11.90 | 83.4 img/s | eta: 1.6m
+  [c4_four_views_no_refine] Ep 8/15 [1875/1979 |  94.7%] loss: 1.0854 (ce: 0.9166, kl: 0.4228) | lr: 3.75e-05 | gnorm: 14.00 | 83.5 img/s | eta: 1.3m
+  [c4_four_views_no_refine] Ep 8/15 [1900/1979 |  96.0%] loss: 1.0851 (ce: 0.9161, kl: 0.4227) | lr: 3.75e-05 | gnorm: 12.37 | 83.5 img/s | eta: 1.0m
+  [c4_four_views_no_refine] Ep 8/15 [1925/1979 |  97.3%] loss: 1.0850 (ce: 0.9162, kl: 0.4226) | lr: 3.75e-05 | gnorm: 10.43 | 83.6 img/s | eta: 0.7m
+  [c4_four_views_no_refine] Ep 8/15 [1950/1979 |  98.5%] loss: 1.0855 (ce: 0.9170, kl: 0.4227) | lr: 3.75e-05 | gnorm: 9.80 | 83.7 img/s | eta: 0.4m
+  [c4_four_views_no_refine] Ep 8/15 [1975/1979 |  99.8%] loss: 1.0856 (ce: 0.9177, kl: 0.4225) | lr: 3.75e-05 | gnorm: 11.69 | 83.8 img/s | eta: 0.1m
+  [c4_four_views_no_refine] Ep 8/15 [1979/1979 | 100.0%] loss: 1.0857 (ce: 0.9178, kl: 0.4225) | lr: 3.75e-05 | gnorm: 10.03 | 83.8 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Running clean validation (5,000 images)...
+  [c4_four_views_no_refine] Running robust validation (512 images, PGD-10 @ eps=0.094)...
+----------------------------------------------------------------------
+[c4_four_views_no_refine] Epoch 8/15 (1526.4s, VRAM: 2022MB) | session: 3.60h/11h | phase ETA: 171.6m
+  val_acc[CLEAN]:  59.40% (best: 60.90%)
+  val_acc[ROBUST]: 23.05% (eps=0.094, best: 23.05%)
+  loss: total=1.0857 ce=0.9178 kl=0.4225
+  lr: backbone_decay: 3.15e-05, backbone_no_decay: 3.15e-05, classifier_decay: 3.15e-04
+  gnorm: backbone_decay: 10.03, backbone_no_decay: 1.12, classifier_decay: 1.31, classifier_no_decay: 0.08
+  health flags: ['OK']
+----------------------------------------------------------------------
+[Curriculum] c4_four_views_no_refine ep 9/15 -> eps_norm=0.0940 (pix=0.0212) beta=2.5 pgd=4 w_trades=0.55
+  [c4_four_views_no_refine] Ep 9/15 [   1/1979 |   0.1%] loss: 0.9958 (ce: 0.7591, kl: 0.4205) | lr: 3.15e-05 | gnorm: 12.19 | 57.7 img/s | eta: 36.5m
+  [c4_four_views_no_refine] Ep 9/15 [  25/1979 |   1.3%] loss: 1.0223 (ce: 0.8210, kl: 0.4151) | lr: 3.15e-05 | gnorm: 13.08 | 81.6 img/s | eta: 25.6m
+  [c4_four_views_no_refine] Ep 9/15 [  50/1979 |   2.5%] loss: 1.0346 (ce: 0.8120, kl: 0.4276) | lr: 3.15e-05 | gnorm: 10.75 | 82.5 img/s | eta: 24.9m
+  [c4_four_views_no_refine] Ep 9/15 [  75/1979 |   3.8%] loss: 1.0358 (ce: 0.8218, kl: 0.4246) | lr: 3.15e-05 | gnorm: 9.82 | 84.8 img/s | eta: 24.0m
+  [c4_four_views_no_refine] Ep 9/15 [ 100/1979 |   5.1%] loss: 1.0239 (ce: 0.8123, kl: 0.4197) | lr: 3.15e-05 | gnorm: 10.36 | 86.5 img/s | eta: 23.2m
+  [c4_four_views_no_refine] Ep 9/15 [ 125/1979 |   6.3%] loss: 1.0246 (ce: 0.8127, kl: 0.4201) | lr: 3.15e-05 | gnorm: 11.93 | 87.7 img/s | eta: 22.5m
+  [c4_four_views_no_refine] Ep 9/15 [ 150/1979 |   7.6%] loss: 1.0236 (ce: 0.8090, kl: 0.4208) | lr: 3.15e-05 | gnorm: 9.65 | 86.6 img/s | eta: 22.5m
+  [c4_four_views_no_refine] Ep 9/15 [ 175/1979 |   8.8%] loss: 1.0251 (ce: 0.8123, kl: 0.4206) | lr: 3.15e-05 | gnorm: 10.91 | 86.8 img/s | eta: 22.2m
+  [c4_four_views_no_refine] Ep 9/15 [ 200/1979 |  10.1%] loss: 1.0255 (ce: 0.8126, kl: 0.4208) | lr: 3.15e-05 | gnorm: 9.14 | 87.2 img/s | eta: 21.8m
+  [c4_four_views_no_refine] Ep 9/15 [ 225/1979 |  11.4%] loss: 1.0250 (ce: 0.8083, kl: 0.4221) | lr: 3.15e-05 | gnorm: 16.55 | 87.6 img/s | eta: 21.4m
+  [c4_four_views_no_refine] Ep 9/15 [ 250/1979 |  12.6%] loss: 1.0245 (ce: 0.8059, kl: 0.4227) | lr: 3.15e-05 | gnorm: 12.26 | 87.2 img/s | eta: 21.1m
+  [c4_four_views_no_refine] Ep 9/15 [ 275/1979 |  13.9%] loss: 1.0229 (ce: 0.8023, kl: 0.4230) | lr: 3.15e-05 | gnorm: 13.77 | 86.8 img/s | eta: 21.0m
+  [c4_four_views_no_refine] Ep 9/15 [ 300/1979 |  15.2%] loss: 1.0252 (ce: 0.8030, kl: 0.4244) | lr: 3.15e-05 | gnorm: 12.37 | 87.0 img/s | eta: 20.6m
+  [c4_four_views_no_refine] Ep 9/15 [ 325/1979 |  16.4%] loss: 1.0228 (ce: 0.8025, kl: 0.4228) | lr: 3.15e-05 | gnorm: 10.63 | 87.2 img/s | eta: 20.2m
+  [c4_four_views_no_refine] Ep 9/15 [ 350/1979 |  17.7%] loss: 1.0216 (ce: 0.8040, kl: 0.4214) | lr: 3.15e-05 | gnorm: 10.82 | 87.5 img/s | eta: 19.9m
+  [c4_four_views_no_refine] Ep 9/15 [ 375/1979 |  18.9%] loss: 1.0234 (ce: 0.8095, kl: 0.4205) | lr: 3.15e-05 | gnorm: 14.88 | 87.7 img/s | eta: 19.5m
+  [c4_four_views_no_refine] Ep 9/15 [ 400/1979 |  20.2%] loss: 1.0239 (ce: 0.8114, kl: 0.4201) | lr: 3.15e-05 | gnorm: 11.07 | 88.0 img/s | eta: 19.1m
+  [c4_four_views_no_refine] Ep 9/15 [ 425/1979 |  21.5%] loss: 1.0250 (ce: 0.8138, kl: 0.4199) | lr: 3.15e-05 | gnorm: 9.12 | 88.2 img/s | eta: 18.8m
+  [c4_four_views_no_refine] Ep 9/15 [ 450/1979 |  22.7%] loss: 1.0268 (ce: 0.8150, kl: 0.4208) | lr: 3.15e-05 | gnorm: 12.91 | 88.3 img/s | eta: 18.5m
+  [c4_four_views_no_refine] Ep 9/15 [ 475/1979 |  24.0%] loss: 1.0287 (ce: 0.8164, kl: 0.4216) | lr: 3.15e-05 | gnorm: 10.44 | 88.3 img/s | eta: 18.2m
+  [c4_four_views_no_refine] Ep 9/15 [ 500/1979 |  25.3%] loss: 1.0288 (ce: 0.8183, kl: 0.4209) | lr: 3.15e-05 | gnorm: 11.21 | 88.3 img/s | eta: 17.9m
+  [c4_four_views_no_refine] Ep 9/15 [ 525/1979 |  26.5%] loss: 1.0295 (ce: 0.8223, kl: 0.4198) | lr: 3.15e-05 | gnorm: 10.32 | 88.5 img/s | eta: 17.5m
+  [c4_four_views_no_refine] Ep 9/15 [ 550/1979 |  27.8%] loss: 1.0304 (ce: 0.8242, kl: 0.4197) | lr: 3.15e-05 | gnorm: 10.89 | 88.8 img/s | eta: 17.2m
+  [c4_four_views_no_refine] Ep 9/15 [ 575/1979 |  29.1%] loss: 1.0298 (ce: 0.8230, kl: 0.4197) | lr: 3.15e-05 | gnorm: 12.17 | 88.9 img/s | eta: 16.8m
+  [c4_four_views_no_refine] Ep 9/15 [ 600/1979 |  30.3%] loss: 1.0306 (ce: 0.8235, kl: 0.4201) | lr: 3.15e-05 | gnorm: 12.04 | 89.0 img/s | eta: 16.5m
+  [c4_four_views_no_refine] Ep 9/15 [ 625/1979 |  31.6%] loss: 1.0300 (ce: 0.8238, kl: 0.4196) | lr: 3.15e-05 | gnorm: 9.61 | 89.1 img/s | eta: 16.2m
+  [c4_four_views_no_refine] Ep 9/15 [ 650/1979 |  32.8%] loss: 1.0304 (ce: 0.8255, kl: 0.4192) | lr: 3.15e-05 | gnorm: 11.26 | 89.2 img/s | eta: 15.9m
+  [c4_four_views_no_refine] Ep 9/15 [ 675/1979 |  34.1%] loss: 1.0314 (ce: 0.8268, kl: 0.4194) | lr: 3.15e-05 | gnorm: 11.15 | 89.3 img/s | eta: 15.6m
+  [c4_four_views_no_refine] Ep 9/15 [ 700/1979 |  35.4%] loss: 1.0311 (ce: 0.8267, kl: 0.4192) | lr: 3.15e-05 | gnorm: 10.37 | 89.4 img/s | eta: 15.3m
+  [c4_four_views_no_refine] Ep 9/15 [ 725/1979 |  36.6%] loss: 1.0308 (ce: 0.8266, kl: 0.4190) | lr: 3.15e-05 | gnorm: 10.47 | 89.3 img/s | eta: 15.0m
+  [c4_four_views_no_refine] Ep 9/15 [ 750/1979 |  37.9%] loss: 1.0316 (ce: 0.8275, kl: 0.4193) | lr: 3.15e-05 | gnorm: 11.62 | 89.2 img/s | eta: 14.7m
+  [c4_four_views_no_refine] Ep 9/15 [ 775/1979 |  39.2%] loss: 1.0320 (ce: 0.8264, kl: 0.4200) | lr: 3.15e-05 | gnorm: 9.29 | 89.3 img/s | eta: 14.4m
+  [c4_four_views_no_refine] Ep 9/15 [ 800/1979 |  40.4%] loss: 1.0320 (ce: 0.8259, kl: 0.4202) | lr: 3.15e-05 | gnorm: 12.71 | 89.2 img/s | eta: 14.1m
+  [c4_four_views_no_refine] Ep 9/15 [ 825/1979 |  41.7%] loss: 1.0330 (ce: 0.8263, kl: 0.4207) | lr: 3.15e-05 | gnorm: 10.44 | 89.3 img/s | eta: 13.8m
+  [c4_four_views_no_refine] Ep 9/15 [ 850/1979 |  43.0%] loss: 1.0346 (ce: 0.8286, kl: 0.4210) | lr: 3.15e-05 | gnorm: 10.68 | 89.3 img/s | eta: 13.5m
+  [c4_four_views_no_refine] Ep 9/15 [ 875/1979 |  44.2%] loss: 1.0361 (ce: 0.8308, kl: 0.4212) | lr: 3.15e-05 | gnorm: 13.53 | 89.2 img/s | eta: 13.2m
+  [c4_four_views_no_refine] Ep 9/15 [ 900/1979 |  45.5%] loss: 1.0357 (ce: 0.8303, kl: 0.4211) | lr: 3.15e-05 | gnorm: 11.81 | 89.2 img/s | eta: 12.9m
+  [c4_four_views_no_refine] Ep 9/15 [ 925/1979 |  46.7%] loss: 1.0362 (ce: 0.8305, kl: 0.4214) | lr: 3.15e-05 | gnorm: 13.25 | 89.2 img/s | eta: 12.6m
+  [c4_four_views_no_refine] Ep 9/15 [ 950/1979 |  48.0%] loss: 1.0357 (ce: 0.8308, kl: 0.4209) | lr: 3.15e-05 | gnorm: 12.71 | 89.2 img/s | eta: 12.3m
+  [c4_four_views_no_refine] Ep 9/15 [ 975/1979 |  49.3%] loss: 1.0352 (ce: 0.8300, kl: 0.4209) | lr: 3.15e-05 | gnorm: 9.55 | 89.2 img/s | eta: 12.0m
+  [c4_four_views_no_refine] Ep 9/15 [1000/1979 |  50.5%] loss: 1.0350 (ce: 0.8293, kl: 0.4210) | lr: 3.15e-05 | gnorm: 14.58 | 89.1 img/s | eta: 11.7m
+  [c4_four_views_no_refine] Ep 9/15 [1025/1979 |  51.8%] loss: 1.0344 (ce: 0.8293, kl: 0.4205) | lr: 3.15e-05 | gnorm: 10.78 | 89.2 img/s | eta: 11.4m
+  [c4_four_views_no_refine] Ep 9/15 [1050/1979 |  53.1%] loss: 1.0348 (ce: 0.8303, kl: 0.4204) | lr: 3.15e-05 | gnorm: 12.87 | 89.2 img/s | eta: 11.1m
+  [c4_four_views_no_refine] Ep 9/15 [1075/1979 |  54.3%] loss: 1.0344 (ce: 0.8302, kl: 0.4202) | lr: 3.15e-05 | gnorm: 12.67 | 89.1 img/s | eta: 10.8m
+  [c4_four_views_no_refine] Ep 9/15 [1100/1979 |  55.6%] loss: 1.0344 (ce: 0.8291, kl: 0.4207) | lr: 3.15e-05 | gnorm: 10.77 | 89.0 img/s | eta: 10.5m
+  [c4_four_views_no_refine] Ep 9/15 [1125/1979 |  56.8%] loss: 1.0353 (ce: 0.8301, kl: 0.4209) | lr: 3.15e-05 | gnorm: 10.97 | 89.1 img/s | eta: 10.2m
+  [c4_four_views_no_refine] Ep 9/15 [1150/1979 |  58.1%] loss: 1.0358 (ce: 0.8323, kl: 0.4204) | lr: 3.15e-05 | gnorm: 10.07 | 89.1 img/s | eta: 9.9m
+  [c4_four_views_no_refine] Ep 9/15 [1175/1979 |  59.4%] loss: 1.0361 (ce: 0.8324, kl: 0.4206) | lr: 3.15e-05 | gnorm: 12.01 | 89.1 img/s | eta: 9.6m
+  [c4_four_views_no_refine] Ep 9/15 [1200/1979 |  60.6%] loss: 1.0362 (ce: 0.8325, kl: 0.4206) | lr: 3.15e-05 | gnorm: 13.74 | 89.1 img/s | eta: 9.3m
+  [c4_four_views_no_refine] Ep 9/15 [1225/1979 |  61.9%] loss: 1.0368 (ce: 0.8326, kl: 0.4210) | lr: 3.15e-05 | gnorm: 12.97 | 89.0 img/s | eta: 9.0m
+  [c4_four_views_no_refine] Ep 9/15 [1250/1979 |  63.2%] loss: 1.0375 (ce: 0.8315, kl: 0.4219) | lr: 3.15e-05 | gnorm: 10.66 | 89.0 img/s | eta: 8.7m
+  [c4_four_views_no_refine] Ep 9/15 [1275/1979 |  64.4%] loss: 1.0368 (ce: 0.8308, kl: 0.4217) | lr: 3.15e-05 | gnorm: 13.97 | 88.9 img/s | eta: 8.4m
+  [c4_four_views_no_refine] Ep 9/15 [1300/1979 |  65.7%] loss: 1.0366 (ce: 0.8303, kl: 0.4217) | lr: 3.15e-05 | gnorm: 13.29 | 89.0 img/s | eta: 8.1m
+  [c4_four_views_no_refine] Ep 9/15 [1325/1979 |  67.0%] loss: 1.0362 (ce: 0.8306, kl: 0.4213) | lr: 3.15e-05 | gnorm: 11.21 | 89.0 img/s | eta: 7.8m
+  [c4_four_views_no_refine] Ep 9/15 [1350/1979 |  68.2%] loss: 1.0363 (ce: 0.8308, kl: 0.4214) | lr: 3.15e-05 | gnorm: 10.61 | 88.9 img/s | eta: 7.5m
+  [c4_four_views_no_refine] Ep 9/15 [1375/1979 |  69.5%] loss: 1.0364 (ce: 0.8313, kl: 0.4212) | lr: 3.15e-05 | gnorm: 9.78 | 89.0 img/s | eta: 7.2m
+  [c4_four_views_no_refine] Ep 9/15 [1400/1979 |  70.7%] loss: 1.0362 (ce: 0.8319, kl: 0.4209) | lr: 3.15e-05 | gnorm: 13.40 | 89.0 img/s | eta: 6.9m
+  [c4_four_views_no_refine] Ep 9/15 [1425/1979 |  72.0%] loss: 1.0366 (ce: 0.8324, kl: 0.4209) | lr: 3.15e-05 | gnorm: 11.12 | 89.0 img/s | eta: 6.6m
+  [c4_four_views_no_refine] Ep 9/15 [1450/1979 |  73.3%] loss: 1.0362 (ce: 0.8325, kl: 0.4206) | lr: 3.15e-05 | gnorm: 10.56 | 89.0 img/s | eta: 6.3m
+  [c4_four_views_no_refine] Ep 9/15 [1475/1979 |  74.5%] loss: 1.0359 (ce: 0.8324, kl: 0.4204) | lr: 3.15e-05 | gnorm: 10.11 | 88.9 img/s | eta: 6.0m
+  [c4_four_views_no_refine] Ep 9/15 [1500/1979 |  75.8%] loss: 1.0367 (ce: 0.8333, kl: 0.4206) | lr: 3.15e-05 | gnorm: 11.24 | 89.0 img/s | eta: 5.7m
+  [c4_four_views_no_refine] Ep 9/15 [1525/1979 |  77.1%] loss: 1.0368 (ce: 0.8345, kl: 0.4202) | lr: 3.15e-05 | gnorm: 8.77 | 89.0 img/s | eta: 5.4m
+  [c4_four_views_no_refine] Ep 9/15 [1550/1979 |  78.3%] loss: 1.0369 (ce: 0.8346, kl: 0.4203) | lr: 3.15e-05 | gnorm: 10.80 | 89.0 img/s | eta: 5.1m
+  [c4_four_views_no_refine] Ep 9/15 [1575/1979 |  79.6%] loss: 1.0372 (ce: 0.8357, kl: 0.4200) | lr: 3.15e-05 | gnorm: 10.14 | 89.0 img/s | eta: 4.8m
+  [c4_four_views_no_refine] Ep 9/15 [1600/1979 |  80.8%] loss: 1.0373 (ce: 0.8360, kl: 0.4200) | lr: 3.15e-05 | gnorm: 11.43 | 89.0 img/s | eta: 4.5m
+  [c4_four_views_no_refine] Ep 9/15 [1625/1979 |  82.1%] loss: 1.0369 (ce: 0.8364, kl: 0.4196) | lr: 3.15e-05 | gnorm: 9.68 | 89.0 img/s | eta: 4.2m
+  [c4_four_views_no_refine] Ep 9/15 [1650/1979 |  83.4%] loss: 1.0372 (ce: 0.8366, kl: 0.4196) | lr: 3.15e-05 | gnorm: 10.94 | 89.0 img/s | eta: 3.9m
+  [c4_four_views_no_refine] Ep 9/15 [1675/1979 |  84.6%] loss: 1.0374 (ce: 0.8367, kl: 0.4197) | lr: 3.15e-05 | gnorm: 10.86 | 89.0 img/s | eta: 3.6m
+  [c4_four_views_no_refine] Ep 9/15 [1700/1979 |  85.9%] loss: 1.0375 (ce: 0.8372, kl: 0.4196) | lr: 3.15e-05 | gnorm: 11.55 | 88.9 img/s | eta: 3.3m
+  [c4_four_views_no_refine] Ep 9/15 [1725/1979 |  87.2%] loss: 1.0374 (ce: 0.8374, kl: 0.4195) | lr: 3.15e-05 | gnorm: 9.91 | 88.9 img/s | eta: 3.0m
+  [c4_four_views_no_refine] Ep 9/15 [1750/1979 |  88.4%] loss: 1.0376 (ce: 0.8377, kl: 0.4195) | lr: 3.15e-05 | gnorm: 9.75 | 88.9 img/s | eta: 2.7m
+  [c4_four_views_no_refine] Ep 9/15 [1775/1979 |  89.7%] loss: 1.0375 (ce: 0.8376, kl: 0.4195) | lr: 3.15e-05 | gnorm: 11.92 | 88.9 img/s | eta: 2.4m
+  [c4_four_views_no_refine] Ep 9/15 [1800/1979 |  91.0%] loss: 1.0374 (ce: 0.8378, kl: 0.4193) | lr: 3.15e-05 | gnorm: 11.28 | 88.9 img/s | eta: 2.1m
+  [c4_four_views_no_refine] Ep 9/15 [1825/1979 |  92.2%] loss: 1.0373 (ce: 0.8376, kl: 0.4193) | lr: 3.15e-05 | gnorm: 10.41 | 88.8 img/s | eta: 1.8m
+  [c4_four_views_no_refine] Ep 9/15 [1850/1979 |  93.5%] loss: 1.0375 (ce: 0.8377, kl: 0.4194) | lr: 3.15e-05 | gnorm: 11.36 | 88.7 img/s | eta: 1.6m
+  [c4_four_views_no_refine] Ep 9/15 [1875/1979 |  94.7%] loss: 1.0376 (ce: 0.8376, kl: 0.4196) | lr: 3.15e-05 | gnorm: 9.62 | 88.8 img/s | eta: 1.2m
+  [c4_four_views_no_refine] Ep 9/15 [1900/1979 |  96.0%] loss: 1.0378 (ce: 0.8384, kl: 0.4194) | lr: 3.15e-05 | gnorm: 12.09 | 88.6 img/s | eta: 1.0m
+  [c4_four_views_no_refine] Ep 9/15 [1925/1979 |  97.3%] loss: 1.0374 (ce: 0.8383, kl: 0.4192) | lr: 3.15e-05 | gnorm: 13.30 | 88.2 img/s | eta: 0.7m
+  [c4_four_views_no_refine] Ep 9/15 [1950/1979 |  98.5%] loss: 1.0379 (ce: 0.8384, kl: 0.4195) | lr: 3.15e-05 | gnorm: 10.68 | 88.2 img/s | eta: 0.4m
+  [c4_four_views_no_refine] Ep 9/15 [1975/1979 |  99.8%] loss: 1.0381 (ce: 0.8388, kl: 0.4195) | lr: 3.15e-05 | gnorm: 11.88 | 87.8 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Ep 9/15 [1979/1979 | 100.0%] loss: 1.0380 (ce: 0.8387, kl: 0.4194) | lr: 3.15e-05 | gnorm: 10.14 | 87.7 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Running clean validation (5,000 images)...
+  [c4_four_views_no_refine] Running robust validation (512 images, PGD-10 @ eps=0.094)...
+----------------------------------------------------------------------
+[c4_four_views_no_refine] Epoch 9/15 (1463.6s, VRAM: 2022MB) | session: 4.01h/11h | phase ETA: 148.3m
+  val_acc[CLEAN]:  59.84% (best: 60.90%)
+  val_acc[ROBUST]: 22.46% (eps=0.094, best: 23.05%)
+  loss: total=1.0380 ce=0.8387 kl=0.4194
+  lr: backbone_decay: 2.50e-05, backbone_no_decay: 2.50e-05, classifier_decay: 2.50e-04
+  gnorm: backbone_decay: 10.14, backbone_no_decay: 1.22, classifier_decay: 1.27, classifier_no_decay: 0.08
+  health flags: ['STALL']
+----------------------------------------------------------------------
+[Curriculum] c4_four_views_no_refine ep 10/15 -> eps_norm=0.0940 (pix=0.0212) beta=2.5 pgd=4 w_trades=0.55
+  [c4_four_views_no_refine] Ep 10/15 [   1/1979 |   0.1%] loss: 0.9708 (ce: 0.7851, kl: 0.3920) | lr: 2.50e-05 | gnorm: 9.48 | 46.8 img/s | eta: 45.1m
+  [c4_four_views_no_refine] Ep 10/15 [  25/1979 |   1.3%] loss: 0.9704 (ce: 0.7599, kl: 0.4018) | lr: 2.50e-05 | gnorm: 12.56 | 52.7 img/s | eta: 39.5m
+  [c4_four_views_no_refine] Ep 10/15 [  50/1979 |   2.5%] loss: 0.9933 (ce: 0.7667, kl: 0.4157) | lr: 2.50e-05 | gnorm: 13.06 | 53.9 img/s | eta: 38.2m
+  [c4_four_views_no_refine] Ep 10/15 [  75/1979 |   3.8%] loss: 0.9942 (ce: 0.7489, kl: 0.4235) | lr: 2.50e-05 | gnorm: 12.65 | 58.3 img/s | eta: 34.8m
+  [c4_four_views_no_refine] Ep 10/15 [ 100/1979 |   5.1%] loss: 0.9906 (ce: 0.7469, kl: 0.4217) | lr: 2.50e-05 | gnorm: 12.20 | 59.6 img/s | eta: 33.6m
+  [c4_four_views_no_refine] Ep 10/15 [ 125/1979 |   6.3%] loss: 0.9854 (ce: 0.7410, kl: 0.4203) | lr: 2.50e-05 | gnorm: 12.22 | 61.8 img/s | eta: 32.0m
+  [c4_four_views_no_refine] Ep 10/15 [ 150/1979 |   7.6%] loss: 0.9896 (ce: 0.7478, kl: 0.4206) | lr: 2.50e-05 | gnorm: 12.42 | 64.1 img/s | eta: 30.5m
+  [c4_four_views_no_refine] Ep 10/15 [ 175/1979 |   8.8%] loss: 0.9858 (ce: 0.7362, kl: 0.4225) | lr: 2.50e-05 | gnorm: 11.98 | 64.9 img/s | eta: 29.6m
+  [c4_four_views_no_refine] Ep 10/15 [ 200/1979 |  10.1%] loss: 0.9882 (ce: 0.7386, kl: 0.4232) | lr: 2.50e-05 | gnorm: 12.92 | 64.9 img/s | eta: 29.2m
+  [c4_four_views_no_refine] Ep 10/15 [ 225/1979 |  11.4%] loss: 0.9886 (ce: 0.7452, kl: 0.4209) | lr: 2.50e-05 | gnorm: 11.38 | 66.2 img/s | eta: 28.3m
+  [c4_four_views_no_refine] Ep 10/15 [ 250/1979 |  12.6%] loss: 0.9852 (ce: 0.7411, kl: 0.4200) | lr: 2.50e-05 | gnorm: 11.52 | 67.2 img/s | eta: 27.4m
+  [c4_four_views_no_refine] Ep 10/15 [ 275/1979 |  13.9%] loss: 0.9869 (ce: 0.7405, kl: 0.4215) | lr: 2.50e-05 | gnorm: 13.44 | 67.4 img/s | eta: 27.0m
+  [c4_four_views_no_refine] Ep 10/15 [ 300/1979 |  15.2%] loss: 0.9842 (ce: 0.7359, kl: 0.4214) | lr: 2.50e-05 | gnorm: 12.43 | 67.0 img/s | eta: 26.7m
+  [c4_four_views_no_refine] Ep 10/15 [ 325/1979 |  16.4%] loss: 0.9844 (ce: 0.7388, kl: 0.4204) | lr: 2.50e-05 | gnorm: 12.63 | 67.7 img/s | eta: 26.0m
+  [c4_four_views_no_refine] Ep 10/15 [ 350/1979 |  17.7%] loss: 0.9834 (ce: 0.7391, kl: 0.4196) | lr: 2.50e-05 | gnorm: 13.11 | 67.7 img/s | eta: 25.7m
+  [c4_four_views_no_refine] Ep 10/15 [ 375/1979 |  18.9%] loss: 0.9845 (ce: 0.7392, kl: 0.4203) | lr: 2.50e-05 | gnorm: 11.38 | 68.5 img/s | eta: 25.0m
+  [c4_four_views_no_refine] Ep 10/15 [ 400/1979 |  20.2%] loss: 0.9845 (ce: 0.7377, kl: 0.4209) | lr: 2.50e-05 | gnorm: 13.69 | 69.5 img/s | eta: 24.2m
+  [c4_four_views_no_refine] Ep 10/15 [ 425/1979 |  21.5%] loss: 0.9862 (ce: 0.7391, kl: 0.4216) | lr: 2.50e-05 | gnorm: 13.14 | 70.3 img/s | eta: 23.6m
+  [c4_four_views_no_refine] Ep 10/15 [ 450/1979 |  22.7%] loss: 0.9870 (ce: 0.7431, kl: 0.4206) | lr: 2.50e-05 | gnorm: 11.94 | 70.9 img/s | eta: 23.0m
+  [c4_four_views_no_refine] Ep 10/15 [ 475/1979 |  24.0%] loss: 0.9857 (ce: 0.7416, kl: 0.4202) | lr: 2.50e-05 | gnorm: 11.97 | 71.3 img/s | eta: 22.5m
+  [c4_four_views_no_refine] Ep 10/15 [ 500/1979 |  25.3%] loss: 0.9867 (ce: 0.7423, kl: 0.4207) | lr: 2.50e-05 | gnorm: 12.11 | 71.7 img/s | eta: 22.0m
+  [c4_four_views_no_refine] Ep 10/15 [ 525/1979 |  26.5%] loss: 0.9860 (ce: 0.7429, kl: 0.4199) | lr: 2.50e-05 | gnorm: 13.62 | 72.3 img/s | eta: 21.5m
+  [c4_four_views_no_refine] Ep 10/15 [ 550/1979 |  27.8%] loss: 0.9852 (ce: 0.7427, kl: 0.4194) | lr: 2.50e-05 | gnorm: 10.96 | 72.9 img/s | eta: 20.9m
+  [c4_four_views_no_refine] Ep 10/15 [ 575/1979 |  29.1%] loss: 0.9843 (ce: 0.7439, kl: 0.4183) | lr: 2.50e-05 | gnorm: 12.83 | 73.2 img/s | eta: 20.5m
+  [c4_four_views_no_refine] Ep 10/15 [ 600/1979 |  30.3%] loss: 0.9838 (ce: 0.7421, kl: 0.4186) | lr: 2.50e-05 | gnorm: 11.30 | 73.6 img/s | eta: 20.0m
+  [c4_four_views_no_refine] Ep 10/15 [ 625/1979 |  31.6%] loss: 0.9841 (ce: 0.7431, kl: 0.4185) | lr: 2.50e-05 | gnorm: 11.11 | 74.0 img/s | eta: 19.5m
+  [c4_four_views_no_refine] Ep 10/15 [ 650/1979 |  32.8%] loss: 0.9846 (ce: 0.7434, kl: 0.4187) | lr: 2.50e-05 | gnorm: 10.88 | 74.2 img/s | eta: 19.1m
+  [c4_four_views_no_refine] Ep 10/15 [ 675/1979 |  34.1%] loss: 0.9838 (ce: 0.7438, kl: 0.4180) | lr: 2.50e-05 | gnorm: 11.99 | 74.3 img/s | eta: 18.7m
+  [c4_four_views_no_refine] Ep 10/15 [ 700/1979 |  35.4%] loss: 0.9834 (ce: 0.7428, kl: 0.4181) | lr: 2.50e-05 | gnorm: 13.81 | 74.7 img/s | eta: 18.3m
+  [c4_four_views_no_refine] Ep 10/15 [ 725/1979 |  36.6%] loss: 0.9843 (ce: 0.7437, kl: 0.4184) | lr: 2.50e-05 | gnorm: 11.01 | 75.1 img/s | eta: 17.8m
+  [c4_four_views_no_refine] Ep 10/15 [ 750/1979 |  37.9%] loss: 0.9849 (ce: 0.7454, kl: 0.4182) | lr: 2.50e-05 | gnorm: 14.54 | 75.5 img/s | eta: 17.4m
+  [c4_four_views_no_refine] Ep 10/15 [ 775/1979 |  39.2%] loss: 0.9853 (ce: 0.7453, kl: 0.4184) | lr: 2.50e-05 | gnorm: 12.92 | 75.6 img/s | eta: 17.0m
+  [c4_four_views_no_refine] Ep 10/15 [ 800/1979 |  40.4%] loss: 0.9842 (ce: 0.7433, kl: 0.4184) | lr: 2.50e-05 | gnorm: 9.46 | 75.7 img/s | eta: 16.6m
+  [c4_four_views_no_refine] Ep 10/15 [ 825/1979 |  41.7%] loss: 0.9843 (ce: 0.7443, kl: 0.4181) | lr: 2.50e-05 | gnorm: 12.07 | 76.0 img/s | eta: 16.2m
+  [c4_four_views_no_refine] Ep 10/15 [ 850/1979 |  43.0%] loss: 0.9830 (ce: 0.7428, kl: 0.4178) | lr: 2.50e-05 | gnorm: 10.27 | 76.3 img/s | eta: 15.8m
+  [c4_four_views_no_refine] Ep 10/15 [ 875/1979 |  44.2%] loss: 0.9834 (ce: 0.7436, kl: 0.4178) | lr: 2.50e-05 | gnorm: 13.40 | 76.6 img/s | eta: 15.4m
+  [c4_four_views_no_refine] Ep 10/15 [ 900/1979 |  45.5%] loss: 0.9834 (ce: 0.7440, kl: 0.4176) | lr: 2.50e-05 | gnorm: 9.24 | 76.8 img/s | eta: 15.0m
+  [c4_four_views_no_refine] Ep 10/15 [ 925/1979 |  46.7%] loss: 0.9833 (ce: 0.7447, kl: 0.4172) | lr: 2.50e-05 | gnorm: 10.14 | 76.8 img/s | eta: 14.6m
+  [c4_four_views_no_refine] Ep 10/15 [ 950/1979 |  48.0%] loss: 0.9829 (ce: 0.7448, kl: 0.4169) | lr: 2.50e-05 | gnorm: 12.24 | 76.9 img/s | eta: 14.3m
+  [c4_four_views_no_refine] Ep 10/15 [ 975/1979 |  49.3%] loss: 0.9823 (ce: 0.7441, kl: 0.4168) | lr: 2.50e-05 | gnorm: 11.31 | 77.1 img/s | eta: 13.9m
+  [c4_four_views_no_refine] Ep 10/15 [1000/1979 |  50.5%] loss: 0.9830 (ce: 0.7453, kl: 0.4168) | lr: 2.50e-05 | gnorm: 10.83 | 77.3 img/s | eta: 13.5m
+  [c4_four_views_no_refine] Ep 10/15 [1025/1979 |  51.8%] loss: 0.9825 (ce: 0.7454, kl: 0.4164) | lr: 2.50e-05 | gnorm: 11.94 | 77.4 img/s | eta: 13.1m
+  [c4_four_views_no_refine] Ep 10/15 [1050/1979 |  53.1%] loss: 0.9817 (ce: 0.7443, kl: 0.4162) | lr: 2.50e-05 | gnorm: 12.18 | 77.5 img/s | eta: 12.8m
+  [c4_four_views_no_refine] Ep 10/15 [1075/1979 |  54.3%] loss: 0.9811 (ce: 0.7442, kl: 0.4158) | lr: 2.50e-05 | gnorm: 12.18 | 77.7 img/s | eta: 12.4m
+  [c4_four_views_no_refine] Ep 10/15 [1100/1979 |  55.6%] loss: 0.9805 (ce: 0.7449, kl: 0.4151) | lr: 2.50e-05 | gnorm: 11.65 | 77.8 img/s | eta: 12.0m
+  [c4_four_views_no_refine] Ep 10/15 [1125/1979 |  56.8%] loss: 0.9806 (ce: 0.7457, kl: 0.4149) | lr: 2.50e-05 | gnorm: 11.62 | 77.9 img/s | eta: 11.7m
+  [c4_four_views_no_refine] Ep 10/15 [1150/1979 |  58.1%] loss: 0.9804 (ce: 0.7468, kl: 0.4143) | lr: 2.50e-05 | gnorm: 12.02 | 77.9 img/s | eta: 11.3m
+  [c4_four_views_no_refine] Ep 10/15 [1175/1979 |  59.4%] loss: 0.9814 (ce: 0.7471, kl: 0.4149) | lr: 2.50e-05 | gnorm: 13.15 | 78.1 img/s | eta: 11.0m
+  [c4_four_views_no_refine] Ep 10/15 [1200/1979 |  60.6%] loss: 0.9824 (ce: 0.7485, kl: 0.4151) | lr: 2.50e-05 | gnorm: 12.80 | 78.2 img/s | eta: 10.6m
+  [c4_four_views_no_refine] Ep 10/15 [1225/1979 |  61.9%] loss: 0.9829 (ce: 0.7490, kl: 0.4153) | lr: 2.50e-05 | gnorm: 9.99 | 78.2 img/s | eta: 10.3m
+  [c4_four_views_no_refine] Ep 10/15 [1250/1979 |  63.2%] loss: 0.9835 (ce: 0.7493, kl: 0.4155) | lr: 2.50e-05 | gnorm: 11.59 | 78.4 img/s | eta: 9.9m
+  [c4_four_views_no_refine] Ep 10/15 [1275/1979 |  64.4%] loss: 0.9835 (ce: 0.7497, kl: 0.4154) | lr: 2.50e-05 | gnorm: 9.46 | 78.5 img/s | eta: 9.6m
+  [c4_four_views_no_refine] Ep 10/15 [1300/1979 |  65.7%] loss: 0.9837 (ce: 0.7501, kl: 0.4154) | lr: 2.50e-05 | gnorm: 10.73 | 78.7 img/s | eta: 9.2m
+  [c4_four_views_no_refine] Ep 10/15 [1325/1979 |  67.0%] loss: 0.9834 (ce: 0.7503, kl: 0.4151) | lr: 2.50e-05 | gnorm: 11.26 | 78.8 img/s | eta: 8.8m
+  [c4_four_views_no_refine] Ep 10/15 [1350/1979 |  68.2%] loss: 0.9837 (ce: 0.7503, kl: 0.4153) | lr: 2.50e-05 | gnorm: 11.98 | 79.0 img/s | eta: 8.5m
+  [c4_four_views_no_refine] Ep 10/15 [1375/1979 |  69.5%] loss: 0.9843 (ce: 0.7515, kl: 0.4152) | lr: 2.50e-05 | gnorm: 13.43 | 79.1 img/s | eta: 8.1m
+  [c4_four_views_no_refine] Ep 10/15 [1400/1979 |  70.7%] loss: 0.9845 (ce: 0.7517, kl: 0.4154) | lr: 2.50e-05 | gnorm: 12.74 | 79.2 img/s | eta: 7.8m
+  [c4_four_views_no_refine] Ep 10/15 [1425/1979 |  72.0%] loss: 0.9849 (ce: 0.7519, kl: 0.4155) | lr: 2.50e-05 | gnorm: 10.17 | 79.4 img/s | eta: 7.4m
+  [c4_four_views_no_refine] Ep 10/15 [1450/1979 |  73.3%] loss: 0.9853 (ce: 0.7524, kl: 0.4156) | lr: 2.50e-05 | gnorm: 11.01 | 79.4 img/s | eta: 7.1m
+  [c4_four_views_no_refine] Ep 10/15 [1475/1979 |  74.5%] loss: 0.9861 (ce: 0.7534, kl: 0.4158) | lr: 2.50e-05 | gnorm: 11.83 | 79.5 img/s | eta: 6.8m
+  [c4_four_views_no_refine] Ep 10/15 [1500/1979 |  75.8%] loss: 0.9865 (ce: 0.7546, kl: 0.4156) | lr: 2.50e-05 | gnorm: 11.25 | 79.6 img/s | eta: 6.4m
+  [c4_four_views_no_refine] Ep 10/15 [1525/1979 |  77.1%] loss: 0.9865 (ce: 0.7550, kl: 0.4154) | lr: 2.50e-05 | gnorm: 11.62 | 79.7 img/s | eta: 6.1m
+  [c4_four_views_no_refine] Ep 10/15 [1550/1979 |  78.3%] loss: 0.9867 (ce: 0.7558, kl: 0.4153) | lr: 2.50e-05 | gnorm: 11.52 | 79.8 img/s | eta: 5.7m
+  [c4_four_views_no_refine] Ep 10/15 [1575/1979 |  79.6%] loss: 0.9866 (ce: 0.7555, kl: 0.4153) | lr: 2.50e-05 | gnorm: 13.10 | 79.9 img/s | eta: 5.4m
+  [c4_four_views_no_refine] Ep 10/15 [1600/1979 |  80.8%] loss: 0.9869 (ce: 0.7561, kl: 0.4153) | lr: 2.50e-05 | gnorm: 9.16 | 80.0 img/s | eta: 5.1m
+  [c4_four_views_no_refine] Ep 10/15 [1625/1979 |  82.1%] loss: 0.9873 (ce: 0.7562, kl: 0.4156) | lr: 2.50e-05 | gnorm: 14.28 | 80.1 img/s | eta: 4.7m
+  [c4_four_views_no_refine] Ep 10/15 [1650/1979 |  83.4%] loss: 0.9872 (ce: 0.7562, kl: 0.4155) | lr: 2.50e-05 | gnorm: 11.26 | 80.2 img/s | eta: 4.4m
+  [c4_four_views_no_refine] Ep 10/15 [1675/1979 |  84.6%] loss: 0.9878 (ce: 0.7563, kl: 0.4159) | lr: 2.50e-05 | gnorm: 13.57 | 80.3 img/s | eta: 4.0m
+  [c4_four_views_no_refine] Ep 10/15 [1700/1979 |  85.9%] loss: 0.9881 (ce: 0.7568, kl: 0.4159) | lr: 2.50e-05 | gnorm: 14.49 | 80.4 img/s | eta: 3.7m
+  [c4_four_views_no_refine] Ep 10/15 [1725/1979 |  87.2%] loss: 0.9892 (ce: 0.7573, kl: 0.4165) | lr: 2.50e-05 | gnorm: 14.85 | 80.5 img/s | eta: 3.4m
+  [c4_four_views_no_refine] Ep 10/15 [1750/1979 |  88.4%] loss: 0.9893 (ce: 0.7578, kl: 0.4164) | lr: 2.50e-05 | gnorm: 11.05 | 80.6 img/s | eta: 3.0m
+  [c4_four_views_no_refine] Ep 10/15 [1775/1979 |  89.7%] loss: 0.9896 (ce: 0.7585, kl: 0.4163) | lr: 2.50e-05 | gnorm: 9.92 | 80.7 img/s | eta: 2.7m
+  [c4_four_views_no_refine] Ep 10/15 [1800/1979 |  91.0%] loss: 0.9898 (ce: 0.7588, kl: 0.4163) | lr: 2.50e-05 | gnorm: 12.85 | 80.8 img/s | eta: 2.4m
+  [c4_four_views_no_refine] Ep 10/15 [1825/1979 |  92.2%] loss: 0.9900 (ce: 0.7593, kl: 0.4163) | lr: 2.50e-05 | gnorm: 11.69 | 80.9 img/s | eta: 2.0m
+  [c4_four_views_no_refine] Ep 10/15 [1850/1979 |  93.5%] loss: 0.9901 (ce: 0.7595, kl: 0.4163) | lr: 2.50e-05 | gnorm: 11.26 | 80.9 img/s | eta: 1.7m
+  [c4_four_views_no_refine] Ep 10/15 [1875/1979 |  94.7%] loss: 0.9903 (ce: 0.7597, kl: 0.4163) | lr: 2.50e-05 | gnorm: 12.28 | 81.0 img/s | eta: 1.4m
+  [c4_four_views_no_refine] Ep 10/15 [1900/1979 |  96.0%] loss: 0.9904 (ce: 0.7596, kl: 0.4165) | lr: 2.50e-05 | gnorm: 13.14 | 81.1 img/s | eta: 1.0m
+  [c4_four_views_no_refine] Ep 10/15 [1925/1979 |  97.3%] loss: 0.9904 (ce: 0.7599, kl: 0.4163) | lr: 2.50e-05 | gnorm: 11.95 | 81.2 img/s | eta: 0.7m
+  [c4_four_views_no_refine] Ep 10/15 [1950/1979 |  98.5%] loss: 0.9902 (ce: 0.7592, kl: 0.4164) | lr: 2.50e-05 | gnorm: 11.90 | 81.2 img/s | eta: 0.4m
+  [c4_four_views_no_refine] Ep 10/15 [1975/1979 |  99.8%] loss: 0.9901 (ce: 0.7593, kl: 0.4163) | lr: 2.50e-05 | gnorm: 12.93 | 81.3 img/s | eta: 0.1m
+  [c4_four_views_no_refine] Ep 10/15 [1979/1979 | 100.0%] loss: 0.9901 (ce: 0.7592, kl: 0.4164) | lr: 2.50e-05 | gnorm: 10.91 | 81.3 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Running clean validation (5,000 images)...
+  [c4_four_views_no_refine] Running robust validation (512 images, PGD-10 @ eps=0.094)...
+----------------------------------------------------------------------
+[c4_four_views_no_refine] Epoch 10/15 (1574.0s, VRAM: 2022MB) | session: 4.45h/11h | phase ETA: 126.8m
+  val_acc[CLEAN]:  60.34% (best: 60.90%)
+  val_acc[ROBUST]: 22.66% (eps=0.094, best: 23.05%)
+  loss: total=0.9901 ce=0.7592 kl=0.4164
+  lr: backbone_decay: 1.85e-05, backbone_no_decay: 1.85e-05, classifier_decay: 1.85e-04
+  gnorm: backbone_decay: 10.91, backbone_no_decay: 1.27, classifier_decay: 1.34, classifier_no_decay: 0.08
+  health flags: ['STALL']
+  feature drift: mean |dW|/|W0| = 6.63%
+----------------------------------------------------------------------
+[Curriculum] c4_four_views_no_refine ep 11/15 -> eps_norm=0.0940 (pix=0.0212) beta=2.5 pgd=4 w_trades=0.55
+  [c4_four_views_no_refine] Ep 11/15 [   1/1979 |   0.1%] loss: 0.9402 (ce: 0.6181, kl: 0.4365) | lr: 1.85e-05 | gnorm: 12.30 | 58.8 img/s | eta: 35.9m
+  [c4_four_views_no_refine] Ep 11/15 [  25/1979 |   1.3%] loss: 0.9357 (ce: 0.6383, kl: 0.4252) | lr: 1.85e-05 | gnorm: 9.50 | 87.3 img/s | eta: 23.9m
+  [c4_four_views_no_refine] Ep 11/15 [  50/1979 |   2.5%] loss: 0.9389 (ce: 0.6701, kl: 0.4148) | lr: 1.85e-05 | gnorm: 13.35 | 87.1 img/s | eta: 23.6m
+  [c4_four_views_no_refine] Ep 11/15 [  75/1979 |   3.8%] loss: 0.9382 (ce: 0.6658, kl: 0.4160) | lr: 1.85e-05 | gnorm: 12.62 | 86.0 img/s | eta: 23.6m
+  [c4_four_views_no_refine] Ep 11/15 [ 100/1979 |   5.1%] loss: 0.9419 (ce: 0.6623, kl: 0.4201) | lr: 1.85e-05 | gnorm: 12.21 | 86.2 img/s | eta: 23.3m
+  [c4_four_views_no_refine] Ep 11/15 [ 125/1979 |   6.3%] loss: 0.9376 (ce: 0.6595, kl: 0.4181) | lr: 1.85e-05 | gnorm: 12.46 | 84.9 img/s | eta: 23.3m
+  [c4_four_views_no_refine] Ep 11/15 [ 150/1979 |   7.6%] loss: 0.9395 (ce: 0.6682, kl: 0.4159) | lr: 1.85e-05 | gnorm: 9.95 | 82.7 img/s | eta: 23.6m
+  [c4_four_views_no_refine] Ep 11/15 [ 175/1979 |   8.8%] loss: 0.9376 (ce: 0.6660, kl: 0.4155) | lr: 1.85e-05 | gnorm: 12.55 | 82.9 img/s | eta: 23.2m
+  [c4_four_views_no_refine] Ep 11/15 [ 200/1979 |  10.1%] loss: 0.9320 (ce: 0.6598, kl: 0.4139) | lr: 1.85e-05 | gnorm: 11.44 | 81.5 img/s | eta: 23.3m
+  [c4_four_views_no_refine] Ep 11/15 [ 225/1979 |  11.4%] loss: 0.9319 (ce: 0.6613, kl: 0.4132) | lr: 1.85e-05 | gnorm: 12.53 | 77.2 img/s | eta: 24.2m
+  [c4_four_views_no_refine] Ep 11/15 [ 250/1979 |  12.6%] loss: 0.9305 (ce: 0.6608, kl: 0.4124) | lr: 1.85e-05 | gnorm: 12.90 | 73.7 img/s | eta: 25.0m
+  [c4_four_views_no_refine] Ep 11/15 [ 275/1979 |  13.9%] loss: 0.9333 (ce: 0.6639, kl: 0.4132) | lr: 1.85e-05 | gnorm: 12.86 | 71.1 img/s | eta: 25.6m
+  [c4_four_views_no_refine] Ep 11/15 [ 300/1979 |  15.2%] loss: 0.9327 (ce: 0.6631, kl: 0.4131) | lr: 1.85e-05 | gnorm: 10.94 | 71.8 img/s | eta: 24.9m
+  [c4_four_views_no_refine] Ep 11/15 [ 325/1979 |  16.4%] loss: 0.9327 (ce: 0.6627, kl: 0.4133) | lr: 1.85e-05 | gnorm: 11.18 | 72.4 img/s | eta: 24.4m
+  [c4_four_views_no_refine] Ep 11/15 [ 350/1979 |  17.7%] loss: 0.9332 (ce: 0.6639, kl: 0.4132) | lr: 1.85e-05 | gnorm: 14.65 | 73.4 img/s | eta: 23.7m
+  [c4_four_views_no_refine] Ep 11/15 [ 375/1979 |  18.9%] loss: 0.9328 (ce: 0.6614, kl: 0.4138) | lr: 1.85e-05 | gnorm: 13.34 | 74.3 img/s | eta: 23.0m
+  [c4_four_views_no_refine] Ep 11/15 [ 400/1979 |  20.2%] loss: 0.9348 (ce: 0.6637, kl: 0.4144) | lr: 1.85e-05 | gnorm: 13.19 | 75.1 img/s | eta: 22.4m
+  [c4_four_views_no_refine] Ep 11/15 [ 425/1979 |  21.5%] loss: 0.9336 (ce: 0.6638, kl: 0.4135) | lr: 1.85e-05 | gnorm: 11.21 | 75.7 img/s | eta: 21.9m
+  [c4_four_views_no_refine] Ep 11/15 [ 450/1979 |  22.7%] loss: 0.9353 (ce: 0.6634, kl: 0.4149) | lr: 1.85e-05 | gnorm: 11.39 | 76.1 img/s | eta: 21.4m
+  [c4_four_views_no_refine] Ep 11/15 [ 475/1979 |  24.0%] loss: 0.9351 (ce: 0.6619, kl: 0.4153) | lr: 1.85e-05 | gnorm: 12.67 | 76.6 img/s | eta: 20.9m
+  [c4_four_views_no_refine] Ep 11/15 [ 500/1979 |  25.3%] loss: 0.9364 (ce: 0.6634, kl: 0.4157) | lr: 1.85e-05 | gnorm: 11.75 | 77.1 img/s | eta: 20.5m
+  [c4_four_views_no_refine] Ep 11/15 [ 525/1979 |  26.5%] loss: 0.9374 (ce: 0.6662, kl: 0.4152) | lr: 1.85e-05 | gnorm: 10.45 | 77.6 img/s | eta: 20.0m
+  [c4_four_views_no_refine] Ep 11/15 [ 550/1979 |  27.8%] loss: 0.9387 (ce: 0.6691, kl: 0.4150) | lr: 1.85e-05 | gnorm: 11.27 | 78.2 img/s | eta: 19.5m
+  [c4_four_views_no_refine] Ep 11/15 [ 575/1979 |  29.1%] loss: 0.9390 (ce: 0.6705, kl: 0.4147) | lr: 1.85e-05 | gnorm: 11.86 | 78.6 img/s | eta: 19.1m
+  [c4_four_views_no_refine] Ep 11/15 [ 600/1979 |  30.3%] loss: 0.9396 (ce: 0.6704, kl: 0.4152) | lr: 1.85e-05 | gnorm: 11.51 | 78.9 img/s | eta: 18.6m
+  [c4_four_views_no_refine] Ep 11/15 [ 625/1979 |  31.6%] loss: 0.9400 (ce: 0.6716, kl: 0.4150) | lr: 1.85e-05 | gnorm: 11.69 | 79.3 img/s | eta: 18.2m
+  [c4_four_views_no_refine] Ep 11/15 [ 650/1979 |  32.8%] loss: 0.9409 (ce: 0.6711, kl: 0.4159) | lr: 1.85e-05 | gnorm: 10.20 | 79.7 img/s | eta: 17.8m
+  [c4_four_views_no_refine] Ep 11/15 [ 675/1979 |  34.1%] loss: 0.9416 (ce: 0.6715, kl: 0.4162) | lr: 1.85e-05 | gnorm: 13.07 | 80.0 img/s | eta: 17.4m
+  [c4_four_views_no_refine] Ep 11/15 [ 700/1979 |  35.4%] loss: 0.9410 (ce: 0.6719, kl: 0.4156) | lr: 1.85e-05 | gnorm: 11.16 | 80.3 img/s | eta: 17.0m
+  [c4_four_views_no_refine] Ep 11/15 [ 725/1979 |  36.6%] loss: 0.9407 (ce: 0.6720, kl: 0.4154) | lr: 1.85e-05 | gnorm: 11.83 | 80.6 img/s | eta: 16.6m
+  [c4_four_views_no_refine] Ep 11/15 [ 750/1979 |  37.9%] loss: 0.9398 (ce: 0.6714, kl: 0.4149) | lr: 1.85e-05 | gnorm: 11.32 | 81.0 img/s | eta: 16.2m
+  [c4_four_views_no_refine] Ep 11/15 [ 775/1979 |  39.2%] loss: 0.9399 (ce: 0.6710, kl: 0.4151) | lr: 1.85e-05 | gnorm: 11.83 | 81.3 img/s | eta: 15.8m
+  [c4_four_views_no_refine] Ep 11/15 [ 800/1979 |  40.4%] loss: 0.9405 (ce: 0.6713, kl: 0.4155) | lr: 1.85e-05 | gnorm: 11.93 | 81.6 img/s | eta: 15.4m
+  [c4_four_views_no_refine] Ep 11/15 [ 825/1979 |  41.7%] loss: 0.9404 (ce: 0.6717, kl: 0.4152) | lr: 1.85e-05 | gnorm: 10.88 | 81.8 img/s | eta: 15.0m
+  [c4_four_views_no_refine] Ep 11/15 [ 850/1979 |  43.0%] loss: 0.9400 (ce: 0.6717, kl: 0.4150) | lr: 1.85e-05 | gnorm: 12.93 | 82.0 img/s | eta: 14.7m
+  [c4_four_views_no_refine] Ep 11/15 [ 875/1979 |  44.2%] loss: 0.9400 (ce: 0.6711, kl: 0.4152) | lr: 1.85e-05 | gnorm: 13.20 | 82.3 img/s | eta: 14.3m
+  [c4_four_views_no_refine] Ep 11/15 [ 900/1979 |  45.5%] loss: 0.9401 (ce: 0.6715, kl: 0.4151) | lr: 1.85e-05 | gnorm: 10.67 | 82.5 img/s | eta: 13.9m
+  [c4_four_views_no_refine] Ep 11/15 [ 925/1979 |  46.7%] loss: 0.9406 (ce: 0.6712, kl: 0.4156) | lr: 1.85e-05 | gnorm: 11.15 | 82.8 img/s | eta: 13.6m
+  [c4_four_views_no_refine] Ep 11/15 [ 950/1979 |  48.0%] loss: 0.9408 (ce: 0.6711, kl: 0.4158) | lr: 1.85e-05 | gnorm: 11.35 | 82.9 img/s | eta: 13.2m
+  [c4_four_views_no_refine] Ep 11/15 [ 975/1979 |  49.3%] loss: 0.9402 (ce: 0.6711, kl: 0.4153) | lr: 1.85e-05 | gnorm: 11.59 | 83.1 img/s | eta: 12.9m
+  [c4_four_views_no_refine] Ep 11/15 [1000/1979 |  50.5%] loss: 0.9415 (ce: 0.6717, kl: 0.4160) | lr: 1.85e-05 | gnorm: 10.90 | 83.4 img/s | eta: 12.5m
+  [c4_four_views_no_refine] Ep 11/15 [1025/1979 |  51.8%] loss: 0.9420 (ce: 0.6723, kl: 0.4162) | lr: 1.85e-05 | gnorm: 13.00 | 83.6 img/s | eta: 12.2m
+  [c4_four_views_no_refine] Ep 11/15 [1050/1979 |  53.1%] loss: 0.9420 (ce: 0.6730, kl: 0.4158) | lr: 1.85e-05 | gnorm: 11.29 | 83.7 img/s | eta: 11.8m
+  [c4_four_views_no_refine] Ep 11/15 [1075/1979 |  54.3%] loss: 0.9416 (ce: 0.6724, kl: 0.4158) | lr: 1.85e-05 | gnorm: 11.87 | 83.7 img/s | eta: 11.5m
+  [c4_four_views_no_refine] Ep 11/15 [1100/1979 |  55.6%] loss: 0.9414 (ce: 0.6715, kl: 0.4161) | lr: 1.85e-05 | gnorm: 13.91 | 83.8 img/s | eta: 11.2m
+  [c4_four_views_no_refine] Ep 11/15 [1125/1979 |  56.8%] loss: 0.9417 (ce: 0.6715, kl: 0.4162) | lr: 1.85e-05 | gnorm: 10.39 | 83.9 img/s | eta: 10.9m
+  [c4_four_views_no_refine] Ep 11/15 [1150/1979 |  58.1%] loss: 0.9413 (ce: 0.6715, kl: 0.4160) | lr: 1.85e-05 | gnorm: 13.03 | 84.1 img/s | eta: 10.5m
+  [c4_four_views_no_refine] Ep 11/15 [1175/1979 |  59.4%] loss: 0.9423 (ce: 0.6722, kl: 0.4164) | lr: 1.85e-05 | gnorm: 13.44 | 84.2 img/s | eta: 10.2m
+  [c4_four_views_no_refine] Ep 11/15 [1200/1979 |  60.6%] loss: 0.9416 (ce: 0.6714, kl: 0.4163) | lr: 1.85e-05 | gnorm: 12.09 | 84.3 img/s | eta: 9.9m
+  [c4_four_views_no_refine] Ep 11/15 [1225/1979 |  61.9%] loss: 0.9412 (ce: 0.6714, kl: 0.4159) | lr: 1.85e-05 | gnorm: 13.15 | 84.3 img/s | eta: 9.5m
+  [c4_four_views_no_refine] Ep 11/15 [1250/1979 |  63.2%] loss: 0.9419 (ce: 0.6716, kl: 0.4164) | lr: 1.85e-05 | gnorm: 11.16 | 84.4 img/s | eta: 9.2m
+  [c4_four_views_no_refine] Ep 11/15 [1275/1979 |  64.4%] loss: 0.9418 (ce: 0.6718, kl: 0.4162) | lr: 1.85e-05 | gnorm: 11.76 | 84.5 img/s | eta: 8.9m
+  [c4_four_views_no_refine] Ep 11/15 [1300/1979 |  65.7%] loss: 0.9423 (ce: 0.6718, kl: 0.4166) | lr: 1.85e-05 | gnorm: 12.59 | 84.7 img/s | eta: 8.6m
+  [c4_four_views_no_refine] Ep 11/15 [1325/1979 |  67.0%] loss: 0.9428 (ce: 0.6727, kl: 0.4166) | lr: 1.85e-05 | gnorm: 11.84 | 84.7 img/s | eta: 8.2m
+  [c4_four_views_no_refine] Ep 11/15 [1350/1979 |  68.2%] loss: 0.9426 (ce: 0.6726, kl: 0.4165) | lr: 1.85e-05 | gnorm: 11.09 | 84.8 img/s | eta: 7.9m
+  [c4_four_views_no_refine] Ep 11/15 [1375/1979 |  69.5%] loss: 0.9424 (ce: 0.6721, kl: 0.4165) | lr: 1.85e-05 | gnorm: 13.99 | 85.0 img/s | eta: 7.6m
+  [c4_four_views_no_refine] Ep 11/15 [1400/1979 |  70.7%] loss: 0.9426 (ce: 0.6722, kl: 0.4167) | lr: 1.85e-05 | gnorm: 11.24 | 85.1 img/s | eta: 7.3m
+  [c4_four_views_no_refine] Ep 11/15 [1425/1979 |  72.0%] loss: 0.9425 (ce: 0.6713, kl: 0.4169) | lr: 1.85e-05 | gnorm: 11.58 | 85.2 img/s | eta: 6.9m
+  [c4_four_views_no_refine] Ep 11/15 [1450/1979 |  73.3%] loss: 0.9426 (ce: 0.6713, kl: 0.4170) | lr: 1.85e-05 | gnorm: 12.59 | 85.3 img/s | eta: 6.6m
+  [c4_four_views_no_refine] Ep 11/15 [1475/1979 |  74.5%] loss: 0.9425 (ce: 0.6719, kl: 0.4167) | lr: 1.85e-05 | gnorm: 11.59 | 85.4 img/s | eta: 6.3m
+  [c4_four_views_no_refine] Ep 11/15 [1500/1979 |  75.8%] loss: 0.9426 (ce: 0.6719, kl: 0.4168) | lr: 1.85e-05 | gnorm: 15.97 | 85.5 img/s | eta: 6.0m
+  [c4_four_views_no_refine] Ep 11/15 [1525/1979 |  77.1%] loss: 0.9431 (ce: 0.6725, kl: 0.4169) | lr: 1.85e-05 | gnorm: 12.48 | 85.5 img/s | eta: 5.7m
+  [c4_four_views_no_refine] Ep 11/15 [1550/1979 |  78.3%] loss: 0.9433 (ce: 0.6724, kl: 0.4171) | lr: 1.85e-05 | gnorm: 12.39 | 85.5 img/s | eta: 5.4m
+  [c4_four_views_no_refine] Ep 11/15 [1575/1979 |  79.6%] loss: 0.9431 (ce: 0.6725, kl: 0.4169) | lr: 1.85e-05 | gnorm: 15.79 | 85.5 img/s | eta: 5.0m
+  [c4_four_views_no_refine] Ep 11/15 [1600/1979 |  80.8%] loss: 0.9436 (ce: 0.6731, kl: 0.4170) | lr: 1.85e-05 | gnorm: 12.85 | 85.6 img/s | eta: 4.7m
+  [c4_four_views_no_refine] Ep 11/15 [1625/1979 |  82.1%] loss: 0.9438 (ce: 0.6735, kl: 0.4170) | lr: 1.85e-05 | gnorm: 13.41 | 85.6 img/s | eta: 4.4m
+  [c4_four_views_no_refine] Ep 11/15 [1650/1979 |  83.4%] loss: 0.9429 (ce: 0.6730, kl: 0.4166) | lr: 1.85e-05 | gnorm: 10.45 | 85.7 img/s | eta: 4.1m
+  [c4_four_views_no_refine] Ep 11/15 [1675/1979 |  84.6%] loss: 0.9437 (ce: 0.6736, kl: 0.4169) | lr: 1.85e-05 | gnorm: 14.18 | 85.7 img/s | eta: 3.8m
+  [c4_four_views_no_refine] Ep 11/15 [1700/1979 |  85.9%] loss: 0.9434 (ce: 0.6737, kl: 0.4166) | lr: 1.85e-05 | gnorm: 14.11 | 85.7 img/s | eta: 3.5m
+  [c4_four_views_no_refine] Ep 11/15 [1725/1979 |  87.2%] loss: 0.9438 (ce: 0.6748, kl: 0.4165) | lr: 1.85e-05 | gnorm: 12.58 | 85.7 img/s | eta: 3.2m
+  [c4_four_views_no_refine] Ep 11/15 [1750/1979 |  88.4%] loss: 0.9434 (ce: 0.6746, kl: 0.4163) | lr: 1.85e-05 | gnorm: 12.53 | 85.7 img/s | eta: 2.8m
+  [c4_four_views_no_refine] Ep 11/15 [1775/1979 |  89.7%] loss: 0.9432 (ce: 0.6742, kl: 0.4163) | lr: 1.85e-05 | gnorm: 13.06 | 85.8 img/s | eta: 2.5m
+  [c4_four_views_no_refine] Ep 11/15 [1800/1979 |  91.0%] loss: 0.9432 (ce: 0.6741, kl: 0.4163) | lr: 1.85e-05 | gnorm: 12.66 | 85.8 img/s | eta: 2.2m
+  [c4_four_views_no_refine] Ep 11/15 [1825/1979 |  92.2%] loss: 0.9433 (ce: 0.6748, kl: 0.4161) | lr: 1.85e-05 | gnorm: 12.52 | 85.8 img/s | eta: 1.9m
+  [c4_four_views_no_refine] Ep 11/15 [1850/1979 |  93.5%] loss: 0.9437 (ce: 0.6759, kl: 0.4160) | lr: 1.85e-05 | gnorm: 13.17 | 85.7 img/s | eta: 1.6m
+  [c4_four_views_no_refine] Ep 11/15 [1875/1979 |  94.7%] loss: 0.9440 (ce: 0.6760, kl: 0.4161) | lr: 1.85e-05 | gnorm: 11.48 | 85.7 img/s | eta: 1.3m
+  [c4_four_views_no_refine] Ep 11/15 [1900/1979 |  96.0%] loss: 0.9443 (ce: 0.6765, kl: 0.4162) | lr: 1.85e-05 | gnorm: 10.43 | 85.7 img/s | eta: 1.0m
+  [c4_four_views_no_refine] Ep 11/15 [1925/1979 |  97.3%] loss: 0.9446 (ce: 0.6774, kl: 0.4161) | lr: 1.85e-05 | gnorm: 12.62 | 85.6 img/s | eta: 0.7m
+  [c4_four_views_no_refine] Ep 11/15 [1950/1979 |  98.5%] loss: 0.9447 (ce: 0.6773, kl: 0.4162) | lr: 1.85e-05 | gnorm: 15.86 | 85.6 img/s | eta: 0.4m
+  [c4_four_views_no_refine] Ep 11/15 [1975/1979 |  99.8%] loss: 0.9447 (ce: 0.6773, kl: 0.4161) | lr: 1.85e-05 | gnorm: 11.02 | 85.6 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Ep 11/15 [1979/1979 | 100.0%] loss: 0.9448 (ce: 0.6775, kl: 0.4161) | lr: 1.85e-05 | gnorm: 12.28 | 85.6 img/s | eta: 0.0m
+  [c4_four_views_no_refine] Running clean validation (5,000 images)...
+  [c4_four_views_no_refine] Running robust validation (512 images, PGD-10 @ eps=0.094)...
+----------------------------------------------------------------------
+[c4_four_views_no_refine] Epoch 11/15 (1493.8s, VRAM: 2022MB) | session: 4.86h/11h | phase ETA: 100.7m
+  val_acc[CLEAN]:  60.98% (best: 60.98%)
+  val_acc[ROBUST]: 24.80% (eps=0.094, best: 24.80%)
+  loss: total=0.9448 ce=0.6775 kl=0.4161
+  lr: backbone_decay: 1.25e-05, backbone_no_decay: 1.25e-05, classifier_decay: 1.25e-04
+  gnorm: backbone_decay: 12.28, backbone_no_decay: 1.42, classifier_decay: 1.41, classifier_no_decay: 0.08
+  health flags: ['OK']
+----------------------------------------------------------------------
+[Curriculum] c4_four_views_no_refine ep 12/15 -> eps_norm=0.0940 (pix=0.0212) beta=2.5 pgd=4 w_trades=0.55
+  [c4_four_views_no_refine] Ep 12/15 [   1/1979 |   0.1%] loss: 0.7555 (ce: 0.5099, kl: 0.3455) | lr: 1.25e-05 | gnorm: 11.35 | 32.5 img/s | eta: 65.0m
+  [c4_four_views_no_refine] Ep 12/15 [  25/1979 |   1.3%] loss: 0.8686 (ce: 0.5912, kl: 0.3952) | lr: 1.25e-05 | gnorm: 12.73 | 82.9 img/s | eta: 25.1m
+  [c4_four_views_no_refine] Ep 12/15 [  50/1979 |   2.5%] loss: 0.8762 (ce: 0.5913, kl: 0.4007) | lr: 1.25e-05 | gnorm: 11.25 | 84.3 img/s | eta: 24.4m
+  [c4_four_views_no_refine] Ep 12/15 [  75/1979 |   3.8%] loss: 0.8911 (ce: 0.6035, kl: 0.4066) | lr: 1.25e-05 | gnorm: 11.95 | 83.6 img/s | eta: 24.3m
+  [c4_four_views_no_refine] Ep 12/15 [ 100/1979 |   5.1%] loss: 0.8839 (ce: 0.6005, kl: 0.4026) | lr: 1.25e-05 | gnorm: 11.16 | 84.7 img/s | eta: 23.7m
+  [c4_four_views_no_refine] Ep 12/15 [ 125/1979 |   6.3%] loss: 0.8915 (ce: 0.6020, kl: 0.4076) | lr: 1.25e-05 | gnorm: 12.81 | 85.2 img/s | eta: 23.2m
+  [c4_four_views_no_refine] Ep 12/15 [ 150/1979 |   7.6%] loss: 0.9013 (ce: 0.6067, kl: 0.4128) | lr: 1.25e-05 | gnorm: 13.13 | 85.7 img/s | eta: 22.8m
+  [c4_four_views_no_refine] Ep 12/15 [ 175/1979 |   8.8%] loss: 0.9053 (ce: 0.6050, kl: 0.4164) | lr: 1.25e-05 | gnorm: 12.61 | 85.0 img/s | eta: 22.6m
+  [c4_four_views_no_refine] Ep 12/15 [ 200/1979 |  10.1%] loss: 0.9012 (ce: 0.6009, kl: 0.4151) | lr: 1.25e-05 | gnorm: 11.71 | 85.2 img/s | eta: 22.3m
+  [c4_four_views_no_refine] Ep 12/15 [ 225/1979 |  11.4%] loss: 0.8998 (ce: 0.5983, kl: 0.4151) | lr: 1.25e-05 | gnorm: 14.30 | 85.7 img/s | eta: 21.8m
+  [c4_four_views_no_refine] Ep 12/15 [ 250/1979 |  12.6%] loss: 0.9011 (ce: 0.5993, kl: 0.4156) | lr: 1.25e-05 | gnorm: 15.03 | 86.1 img/s | eta: 21.4m
+  [c4_four_views_no_refine] Ep 12/15 [ 275/1979 |  13.9%] loss: 0.9036 (ce: 0.5995, kl: 0.4173) | lr: 1.25e-05 | gnorm: 11.37 | 85.5 img/s | eta: 21.3m
+  [c4_four_views_no_refine] Ep 12/15 [ 300/1979 |  15.2%] loss: 0.9046 (ce: 0.6002, kl: 0.4179) | lr: 1.25e-05 | gnorm: 13.66 | 85.4 img/s | eta: 21.0m
+  [c4_four_views_no_refine] Ep 12/15 [ 325/1979 |  16.4%] loss: 0.9047 (ce: 0.6018, kl: 0.4173) | lr: 1.25e-05 | gnorm: 11.82 | 85.6 img/s | eta: 20.6m
+  [c4_four_views_no_refine] Ep 12/15 [ 350/1979 |  17.7%] loss: 0.9039 (ce: 0.6011, kl: 0.4170) | lr: 1.25e-05 | gnorm: 11.79 | 85.6 img/s | eta: 20.3m
+  [c4_four_views_no_refine] Ep 12/15 [ 375/1979 |  18.9%] loss: 0.9043 (ce: 0.6018, kl: 0.4170) | lr: 1.25e-05 | gnorm: 14.41 | 85.2 img/s | eta: 20.1m
+  [c4_four_views_no_refine] Ep 12/15 [ 400/1979 |  20.2%] loss: 0.9040 (ce: 0.6015, kl: 0.4168) | lr: 1.25e-05 | gnorm: 12.68 | 85.1 img/s | eta: 19.8m
+  [c4_four_views_no_refine] Ep 12/15 [ 425/1979 |  21.5%] loss: 0.9064 (ce: 0.6039, kl: 0.4176) | lr: 1.25e-05 | gnorm: 13.34 | 85.1 img/s | eta: 19.5m
+  [c4_four_views_no_refine] Ep 12/15 [ 450/1979 |  22.7%] loss: 0.9069 (ce: 0.6037, kl: 0.4181) | lr: 1.25e-05 | gnorm: 12.66 | 85.3 img/s | eta: 19.1m
+  [c4_four_views_no_refine] Ep 12/15 [ 475/1979 |  24.0%] loss: 0.9063 (ce: 0.6024, kl: 0.4181) | lr: 1.25e-05 | gnorm: 11.94 | 85.4 img/s | eta: 18.8m
+  [c4_four_views_no_refine] Ep 12/15 [ 500/1979 |  25.3%] loss: 0.9059 (ce: 0.6022, kl: 0.4180) | lr: 1.25e-05 | gnorm: 14.30 | 85.4 img/s | eta: 18.5m
+  [c4_four_views_no_refine] Ep 12/15 [ 525/1979 |  26.5%] loss: 0.9076 (ce: 0.6030, kl: 0.4189) | lr: 1.25e-05 | gnorm: 14.14 | 85.4 img/s | eta: 18.2m
+  [c4_four_views_no_refine] Ep 12/15 [ 550/1979 |  27.8%] loss: 0.9083 (ce: 0.6042, kl: 0.4189) | lr: 1.25e-05 | gnorm: 12.10 | 85.4 img/s | eta: 17.8m
+  [c4_four_views_no_refine] Ep 12/15 [ 575/1979 |  29.1%] loss: 0.9081 (ce: 0.6049, kl: 0.4185) | lr: 1.25e-05 | gnorm: 14.77 | 85.4 img/s | eta: 17.5m
+  [c4_four_views_no_refine] Ep 12/15 [ 600/1979 |  30.3%] loss: 0.9059 (ce: 0.6046, kl: 0.4170) | lr: 1.25e-05 | gnorm: 12.88 | 85.4 img/s | eta: 17.2m
+  [c4_four_views_no_refine] Ep 12/15 [ 625/1979 |  31.6%] loss: 0.9073 (ce: 0.6072, kl: 0.4169) | lr: 1.25e-05 | gnorm: 13.44 | 85.6 img/s | eta: 16.9m
+  [c4_four_views_no_refine] Ep 12/15 [ 650/1979 |  32.8%] loss: 0.9064 (ce: 0.6070, kl: 0.4164) | lr: 1.25e-05 | gnorm: 11.60 | 85.7 img/s | eta: 16.5m
+  [c4_four_views_no_refine] Ep 12/15 [ 675/1979 |  34.1%] loss: 0.9060 (ce: 0.6074, kl: 0.4159) | lr: 1.25e-05 | gnorm: 13.18 | 85.7 img/s | eta: 16.2m
+  [c4_four_views_no_refine] Ep 12/15 [ 700/1979 |  35.4%] loss: 0.9057 (ce: 0.6075, kl: 0.4157) | lr: 1.25e-05 | gnorm: 12.79 | 85.6 img/s | eta: 15.9m
+  [c4_four_views_no_refine] Ep 12/15 [ 725/1979 |  36.6%] loss: 0.9062 (ce: 0.6087, kl: 0.4156) | lr: 1.25e-05 | gnorm: 10.89 | 85.7 img/s | eta: 15.6m
+  [c4_four_views_no_refine] Ep 12/15 [ 750/1979 |  37.9%] loss: 0.9062 (ce: 0.6094, kl: 0.4153) | lr: 1.25e-05 | gnorm: 12.28 | 85.8 img/s | eta: 15.3m
+  [c4_four_views_no_refine] Ep 12/15 [ 775/1979 |  39.2%] loss: 0.9060 (ce: 0.6085, kl: 0.4155) | lr: 1.25e-05 | gnorm: 14.95 | 85.8 img/s | eta: 15.0m
+  [c4_four_views_no_refine] Ep 12/15 [ 800/1979 |  40.4%] loss: 0.9058 (ce: 0.6083, kl: 0.4154) | lr: 1.25e-05 | gnorm: 9.58 | 85.6 img/s | eta: 14.7m
+  [c4_four_views_no_refine] Ep 12/15 [ 825/1979 |  41.7%] loss: 0.9063 (ce: 0.6088, kl: 0.4156) | lr: 1.25e-05 | gnorm: 14.09 | 85.6 img/s | eta: 14.4m
+  [c4_four_views_no_refine] Ep 12/15 [ 850/1979 |  43.0%] loss: 0.9064 (ce: 0.6087, kl: 0.4157) | lr: 1.25e-05 | gnorm: 10.96 | 85.7 img/s | eta: 14.1m
+  [c4_four_views_no_refine] Ep 12/15 [ 875/1979 |  44.2%] loss: 0.9059 (ce: 0.6086, kl: 0.4154) | lr: 1.25e-05 | gnorm: 13.49 | 85.6 img/s | eta: 13.8m
+  [c4_four_views_no_refine] Ep 12/15 [ 900/1979 |  45.5%] loss: 0.9064 (ce: 0.6090, kl: 0.4156) | lr: 1.25e-05 | gnorm: 12.46 | 85.7 img/s | eta: 13.4m
+  [c4_four_views_no_refine] Ep 12/15 [ 925/1979 |  46.7%] loss: 0.9066 (ce: 0.6087, kl: 0.4158) | lr: 1.25e-05 | gnorm: 12.56 | 85.8 img/s | eta: 13.1m
+  [c4_four_views_no_refine] Ep 12/15 [ 950/1979 |  48.0%] loss: 0.9074 (ce: 0.6095, kl: 0.4161) | lr: 1.25e-05 | gnorm: 14.35 | 85.6 img/s | eta: 12.8m
+  [c4_four_views_no_refine] Ep 12/15 [ 975/1979 |  49.3%] loss: 0.9065 (ce: 0.6081, kl: 0.4160) | lr: 1.25e-05 | gnorm: 14.06 | 85.5 img/s | eta: 12.5m
+  [c4_four_views_no_refine] Ep 12/15 [1000/1979 |  50.5%] loss: 0.9068 (ce: 0.6074, kl: 0.4166) | lr: 1.25e-05 | gnorm: 12.24 | 85.6 img/s | eta: 12.2m
+  [c4_four_views_no_refine] Ep 12/15 [1025/1979 |  51.8%] loss: 0.9067 (ce: 0.6072, kl: 0.4165) | lr: 1.25e-05 | gnorm: 11.92 | 85.7 img/s | eta: 11.9m
+  [c4_four_views_no_refine] Ep 12/15 [1050/1979 |  53.1%] loss: 0.9069 (ce: 0.6078, kl: 0.4164) | lr: 1.25e-05 | gnorm: 12.07 | 85.7 img/s | eta: 11.6m
+  [c4_four_views_no_refine] Ep 12/15 [1075/1979 |  54.3%] loss: 0.9069 (ce: 0.6074, kl: 0.4166) | lr: 1.25e-05 | gnorm: 11.13 | 85.6 img/s | eta: 11.3m
+  [c4_four_views_no_refine] Ep 12/15 [1100/1979 |  55.6%] loss: 0.9063 (ce: 0.6065, kl: 0.4165) | lr: 1.25e-05 | gnorm: 13.65 | 85.5 img/s | eta: 11.0m
+  [c4_four_views_no_refine] Ep 12/15 [1125/1979 |  56.8%] loss: 0.9059 (ce: 0.6064, kl: 0.4163) | lr: 1.25e-05 | gnorm: 15.83 | 85.5 img/s | eta: 10.7m
+  [c4_four_views_no_refine] Ep 12/15 [1150/1979 |  58.1%] loss: 0.9052 (ce: 0.6060, kl: 0.4159) | lr: 1.25e-05 | gnorm: 14.10 | 85.5 img/s | eta: 10.3m
+  [c4_four_views_no_refine] Ep 12/15 [1175/1979 |  59.4%] loss: 0.9057 (ce: 0.6059, kl: 0.4163) | lr: 1.25e-05 | gnorm: 11.70 | 85.4 img/s | eta: 10.0m
+  [c4_four_views_no_refine] Ep 12/15 [1200/1979 |  60.6%] loss: 0.9056 (ce: 0.6052, kl: 0.4166) | lr: 1.25e-05 | gnorm: 10.68 | 85.4 img/s | eta: 9.7m
+  [c4_four_views_no_refine] Ep 12/15 [1225/1979 |  61.9%] loss: 0.9051 (ce: 0.6047, kl: 0.4163) | lr: 1.25e-05 | gnorm: 12.56 | 85.4 img/s | eta: 9.4m
+  [c4_four_views_no_refine] Ep 12/15 [1250/1979 |  63.2%] loss: 0.9054 (ce: 0.6049, kl: 0.4165) | lr: 1.25e-05 | gnorm: 15.43 | 85.4 img/s | eta: 9.1m
+                                                                                                                                                       
