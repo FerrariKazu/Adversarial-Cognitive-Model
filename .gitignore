@@ -36,6 +36,8 @@ docs/research/*
 !docs/research/*.md
 !docs/research/*.csv
 !docs/research/*.json
+!docs/science-superpowers/
+!docs/science-superpowers/**
 # legacy noesis PDF/LaTeX build artifacts (regenerable)
 docs/*.pdf
 docs/*:Zone.Identifier

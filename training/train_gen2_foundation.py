@@ -687,22 +687,23 @@ def run_gen2_phase(
     if img_size is not None:
         fovea_size = img_size
     else:
-        fovea_size = 112 if phase in ("ff_112", "feedforward_112") else DEFAULT_FOVEA_SIZE
+        fovea_size = 112 if phase in ("ff_112", "feedforward_112", "consolidated_112", "recurrence_112") else DEFAULT_FOVEA_SIZE
 
     train_loader, val_loader, rob_loader, drift_loader = get_gen2_loaders(
         data_root, batch_size=batch_size, num_workers=num_workers, smoke=smoke, img_size=fovea_size
     )
 
+    arch_phase = "recurrence_only" if phase in ("consolidated_112", "recurrence_112") else phase
     model = Gen2FoundationModel(
-        phase=phase,
+        phase=arch_phase,
         arm=arm,
         fovea_size=fovea_size,
         center_crop_mode=center_crop_mode,
     ).to(device)
 
     # Weights initialization / inheritance
-    if phase in ("g2_gist_only", "ff_112", "feedforward_112", "ff_56"):
-        # DINOv2 warm-start: applies to all feedforward baselines that start fresh
+    if phase in ("g2_gist_only", "ff_112", "feedforward_112", "ff_56", "consolidated_112", "recurrence_112"):
+        # DINOv2 warm-start: applies to all feedforward baselines and fresh consolidated flagship that start fresh
         print(f"Loading official DINOv2-small warm-start from {dino_path}...")
         rep = model.backbone.load_dino_warm_start(dino_path)
         print(f"Warm-start load: accepted={rep['accepted']}, "
@@ -842,6 +843,10 @@ def run_gen2_phase(
             optimizer.zero_grad(set_to_none=True)
 
             if curric.adversarial and curric.w_trades > 0:
+                if phase in ("consolidated_112", "recurrence_112"):
+                    assert abs(curric.eps_norm - 0.0940) < 0.001, (
+                        f"GUARDRAIL FAIL: eps_norm is {curric.eps_norm}, expected 0.0940"
+                    )
                 # Attack computed outside autocast in fp32
                 x_adv = run_pgd_kl_attack(
                     model, x, eps=curric.eps_norm, steps=curric.pgd_steps
@@ -850,6 +855,8 @@ def run_gen2_phase(
                     loss, ce_val, kl_val = compute_trades_loss(
                         model, x, y, x_adv, beta=curric.beta, w_trades=curric.w_trades
                     )
+                if phase in ("consolidated_112", "recurrence_112") and kl_val <= 0.0:
+                    raise RuntimeError(f"GUARDRAIL FAIL: KL divergence <= 0 ({kl_val:.6f}) at step {step}")
             else:
                 x_adv = x
                 with torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
@@ -923,6 +930,14 @@ def run_gen2_phase(
             v_rob_correct += (r_logits.argmax(dim=-1) == ry).sum().item()
             v_rob_total += ry.size(0)
         val_rob_acc = v_rob_correct / max(v_rob_total, 1)
+
+        # Guardrail: Epoch 3 Robust Accuracy Floor Check
+        if epoch == 3 and phase in ("consolidated_112", "recurrence_112"):
+            if val_rob_acc < 0.15:
+                raise RuntimeError(
+                    f"GUARDRAIL ABORT: PGD-10 monitor robust accuracy at epoch 3 is {val_rob_acc*100:.2f}%, "
+                    f"which is below the required 15.0% floor!"
+                )
 
         # Health flags checking
         health_flags = []

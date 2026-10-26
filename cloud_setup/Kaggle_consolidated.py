@@ -429,13 +429,10 @@ def get_loaders(
 # F. TRAINING FUNCTION FOR THE CONSOLIDATED FLAGSHIP
 # ============================================================================
 
+from training.train_gen2_foundation import run_gen2_phase
+
 def train_consolidated_seed(seed: int) -> Path:
     banner(f"TRAINING CONSOLIDATED FLAGSHIP -- SEED {seed}")
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
     final_ckpt = CKPT_DIR / f"foundation_recurrence_112_seed{seed}_final.pth"
     rolling_ckpt = CKPT_DIR / f"foundation_recurrence_112_seed{seed}_rolling.pth"
 
@@ -444,172 +441,26 @@ def train_consolidated_seed(seed: int) -> Path:
         return final_ckpt
 
     ensure_dino_weights(DINO_PATH)
-    train_loader, val_loader, monitor_loader = get_loaders(
-        DATA_ROOT, img_size=112, batch_size=PROTOCOL["micro_batch_size"]
+
+    # Invokes the exact canonical ff_112 training function unchanged,
+    # swapping the model class to Gen2FoundationModel(phase="recurrence_only", fovea_size=112)
+    # with DINOv2 warm-start and the active abort assertions.
+    run_gen2_phase(
+        phase="consolidated_112",
+        phase_override_name=f"recurrence_112_seed{seed}",
+        data_root=str(DATA_ROOT),
+        ckpt_dir=str(CKPT_DIR),
+        report_dir=str(OUT_DIR),
+        dino_path=DINO_PATH,
+        batch_size=PROTOCOL.get("effective_batch_size", 48),
+        num_workers=4,
+        smoke=False,
+        n_epochs=PROTOCOL["n_epochs"],
+        training_seed=seed,
     )
 
-    model = Gen2FoundationModel(
-        phase="recurrence_only",
-        arm="v1",
-        fovea_size=112,
-        num_glimpses=4,
-    ).to(DEVICE)
-
-    # Load DINOv2-S/14 warm start and log matched fraction
-    rep = model.backbone.load_dino_warm_start(DINO_PATH)
-    print(f"DINOv2 Warm-start Load: accepted={rep['accepted']}, "
-          f"matched={rep['matched_trunk_keys']}/{rep['trunk_keys']} "
-          f"({rep['matched_fraction']*100:.1f}%)")
-    assert rep["accepted"], f"DINO warm-start failed to meet strict threshold: {rep}"
-
-    # Optimizer & LR groups
-    trunk_params = list(model.backbone.parameters())
-    other_params = [p for n, p in model.named_parameters() if not n.startswith("backbone.")]
-    optimizer = torch.optim.AdamW([
-        {"params": trunk_params, "lr": 5e-5, "weight_decay": 0.05},
-        {"params": other_params, "lr": 5e-4, "weight_decay": 0.05},
-    ])
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=PROTOCOL["n_epochs"], eta_min=1e-6)
-    scaler = torch.amp.GradScaler("cuda", enabled=(DEVICE.type == "cuda"))
-
-    start_epoch = 1
-    if rolling_ckpt.exists():
-        print(f"Resuming from rolling checkpoint: {rolling_ckpt}")
-        sd = torch.load(rolling_ckpt, map_location=DEVICE, weights_only=False)
-        model.load_state_dict(sd["model"])
-        optimizer.load_state_dict(sd["optimizer"])
-        scheduler.load_state_dict(sd["scheduler"])
-        start_epoch = sd["epoch"] + 1
-        print(f"Resumed at epoch {start_epoch}")
-
-    # Hash of training manifest
-    try:
-        git_hash = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-    except Exception:
-        git_hash = "unknown"
-
-    epoch_logs = []
-    grad_accum_steps = PROTOCOL["grad_accum_steps"]
-
-    for epoch in range(start_epoch, PROTOCOL["n_epochs"] + 1):
-        t0 = time.time()
-        model.train()
-        tot_loss, tot_ce, tot_kl = 0.0, 0.0, 0.0
-        n_batches = len(train_loader)
-
-        optimizer.zero_grad(set_to_none=True)
-        for step, (x, y) in enumerate(train_loader, start=1):
-            x, y = x.to(DEVICE, non_blocking=True), y.to(DEVICE, non_blocking=True)
-
-            # Assert perturbation budget
-            assert abs(EPS_NORM - 0.0940) < 0.001, f"GUARDRAIL FAIL: eps_norm is {EPS_NORM}, expected 0.0940"
-
-            # Inner PGD-4 attack
-            x_adv = run_pgd_kl_attack(
-                model, x, eps=EPS_NORM, steps=PROTOCOL["trades_steps"], alpha=PROTOCOL["alpha"]
-            )
-
-            with torch.amp.autocast("cuda", enabled=(DEVICE.type == "cuda")):
-                logits_clean = model(x)
-                logits_adv = model(x_adv)
-                loss_ce = F.cross_entropy(logits_clean, y)
-                loss_kl = F.kl_div(
-                    F.log_softmax(logits_adv.float(), dim=1),
-                    F.softmax(logits_clean.float(), dim=1),
-                    reduction="batchmean",
-                )
-
-                # Guardrail: KL divergence must strictly be positive
-                if loss_kl.item() <= 0.0:
-                    raise RuntimeError(f"GUARDRAIL FAIL: KL divergence <= 0 ({loss_kl.item():.6f}) at step {step}")
-
-                loss = loss_ce + PROTOCOL["trades_beta"] * loss_kl
-                loss_scaled = loss / grad_accum_steps
-
-            scaler.scale(loss_scaled).backward()
-
-            if step % grad_accum_steps == 0 or step == n_batches:
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                scaler.step(optimizer)
-                scaler.update()
-                optimizer.zero_grad(set_to_none=True)
-
-            tot_loss += loss.item()
-            tot_ce += loss_ce.item()
-            tot_kl += loss_kl.item()
-
-            if step % 50 == 0 or step == n_batches:
-                print(f"  [Ep {epoch:02d}/{PROTOCOL['n_epochs']:02d} | Step {step:04d}/{n_batches:04d}] "
-                      f"Loss: {loss.item():.4f} (CE: {loss_ce.item():.4f}, KL: {loss_kl.item():.4f})", flush=True)
-
-        scheduler.step()
-
-        # Epoch Validation Monitor
-        model.eval()
-        n_corr_clean, n_corr_rob, n_tot = 0, 0, 0
-        with torch.no_grad():
-            for xm, ym in monitor_loader:
-                xm, ym = xm.to(DEVICE), ym.to(DEVICE)
-                with torch.amp.autocast("cuda", enabled=(DEVICE.type == "cuda")):
-                    pred_clean = model(xm).argmax(dim=-1)
-                n_corr_clean += (pred_clean == ym).sum().item()
-
-                # Robust PGD-10 monitor
-                xm_adv = run_pgd_ce_monitor(model, xm, ym, eps=EPS_NORM, steps=10)
-                with torch.amp.autocast("cuda", enabled=(DEVICE.type == "cuda")):
-                    pred_rob = model(xm_adv).argmax(dim=-1)
-                n_corr_rob += (pred_rob == ym).sum().item()
-                n_tot += xm.size(0)
-
-        mon_clean_acc = n_corr_clean / n_tot
-        mon_rob_acc = n_corr_rob / n_tot
-        ep_duration = time.time() - t0
-
-        print(f"==> Epoch {epoch:02d} Complete ({ep_duration:.1f}s) | "
-              f"Monitor Clean: {mon_clean_acc*100:.2f}% | Monitor PGD-10 Rob: {mon_rob_acc*100:.2f}%")
-
-        # Guardrail: Epoch 3 Robust Accuracy Floor Check
-        if epoch == PROTOCOL["early_health_epoch"]:
-            if mon_rob_acc < PROTOCOL["early_health_floor_rob"]:
-                raise RuntimeError(
-                    f"GUARDRAIL ABORT: PGD-10 robust accuracy at epoch 3 is {mon_rob_acc*100:.2f}%, "
-                    f"which is below the required {PROTOCOL['early_health_floor_rob']*100:.1f}% floor!"
-                )
-
-        # Save rolling checkpoint
-        torch.save({
-            "epoch": epoch,
-            "model": model.state_dict(),
-            "optimizer": optimizer.state_dict(),
-            "scheduler": scheduler.state_dict(),
-            "monitor_clean": mon_clean_acc,
-            "monitor_robust": mon_rob_acc,
-        }, rolling_ckpt)
-
-    # Final epoch completed -- save cryptographically fingerprinted checkpoint
-    fingerprint = {
-        "protocol_id": PROTOCOL["protocol_id"],
-        "protocol_hash": PROTOCOL_HASH,
-        "phase": "recurrence_112",
-        "seed": seed,
-        "fovea_size": 112,
-        "epoch": 15,
-        "total_epochs": 15,
-        "eps_pixel_255": PROTOCOL["eps_pixel_255"],
-        "eps_norm": PROTOCOL["eps_norm"],
-        "trades_beta": PROTOCOL["trades_beta"],
-        "trades_steps": PROTOCOL["trades_steps"],
-        "git_commit": git_hash,
-        "final_monitor_clean": mon_clean_acc,
-        "final_monitor_robust": mon_rob_acc,
-    }
-
-    torch.save({
-        "model": model.state_dict(),
-        "meta": fingerprint,
-    }, final_ckpt)
-    print(f"Saved fingerprinted final checkpoint to {final_ckpt}")
+    assert final_ckpt.exists(), f"Expected final checkpoint at {final_ckpt}"
+    print(f"Verified final checkpoint for seed {seed} at {final_ckpt}")
     return final_ckpt
 
 
