@@ -308,8 +308,10 @@ def restore_checkpoints_from_hf() -> None:
                         local_f = OUT_DIR / "audit_rev1" / bn
                     else:
                         local_f = OUT_DIR / bn
-                if local_f and not local_f.exists():
-                    print(f"  Restoring {f} from {repo_id}...")
+                # For rolling checkpoints, always refresh from HF to get latest epoch state
+                needs_download = not local_f.exists() or bn.endswith("_rolling.pth")
+                if local_f and needs_download:
+                    print(f"  Restoring/updating {f} from {repo_id}...")
                     p = hf_hub_download(repo_id=repo_id, filename=f,
                                         repo_type="dataset", token=hf_token)
                     local_f.parent.mkdir(parents=True, exist_ok=True)
