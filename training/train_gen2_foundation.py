@@ -784,9 +784,17 @@ def run_gen2_phase(
             start_epoch = saved.get("epoch", 0) + 1
             model.load_state_dict(saved["model"])
             if "optimizer" in saved:
-                optimizer.load_state_dict(saved["optimizer"])
+                try:
+                    optimizer.load_state_dict(saved["optimizer"])
+                except Exception as e:
+                    print(f"  Note: optimizer state could not be loaded ({e}); continuing with fresh optimizer state.")
             if "scheduler" in saved:
-                scheduler.load_state_dict(saved["scheduler"])
+                try:
+                    scheduler.load_state_dict(saved["scheduler"])
+                except Exception as e:
+                    print(f"  Note: scheduler state could not be loaded ({e}); advancing scheduler to epoch {start_epoch - 1}.")
+                    for _ in range(start_epoch - 1):
+                        scheduler.step()
             best_clean_acc = saved.get("best_clean_acc", 0.0)
             best_rob_acc = saved.get("best_rob_acc", 0.0)
             print(f"Resumed at epoch {start_epoch}. Verified rolling state.")
