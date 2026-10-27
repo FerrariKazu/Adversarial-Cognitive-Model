@@ -295,28 +295,29 @@ def restore_checkpoints_from_hf() -> None:
         try:
             files = list_repo_files(repo_id=repo_id, repo_type="dataset", token=hf_token)
             for f in files:
-                local_f = None
                 bn = os.path.basename(f)
-                if f.endswith(".pth") or f.endswith(".zip"):
+                is_rec_rolling = bn.startswith("foundation_recurrence_112_") and bn.endswith("_rolling.pth")
+                is_final_needed = bn.startswith("foundation_") and bn.endswith("_final.pth") and (
+                    "recurrence_112" in bn or "ff_112" in bn
+                )
+                if is_rec_rolling or is_final_needed:
                     local_f = CKPT_DIR / bn
-                elif f.endswith(".jsonl"):
+                elif bn.startswith("eval_") and "112" in bn:
+                    local_f = OUT_DIR / "eval" / bn
+                elif bn == "gen2_epoch_log.jsonl" and not f.startswith("closure/"):
                     local_f = OUT_DIR / bn
-                elif f.endswith(".json"):
-                    if bn.startswith("eval_"):
-                        local_f = OUT_DIR / "eval" / bn
-                    elif bn.startswith("joba_") or bn.startswith("step"):
-                        local_f = OUT_DIR / "audit_rev1" / bn
-                    else:
-                        local_f = OUT_DIR / bn
-                # For rolling checkpoints, always refresh from HF to get latest epoch state
-                needs_download = not local_f.exists() or bn.endswith("_rolling.pth")
-                if local_f and needs_download:
-                    print(f"  Restoring/updating {f} from {repo_id}...")
-                    p = hf_hub_download(repo_id=repo_id, filename=f,
-                                        repo_type="dataset", token=hf_token)
-                    local_f.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copyfile(p, str(local_f))
-                    restored += 1
+                else:
+                    continue
+                if local_f is not None:
+                    # For rolling checkpoints, always refresh from HF to get latest epoch state
+                    needs_download = not local_f.exists() or bn.endswith("_rolling.pth")
+                    if needs_download:
+                        print(f"  Restoring/updating {f} from {repo_id}...")
+                        p = hf_hub_download(repo_id=repo_id, filename=f,
+                                            repo_type="dataset", token=hf_token)
+                        local_f.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copyfile(p, str(local_f))
+                        restored += 1
         except Exception as e:
             print(f"  Note: {repo_id}: {e}")
     print(f"Restored {restored} file(s) from HF.")
