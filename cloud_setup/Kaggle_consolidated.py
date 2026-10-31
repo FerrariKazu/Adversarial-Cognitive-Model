@@ -177,7 +177,7 @@ if os.path.exists("/kaggle/working"):
         print("Cloning repository on Kaggle...")
         subprocess.run("git clone https://github.com/FerrariKazu/Adversarial-Cognitive-Model.git /kaggle/working/Adversarial-Cognitive-Model", shell=True, check=True)
     os.chdir(str(work_dir))
-    subprocess.run("git fetch origin && git checkout feature/gen2-rebuild", shell=True, check=False)
+    subprocess.run("git fetch origin && git checkout feature/gen2-rebuild && git reset --hard origin/feature/gen2-rebuild", shell=True, check=False)
     REPO_DIR = work_dir
 else:
     REPO_DIR = Path(".").resolve()
@@ -207,8 +207,6 @@ from gen2_foundation.model import Gen2FoundationModel
 from gen2_foundation.backbone import CompactViTGen2
 from noesis_vision.models.foveation import foveal_sample
 
-DINO_PATH = str(REPO_DIR / "checkpoints" / "dinov2_vits14_pretrain.pth")
-
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 EPS_PIXEL = PROTOCOL["eps_pixel_255"] / 255.0
@@ -216,11 +214,99 @@ EPS_NORM = PROTOCOL["eps_norm"]
 
 OUT_DIR = Path("/kaggle/working/output") if Path("/kaggle/working").exists() else Path("output").resolve()
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+(OUT_DIR / "eval").mkdir(parents=True, exist_ok=True)
 CKPT_DIR = Path("/kaggle/working/checkpoints") if Path("/kaggle/working").exists() else Path("checkpoints").resolve()
 CKPT_DIR.mkdir(parents=True, exist_ok=True)
+DINO_PATH = str(CKPT_DIR / "dinov2_vits14_pretrain.pth")
+
 DATA_ROOT = Path("/kaggle/working/data/imagenet100") if Path("/kaggle/working").exists() else Path("data/imagenet100").resolve()
 VAL_ROOT = str(DATA_ROOT / "val")
 TRAIN_ROOT = str(DATA_ROOT / "train")
+
+# ============================================================================
+# C. HUGGINGFACE REPOS, LIVE SYNC & CHECKPOINT RESTORE
+# ============================================================================
+
+from huggingface_hub import HfApi, hf_hub_download, list_repo_files
+
+HF_BEST    = "FerrariKazu/rhan-nxa-g2-checkpoints"
+HF_ROLLING = "FerrariKazu/rhan-nxa-g2-checkpoints-rolling"
+
+if hf_token:
+    api = HfApi(token=hf_token)
+    for r in [HF_BEST, HF_ROLLING]:
+        try:
+            api.create_repo(repo_id=r, repo_type="dataset", private=True, exist_ok=True)
+            print(f"HF repo ready: {r}")
+        except Exception as e:
+            print(f"  HF check {r}: {e}")
+
+def restore_checkpoints_from_hf() -> None:
+    """Pull any checkpoints/logs/reports from HF that are missing locally.
+    Enables Kaggle to resume training seamlessly from a prior session's rolling checkpoint."""
+    if not hf_token:
+        print("Note: HF_TOKEN not set; skipping HF restore.")
+        return
+    restored = 0
+    api = HfApi(token=hf_token)
+    for repo_id in [HF_BEST, HF_ROLLING]:
+        try:
+            files = list_repo_files(repo_id=repo_id, repo_type="dataset", token=hf_token)
+            for f in files:
+                bn = os.path.basename(f)
+                is_rec_rolling = bn.startswith("foundation_recurrence_112_") and bn.endswith("_rolling.pth")
+                is_final_needed = bn.startswith("foundation_") and bn.endswith("_final.pth") and (
+                    "recurrence_112" in bn or "ff_112" in bn
+                )
+                if is_rec_rolling or is_final_needed:
+                    local_f = CKPT_DIR / bn
+                elif bn.startswith("eval_") and "112" in bn:
+                    local_f = OUT_DIR / "eval" / bn
+                elif bn == "gen2_epoch_log.jsonl" and not f.startswith("closure/"):
+                    local_f = OUT_DIR / bn
+                else:
+                    continue
+                if local_f is not None:
+                    # For rolling checkpoints, always refresh from HF to get latest epoch state
+                    needs_download = not local_f.exists() or bn.endswith("_rolling.pth")
+                    if needs_download:
+                        print(f"  Restoring/updating {f} from {repo_id}...")
+                        p = hf_hub_download(repo_id=repo_id, filename=f,
+                                            repo_type="dataset", token=hf_token)
+                        local_f.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copyfile(p, str(local_f))
+                        restored += 1
+        except Exception as e:
+            print(f"  Note: {repo_id}: {e}")
+    print(f"Restored {restored} file(s) from HF.")
+
+def sync_to_hf() -> None:
+    """Upload new checkpoints, eval JSONs, and JSONL logs to HF.
+    Called on each completed epoch via epoch_callback to prevent loss of training progress."""
+    if not hf_token:
+        return
+    api = HfApi(token=hf_token)
+    # 1. Rolling checkpoints
+    for cp in CKPT_DIR.glob("*_rolling.pth"):
+        try:
+            api.upload_file(path_or_fileobj=str(cp), path_in_repo=cp.name,
+                            repo_id=HF_ROLLING, repo_type="dataset", token=hf_token)
+        except Exception as e:
+            print(f"  Warning: rolling sync {cp.name}: {e}")
+    # 2. Final and best checkpoints
+    for cp in list(CKPT_DIR.glob("*_final.pth")) + list(CKPT_DIR.glob("*_best_*.pth")):
+        try:
+            api.upload_file(path_or_fileobj=str(cp), path_in_repo=cp.name,
+                            repo_id=HF_BEST, repo_type="dataset", token=hf_token)
+        except Exception as e:
+            print(f"  Warning: best sync {cp.name}: {e}")
+    # 3. JSONL epoch logs
+    for log_file in list(OUT_DIR.glob("*.jsonl")) + list((REPO_DIR / "report").glob("*.jsonl")):
+        try:
+            api.upload_file(path_or_fileobj=str(log_file), path_in_repo=log_file.name,
+                            repo_id=HF_ROLLING, repo_type="dataset", token=hf_token)
+        except Exception as e:
+            print(f"  Warning: log sync {log_file.name}: {e}")
 
 
 # ============================================================================
@@ -440,6 +526,17 @@ def train_consolidated_seed(seed: int) -> Path:
         print(f"Final checkpoint already exists at {final_ckpt}. Skipping training.")
         return final_ckpt
 
+    if rolling_ckpt.exists():
+        try:
+            st = torch.load(rolling_ckpt, map_location="cpu", weights_only=False)
+            ep = st.get("epoch", 0) + 1
+            print(f"\n>>> RESUME: rolling checkpoint found at {rolling_ckpt}")
+            print(f"    run_gen2_phase will resume from epoch {ep} onwards.")
+        except Exception as e:
+            print(f"\n>>> RESUME: rolling checkpoint found at {rolling_ckpt} (inspect notice: {e})")
+    else:
+        print(f"\n>>> FRESH START: no rolling checkpoint for seed {seed}. Training from epoch 1.")
+
     ensure_dino_weights(DINO_PATH)
 
     # Invokes the exact canonical ff_112 training function unchanged,
@@ -447,6 +544,7 @@ def train_consolidated_seed(seed: int) -> Path:
     # with DINOv2 warm-start and the active abort assertions.
     run_gen2_phase(
         phase="consolidated_112",
+        arm="v1",
         phase_override_name=f"recurrence_112_seed{seed}",
         data_root=str(DATA_ROOT),
         ckpt_dir=str(CKPT_DIR),
@@ -457,10 +555,12 @@ def train_consolidated_seed(seed: int) -> Path:
         smoke=False,
         n_epochs=PROTOCOL["n_epochs"],
         training_seed=seed,
+        epoch_callback=lambda p, ep: sync_to_hf(),
     )
 
     assert final_ckpt.exists(), f"Expected final checkpoint at {final_ckpt}"
     print(f"Verified final checkpoint for seed {seed} at {final_ckpt}")
+    sync_to_hf()
     return final_ckpt
 
 
@@ -609,11 +709,14 @@ def mcnemar_test(corr_a: np.ndarray, corr_b: np.ndarray) -> Dict[str, Any]:
 def main() -> None:
     print_preregistration()
 
-    # 1. Ensure Data & Weights
+    # 1. Restore previous session progress from HuggingFace
+    restore_checkpoints_from_hf()
+
+    # 2. Ensure Data & Weights
     ensure_dino_weights(DINO_PATH)
     bootstrap_imagenet100(DATA_ROOT)
 
-    # 2. Train Consolidated Flagship (Seeds 17, 42, 99)
+    # 3. Train Consolidated Flagship (Seeds 17, 42, 99)
     flagship_ckpts = {}
     for s in PROTOCOL["seeds"]:
         flagship_ckpts[s] = train_consolidated_seed(s)
