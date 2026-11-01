@@ -248,7 +248,7 @@ def run_arm(arm: Dict[str, Any], intake_manifest: Dict) -> Dict[str, Any]:
         "ckpt_sha8": intake.get("sha8"),
         "epoch": intake.get("epoch"),
         "training_monitor_clean": monitor_clean,
-        "gate_passed": parity_pass,
+        "gate_passed": bool(parity_pass),
         "gate_gap_pp": gap_pp,
         "acc_clean_5k": float(acc_5k_clean),
         "acc_pgd50_5k": acc_pgd50,

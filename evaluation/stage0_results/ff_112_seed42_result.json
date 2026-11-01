@@ -1,0 +1,21 @@
+{
+  "arm_id": "ff_112_seed42",
+  "phase": "ff_112",
+  "img_size": 112,
+  "ckpt_sha8": "2920df54",
+  "epoch": 15,
+  "training_monitor_clean": 0.746,
+  "gate_passed": true,
+  "gate_gap_pp": 0.019999999999997797,
+  "acc_clean_5k": 0.7458,
+  "acc_pgd50_5k": 0.3748,
+  "acc_apgd_ce_5k": 0.3686,
+  "acc_apgd_dlr_5k": 0.3834,
+  "acc_worst_case_5k": 0.3588,
+  "clean_5k_time_s": 3.8331477642059326,
+  "total_arm_time_s": 1903.1038916110992,
+  "eps_pixel": 0.02124313725490196,
+  "n_clean": 5000,
+  "n_robust": 5000,
+  "per_sample_npz": "evaluation/stage0_results/ff_112_seed42_per_sample.npz"
+}

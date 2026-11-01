@@ -1,0 +1,8 @@
+{
+  "arm_id": "recurrence_112_seed42",
+  "phase": "recurrence_only",
+  "img_size": 112,
+  "ckpt_sha8": "eb40bf84",
+  "epoch": 15,
+  "training_monitor_clean": 0.761,
+  "gate_passed": 

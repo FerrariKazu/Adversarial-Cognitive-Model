@@ -1,0 +1,34 @@
+{
+  "protocol_id": "consolidated-flagship-112/1",
+  "prereg_file": "prereg/stage0_decision_v1.json",
+  "harness_results": "evaluation/stage0_results/stage0_harness_results.json",
+  "verdict": "INFERIOR",
+  "rationale": "min(rec_112) = 30.18% < min(ff_112) = 35.44%.",
+  "seed_table": {
+    "recurrence_112": {
+      "recurrence_112_seed17": 30.18,
+      "recurrence_112_seed42": 37.72
+    },
+    "ff_112": {
+      "ff_112_seed17": 36.04,
+      "ff_112_seed42": 35.88,
+      "ff_112_seed99": 35.44
+    }
+  },
+  "min_rec_worst_pct": 30.18,
+  "max_ff_worst_pct": 36.04,
+  "min_ff_worst_pct": 35.44,
+  "cond1_pass": false,
+  "cond2_pass": false,
+  "pooled_mcnemar": {
+    "b": 401.0,
+    "c": 602.0,
+    "n_disc": 1003.0,
+    "p_exact": 2.361308260178476e-10,
+    "delta_pp": -2.0099999999999953,
+    "ci_95_low": -2.6294840072059924,
+    "ci_95_high": -1.3905159927939983
+  },
+  "n_flagship_seeds": 2,
+  "n_baseline_seeds": 3
+}

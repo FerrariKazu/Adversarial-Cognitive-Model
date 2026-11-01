@@ -64,6 +64,13 @@ def main():
     slope_rob_ff    = lc_arms.get("ff_112", {}).get("slope_robust_ep10_15_per_epoch")
 
     def _slope_str(s): return f"{s*100:.3f} pp/epoch" if s is not None else "N/A"
+    def _gap_str(a):
+        gap = a.get("gate_gap_pp")
+        if gap is not None:
+            return f"{gap:.2f}"
+        if a.get("training_monitor_clean") is not None and a.get("acc_clean_5k") is not None:
+            return f"{abs(a['acc_clean_5k'] - a['training_monitor_clean']) * 100:.2f}"
+        return "N/A"
 
     def _table_row(r):
         return f"| {r['arm']} | {pp(r['clean'])} | {pp(r['worst'])} | {pp(r['pgd50'])} | {pp(r['apgd_ce'])} | {pp(r['apgd_dlr'])} | {r['sha8']} | {r['gate']} |"
@@ -148,7 +155,7 @@ T-sweep metrics available in future amendment if required.
 
 | arm | sha8 | epoch | monitor_clean | gate_gap_pp |
 |-----|------|-------|---------------|-------------|
-{chr(10).join(f"| {r['arm']} | {r['sha8']} | 15 | {pp(arms[r['arm']]['training_monitor_clean'])} | {arms[r['arm']]['gate_gap_pp']:.2f} |" for r in arm_rows)}
+{chr(10).join(f"| {r['arm']} | {r['sha8']} | 15 | {pp(arms[r['arm']]['training_monitor_clean'])} | {_gap_str(arms[r['arm']])} |" for r in arm_rows)}
 
 ---
 

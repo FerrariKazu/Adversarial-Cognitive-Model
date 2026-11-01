@@ -1,7 +1,158 @@
 
 ================================================================================
-ARM: recurrence_112_seed42  phase=recurrence_only  img_size=112
-  ckpt: checkpoints/foundation_recurrence_112_seed42_final_eb40bf84.pth
+ARM: ff_112_seed17  phase=ff_112  img_size=112
+  ckpt: checkpoints/foundation_ff_112_seed17_final_d00fb750.pth
 ================================================================================
-  GATE: 5k_clean=76.12% | monitor=76.10% | gap=0.02pp | PASS
+  GATE: 5k_clean=74.30% | monitor=74.30% | gap=0.00pp | PASS
   Running pgd50 on 5k...
+    pgd50 batch 20/157
+    pgd50 batch 40/157
+    pgd50 batch 60/157
+    pgd50 batch 80/157
+    pgd50 batch 100/157
+    pgd50 batch 120/157
+    pgd50 batch 140/157
+    pgd50 done: 38.18% in 411.5s
+  Running apgd_ce on 5k...
+    apgd_ce batch 20/157
+    apgd_ce batch 40/157
+    apgd_ce batch 60/157
+    apgd_ce batch 80/157
+    apgd_ce batch 100/157
+    apgd_ce batch 120/157
+    apgd_ce batch 140/157
+    apgd_ce done: 37.66% in 654.4s
+  Running apgd_dlr on 5k...
+    apgd_dlr batch 20/157
+    apgd_dlr batch 40/157
+    apgd_dlr batch 60/157
+    apgd_dlr batch 80/157
+    apgd_dlr batch 100/157
+    apgd_dlr batch 120/157
+    apgd_dlr batch 140/157
+    apgd_dlr done: 38.10% in 737.6s
+
+  RESULTS [ff_112_seed17]:
+    clean_5k:    74.30%
+    pgd50:       38.18%
+    apgd_ce:     37.66%
+    apgd_dlr:    38.10%
+    worst_case:  36.04%
+    total_time:  1812.0s
+Single-arm done. Saved evaluation/stage0_results/ff_112_seed17_result.json
+
+================================================================================
+ARM: ff_112_seed42  phase=ff_112  img_size=112
+  ckpt: checkpoints/foundation_ff_112_seed42_final_2920df54.pth
+================================================================================
+  GATE: 5k_clean=74.58% | monitor=74.60% | gap=0.02pp | PASS
+  Running pgd50 on 5k...
+    pgd50 batch 20/157
+    pgd50 batch 40/157
+    pgd50 batch 60/157
+    pgd50 batch 80/157
+    pgd50 batch 100/157
+    pgd50 batch 120/157
+    pgd50 batch 140/157
+    pgd50 done: 37.48% in 448.4s
+  Running apgd_ce on 5k...
+    apgd_ce batch 20/157
+    apgd_ce batch 40/157
+    apgd_ce batch 60/157
+    apgd_ce batch 80/157
+    apgd_ce batch 100/157
+    apgd_ce batch 120/157
+    apgd_ce batch 140/157
+    apgd_ce done: 36.86% in 673.9s
+  Running apgd_dlr on 5k...
+    apgd_dlr batch 20/157
+    apgd_dlr batch 40/157
+    apgd_dlr batch 60/157
+    apgd_dlr batch 80/157
+    apgd_dlr batch 100/157
+    apgd_dlr batch 120/157
+    apgd_dlr batch 140/157
+    apgd_dlr done: 38.34% in 774.8s
+
+  RESULTS [ff_112_seed42]:
+    clean_5k:    74.58%
+    pgd50:       37.48%
+    apgd_ce:     36.86%
+    apgd_dlr:    38.34%
+    worst_case:  35.88%
+    total_time:  1903.1s
+Single-arm done. Saved evaluation/stage0_results/ff_112_seed42_result.json
+
+================================================================================
+ARM: ff_112_seed99  phase=ff_112  img_size=112
+  ckpt: checkpoints/foundation_ff_112_seed99_final_abde98a0.pth
+================================================================================
+  GATE: 5k_clean=74.60% | monitor=74.58% | gap=0.02pp | PASS
+  Running pgd50 on 5k...
+    pgd50 batch 20/157
+    pgd50 batch 40/157
+    pgd50 batch 60/157
+    pgd50 batch 80/157
+    pgd50 batch 100/157
+    pgd50 batch 120/157
+    pgd50 batch 140/157
+    pgd50 done: 37.00% in 465.2s
+  Running apgd_ce on 5k...
+    apgd_ce batch 20/157
+    apgd_ce batch 40/157
+    apgd_ce batch 60/157
+    apgd_ce batch 80/157
+    apgd_ce batch 100/157
+    apgd_ce batch 120/157
+    apgd_ce batch 140/157
+    apgd_ce done: 36.52% in 728.9s
+  Running apgd_dlr on 5k...
+    apgd_dlr batch 20/157
+    apgd_dlr batch 40/157
+    apgd_dlr batch 60/157
+    apgd_dlr batch 80/157
+    apgd_dlr batch 100/157
+    apgd_dlr batch 120/157
+    apgd_dlr batch 140/157
+    apgd_dlr done: 37.40% in 770.8s
+
+  RESULTS [ff_112_seed99]:
+    clean_5k:    74.60%
+    pgd50:       37.00%
+    apgd_ce:     36.52%
+    apgd_dlr:    37.40%
+    worst_case:  35.44%
+    total_time:  1975.6s
+Single-arm done. Saved evaluation/stage0_results/ff_112_seed99_result.json
+
+T2 CANONICAL HARNESS — STAGE 0 CLOSEOUT (orchestrator)
+EPS_PIXEL: 0.021243  (5.417/255)
+
+Verifying canonical data hashes...
+  1k slice hash: d129534adf0d1f5816a13ebebf20e49e502f935c0f8bd878ce162acefddd6b25 — MATCH
+  evaluation/harness.py sha256: 6a35fcbb943128c410c7ed802568b0700c5b314a7517a74eab4c60c738d67482
+
+[RESUME] recurrence_112_seed17 — .npz exists, loading cached results.
+  clean=67.06%  worst=30.18%
+
+[RESUME] recurrence_112_seed42 — .npz exists, loading cached results.
+  clean=76.12%  worst=37.72%
+
+[DISPATCH] ff_112_seed17 in fresh subprocess...
+[DONE] ff_112_seed17 in 1816.9s
+
+[DISPATCH] ff_112_seed42 in fresh subprocess...
+[DONE] ff_112_seed42 in 1908.4s
+
+[DISPATCH] ff_112_seed99 in fresh subprocess...
+[DONE] ff_112_seed99 in 1993.2s
+
+
+Saved to evaluation/stage0_results/stage0_harness_results.json
+
+=== SUMMARY ===
+  recurrence_112_seed17: clean=67.06%  worst=30.18%
+  recurrence_112_seed42: clean=76.12%  worst=37.72%
+  ff_112_seed17: clean=74.30%  worst=36.04%
+  ff_112_seed42: clean=74.58%  worst=35.88%
+  ff_112_seed99: clean=74.60%  worst=35.44%
