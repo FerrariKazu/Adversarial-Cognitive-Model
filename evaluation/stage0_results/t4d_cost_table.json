@@ -1,0 +1,32 @@
+{
+  "hardware": "NVIDIA GeForce RTX 4060 (8 GB VRAM)",
+  "source": "scratch/audit_rev1/stage0_profile.py + stage2_summary.py",
+  "note": "All times measured, not estimated. recurrence_112 = 4 trunk passes (T=4).",
+  "step_timing_ms": {
+    "recurrence_112_baseline": 1630.6,
+    "ff_112_single_trunk_pass_ms": 25.15,
+    "recurrence_112_4_trunks_ratio": 4.76
+  },
+  "trunk_calls_per_forward": {
+    "recurrence_only_T4": 4,
+    "ff_112": 1
+  },
+  "kernel_profile": {
+    "total_device_ms": 7669.98,
+    "kernel_count": 18770,
+    "measured_step_wall_ms": 1530.206,
+    "cuda_busy_fraction": 0.948,
+    "gap_total_ms": 36.412,
+    "gap_p90_us": 1.73,
+    "img_per_sec": 31.37
+  },
+  "candidates": {
+    "A_shared_clean_forward_ms": 20010.6,
+    "A_speedup": 0.081,
+    "B_fused_2B_TRADES_ms": 1635.9,
+    "B_speedup": 0.997,
+    "C_torch_compile_ms": 1974.9,
+    "C_speedup": 0.826
+  },
+  "recommendation": "Adopt none. B is lossless and worthless (+0.3%). A hits memory cliff (5.5->9.7 GB). C is slower by 21% on RTX 4060."
+}

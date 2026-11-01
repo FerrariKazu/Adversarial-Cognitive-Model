@@ -1,0 +1,32 @@
+{
+  "protocol_id": "consolidated-flagship-112/1",
+  "arms": {
+    "consolidated_112": {
+      "slope_clean_ep10_15_per_epoch": 0.003100000000000025,
+      "slope_robust_ep10_15_per_epoch": 0.0015625,
+      "n_epochs": 4,
+      "series": [
+        {
+          "epoch": 12,
+          "val_acc_clean": 0.7514,
+          "val_acc_robust": 0.396484375
+        },
+        {
+          "epoch": 13,
+          "val_acc_clean": 0.7564,
+          "val_acc_robust": 0.40625
+        },
+        {
+          "epoch": 14,
+          "val_acc_clean": 0.7586,
+          "val_acc_robust": 0.41015625
+        },
+        {
+          "epoch": 15,
+          "val_acc_clean": 0.761,
+          "val_acc_robust": 0.400390625
+        }
+      ]
+    }
+  }
+}
