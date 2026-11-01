@@ -1,0 +1,112 @@
+{
+  "protocol_id": "consolidated-flagship-112/1",
+  "protocol_version": "stage0_decision_v1",
+  "created_at_utc": "2026-11-01T03:07:00Z",
+  "branch": "stage0-closeout",
+  "protocol": {
+    "protocol_id": "consolidated-flagship-112/1",
+    "model_phase": "recurrence_only",
+    "fovea_size": 112,
+    "num_glimpses": 4,
+    "eval_t": 4,
+    "seeds": [17, 42, 99],
+    "effective_batch_size": 64,
+    "micro_batch_size": 16,
+    "grad_accum_steps": 4,
+    "n_epochs": 15,
+    "trades_beta": 2.5,
+    "eps_pixel_255": 5.417,
+    "eps_norm": 0.0940,
+    "trades_steps": 4,
+    "alpha": 0.05875,
+    "clean_set": {
+      "n": 5000,
+      "note": "full val split"
+    },
+    "robust_set": {
+      "n": 5000,
+      "note": "full val split, worst-of-3 attacks (PGD-50, APGD-CE, APGD-DLR)"
+    },
+    "canonical_1k_slice": {
+      "n": 1000,
+      "note": "canonical torch generator seed 42 slice for fast diagnostics"
+    },
+    "attacks": {
+      "pgd50": {
+        "steps": 50,
+        "restarts": 1,
+        "loss": "ce"
+      },
+      "apgd_ce": {
+        "steps": 100,
+        "restarts": 1,
+        "loss": "ce"
+      },
+      "apgd_dlr": {
+        "steps": 100,
+        "restarts": 1,
+        "loss": "dlr"
+      }
+    },
+    "worst_case": "bitwise AND of pgd50, apgd_ce, apgd_dlr",
+    "checkpoint_gate_pp": 1.0,
+    "early_health_epoch": 3,
+    "early_health_floor_rob": 0.15,
+    "full_val_path_sha256": "6a78a2fde02bfc1ff93b063eeddb32fb32759d9da4994421adda7353636a3be7",
+    "canonical_torch_slice_sha256": "d129534adf0d1f5816a13ebebf20e49e502f935c0f8bd878ce162acefddd6b25"
+  },
+  "rules": {
+    "decision_rule_superiority": "Flagship is declared superior iff min_seed(rec_112) > max_seed(ff_112) on 5k worst-case robust accuracy AND pooled McNemar exact two-sided p < 0.01 with net delta > 0.",
+    "decision_rule_null": "If min_seed(rec_112) <= max_seed(ff_112) or McNemar p >= 0.05, conclusion is that recurrent fusion does not earn its 4x compute cost at 112px.",
+    "abort_epsilon": "Training immediately aborts if eps_norm != 0.0940 +/- 0.001 or if loss_kl <= 0.0.",
+    "abort_epoch3_floor": "Training immediately aborts if PGD-10 monitor robust accuracy < 15.0% by epoch 3.",
+    "selection_ban": "Strictly evaluate epoch 15 final checkpoint. Best-validation checkpoint selection is forbidden."
+  },
+  "code_and_data_hashes": {
+    "evaluation/harness.py": "6a35fcbb943128c410c7ed802568b0700c5b314a7517a74eab4c60c738d67482",
+    "full_val_path_listing": "6a78a2fde02bfc1ff93b063eeddb32fb32759d9da4994421adda7353636a3be7",
+    "canonical_1k_torch_slice": "d129534adf0d1f5816a13ebebf20e49e502f935c0f8bd878ce162acefddd6b25"
+  },
+  "checkpoint_hashes": {
+    "foundation_recurrence_112_seed17_final.pth": {
+      "phase": "recurrence_112",
+      "seed": 17,
+      "epoch": 15,
+      "sha256": "636e4b1c1b0ba5ab5cb74d05660d1a91ec55fcd7c5271828aa8fe4137186bdf4",
+      "sha8": "636e4b1c",
+      "intake_filename": "foundation_recurrence_112_seed17_final_636e4b1c.pth"
+    },
+    "foundation_recurrence_112_seed42_final.pth": {
+      "phase": "recurrence_112",
+      "seed": 42,
+      "epoch": 15,
+      "sha256": "eb40bf846f97ab2bbb923b97f2c1e2b8522231118d3db4275db2144055e5d0aa",
+      "sha8": "eb40bf84",
+      "intake_filename": "foundation_recurrence_112_seed42_final_eb40bf84.pth"
+    },
+    "foundation_ff_112_final.pth": {
+      "phase": "ff_112",
+      "seed": 17,
+      "epoch": 15,
+      "sha256": "d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc",
+      "sha8": "d00fb750",
+      "intake_filename": "foundation_ff_112_seed17_final_d00fb750.pth"
+    },
+    "foundation_ff_112_seed42_final.pth": {
+      "phase": "ff_112",
+      "seed": 42,
+      "epoch": 15,
+      "sha256": "2920df54fe919a8e57dcca8788b5429d0d5f9622fb867723a4d248b063276f71",
+      "sha8": "2920df54",
+      "intake_filename": "foundation_ff_112_seed42_final_2920df54.pth"
+    },
+    "foundation_ff_112_seed99_final.pth": {
+      "phase": "ff_112",
+      "seed": 99,
+      "epoch": 15,
+      "sha256": "abde98a0129f5637039eb98307b30862a04a3cffd0c4b749c8e5cf40c5d4ed4d",
+      "sha8": "abde98a0",
+      "intake_filename": "foundation_ff_112_seed99_final_abde98a0.pth"
+    }
+  }
+}
