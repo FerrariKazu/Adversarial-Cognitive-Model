@@ -1,0 +1,62 @@
+{
+  "recurrence_112_seed17": {
+    "arm_id": "recurrence_112_seed17",
+    "seed": 17,
+    "phase": "recurrence_112",
+    "src_file": "foundation_recurrence_112_seed17_final.pth",
+    "canonical_file": "foundation_recurrence_112_seed17_final_636e4b1c.pth",
+    "sha256": "636e4b1c1b0ba5ab5cb74d05660d1a91ec55fcd7c5271828aa8fe4137186bdf4",
+    "sha8": "636e4b1c",
+    "epoch": 15,
+    "training_monitor_clean": 0.6768,
+    "training_monitor_robust": 0.341796875
+  },
+  "recurrence_112_seed42": {
+    "arm_id": "recurrence_112_seed42",
+    "seed": 42,
+    "phase": "recurrence_112",
+    "src_file": "foundation_recurrence_112_seed42_final.pth",
+    "canonical_file": "foundation_recurrence_112_seed42_final_eb40bf84.pth",
+    "sha256": "eb40bf846f97ab2bbb923b97f2c1e2b8522231118d3db4275db2144055e5d0aa",
+    "sha8": "eb40bf84",
+    "epoch": 15,
+    "training_monitor_clean": 0.761,
+    "training_monitor_robust": 0.41015625
+  },
+  "ff_112_seed17": {
+    "arm_id": "ff_112_seed17",
+    "seed": 17,
+    "phase": "ff_112",
+    "src_file": "foundation_ff_112_final.pth",
+    "canonical_file": "foundation_ff_112_seed17_final_d00fb750.pth",
+    "sha256": "d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc",
+    "sha8": "d00fb750",
+    "epoch": 15,
+    "training_monitor_clean": 0.743,
+    "training_monitor_robust": 0.3984375
+  },
+  "ff_112_seed42": {
+    "arm_id": "ff_112_seed42",
+    "seed": 42,
+    "phase": "ff_112",
+    "src_file": "foundation_ff_112_seed42_final.pth",
+    "canonical_file": "foundation_ff_112_seed42_final_2920df54.pth",
+    "sha256": "2920df54fe919a8e57dcca8788b5429d0d5f9622fb867723a4d248b063276f71",
+    "sha8": "2920df54",
+    "epoch": 15,
+    "training_monitor_clean": 0.746,
+    "training_monitor_robust": 0.388671875
+  },
+  "ff_112_seed99": {
+    "arm_id": "ff_112_seed99",
+    "seed": 99,
+    "phase": "ff_112",
+    "src_file": "foundation_ff_112_seed99_final.pth",
+    "canonical_file": "foundation_ff_112_seed99_final_abde98a0.pth",
+    "sha256": "abde98a0129f5637039eb98307b30862a04a3cffd0c4b749c8e5cf40c5d4ed4d",
+    "sha8": "abde98a0",
+    "epoch": 15,
+    "training_monitor_clean": 0.7458,
+    "training_monitor_robust": 0.380859375
+  }
+}
