@@ -170,28 +170,50 @@ def test_resume_equivalence():
     assert isinstance(ch, str) and len(ch) >= 7, f"commit_hash looks wrong: {ch}"
     print(f"  ✓ commit_hash: {ch}")
 
-    # ── Step 5: Verify JSONL log infra fields ────────────────────────────
-    print("\n[Step 5] Verifying JSONL log infra fields...")
-    jsonl_path = os.path.join(dir_resumed_report, "gen2_epoch_log.jsonl")
-    assert os.path.exists(jsonl_path), f"JSONL log not found: {jsonl_path}"
+    # ── Step 5: Verify JSONL log infra fields and assert LR per epoch ────
+    print("\n[Step 5] Verifying JSONL log infra fields and asserting LR per epoch...")
+    jsonl_unint = os.path.join(dir_uninterrupted_report, "gen2_epoch_log.jsonl")
+    jsonl_resumed = os.path.join(dir_resumed_report, "gen2_epoch_log.jsonl")
+    assert os.path.exists(jsonl_unint), f"JSONL log not found: {jsonl_unint}"
+    assert os.path.exists(jsonl_resumed), f"JSONL log not found: {jsonl_resumed}"
 
-    with open(jsonl_path, "r", encoding="utf-8") as f:
-        records = [json.loads(line) for line in f if line.strip()]
+    with open(jsonl_unint, "r", encoding="utf-8") as f:
+        recs_unint = [json.loads(line) for line in f if line.strip()]
+    with open(jsonl_resumed, "r", encoding="utf-8") as f:
+        recs_resumed = [json.loads(line) for line in f if line.strip()]
 
-    assert len(records) == 2, f"Expected 2 JSONL records, got {len(records)}"
+    assert len(recs_unint) == 2, f"Expected 2 uninterrupted records, got {len(recs_unint)}"
+    assert len(recs_resumed) == 2, f"Expected 2 resumed records, got {len(recs_resumed)}"
+
     required_log_fields = [
         "lr_backbone", "lr_heads", "scaler_scale",
         "cumulative_skipped_steps", "commit_hash", "seed",
     ]
-    for rec in records:
-        for field in required_log_fields:
-            assert field in rec, f"Missing JSONL field '{field}' in epoch {rec.get('epoch')}"
+    for ep_i in range(2):
+        u = recs_unint[ep_i]
+        r = recs_resumed[ep_i]
+        ep_num = ep_i + 1
 
-    print(f"  ✓ Both JSONL records contain all infra fields.")
-    ep2 = records[1]
-    print(f"    lr_backbone={ep2['lr_backbone']:.2e}, lr_heads={ep2['lr_heads']:.2e}")
-    print(f"    scaler_scale={ep2['scaler_scale']}, skipped={ep2['cumulative_skipped_steps']}")
-    print(f"    commit={ep2['commit_hash']}, seed={ep2['seed']}")
+        for field in required_log_fields:
+            assert field in r, f"Missing field '{field}' in resumed epoch {ep_num}"
+            assert field in u, f"Missing field '{field}' in uninterrupted epoch {ep_num}"
+
+        # Assert LR per epoch matches exactly
+        lr_bb_diff = abs(u["lr_backbone"] - r["lr_backbone"])
+        lr_hd_diff = abs(u["lr_heads"] - r["lr_heads"])
+        loss_diff = abs(u["loss_total"] - r["loss_total"])
+
+        print(f"  Epoch {ep_num}:")
+        print(f"    lr_backbone: unint={u['lr_backbone']:.6e}, resumed={r['lr_backbone']:.6e} (diff={lr_bb_diff:.2e})")
+        print(f"    lr_heads:    unint={u['lr_heads']:.6e}, resumed={r['lr_heads']:.6e} (diff={lr_hd_diff:.2e})")
+        print(f"    loss_total:  unint={u['loss_total']:.6f}, resumed={r['loss_total']:.6f} (diff={loss_diff:.2e})")
+
+        assert lr_bb_diff < 1e-12, f"Epoch {ep_num} lr_backbone mismatch!"
+        assert lr_hd_diff < 1e-12, f"Epoch {ep_num} lr_heads mismatch!"
+        assert loss_diff < 1e-3, f"Epoch {ep_num} loss mismatch ({loss_diff:.2e} >= 1e-3)!"
+
+    print("  ✓ LR per epoch matches exactly across all epochs.")
+    print("  ✓ Per-epoch loss matches within tolerance (1e-3).")
 
     # ── Cleanup ──────────────────────────────────────────────────────────
     for d in [dir_uninterrupted_ckpt, dir_uninterrupted_report,

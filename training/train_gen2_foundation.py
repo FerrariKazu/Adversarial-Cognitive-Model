@@ -817,13 +817,24 @@ def run_gen2_phase(
                     optimizer.load_state_dict(saved["optimizer"])
                 except Exception as e:
                     print(f"  Note: optimizer state could not be loaded ({e}); continuing with fresh optimizer state.")
-            if "scheduler" in saved:
+            if "scheduler" in saved and saved["scheduler"] is not None:
                 try:
                     scheduler.load_state_dict(saved["scheduler"])
                 except Exception as e:
                     print(f"  Note: scheduler state could not be loaded ({e}); advancing scheduler to epoch {start_epoch - 1}.")
-                    for _ in range(start_epoch - 1):
+                    current = scheduler.last_epoch
+                    for _ in range(start_epoch - 1 - current):
                         scheduler.step()
+            else:
+                print(f"  Note: no scheduler state in checkpoint; advancing scheduler to epoch {start_epoch - 1}.")
+                current = scheduler.last_epoch
+                for _ in range(start_epoch - 1 - current):
+                    scheduler.step()
+
+            # Always synchronize optimizer param_group LRs with scheduler.get_last_lr()
+            # to guarantee correct per-epoch LR even if optimizer state was fresh or scheduler was advanced.
+            for pg, lr in zip(optimizer.param_groups, scheduler.get_last_lr()):
+                pg["lr"] = lr
             if "scaler" in saved and saved["scaler"] is not None and scaler.is_enabled():
                 try:
                     scaler.load_state_dict(saved["scaler"])
