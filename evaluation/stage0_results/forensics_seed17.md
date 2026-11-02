@@ -43,9 +43,9 @@ Monitor metrics logged during training (5,000 images clean, 512 images robust PG
 ## 3. Discrepancy Between Training Loss and Validation Generalization
 * `recurrence_112_seed17` achieved final training loss **0.678**, compared to 0.699 for seed 42, 0.746 for ff seed 17, 0.726 for ff seed 42, and 0.708 for ff seed 99 (`evaluation/stage0_results/t4c_per_seed_slopes.json`).
 * However, Seed 17 achieved validation clean accuracy of 67.04% vs 76.10% for seed 42.
-* **Diagnosis Status: UNSUPPORTED / HYPOTHESIS ONLY.** While this pattern is consistent with training overfitting under the TRADES objective (driving down surrogate loss on minibatches without generalizing to test data), calling it the definitive root cause is an unverified hypothesis. Other factors—such as optimization state corruption across the 4 preemption/resumes or scheduler stepping—cannot be ruled out from existing data.
-* **Missing Rec17 Epochs 1–2 in `gen2_epoch_log.jsonl`:** Rec17 experienced its first preemption during early execution. Because local `/kaggle/working/output/` on Kaggle was non-persistent across container preemptions and HF log syncing was only added in commit `19c5ea9`, the original log file for epochs 1–2 was lost when the session reset. When resumed at epoch 3, a new `gen2_epoch_log.jsonl` was initialized.
-* **Failure Triggering Try/Except in `6399601`:** Commit `6399601` (`fix(resume): graceful optimizer and scheduler load on parameter group mismatch`) added `try/except` around `optimizer.load_state_dict()` and `scheduler.load_state_dict()`. This was triggered when loading a checkpoint with mismatched parameter groups (e.g., across training phases or modified parameter group definitions), which caused PyTorch to raise `ValueError: loaded state dict has a different number of parameter groups`.
+* **Diagnosis Status: UNSUPPORTED.** The previously suggested "severe overfitting" diagnosis is not supported by the available evidence. While the loss/accuracy gap is consistent with overfitting under TRADES in principle, no direct diagnostic (e.g., train/val loss split logged per epoch, generalization gap breakdown, or causal attribution) confirms it as the definitive root cause. Other factors—such as optimization state corruption across preemptions/resumes, scheduler stepping behavior, or initialization/run-to-run variance—cannot be ruled out from existing data.
+* **Missing Rec17 Epochs 1–2 in `gen2_epoch_log.jsonl`:** Rec17 experienced its first preemption during early execution (epochs 1–2). Local `/kaggle/working/output/` on Kaggle was non-persistent across container preemptions; HF log syncing was only added later (commit `19c5ea9`). The original log file for epochs 1–2 was lost at session reset (log recreated). Checkpoint mtimes show the rolling/final checkpoints were written from resumed sessions starting at epoch 3; when resumed at epoch 3, a new `gen2_epoch_log.jsonl` was initialized and only epochs 3–15 were recorded.
+* **Failure Triggering Try/Except Added at `19c5ea9`:** The try/except around `optimizer.load_state_dict()` and `scheduler.load_state_dict()` was added at commit `19c5ea9` (`fix(kaggle): add HF checkpoint restore and per-epoch sync to resume seamlessly`). The failure triggered was a resume/load mismatch when restoring from HuggingFace/synced rolling checkpoints across preempted Kaggle sessions: parameter groups or optimizer/scheduler state dicts could be inconsistent between the saved checkpoint and the freshly constructed optimizer/scheduler (or across phase changes), causing PyTorch to raise errors on load. The added `try/except` allows graceful fallback (continuing with fresh optimizer state and/or advancing the scheduler to `start_epoch-1`) to keep resume resilient under hard preemptions.
 
 ---
 
@@ -89,20 +89,27 @@ In `training/train_gen2_foundation.py` (line 911), `scheduler.step()` is execute
 ---
 
 ## 6. Git Diff Across Runs (`git diff 6399601 19c5ea9` over Entire Repository)
-A whole-repository diff between `6399601` (run commit for `recurrence_112_seed17`) and `19c5ea9` (run commit for `recurrence_112_seed42`) touches exactly two files:
+Command executed over the whole repo (model, foveation, fusion, data, harness, training):
+
+```bash
+git diff 6399601 19c5ea9
+```
+
+**Every changed file (name-status):**
 
 ```
- cloud_setup/Kaggle_consolidated.py | 113 +++++++++++++++++++++++++++++++++++--
- cloud_setup/colab_consolidated.py  |  37 ++++++------
- 2 files changed, 128 insertions(+), 22 deletions(-)
+M	cloud_setup/Kaggle_consolidated.py
+M	cloud_setup/colab_consolidated.py
 ```
+
+**Diff summary:** 2 files changed, 128 insertions(+), 22 deletions(-)
 
 *Listing of Changed Files:*
-1. `cloud_setup/Kaggle_consolidated.py`: Added Hugging Face checkpoint restore (`restore_checkpoints_from_hf`), live per-epoch checkpoint syncing (`sync_to_hf`), epoch callback hook, and hard git checkout fix for Kaggle execution.
-2. `cloud_setup/colab_consolidated.py`: Refactored HF restore filtering to match checkpoint naming patterns.
+1. `cloud_setup/Kaggle_consolidated.py`: Added Hugging Face checkpoint restore (`restore_checkpoints_from_hf`), live per-epoch checkpoint syncing (`sync_to_hf`), epoch callback hook, DINO path moved to checkpoints dir, `OUT_DIR/eval` creation, and hard git checkout/reset fix for Kaggle execution.
+2. `cloud_setup/colab_consolidated.py`: Refactored HF restore filtering to match checkpoint naming patterns (recurrence_112 rolling/final, ff_112 finals, eval JSONs for 112px, and non-closure epoch logs).
 
 *Findings:*  
-Across all model architecture files (`gen2_foundation/model.py`, `gen2_foundation/backbone.py`), foveation modules (`noesis_vision/models/foveation.py`), training scripts (`training/train_gen2_foundation.py`), data loading, loss calculations, and evaluation harness, the diff between `6399601` and `19c5ea9` is **strictly empty (0 lines changed)**.
+Across all model architecture files (`gen2_foundation/model.py`, `gen2_foundation/backbone.py`), foveation modules (`noesis_vision/models/foveation.py`), fusion logic, data loading, loss calculations, training scripts (`training/train_gen2_foundation.py`), and evaluation harness (`evaluation/harness.py`), the diff between `6399601` and `19c5ea9` is **strictly empty (0 lines changed)**.
 
 ---
 

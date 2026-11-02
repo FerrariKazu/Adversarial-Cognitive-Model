@@ -44,7 +44,7 @@ Sourced directly from checkpoint configurations and training logs (`gen2_epoch_l
   * Heads and projection layers: $\text{LR} = 5.0 \times 10^{-4}$
   * Weight decay: $0.05$, gradient clipping norm: $1.0$.
 * **Schedule:** Cosine annealing with 3-epoch linear warmup over 15 total epochs.
-* **Batch Size:** Effective batch size 64 (micro-batch size 16 with 4 gradient accumulation steps). *(Note: Evaluation throughput was measured at evaluation batch size 48).*
+* **Batch Size:** Resolved from checkpoint/prereg configuration: effective batch size **64** = micro-batch size **16** × gradient accumulation steps **4** (sourced from `prereg/stage0_decision_v1.json`: `effective_batch_size: 64`, `micro_batch_size: 16`, `grad_accum_steps: 4`; no batch-size override present in checkpoint config). *(Note: Evaluation throughput was measured at evaluation batch size 48.)*
 * **Seeds Trained:** Seeds 17, 42, 99.
 
 ---
@@ -103,14 +103,15 @@ Measured on NVIDIA GeForce RTX 4060 (8GB VRAM) in FP32 (`evaluation/stage0_resul
 ---
 
 ## Limitations
-1. **Benchmark Scope:** Trained and evaluated strictly on ImageNet-100 (100 classes). Generalization to full ImageNet-1k or other vision domains is unverified.
+1. **Benchmark Scope:** Trained and evaluated strictly on ImageNet-100 only (100 classes). Generalization to full ImageNet-1k or other vision domains is unverified.
 2. **Fixed Low Resolution:** Operates strictly at $112 \times 112$ pixels.
-3. **Perturbation Regime:** Bounded under $L_\infty$ at $\varepsilon = 5.417/255$. Robustness degrades sharply under larger budgets (accuracy drops to $\approx 10.8\%$ at $2\times \varepsilon$).
-4. **Diagnostic Subsample:** Detailed AutoAttack components and epsilon sweeps were benchmarked on a canonical 1k-image subset ($N = 1{,}000$).
-5. **No Out-of-Distribution / Corruption Testing:** Common corruptions (ImageNet-C) and natural distribution shifts have not been evaluated.
-6. **Calibration Error:** Expected Calibration Error (ECE) is $\approx 6.4\%$ on clean test data.
-7. **Absolute Robustness Ceiling:** Worst-case adversarial accuracy is bounded around $\approx 35\text{--}36\%$.
-8. **Deployment Caution:** Strictly for scientific benchmarking. Not certified for safety-critical, medical, or security-sensitive applications.
+3. **Perturbation Regime:** Bounded under $L_\infty$ at a single epsilon ($\varepsilon = 5.417/255$). Robustness degrades sharply under larger budgets (accuracy drops to $\approx 10.8\%$ at $2\times \varepsilon$).
+4. **Diagnostic Subsample:** Detailed AutoAttack components (AutoAttack Standard on the 1k-slice) and epsilon sweeps were benchmarked on a canonical 1k-image subset ($N = 1{,}000$).
+5. **No Corruption/OOD Evaluation:** No corruption (e.g., ImageNet-C) or natural OOD evaluation has been performed.
+6. **Calibration Error:** Expected Calibration Error (ECE) is $\approx 6.5\%$ on clean test data (1k slice).
+7. **Absolute Robustness Ceiling:** Worst-case adversarial accuracy is bounded around $\approx 35\text{--}36\%$; worst-case ~36% on 5k, AA worst-case ~35% on 1k.
+8. **Extreme Budget Degradation:** At $2\times \varepsilon$ robust accuracy drops to $\approx 10\%$ (~10% at 2x epsilon).
+9. **Deployment Caution:** Strictly for scientific benchmarking. Not for safety-critical use or security-sensitive applications.
 
 ---
 
