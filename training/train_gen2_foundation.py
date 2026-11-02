@@ -796,7 +796,7 @@ def run_gen2_phase(
     rolling_path = os.path.join(ckpt_dir, f"foundation_{eff_name}_rolling.pth")
     if os.path.exists(rolling_path):
         print(f"Resuming from rolling checkpoint: {rolling_path}")
-        saved = torch.load(rolling_path, map_location="cpu")
+        saved = torch.load(rolling_path, map_location="cpu", weights_only=False)
         saved_keys = set(saved["model"].keys())
         model_keys = set(model.state_dict().keys())
         missing = model_keys - saved_keys

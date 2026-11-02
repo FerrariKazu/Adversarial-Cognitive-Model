@@ -75,7 +75,7 @@ def test_resume_equivalence():
     rolling_uninterrupted = os.path.join(
         dir_uninterrupted_ckpt, "foundation_g2_gist_only_rolling.pth"
     )
-    state_uninterrupted = torch.load(rolling_uninterrupted, map_location="cpu")
+    state_uninterrupted = torch.load(rolling_uninterrupted, map_location="cpu", weights_only=False)
     assert state_uninterrupted["epoch"] == 2, \
         f"Expected epoch 2, got {state_uninterrupted['epoch']}"
     print("  ✓ Uninterrupted run completed 2 epochs continuously.")
@@ -100,7 +100,7 @@ def test_resume_equivalence():
     rolling_resumed = os.path.join(
         dir_resumed_ckpt, "foundation_g2_gist_only_rolling.pth"
     )
-    state_resumed = torch.load(rolling_resumed, map_location="cpu")
+    state_resumed = torch.load(rolling_resumed, map_location="cpu", weights_only=False)
     assert state_resumed["epoch"] == 2, \
         f"Expected epoch 2, got {state_resumed['epoch']}"
     print("  ✓ Resumed run completed 2 epochs.")
