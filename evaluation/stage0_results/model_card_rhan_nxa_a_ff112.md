@@ -1,18 +1,21 @@
-# Model Card: RHAN-NXA-A, Variant Feedforward-112
+# Model Card: RHAN-NXA, feedforward-112
 
 > [!IMPORTANT]
-> **Status:** DRAFT — AutoAttack results filled from T5 battery (2026-11-02). Awaiting final human review before upload.
+> **Status:** DRAFT — AutoAttack results filled from T5 battery (`evaluation/stage0_results/t5_feedforward_battery.json`). Awaiting human review before upload.
+> 
+> **Family Context:** This checkpoint is the feedforward baseline member of the RHAN-NXA family. Under the pre-registered protocol [`prereg/stage0_decision_v1.json`](file:///home/ferrarikazu/Adversarial%20Cognitive%20Model/prereg/stage0_decision_v1.json) (`consolidated-flagship-112/1`), the recurrent variant did not earn its $4\times$ compute cost at 112 px, resulting in an official pre-registered verdict of **NULL**. See the [Stage 0 Final Report](file:///home/ferrarikazu/Adversarial%20Cognitive%20Model/evaluation/stage0_results/stage0_final_report.md) and the [Superseded Report Note](file:///home/ferrarikazu/Adversarial%20Cognitive%20Model/evaluation/stage0_results/stage0_final_report_superseded.md).
 
 ---
 
 ## Model Details
-* **Official Model Name:** `RHAN-NXA-A, variant feedforward-112`
+* **Official Model Name:** `RHAN-NXA, feedforward-112`
 * **Architecture:** Compact Vision Transformer (`CompactViTGen2`) feedforward trunk with DINOv2-small warm-start, LayerScale, and patch projection ($14 \times 14$ patches).
 * **Official Checkpoint:** `foundation_ff_112_seed17_final_d00fb750.pth` (Designated in advance prior to test scores; SHA8 = `d00fb750`).
 * **Framework:** PyTorch / torchvision / timm.
 * **Input Resolution:** $112 \times 112 \times 3$ RGB.
 * **Normalization:** ImageNet mean $(0.485, 0.456, 0.406)$, std $(0.229, 0.224, 0.225)$.
 * **Classes:** 100 classes (ImageNet-100 benchmark).
+* **Parameter Count:** 23,595,749 parameters (exact count from checkpoint state dict).
 * **Release Date:** November 2026.
 * **Repository / Checkpoint Archive:** `FerrariKazu/rhan-nxa-g2-checkpoints` (`closure/stage0/`).
 
@@ -30,7 +33,7 @@
 ---
 
 ## Training Procedure & Recipe
-Sourced directly from checkpoint configurations and training logs:
+Sourced directly from checkpoint configurations and training logs (`gen2_epoch_log.jsonl` and `prereg/stage0_decision_v1.json`):
 * **Training Pipeline:** `train_gen2_foundation.py` (`ff_112` curriculum).
 * **Evaluation Protocol:** `consolidated-flagship-112/1`
 * **Dataset:** ImageNet-100 (126,689 training images across 100 classes).
@@ -41,54 +44,73 @@ Sourced directly from checkpoint configurations and training logs:
   * Heads and projection layers: $\text{LR} = 5.0 \times 10^{-4}$
   * Weight decay: $0.05$, gradient clipping norm: $1.0$.
 * **Schedule:** Cosine annealing with 3-epoch linear warmup over 15 total epochs.
-* **Batch Size:** Effective batch size 64 (micro-batch size 16 with 4 gradient accumulation steps).
+* **Batch Size:** Effective batch size 64 (micro-batch size 16 with 4 gradient accumulation steps). *(Note: Evaluation throughput was measured at evaluation batch size 48).*
 * **Seeds Trained:** Seeds 17, 42, 99.
 
 ---
 
 ## Quantitative Performance Summary (3-Seed Distribution)
 
-Evaluations performed on the canonical 5,000-image ImageNet-100 validation set ($\varepsilon = 5.417/255$):
+### 5k Full Validation Set ($N = 5{,}000$, $\varepsilon = 5.417/255$)
+Sourced from `evaluation/stage0_results/stage0_harness_results.json`:
 
-| Metric | Designated Official (Seed 17) | 3-Seed Mean | 3-Seed Range (Min – Max) | Data Source |
+| Metric | Designated Official (Seed 17) | 3-Seed Mean | 3-Seed Range (Min – Max) | JSON Path |
 |---|---|---|---|---|
-| **Clean Accuracy (5k full val)** | **74.30%** | **74.49%** | $[74.30\%,\; 74.60\%]$ | `stage0_harness_results.json` |
-| **Worst-Case Robust (5k)** | **36.04%** | **35.79%** | $[35.44\%,\; 36.04\%]$ | `stage0_harness_results.json` |
-| **PGD-50 (5k)** | 38.18% | 37.55% | $[37.00\%,\; 38.18\%]$ | `stage0_harness_results.json` |
-| **APGD-CE (5k)** | 37.66% | 37.01% | $[36.52\%,\; 37.66\%]$ | `stage0_harness_results.json` |
-| **APGD-DLR (5k)** | 38.10% | 37.95% | $[37.40\%,\; 38.34\%]$ | `stage0_harness_results.json` |
-| **Clean Accuracy (1k slice)** | **73.90%** | **74.00%** | $[73.90\%,\; 74.20\%]$ | `t5_feedforward_battery.json` |
-| **ECE (1k)** | **6.52%** | **6.39%** | $[6.15\%,\; 6.52\%]$ | `t5_feedforward_battery.json` |
-| **PGD-50 (1k)** | 37.90% | 37.30% | $[36.50\%,\; 37.90\%]$ | `t5_feedforward_battery.json` |
-| **PGD-100 (1k)** | 37.60% | 37.10% | $[36.30\%,\; 37.60\%]$ | `t5_feedforward_battery.json` |
-| **PGD Gap (1k)** | 0.30 pp | 0.20 pp | $[0.10\text{ pp},\; 0.30\text{ pp}]$ | `t5_feedforward_battery.json` |
-| **Training Monitor Parity Gap** | **0.00 pp** | **0.01 pp** | $[0.00\text{ pp},\; 0.02\text{ pp}]$ | `stage0_harness_results.json` |
+| **Clean Accuracy (5k)** | **74.30%** | **74.49%** | $[74.30\%,\; 74.60\%]$ | `stage0_harness_results.json -> arms.ff_112_seed*.clean_acc` |
+| **Worst-Case Robust (5k)** | **36.04%** | **35.79%** | $[35.44\%,\; 36.04\%]$ | `stage0_harness_results.json -> arms.ff_112_seed*.worst_case_robust` |
+| **PGD-50 (5k)** | 38.18% | 37.55% | $[37.00\%,\; 38.18\%]$ | `stage0_harness_results.json -> arms.ff_112_seed*.attacks.pgd50.robust_acc` |
+| **APGD-CE (5k)** | 37.66% | 37.01% | $[36.52\%,\; 37.66\%]$ | `stage0_harness_results.json -> arms.ff_112_seed*.attacks.apgd_ce.robust_acc` |
+| **APGD-DLR (5k)** | 38.10% | 37.95% | $[37.40\%,\; 38.34\%]$ | `stage0_harness_results.json -> arms.ff_112_seed*.attacks.apgd_dlr.robust_acc` |
 
-### AutoAttack Standard (1k canonical slice, T5 battery)
+### 1k Canonical Slice ($N = 1{,}000$) with Wilson 95% Confidence Intervals
+Sourced from `evaluation/stage0_results/t5_feedforward_battery.json`:
 
-| Attack | Seed 17 (Official) | Seed 42 | Seed 99 | 3-Seed Mean | Source |
+| Metric | Seed 17 (Official) [Wilson 95% CI] | Seed 42 [Wilson 95% CI] | Seed 99 [Wilson 95% CI] | 3-Seed Mean |
+|---|---|---|---|---|
+| **Clean Accuracy (1k)** | 73.90% [71.09%, 76.53%] | 74.20% [71.40%, 76.82%] | 73.90% [71.09%, 76.53%] | 74.00% |
+| **ECE (1k)** | 6.52% | 6.15% | 6.50% | 6.39% |
+| **PGD-50 (1k)** | 37.90% [34.94%, 40.95%] | 37.30% [34.36%, 40.34%] | 36.50% [33.57%, 39.53%] | 37.23% |
+| **PGD-100 (1k)** | 37.60% [34.65%, 40.64%] | 37.10% [34.16%, 40.14%] | 36.30% [33.38%, 39.33%] | 37.00% |
+| **PGD Gap (1k)** | 0.30 pp | 0.20 pp | 0.20 pp | 0.23 pp |
+
+### AutoAttack Standard (1k canonical slice, $N = 1{,}000$) with Wilson 95% CIs
+Sourced from `evaluation/stage0_results/t5_feedforward_battery.json -> arms.ff_112_seed*.autoattack`:
+
+| Attack | Seed 17 (Official) [Wilson 95% CI] | Seed 42 [Wilson 95% CI] | Seed 99 [Wilson 95% CI] | 3-Seed Mean |
+|---|---|---|---|---|
+| **APGD-CE** | 37.40% [34.45%, 40.44%] | 36.90% [33.96%, 39.94%] | 36.30% [33.38%, 39.33%] | 36.87% |
+| **APGD-T** | 35.00% [32.11%, 38.01%] | 35.80% [32.89%, 38.82%] | 35.00% [32.11%, 38.01%] | 35.27% |
+| **FAB-T** | 35.40% [32.50%, 38.41%] | 36.00% [33.08%, 39.02%] | 35.40% [32.50%, 38.41%] | 35.60% |
+| **Square** | 52.30% [49.20%, 55.38%] | 51.20% [48.10%, 54.29%] | 50.60% [47.50%, 53.69%] | 51.37% |
+| **AA Worst-Case** | **35.00% [32.11%, 38.01%]** | **35.80% [32.89%, 38.82%]** | **34.80% [31.91%, 37.81%]** | **35.20%** |
+
+### Epsilon Sweep (1k canonical slice, $N = 1{,}000$) with Wilson 95% CIs
+Sourced from `evaluation/stage0_results/t5_feedforward_battery.json -> arms.ff_112_seed*.epsilon_sweep`:
+
+| ε Factor | ε (/255) | Seed 17 [Wilson 95% CI] | Seed 42 [Wilson 95% CI] | Seed 99 [Wilson 95% CI] | 3-Seed Mean |
 |---|---|---|---|---|---|
-| **APGD-CE** | 37.40% | 36.90% | 36.30% | 36.87% | `t5_feedforward_battery.json` |
-| **APGD-T** | 35.00% | 35.80% | 35.00% | 35.27% | `t5_feedforward_battery.json` |
-| **FAB-T** | 35.40% | 36.00% | 35.40% | 35.60% | `t5_feedforward_battery.json` |
-| **Square** | 52.30% | 51.20% | 50.60% | 51.37% | `t5_feedforward_battery.json` |
-| **AA Worst-Case** | **35.00%** | **35.80%** | **34.80%** | **35.20%** | `t5_feedforward_battery.json` |
-
-### Epsilon Sweep (1k canonical slice, T5 battery)
-
-| ε Factor | ε (in /255) | Seed 17 | Seed 42 | Seed 99 | 3-Seed Mean | Source |
-|---|---|---|---|---|---|---|
-| 0.5× | 2.71 | 57.30% | 56.80% | 56.80% | 56.97% | `t5_feedforward_battery.json` |
-| 1.0× | 5.42 | 38.00% | 37.50% | 36.50% | 37.33% | `t5_feedforward_battery.json` |
-| 2.0× | 10.83 | 10.40% | 10.70% | 11.30% | 10.80% | `t5_feedforward_battery.json` |
+| 0.5× | 2.71 | 57.30% [54.21%, 60.33%] | 56.80% [53.71%, 59.84%] | 56.80% [53.71%, 59.84%] | 56.97% |
+| 1.0× | 5.42 | 38.00% [35.04%, 41.05%] | 37.50% [34.55%, 40.54%] | 36.50% [33.57%, 39.53%] | 37.33% |
+| 2.0× | 10.83 | 10.40% [8.66%, 12.45%] | 10.70% [8.93%, 12.77%] | 11.30% [9.48%, 13.41%] | 10.80% |
 
 ---
 
 ## Computational Cost & Throughput
-Measured on NVIDIA GeForce RTX 4060 (8GB VRAM) in FP32:
+Measured on NVIDIA GeForce RTX 4060 (8GB VRAM) in FP32 (`evaluation/stage0_results/t4d_cost_table.json`):
 * **Batch Processing (Batch Size 48):** $25.15\text{ ms}$ per batch ($\approx 1,908\text{ images/second}$).
-* **Single-Image Latency:** $3.0\text{ ms}$ forward pass ($\approx 333\text{ images/second}$ sequential throughput).
-* **Parameter Count:** $\approx 22.0\text{M}$ parameters (DINOv2-small backbone + patch projection).
+* *(Sequential single-image latency was removed as unsourced in accordance with Closeout audit).*
+
+---
+
+## Limitations
+1. **Benchmark Scope:** Trained and evaluated strictly on ImageNet-100 (100 classes). Generalization to full ImageNet-1k or other vision domains is unverified.
+2. **Fixed Low Resolution:** Operates strictly at $112 \times 112$ pixels.
+3. **Perturbation Regime:** Bounded under $L_\infty$ at $\varepsilon = 5.417/255$. Robustness degrades sharply under larger budgets (accuracy drops to $\approx 10.8\%$ at $2\times \varepsilon$).
+4. **Diagnostic Subsample:** Detailed AutoAttack components and epsilon sweeps were benchmarked on a canonical 1k-image subset ($N = 1{,}000$).
+5. **No Out-of-Distribution / Corruption Testing:** Common corruptions (ImageNet-C) and natural distribution shifts have not been evaluated.
+6. **Calibration Error:** Expected Calibration Error (ECE) is $\approx 6.4\%$ on clean test data.
+7. **Absolute Robustness Ceiling:** Worst-case adversarial accuracy is bounded around $\approx 35\text{--}36\%$.
+8. **Deployment Caution:** Strictly for scientific benchmarking. Not certified for safety-critical, medical, or security-sensitive applications.
 
 ---
 

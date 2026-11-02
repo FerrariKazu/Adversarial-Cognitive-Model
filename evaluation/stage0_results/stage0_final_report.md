@@ -22,13 +22,13 @@
 |---|---|---|---|
 | **Superiority Condition 1 (Min-Rule)** | $\min(\text{rec\_112}) > \max(\text{ff\_112})$ | $\min = 30.18\%$, $\max = 36.04\%$ | **NO** (Failed: $30.18\% \le 36.04\%$) |
 | **Superiority Condition 2 (Significance)** | Pooled McNemar exact two-sided $p < 0.01$ with net $\Delta > 0$ | $\Delta = -2.01\text{ pp}$, $p = 2.361e-10$ | **NO** (Failed: $\Delta < 0$, favors baseline) |
-| **Null Condition** | $\min(\text{rec\_112}) \le \max(\text{ff\_112})$ OR McNemar $p \ge 0.05$ | Both clauses satisfied ($30.18\% \le 36.04\%$; net delta negative) | **YES** |
+| **Null Condition** | $\min(\text{rec\_112}) \le \max(\text{ff\_112})$ OR McNemar $p \ge 0.05$ | Clause 1 ($\min(\text{rec\_112}) \le \max(\text{ff\_112})$): **TRUE** ($30.18\% \le 36.04\%$); Clause 2 (McNemar $p \ge 0.05$): **FALSE** ($p = 2.4\times 10^{-10}$ concatenated, $8.2\times 10^{-24}$ Cartesian, both against the flagship) | **YES** (Clause 1 triggers Null) |
 
 ### Official Verdict Label
 
 > **VERDICT: NULL**  
 > **Official Finding:** *"recurrent fusion does not earn its 4x compute cost at 112px."*  
-> *(Recorded in `verdict.json` under `"verdict": "INFERIOR"` due to $\min(\text{rec\_112}) = 30.18\% < \min(\text{ff\_112}) = 35.44\%$.)*
+> *(Recorded in `verdict.json` under internal field `"verdict": "INFERIOR"`, annotated here as non-prereg; pre-registered label is `NULL`. Note that prereg leaves pooling unspecified — $N=10,000$ concat vs $N=30,000$ Cartesian — but both yield $p \ll 0.01$ against flagship with $\Delta < 0$, so pooling does not change the label.)*
 
 ---
 
