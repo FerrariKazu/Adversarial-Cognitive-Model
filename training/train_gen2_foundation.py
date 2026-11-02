@@ -106,15 +106,48 @@ from torchvision import datasets, transforms
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
-def _get_commit_hash() -> str:
-    """Return the short (12-char) git commit hash of REPO_ROOT, or 'unknown'."""
+def _get_git_info() -> Tuple[str, bool]:
+    """Return the short (12-char) git commit hash and dirty-tree status of REPO_ROOT."""
     try:
-        return subprocess.check_output(
+        commit = subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT,
             stderr=subprocess.DEVNULL,
         ).decode().strip()[:12]
     except Exception:
-        return "unknown"
+        commit = "unknown"
+    try:
+        status = subprocess.check_output(
+            ["git", "status", "--porcelain"], cwd=REPO_ROOT,
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+        dirty = len(status) > 0
+    except Exception:
+        dirty = False
+    return commit, dirty
+
+
+def _get_source_hashes() -> Dict[str, str]:
+    """Return SHA256 hashes of critical training and model source files."""
+    import hashlib
+    files_to_hash = [
+        "training/train_gen2_foundation.py",
+        "gen2_foundation/model.py",
+        "gen2_foundation/backbone.py",
+        "noesis_vision/models/foveation.py",
+    ]
+    hashes = {}
+    for rel_path in files_to_hash:
+        full_path = os.path.join(REPO_ROOT, rel_path)
+        if os.path.exists(full_path):
+            with open(full_path, "rb") as f:
+                hashes[rel_path] = hashlib.sha256(f.read()).hexdigest()
+    return hashes
+
+
+def _get_commit_hash() -> str:
+    """Return the short (12-char) git commit hash of REPO_ROOT, or 'unknown'."""
+    commit, _ = _get_git_info()
+    return commit
 
 
 def _collect_rng_states() -> dict:
@@ -879,6 +912,7 @@ def run_gen2_phase(
         # Safe 11h cutoff
         if elapsed_hours >= 11.0:
             print(f"\n[Session Safety] 11.0h limit reached ({elapsed_hours:.2f}h). Saving clean checkpoint and halting.")
+            commit_hash, is_dirty = _get_git_info()
             torch.save({
                 "phase": phase, "epoch": epoch - 1, "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(),
@@ -886,7 +920,9 @@ def run_gen2_phase(
                 "scaler": scaler.state_dict() if scaler.is_enabled() else None,
                 "rng": _collect_rng_states(),
                 "cumulative_skipped_steps": cumulative_skipped_steps,
-                "commit_hash": _get_commit_hash(),
+                "commit_hash": commit_hash,
+                "dirty_tree": is_dirty,
+                "source_hashes": _get_source_hashes(),
                 "seed": training_seed,
             }, rolling_path)
             if epoch_callback is not None:
@@ -976,6 +1012,10 @@ def run_gen2_phase(
                     f"{img_per_sec:.1f} img/s | eta: {step_eta_min:.1f}m",
                     flush=True,
                 )
+
+        # Capture current epoch LR before scheduler.step() so logged LR reflects this epoch's actual LR
+        epoch_lr_backbone = float(optimizer.param_groups[0]["lr"])
+        epoch_lr_heads = float(optimizer.param_groups[-1]["lr"])
 
         scheduler.step()
 
@@ -1074,6 +1114,7 @@ def run_gen2_phase(
         print("-" * 70, flush=True)
 
         # Checkpoints saving
+        commit_hash, is_dirty = _get_git_info()
         ckpt_state = {
             "phase": phase, "arm": arm, "epoch": epoch,
             "model": model.state_dict(),
@@ -1086,7 +1127,9 @@ def run_gen2_phase(
             "scaler": scaler.state_dict() if scaler.is_enabled() else None,
             "rng": _collect_rng_states(),
             "cumulative_skipped_steps": cumulative_skipped_steps,
-            "commit_hash": _get_commit_hash(),
+            "commit_hash": commit_hash,
+            "dirty_tree": is_dirty,
+            "source_hashes": _get_source_hashes(),
             "seed": training_seed,
         }
         torch.save(ckpt_state, rolling_path)
@@ -1107,11 +1150,12 @@ def run_gen2_phase(
             "loss_ce": tot_ce / max(n_samples, 1),
             "loss_kl": tot_kl / max(n_samples, 1),
             "health_flags": health_flags,
-            "lr_backbone": optimizer.param_groups[0]["lr"],
-            "lr_heads": optimizer.param_groups[-1]["lr"],
+            "lr_backbone": epoch_lr_backbone,
+            "lr_heads": epoch_lr_heads,
             "scaler_scale": float(scaler.get_scale()) if scaler.is_enabled() else None,
             "cumulative_skipped_steps": cumulative_skipped_steps,
-            "commit_hash": _get_commit_hash(),
+            "commit_hash": commit_hash,
+            "dirty_tree": is_dirty,
             "seed": training_seed,
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
