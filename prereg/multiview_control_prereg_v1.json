@@ -1,0 +1,28 @@
+{
+  "protocol_id": "multiview-control-112/1",
+  "protocol_version": "v1",
+  "created_at_utc": "2026-11-02T10:17:00Z",
+  "purpose": "Evaluate feedforward ViT-S checkpoints (ff_112 seeds 17, 42, 99) wrapped with the flagship's spatial gaze sampler and recurrent fusion at test time, attacked end-to-end.",
+  "hypothesis": "Does the observed robustness difference between feedforward (ff_112) and flagship (recurrence_112 seed 42) stem from recurrent state dynamics per se, or simply from multi-view spatial sampling and feature integration?",
+  "wrapper_specification": {
+    "gaze_sampler": "Imported from noesis_vision.models.foveation.foveal_sample (not re-implemented)",
+    "gaze_schedule": "Flagship 4-view canonical schedule: [(0.0, 0.0), (0.3, 0.3), (-0.3, 0.3), (0.0, -0.3)]",
+    "fovea_size": 112,
+    "fusion_mechanism": "Flagship fixed-EMA recurrence: z_0 = g_0; z_t = 0.5 * z_{t-1} + 0.5 * g_t for t in 1..3",
+    "trunk_and_head": "Imported from trained ff_112 checkpoints (backbone + cls_head)",
+    "attack_surface": "End-to-end differentiable forward pass through foveal_sample, ViT backbone, and fusion into classification head"
+  },
+  "seeds_evaluated": [17, 42, 99],
+  "threat_model": {
+    "norm": "Linf",
+    "eps_pixel": 0.02124313725490196,
+    "eps_255": 5.417,
+    "attacks": ["clean", "pgd50", "apgd_ce"],
+    "evaluation_slice": "canonical 1k slice (seed 42 torch generator)"
+  },
+  "pre_declared_readings": {
+    "match": "Multi-view wrapped ff_112 robust accuracy matches or approaches flagship seed 42 (e.g. robust >= 37.0% on 1k) => conclusion: multi-view averaging (gain is primarily a spatial ensemble / multi-crop integration effect, not recurrent internal dynamics).",
+    "shortfall": "Multi-view wrapped ff_112 robust accuracy does not match flagship seed 42 (e.g. robust < 37.0%) => conclusion: inconclusive (feedforward weights were trained on canonical centered inputs without off-center glimpse augmentation, so test-time shift to unaligned glimpses is out-of-distribution)."
+  }
+}
+
