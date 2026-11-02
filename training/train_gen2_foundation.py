@@ -90,10 +90,13 @@ import datetime
 import json
 import math
 import os
+import random
+import subprocess
 import sys
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -101,6 +104,31 @@ from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def _get_commit_hash() -> str:
+    """Return the short (12-char) git commit hash of REPO_ROOT, or 'unknown'."""
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT,
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()[:12]
+    except Exception:
+        return "unknown"
+
+
+def _collect_rng_states() -> dict:
+    """Snapshot Python, NumPy, PyTorch (CPU+CUDA) RNG states for checkpoint."""
+    return {
+        "python": random.getstate(),
+        "numpy": np.random.get_state(),
+        "torch": torch.get_rng_state(),
+        "cuda": (
+            [s for s in torch.cuda.get_rng_state_all()]
+            if torch.cuda.is_available()
+            else None
+        ),
+    }
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
@@ -755,6 +783,7 @@ def run_gen2_phase(
         model, warmup_epochs=3, total_epochs=total_epochs, clip_norm=1.0
     )
     scaler = torch.amp.GradScaler("cuda", enabled=(device.type == "cuda"))
+    cumulative_skipped_steps = 0
 
     start_epoch = 1
     best_clean_acc = 0.0
@@ -795,6 +824,27 @@ def run_gen2_phase(
                     print(f"  Note: scheduler state could not be loaded ({e}); advancing scheduler to epoch {start_epoch - 1}.")
                     for _ in range(start_epoch - 1):
                         scheduler.step()
+            if "scaler" in saved and saved["scaler"] is not None and scaler.is_enabled():
+                try:
+                    scaler.load_state_dict(saved["scaler"])
+                    print(f"  Restored GradScaler state (scale: {scaler.get_scale()}).")
+                except Exception as e:
+                    print(f"  Note: GradScaler state could not be loaded ({e}); keeping default scaler.")
+            if "rng" in saved and saved["rng"] is not None:
+                try:
+                    rng = saved["rng"]
+                    if "python" in rng and rng["python"] is not None:
+                        random.setstate(rng["python"])
+                    if "numpy" in rng and rng["numpy"] is not None:
+                        np.random.set_state(rng["numpy"])
+                    if "torch" in rng and rng["torch"] is not None:
+                        torch.set_rng_state(rng["torch"])
+                    if "cuda" in rng and rng["cuda"] is not None and torch.cuda.is_available():
+                        torch.cuda.set_rng_state_all(rng["cuda"])
+                    print("  Restored RNG states (python, numpy, torch, cuda).")
+                except Exception as e:
+                    print(f"  Note: RNG states could not be loaded ({e}).")
+            cumulative_skipped_steps = saved.get("cumulative_skipped_steps", 0)
             best_clean_acc = saved.get("best_clean_acc", 0.0)
             best_rob_acc = saved.get("best_rob_acc", 0.0)
             print(f"Resumed at epoch {start_epoch}. Verified rolling state.")
@@ -822,6 +872,11 @@ def run_gen2_phase(
                 "phase": phase, "epoch": epoch - 1, "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(),
                 "best_clean_acc": best_clean_acc, "best_rob_acc": best_rob_acc,
+                "scaler": scaler.state_dict() if scaler.is_enabled() else None,
+                "rng": _collect_rng_states(),
+                "cumulative_skipped_steps": cumulative_skipped_steps,
+                "commit_hash": _get_commit_hash(),
+                "seed": training_seed,
             }, rolling_path)
             if epoch_callback is not None:
                 try:
@@ -882,7 +937,10 @@ def run_gen2_phase(
             step_count += 1
 
             scaler.step(optimizer)
+            prev_scale = scaler.get_scale()
             scaler.update()
+            if scaler.is_enabled() and scaler.get_scale() < prev_scale:
+                cumulative_skipped_steps += 1
 
             tot_loss += loss.item() * y.size(0)
             tot_ce += ce_val * y.size(0)
@@ -1014,6 +1072,11 @@ def run_gen2_phase(
             "val_rob_acc": val_rob_acc,
             "best_clean_acc": max(best_clean_acc, val_clean_acc),
             "best_rob_acc": max(best_rob_acc, val_rob_acc),
+            "scaler": scaler.state_dict() if scaler.is_enabled() else None,
+            "rng": _collect_rng_states(),
+            "cumulative_skipped_steps": cumulative_skipped_steps,
+            "commit_hash": _get_commit_hash(),
+            "seed": training_seed,
         }
         torch.save(ckpt_state, rolling_path)
 
@@ -1033,6 +1096,12 @@ def run_gen2_phase(
             "loss_ce": tot_ce / max(n_samples, 1),
             "loss_kl": tot_kl / max(n_samples, 1),
             "health_flags": health_flags,
+            "lr_backbone": optimizer.param_groups[0]["lr"],
+            "lr_heads": optimizer.param_groups[-1]["lr"],
+            "scaler_scale": float(scaler.get_scale()) if scaler.is_enabled() else None,
+            "cumulative_skipped_steps": cumulative_skipped_steps,
+            "commit_hash": _get_commit_hash(),
+            "seed": training_seed,
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
         with open(jsonl_path, "a", encoding="utf-8") as f_log:
