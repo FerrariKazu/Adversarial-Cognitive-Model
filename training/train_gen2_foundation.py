@@ -1125,8 +1125,8 @@ def run_gen2_phase(
             except Exception as e:
                 print(f"  Warning: epoch_callback failed at epoch {epoch}: {e}", flush=True)
 
-        if smoke:
-            print(f"\n[Smoke Benchmark] 1 smoke epoch completed in {ep_duration:.1f}s.")
+        if smoke and (n_epochs is None or epoch >= total_epochs):
+            print(f"\n[Smoke Benchmark] {epoch} smoke epoch(s) completed in {ep_duration:.1f}s.")
             break
 
         # ── Gate C Check (epoch 10 of g2_gist_only) ─────────────────────────

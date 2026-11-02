@@ -64,25 +64,12 @@ def test_resume_equivalence():
             shutil.rmtree(d)
 
     # ── Step 1: Uninterrupted 2-epoch run ────────────────────────────────
-    print("\n[Step 1] Uninterrupted: 2 smoke epochs with seed=42...")
-    # We run smoke=True twice to get 2 epochs. But smoke=True stops after 1.
-    # Instead, run with n_epochs=2 and smoke=False but on a tiny dataset
-    # Actually, the cleanest approach: run smoke epoch 1, then resume for epoch 2
-    # For true equivalence, both must use the same seed.
-    
-    # Run epoch 1
+    print("\n[Step 1] Uninterrupted: 2 smoke epochs continuous with seed=42...")
     run_gen2_phase(
         phase="g2_gist_only", arm="v1",
         data_root=data_root, ckpt_dir=dir_uninterrupted_ckpt,
         report_dir=dir_uninterrupted_report, dino_path=dino_path,
-        batch_size=bs, num_workers=nw, smoke=True, training_seed=42,
-    )
-    # Run epoch 2 (resumes from rolling checkpoint of epoch 1)
-    run_gen2_phase(
-        phase="g2_gist_only", arm="v1",
-        data_root=data_root, ckpt_dir=dir_uninterrupted_ckpt,
-        report_dir=dir_uninterrupted_report, dino_path=dino_path,
-        batch_size=bs, num_workers=nw, smoke=True, training_seed=42,
+        batch_size=bs, num_workers=nw, smoke=True, n_epochs=2, training_seed=42,
     )
 
     rolling_uninterrupted = os.path.join(
@@ -91,23 +78,23 @@ def test_resume_equivalence():
     state_uninterrupted = torch.load(rolling_uninterrupted, map_location="cpu")
     assert state_uninterrupted["epoch"] == 2, \
         f"Expected epoch 2, got {state_uninterrupted['epoch']}"
-    print("  ✓ Uninterrupted run completed 2 epochs.")
+    print("  ✓ Uninterrupted run completed 2 epochs continuously.")
 
     # ── Step 2: Interrupted + Resumed 2-epoch run ────────────────────────
-    print("\n[Step 2] Interrupted+Resumed: epoch 1 → kill → resume → epoch 2, seed=42...")
+    print("\n[Step 2] Interrupted+Resumed: epoch 1 → stop/kill → resume → epoch 2, seed=42...")
     # Epoch 1
     run_gen2_phase(
         phase="g2_gist_only", arm="v1",
         data_root=data_root, ckpt_dir=dir_resumed_ckpt,
         report_dir=dir_resumed_report, dino_path=dino_path,
-        batch_size=bs, num_workers=nw, smoke=True, training_seed=42,
+        batch_size=bs, num_workers=nw, smoke=True, n_epochs=1, training_seed=42,
     )
-    # Epoch 2 (resume)
+    # Epoch 2 (resuming from epoch 1 rolling checkpoint)
     run_gen2_phase(
         phase="g2_gist_only", arm="v1",
         data_root=data_root, ckpt_dir=dir_resumed_ckpt,
         report_dir=dir_resumed_report, dino_path=dino_path,
-        batch_size=bs, num_workers=nw, smoke=True, training_seed=42,
+        batch_size=bs, num_workers=nw, smoke=True, n_epochs=2, training_seed=42,
     )
 
     rolling_resumed = os.path.join(
