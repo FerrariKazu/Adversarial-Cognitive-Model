@@ -659,6 +659,7 @@ def run_gen2_phase(
     img_size: Optional[int] = None,
     n_epochs: Optional[int] = None,
     training_seed: Optional[int] = None,
+    allow_fresh_optimizer: bool = False,
 ) -> Dict[str, Any]:
     """Train one phase of the Gen-2 (or control/ablation) ladder.
 
@@ -823,6 +824,7 @@ def run_gen2_phase(
     best_rob_acc = 0.0
     stall_count = 0
     start_time = time.time()
+    fallback_events = []
 
     # Resume check — with stale-checkpoint detection
     # All checkpoint paths use eff_name so phase_override_name is honoured.
@@ -849,23 +851,36 @@ def run_gen2_phase(
                 try:
                     optimizer.load_state_dict(saved["optimizer"])
                 except Exception as e:
-                    print(f"  Note: optimizer state could not be loaded ({e}); continuing with fresh optimizer state.")
+                    msg = f"optimizer state could not be loaded ({e})"
+                    fallback_events.append({"type": "optimizer_load_failure", "error": str(e), "epoch": start_epoch})
+                    print(f"  ERROR: {msg}")
+                    if not allow_fresh_optimizer:
+                        raise RuntimeError(f"ABORT: {msg}; pass allow_fresh_optimizer=True to permit fresh optimizer state")
+                    print(f"  WARNING: continuing with fresh optimizer state (explicitly allowed by --allow-fresh-optimizer)")
             if "scheduler" in saved and saved["scheduler"] is not None:
                 try:
                     scheduler.load_state_dict(saved["scheduler"])
                 except Exception as e:
-                    print(f"  Note: scheduler state could not be loaded ({e}); advancing scheduler to epoch {start_epoch - 1}.")
+                    msg = f"scheduler state could not be loaded ({e})"
+                    fallback_events.append({"type": "scheduler_load_failure", "error": str(e), "epoch": start_epoch})
+                    print(f"  ERROR: {msg}")
+                    if not allow_fresh_optimizer:
+                        raise RuntimeError(f"ABORT: {msg}; pass allow_fresh_optimizer=True to permit scheduler reset")
+                    print(f"  WARNING: advancing scheduler to epoch {start_epoch - 1} (explicitly allowed)")
                     current = scheduler.last_epoch
                     for _ in range(start_epoch - 1 - current):
                         scheduler.step()
             else:
+                msg = "no scheduler state in checkpoint"
+                fallback_events.append({"type": "scheduler_missing", "error": msg, "epoch": start_epoch})
+                if not allow_fresh_optimizer:
+                    raise RuntimeError(f"ABORT: {msg}; pass allow_fresh_optimizer=True")
                 print(f"  Note: no scheduler state in checkpoint; advancing scheduler to epoch {start_epoch - 1}.")
                 current = scheduler.last_epoch
                 for _ in range(start_epoch - 1 - current):
                     scheduler.step()
 
             # Always synchronize optimizer param_group LRs with scheduler.get_last_lr()
-            # to guarantee correct per-epoch LR even if optimizer state was fresh or scheduler was advanced.
             for pg, lr in zip(optimizer.param_groups, scheduler.get_last_lr()):
                 pg["lr"] = lr
             if "scaler" in saved and saved["scaler"] is not None and scaler.is_enabled():
@@ -873,7 +888,12 @@ def run_gen2_phase(
                     scaler.load_state_dict(saved["scaler"])
                     print(f"  Restored GradScaler state (scale: {scaler.get_scale()}).")
                 except Exception as e:
-                    print(f"  Note: GradScaler state could not be loaded ({e}); keeping default scaler.")
+                    msg = f"scaler state could not be loaded ({e})"
+                    fallback_events.append({"type": "scaler_load_failure", "error": str(e), "epoch": start_epoch})
+                    print(f"  ERROR: {msg}")
+                    if not allow_fresh_optimizer:
+                        raise RuntimeError(f"ABORT: {msg}; pass allow_fresh_optimizer=True to permit fresh scaler state")
+                    print(f"  WARNING: keeping default scaler (explicitly allowed)")
             if "rng" in saved and saved["rng"] is not None:
                 try:
                     rng = saved["rng"]
@@ -887,7 +907,12 @@ def run_gen2_phase(
                         torch.cuda.set_rng_state_all(rng["cuda"])
                     print("  Restored RNG states (python, numpy, torch, cuda).")
                 except Exception as e:
-                    print(f"  Note: RNG states could not be loaded ({e}).")
+                    msg = f"rng state could not be loaded ({e})"
+                    fallback_events.append({"type": "rng_load_failure", "error": str(e), "epoch": start_epoch})
+                    print(f"  ERROR: {msg}")
+                    if not allow_fresh_optimizer:
+                        raise RuntimeError(f"ABORT: {msg}; pass allow_fresh_optimizer=True to permit fresh rng state")
+                    print(f"  WARNING: continuing with fresh rng state (explicitly allowed)")
             cumulative_skipped_steps = saved.get("cumulative_skipped_steps", 0)
             best_clean_acc = saved.get("best_clean_acc", 0.0)
             best_rob_acc = saved.get("best_rob_acc", 0.0)
@@ -1157,6 +1182,7 @@ def run_gen2_phase(
             "commit_hash": commit_hash,
             "dirty_tree": is_dirty,
             "seed": training_seed,
+            "fallback_events": fallback_events,
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
         with open(jsonl_path, "a", encoding="utf-8") as f_log:
