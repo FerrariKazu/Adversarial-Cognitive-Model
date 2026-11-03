@@ -1,0 +1,21 @@
+{
+ "candidates": {
+  "foundation_ff_56_final.pth": {
+   "file": "foundation_ff_56_final.pth",
+   "sha256": "9853aeed2566f88c6548ff0532cf6e2321cc8d1d38207e8b74aa4bf8f2f4ac05",
+   "bytes": 266243984,
+   "role": "ff_56_candidate",
+   "phase": "g2_gist_only",
+   "epoch": 15,
+   "val_clean_acc": 0.6788,
+   "val_rob_acc": 0.431640625,
+   "best_clean_acc": 0.6788,
+   "reported_monitor": true
+  }
+ },
+ "status": "UNRESOLVED",
+ "true_file": null,
+ "stale_files": [],
+ "hg_actions": [],
+ "note": "no candidate carries the Rung-3 15-epoch fingerprint (phase='ff_56', epoch=15, clean~0.5904)."
+}

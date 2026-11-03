@@ -1,0 +1,78 @@
+{
+ "repo_sha": "2461bc260e42f830da16b586f98d24e5a156db5d",
+ "branch": "feature/gen2-rebuild",
+ "files": {
+  "foundation_ff_56_final.pth": {
+   "file": "foundation_ff_56_final.pth",
+   "sha256": "9853aeed2566f88c6548ff0532cf6e2321cc8d1d38207e8b74aa4bf8f2f4ac05",
+   "bytes": 266243984,
+   "role": "ff_56_candidate",
+   "phase": "g2_gist_only",
+   "epoch": 15,
+   "val_clean_acc": 0.6788,
+   "val_rob_acc": 0.431640625,
+   "best_clean_acc": 0.6788,
+   "reported_monitor": true
+  },
+  "foundation_ff_112_final.pth": {
+   "file": "foundation_ff_112_final.pth",
+   "sha256": "d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc",
+   "bytes": 266465897,
+   "role": "arm:ff_112",
+   "phase": "ff_112",
+   "epoch": 15,
+   "val_clean_acc": 0.743,
+   "val_rob_acc": 0.39453125,
+   "best_clean_acc": 0.743,
+   "reported_monitor": true
+  },
+  "foundation_recurrence_only_final.pth": {
+   "file": "foundation_recurrence_only_final.pth",
+   "sha256": "ef5b0ddacd7c48c3de471ce5826b2c15212c17d89596134a0f050482c0fee479",
+   "bytes": 280465872,
+   "role": "arm:recurrence_only",
+   "phase": "recurrence_only",
+   "epoch": 15,
+   "val_clean_acc": 0.6344,
+   "val_rob_acc": 0.34765625,
+   "best_clean_acc": 0.6344,
+   "reported_monitor": true
+  },
+  "foundation_g2_gist_only_cont_final.pth": {
+   "file": "foundation_g2_gist_only_cont_final.pth",
+   "sha256": "eadf81c0bbe8af40871ebd2f8c2abf2c43b340922f425f06cfdaa009cc3a99fc",
+   "bytes": 266252732,
+   "role": "arm:c1_gist_only_cont",
+   "phase": "g2_gist_only_cont",
+   "epoch": 15,
+   "val_clean_acc": 0.5912,
+   "val_rob_acc": 0.22265625,
+   "best_clean_acc": 0.5922,
+   "reported_monitor": true
+  },
+  "foundation_g2_gist_only_final.pth": {
+   "file": "foundation_g2_gist_only_final.pth",
+   "sha256": "475fdc09f5be233385d73fcc04b84a80fa90fa9f36371903fd4d2f99d73241c9",
+   "bytes": 266249087,
+   "role": "arm:g2_gist_only",
+   "phase": "g2_gist_only",
+   "epoch": 30,
+   "val_clean_acc": 0.6218,
+   "val_rob_acc": 0.3046875,
+   "best_clean_acc": 0.6482,
+   "reported_monitor": true
+  },
+  "foundation_gen1_core_best_clean.pth": {
+   "file": "foundation_gen1_core_best_clean.pth",
+   "sha256": "cbeb85b09c8f0dc221e33fdc0987be7dd8c299a2af564e2ceb4bd0b5fcccd417",
+   "bytes": 333176277,
+   "role": "arm:gen1_core",
+   "phase": "gen1_core",
+   "epoch": 14,
+   "val_clean_acc": 0.5846,
+   "val_rob_acc": 0.296875,
+   "best_clean_acc": 0.5846,
+   "reported_monitor": true
+  }
+ }
+}

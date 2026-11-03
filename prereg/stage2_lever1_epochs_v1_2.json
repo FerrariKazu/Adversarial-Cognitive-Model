@@ -1,0 +1,57 @@
+{
+  "protocol_id": "stage2-lever1-epochs-ff112/1.2",
+  "protocol_version": "v1.2",
+  "created_at_utc": "2026-11-03T00:00:00Z",
+  "status": "DRAFT - DO NOT LAUNCH",
+  "description": "ff_112 recipe unchanged except 30 epochs (warmup 3, cosine over 30)",
+  "recipe_fields_enumerated": {
+    "batch_size": {"effective_batch_size_prereg": 64, "micro_batch_size_prereg": 16, "grad_accum_steps_prereg": 4, "code_reality": "no gradient accumulation in training code; loader batch size is effective batch size per optimizer step (126689//64 steps/epoch). See A4."},
+    "steps_per_epoch": 1979,
+    "per_group_lrs": {"backbone": 5e-5, "heads_new": 5e-4},
+    "weight_decay": 0.05,
+    "clip_norm": 1.0,
+    "beta": 2.5,
+    "w_trades": 0.55,
+    "loss": "L = 0.55 * (CE + 2.5 * KL) = 0.55*CE + 1.375*KL",
+    "pgd_steps": 4,
+    "alpha": 0.05875,
+    "eps": {"normalized_scalar": 0.094, "per_channel_255": [5.49, 5.37, 5.39], "clamp_normalized": "[-4, 4]"},
+    "augmentation": "as in curriculum",
+    "curriculum_table_ref": "curriculum_for_phase_epoch from A5"
+  },
+  "seeds": [17, 42],
+  "seed_designation": {
+    "official_candidate": 17,
+    "note": "seed 17 designated official-candidate in advance"
+  },
+  "checkpoint_policy": {
+    "save": "final-epoch checkpoint only, no selection on val"
+  },
+  "baseline": {
+    "description": "3 existing 15-epoch ff_112 seeds",
+    "arms": ["ff_112_seed17", "ff_112_seed42", "ff_112_seed99"],
+    "source": "evaluation/stage0_results/stage0_harness_results.json",
+    "battery_v2_json": "evaluation/stage0_results/battery_v2_5k_apgdt.json",
+    "battery_v2_json_note": "use the exact battery-v2 JSON filename as produced"
+  },
+  "evaluation": {
+    "battery": "v2",
+    "surface": "5k full validation set"
+  },
+  "code_provenance": {
+    "from_b6": "to be filled from B6 diff --stat"
+  },
+  "training_commit": "<to be filled from clean tree>",
+  "launch_requires_clean_tree": true,
+  "infra_safety": {
+    "b5_abort_condition": "run aborts on any fallback event (optimizer/scheduler/scaler/rng/load failures) unless --allow-fresh-optimizer passed explicitly; fallback_events logged"
+  },
+  "pass_rule": {
+    "conditions": [
+      {"description": "both 30-epoch seeds beat the highest baseline worst-case by >= 1.0 pp", "threshold_pp": 1.0, "requires_all_seeds": true},
+      {"description": "each seed's clean >= baseline mean - 0.5 pp", "threshold_pp": -0.5, "baseline_reference": "mean of clean across 3 baseline seeds", "requires_all_seeds": true}
+    ],
+    "pass_if": "both conditions satisfied for both seeds"
+  },
+  "gates": {"requires_infra_gate_passed": true, "infra_gate_ref": "B1-B5 passed and committed on clean tree"}
+}

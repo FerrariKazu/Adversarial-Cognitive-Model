@@ -1,0 +1,71 @@
+{
+  "protocol_id": "stage3-gate0/1.3",
+  "protocol_version": "v1.3",
+  "created_at_utc": "2026-11-03T00:00:00Z",
+  "status": "DRAFT - PENDING APPROVAL",
+  "purpose": "Gate 0 for selective looking. Measurement-only, no learned gaze policy.",
+  "ground_truth": {
+    "trunk": "official ff_112 (frozen)",
+    "dataset": "ImageNet-100",
+    "split": "val",
+    "note": "Use ImageNet-100 VAL split for targets."
+  },
+  "target_composition": {
+    "target_source": "ImageNet-100 val image, scaled to area fraction u ~ U[0.01, 0.05]",
+    "background_source": "ImageNet-100 val image (different class/context)",
+    "distractor_count": 4,
+    "distractor_class_policy": "random different classes from ImageNet-100, placed to avoid overlap with target",
+    "position_distribution": "uniform in valid placement region with border margin = 10% of canvas",
+    "canvas_sizes_px": [224, 448],
+    "canvas_crossing": "evaluate both canvas sizes; report separately",
+    "number_of_scenes_per_scene_seed": 200,
+    "compositing_rule": "alpha-blend target onto background with Poisson/noise as specified; ensure target visible; use fixed RNG per (scene_seed, policy)"
+  },
+  "factors": {
+    "selection_policy": ["uniform_downsample", "random", "oracle", "heuristic"],
+    "K": [1, 2, 4]
+  },
+  "budgets": {
+    "definition": "Pixel budgets per (policy, K) including the gist. Uniform-downsample resolution matched to each (policy,K) budget.",
+    "primary_budget": {"K": 2},
+    "gist_included": true
+  },
+  "arms": {
+    "uniform_downsample": {
+      "description": "Downsample full composed scene to matched resolution for budget; input to trunk is that downsampled image (single view)"
+    },
+    "random": "Random glimpse locations",
+    "oracle": {
+      "description": "Glimpses at ground-truth target location. At K=2, oracle glimpse 2 is placed at the second most informative location relative to ground truth as defined (e.g. 90 degrees offset) with same size"
+    },
+    "heuristic": {
+      "rule": "Attention rollout from CLS to patch tokens on the gist (frozen ff_112). Layers: all transformer blocks; head aggregation: mean over heads; top-K peak selection with suppression radius = glimpse_size/2 (non-max suppression); no entropy-based scalar rule. No learned parameters.",
+      "layers": "all",
+      "head_aggregation": "mean",
+      "topK": "K peaks after NMS with suppression_radius=glimpse_size/2"
+    }
+  },
+  "compositing_rule_trunk": {
+    "description": "K glimpses + gist combined by logit averaging (fixed). Same for all policies."
+  },
+  "seeds": {
+    "count": 3,
+    "name": "scene_seed",
+    "what_varies": "Scene sampling and glimpse randomness. Trunk fixed."
+  },
+  "reporting": {
+    "CIs": "bootstrap 95% CIs over scenes"
+  },
+  "pass_rule": {
+    "thresholds_flagged": true,
+    "HEADROOM": {
+      "condition": "oracle - max(random, uniform) >= 10 pp at primary budget K=2 on all 3 scene seeds",
+      "description": "Oracle must beat both random and uniform by >=10pp at primary budget on all seeds."
+    },
+    "VIABILITY": {
+      "condition": "heuristic recovers >= 30% of the oracle-random gap at the same primary budget (K=2) on >= 2 of 3 scene seeds",
+      "description": "Heuristic must capture meaningful fraction of oracle-random gap."
+    },
+    "note": "Headroom alone does not authorize learned-gaze work."
+  }
+}

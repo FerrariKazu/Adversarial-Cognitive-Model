@@ -1,0 +1,68 @@
+{
+  "protocol_id": "stage3-gate0-selective-looking/1",
+  "protocol_version": "v1",
+  "created_at_utc": "2026-11-03T00:00:00Z",
+  "status": "DRAFT - AWAITING APPROVAL BEFORE ANY RUN",
+  "purpose": "Measure headroom for selective looking WITHOUT any learned gaze policy, using a CPU-only small-target benchmark built from ImageNet-100.",
+  "measurements_only": true,
+  "no_learned_gaze_policy": true,
+  "benchmark": {
+    "source": "ImageNet-100",
+    "target_area_fraction": [0.01, 0.05],
+    "canvas_size_px": [224, 448],
+    "cpu_only_build": true,
+    "trunk": "official_ff_112 (foundation_ff_112_seed17_final_d00fb750.pth)"
+  },
+  "arms": [
+    {
+      "name": "uniform_downsample",
+      "description": "Uniform downsample to matched pixel budget"
+    },
+    {
+      "name": "random_glimpses",
+      "description": "Random glimpses at matched pixel budget"
+    },
+    {
+      "name": "oracle_glimpses",
+      "description": "Oracle glimpses using ground-truth target location at matched pixel budget"
+    },
+    {
+      "name": "k_glimpses_plus_gist",
+      "description": "K glimpses of 112 px plus a low-res gist",
+      "k_values": [1, 2, 4]
+    }
+  ],
+  "budgets": "matched_pixel_budgets_across_arms",
+  "seeds": [17, 42, 99],
+  "thresholds_chosen": [
+    {
+      "name": "oracle_vs_random_gap_pp",
+      "value": 10.0,
+      "units": "percentage_points",
+      "rationale": "Proposed threshold requiring substantial headroom above random"
+    },
+    {
+      "name": "oracle_vs_uniform_gap_pp",
+      "value": 10.0,
+      "units": "percentage_points",
+      "rationale": "Proposed threshold requiring substantial headroom above uniform downsample"
+    },
+    {
+      "name": "all_seeds_required",
+      "value": true,
+      "rationale": "Must hold for all 3 seeds"
+    }
+  ],
+  "pass_rule": {
+    "proposed": true,
+    "rule": "PASS iff at some budget oracle beats BOTH random and uniform by >= 10 pp on all 3 seeds",
+    "conditions": [
+      "oracle_accuracy(budget) - random_accuracy(budget) >= 10.0 pp for all seeds at the same budget",
+      "oracle_accuracy(budget) - uniform_accuracy(budget) >= 10.0 pp for all seeds at the same budget"
+    ]
+  },
+  "fail_predeclaration": {
+    "meaning": "If gate0 fails (no budget where oracle beats both random and uniform by >= 10 pp on all 3 seeds), no learned-gaze work is permitted until a new preregistration is written and approved."
+  },
+  "notes": "All thresholds are flagged as proposed choices. This is a measurement-only gate with no learned policy."
+}

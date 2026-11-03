@@ -1,0 +1,43 @@
+{
+ "id": "P1.3",
+ "status": "evaluated",
+ "mode": "auto",
+ "estimate": {
+  "start_epoch": 1,
+  "remaining_epochs": 15,
+  "estimated_gpu_h": 6.5,
+  "elapsed_h": 0.12,
+  "session_budget_h": 10.5
+ },
+ "train_result": {
+  "status": "complete",
+  "phase": "c4_four_views_no_refine",
+  "best_clean": 0.619,
+  "best_robust": 0.25390625
+ },
+ "checkpoint_epoch": 15,
+ "c4_5k": 0.6186,
+ "c4_clean_1k": 0.631,
+ "c4_worst_1k": 0.143,
+ "mcnemar_vs_rec_T4_clean5k": {
+  "b": 287,
+  "c": 366,
+  "n_discordant": 653,
+  "stat": 9.316998468606432,
+  "p_exact": 0.00224586616983858,
+  "p_chi2cc": 0.002270376091826414,
+  "delta_pp": -1.5799999999999925
+ },
+ "mcnemar_vs_rec_T4_worst1k": {
+  "b": 3,
+  "c": 98,
+  "n_discordant": 101,
+  "stat": 87.48514851485149,
+  "p_exact": 1.3552788123878027e-25,
+  "p_chi2cc": 8.491501964735974e-21,
+  "delta_pp": -9.5
+ },
+ "matches_recurrence": false,
+ "verdict": "INTERACTION: C4 does not match recurrence_only. The effect is an interaction between views and depth; report it as unattributed and spend no more on it.",
+ "note": "c4 checkpoint evaluated under the same protocol"
+}

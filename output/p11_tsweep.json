@@ -1,0 +1,35 @@
+{
+ "id": "P1.1",
+ "status": "ff56_unresolved",
+ "sweep": {
+  "T1": {
+   "acc_5k": 0.632,
+   "clean_1k": 0.639,
+   "worst_1k": 0.138
+  },
+  "T2": {
+   "acc_5k": 0.6382,
+   "clean_1k": 0.636,
+   "worst_1k": 0.189
+  },
+  "T3": {
+   "acc_5k": 0.6298,
+   "clean_1k": 0.637,
+   "worst_1k": 0.202
+  },
+  "T4": {
+   "acc_5k": 0.6344,
+   "clean_1k": 0.652,
+   "worst_1k": 0.238
+  }
+ },
+ "monotone_clean": false,
+ "step_gains_pp": [
+  0.6199999999999983,
+  -0.8399999999999963,
+  0.45999999999999375
+ ],
+ "gate_applied": false,
+ "branch": null,
+ "rationale": "ff_56 identity is unresolved, so the pre-registered comparison cannot be made. The T-sweep numbers are recorded; the gate is not applied and no Phase 1 verdict is decisive. C4 still runs because the weights-vs-views question is open either way."
+}

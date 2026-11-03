@@ -45,39 +45,37 @@ Monitor metrics logged during training (5,000 images clean, 512 images robust PG
 * However, Seed 17 achieved validation clean accuracy of 67.04% vs 76.10% for seed 42.
 * **Diagnosis Status: UNSUPPORTED.** The previously suggested "severe overfitting" diagnosis is not supported by the available evidence. While the loss/accuracy gap is consistent with overfitting under TRADES in principle, no direct diagnostic (e.g., train/val loss split logged per epoch, generalization gap breakdown, or causal attribution) confirms it as the definitive root cause. Other factors—such as optimization state corruption across preemptions/resumes, scheduler stepping behavior, or initialization/run-to-run variance—cannot be ruled out from existing data.
 * **Missing Rec17 Epochs 1–2 in `gen2_epoch_log.jsonl`:** Rec17 experienced its first preemption during early execution (epochs 1–2). Local `/kaggle/working/output/` on Kaggle was non-persistent across container preemptions; HF log syncing was only added later (commit `19c5ea9`). The original log file for epochs 1–2 was lost at session reset (log recreated). Checkpoint mtimes show the rolling/final checkpoints were written from resumed sessions starting at epoch 3; when resumed at epoch 3, a new `gen2_epoch_log.jsonl` was initialized and only epochs 3–15 were recorded.
-* **Failure Triggering Try/Except Added at `19c5ea9`:** The try/except around `optimizer.load_state_dict()` and `scheduler.load_state_dict()` was added at commit `19c5ea9` (`fix(kaggle): add HF checkpoint restore and per-epoch sync to resume seamlessly`). The failure triggered was a resume/load mismatch when restoring from HuggingFace/synced rolling checkpoints across preempted Kaggle sessions: parameter groups or optimizer/scheduler state dicts could be inconsistent between the saved checkpoint and the freshly constructed optimizer/scheduler (or across phase changes), causing PyTorch to raise errors on load. The added `try/except` allows graceful fallback (continuing with fresh optimizer state and/or advancing the scheduler to `start_epoch-1`) to keep resume resilient under hard preemptions.
+* **Failure Triggering Try/Except:** The try/except around `optimizer.load_state_dict()` and `scheduler.load_state_dict()` was added at commit `6399601` (`fix(resume): graceful optimizer and scheduler load on parameter group mismatch`), as shown by `git show 6399601`. Commit `19c5ea9` (`fix(kaggle): add HF checkpoint restore and per-epoch sync to resume seamlessly`) later added HF sync/restore infrastructure in cloud launchers (see §6), not the try/except. The fix in `6399601` addresses parameter group mismatches on resume by catching load errors and continuing with fresh optimizer state and advancing the scheduler. 6399601 is seed 17’s run commit context per project notes, indicating the fallback was written for a resume problem that existed at that time. No log lines confirming the fallback fired were found in searched logs (absence of evidence).
 
 ---
 
-## 4. Learning Rate Schedule per Epoch (Derived from Formula, Not Logged)
+## 4. Learning Rate Schedule per Epoch (Replayed from Code, Not Logged)
 
 > [!NOTE]
-> **Status:** Derived from formula, not logged in checkpoint or JSONL.
+> **Status:** Replayed from code (instantiated real `torch.optim.lr_scheduler.LambdaLR` with the same `lr_lambda` as `training/train_gen2_foundation.py`), not logged in checkpoint or JSONL.
 
-All 5 runs shared the identical `warmup_epochs = 3`, `total_epochs = 15` cosine decay schedule:
+Scheduler: `LambdaLR` with `warmup_epochs=3`, `total_epochs=15`. `scheduler.step()` is executed after each epoch's training minibatches (before validation). LRs below are captured **before** `scheduler.step()` for each epoch as done in the training loop.
 
-$$\text{multiplier}(e) = \begin{cases} \frac{e+1}{3} & e \in \{0, 1, 2\} \\ 0.5 \cdot \left(1 + \cos\left(\pi \frac{e - 2}{12}\right)\right) & e \in \{3, \dots, 14\} \end{cases}$$
-
-| Epoch | Index $e$ | Multiplier | Trunk LR (`trunk_lr=5e-5`) | Heads/Recurrence LR (`new_lr=5e-4`) |
-| :---: | :---: | :---: | :---: | :---: |
-| 1 | 0 | 0.3333 | $1.67 \times 10^{-5}$ | $1.67 \times 10^{-4}$ |
-| 2 | 1 | 0.6667 | $3.33 \times 10^{-5}$ | $3.33 \times 10^{-4}$ |
-| 3 | 2 | 1.0000 | $5.00 \times 10^{-5}$ | $5.00 \times 10^{-4}$ |
-| 4 | 3 | 0.9830 | $4.91 \times 10^{-5}$ | $4.91 \times 10^{-4}$ |
-| 5 | 4 | 0.9330 | $4.67 \times 10^{-5}$ | $4.67 \times 10^{-4}$ |
-| 6 | 5 | 0.8536 | $4.27 \times 10^{-5}$ | $4.27 \times 10^{-4}$ |
-| 7 | 6 | 0.7500 | $3.75 \times 10^{-5}$ | $3.75 \times 10^{-4}$ |
-| 8 | 7 | 0.6294 | $3.15 \times 10^{-5}$ | $3.15 \times 10^{-4}$ |
-| 9 | 8 | 0.5000 | $2.50 \times 10^{-5}$ | $2.50 \times 10^{-4}$ |
-| 10 | 9 | 0.3706 | $1.85 \times 10^{-5}$ | $1.85 \times 10^{-4}$ |
-| 11 | 10 | 0.2500 | $1.25 \times 10^{-5}$ | $1.25 \times 10^{-4}$ |
-| 12 | 11 | 0.1464 | $7.32 \times 10^{-6}$ | $7.32 \times 10^{-5}$ |
-| 13 | 12 | 0.0670 | $3.35 \times 10^{-6}$ | $3.35 \times 10^{-5}$ |
-| 14 | 13 | 0.0170 | $8.52 \times 10^{-7}$ | $8.52 \times 10^{-6}$ |
-| 15 | 14 | 0.0000 | $0.00$ | $0.00$ |
+| Epoch | lr_backbone (trunk, before step) | lr_heads (new layers, before step) |
+| :---: | :---: | :---: |
+| 1 | $1.666667 \times 10^{-5}$ | $1.666667 \times 10^{-4}$ |
+| 2 | $3.333333 \times 10^{-5}$ | $3.333333 \times 10^{-4}$ |
+| 3 | $5.000000 \times 10^{-5}$ | $5.000000 \times 10^{-4}$ |
+| 4 | $5.000000 \times 10^{-5}$ | $5.000000 \times 10^{-4}$ |
+| 5 | $4.914815 \times 10^{-5}$ | $4.914815 \times 10^{-4}$ |
+| 6 | $4.665064 \times 10^{-5}$ | $4.665064 \times 10^{-4}$ |
+| 7 | $4.267767 \times 10^{-5}$ | $4.267767 \times 10^{-4}$ |
+| 8 | $3.750000 \times 10^{-5}$ | $3.750000 \times 10^{-4}$ |
+| 9 | $3.147048 \times 10^{-5}$ | $3.147048 \times 10^{-4}$ |
+| 10 | $2.500000 \times 10^{-5}$ | $2.500000 \times 10^{-4}$ |
+| 11 | $1.852952 \times 10^{-5}$ | $1.852952 \times 10^{-4}$ |
+| 12 | $1.250000 \times 10^{-5}$ | $1.250000 \times 10^{-4}$ |
+| 13 | $7.322330 \times 10^{-6}$ | $7.322330 \times 10^{-5}$ |
+| 14 | $3.349365 \times 10^{-6}$ | $3.349365 \times 10^{-5}$ |
+| 15 | $8.518543 \times 10^{-7}$ | $8.518543 \times 10^{-6}$ |
 
 *Why Validation Changes Between Epochs 14 and 15:*  
-In `training/train_gen2_foundation.py` (line 911), `scheduler.step()` is executed **after** the epoch's training minibatches, immediately prior to running validation. Consequently, during epoch 15's training minibatches, the optimizer was operating with the learning rate stepped at the end of epoch 14 (multiplier index 13 = 0.0170, non-zero). Full optimization updates took place across the 126,689 images during epoch 15 before the scheduler stepped to 0.0. Thus, model weights and validation metrics changed between epochs 14 and 15.
+`scheduler.step()` executes **after** the epoch's training minibatches and before validation. During epoch 15's training, the optimizer uses the LR that was current before epoch 15's step (i.e. after epoch 14's step) — replay shows epoch 15 sees $8.52\times 10^{-7}$ (backbone) before stepping. The scheduler is stepped after epoch 15 training; weights change across epoch 15 updates, producing different validation metrics at the end of epoch 15.
 
 ---
 

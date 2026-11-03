@@ -1,0 +1,62 @@
+{
+  "protocol_id": "stage3-gate0/1.2",
+  "protocol_version": "v1.2",
+  "created_at_utc": "2026-11-03T00:00:00Z",
+  "status": "DRAFT",
+  "purpose": "Gate 0 for selective looking. Measurement-only, no learned gaze policy. Determines whether to proceed to learned-gaze work.",
+  "ground_truth": {
+    "trunk": "official ff_112 (frozen)",
+    "dataset": "ImageNet-100",
+    "split": "val",
+    "note": "Use ImageNet-100 VAL split for targets. Compositing and distractor policy specified below."
+  },
+  "factors": {
+    "selection_policy": ["uniform_downsample", "random", "oracle", "heuristic"],
+    "K": [1, 2, 4],
+    "note": "No separate 'k_glimpses_plus_gist' arm; K is the factor. Gist is always included as specified."
+  },
+  "budgets": {
+    "definition": "Pixel budgets per (policy, K) including the gist. Uniform-downsample resolution matched to each (policy,K) budget.",
+    "primary_budget": {
+      "K": 2,
+      "description": "ONE primary budget (K=2) for both HEADROOM and VIABILITY. Other budgets (K=1, K=4) are secondary and reported only."
+    },
+    "gist_included": true
+  },
+  "compositing": {
+    "how_combined": "Single-view trunk combines K glimpses + gist by logit averaging (fixed, no learned parameters). Same combination rule for all policies.",
+    "distractor_policy": "Targets placed on ImageNet-100 val images per split policy with distractors as specified by benchmark construction (to be fixed in benchmark code)."
+  },
+  "arms": {
+    "uniform_downsample": "Downsample to matched resolution for budget",
+    "random": "Random glimpse locations",
+    "oracle": "Glimpses at ground-truth target location (knows target location)",
+    "heuristic": {
+      "rule": "Exactly one zero-training rule: select glimpse locations by the trunk's own gist-level uncertainty/attention (no learned parameters). Gist features from frozen ff_112 used to compute uncertainty/attention scores; locations chosen by that score.",
+      "learned_parameters": false
+    }
+  },
+  "seeds": {
+    "count": 3,
+    "name": "scene_seed",
+    "what_varies": "Scene sampling and glimpse randomness. Trunk is fixed (official ff_112)."
+  },
+  "pass_rule": {
+    "thresholds_flagged": true,
+    "HEADROOM": {
+      "condition": "oracle - max(random, uniform) >= 10 pp at primary budget K=2 on all 3 scene seeds",
+      "description": "Oracle must beat both random and uniform by >=10pp at primary budget on all seeds."
+    },
+    "VIABILITY": {
+      "condition": "heuristic recovers >= 30% of the oracle-random gap at the same primary budget (K=2) on >= 2 of 3 scene seeds",
+      "description": "Heuristic must capture meaningful fraction of oracle-random gap."
+    },
+    "note": "Headroom alone does not authorize learned-gaze work. Both conditions evaluated at primary budget K=2."
+  },
+  "target_spec": {
+    "area_fraction": "1-5% of canvas area",
+    "canvas_sizes_px": [224, 448],
+    "glimpse_size_px": 112,
+    "n_seeds": 3
+  }
+}

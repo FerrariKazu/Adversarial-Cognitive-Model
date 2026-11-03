@@ -1,0 +1,47 @@
+{
+  "protocol_id": "multiview-control-112/1.2",
+  "protocol_version": "v1.2",
+  "created_at_utc": "2026-11-03T00:00:00Z",
+  "status": "DRAFT - NOT RUN; replaces v1.1",
+  "purpose": "Paired design on full 5k, harness v1, same attacks as flagship reference. Test if multi-view averaging explains the robustness edge between ff and flagship.",
+  "design": {
+    "paired": true,
+    "surface": "full 5k validation set (same indices as flagship reference)",
+    "harness": "harness v1",
+    "attacks_same_as_flagship": true,
+    "per_ff_seed_metrics": {
+      "delta_mv_wc": "WC(multi-view ff) - WC(single-view ff) on same images",
+      "delta_mv_clean": "clean(multi-view ff) - clean(single-view ff) on same images"
+    }
+  },
+  "reference_edge": {
+    "description": "flagship seed 42 (37.72) - mean ff (35.79) = 1.93 pp on 5k",
+    "flagship_wc_5k": 37.72,
+    "mean_ff_wc_5k": 35.79,
+    "edge_pp": 1.93
+  },
+  "decision_rules": {
+    "thresholds_chosen": [
+      {
+        "name": "explains_threshold_pp",
+        "value": 1.0,
+        "rationale": "Mean delta_mv >= 1.0 pp required to explain"
+      },
+      {
+        "name": "no_effect_threshold_pp",
+        "value": 0.3,
+        "rationale": "Mean delta_mv <= 0.3 pp reported as inconclusive for explanation (ff never trained on shifted views)"
+      }
+    ],
+    "readings": {
+      "EXPLAINS": "mean delta_mv >= 1.0 pp AND the paired bootstrap 95% CI (resampling images) excludes 0",
+      "NO-EFFECT-SEEN": "mean delta_mv <= 0.3 pp (reported as inconclusive for the explanation, because ff was never trained on shifted views)",
+      "PARTIAL": "otherwise"
+    }
+  },
+  "required_sanity_checks": [
+    "PGD-50 vs PGD-100 gap",
+    "APGD-CE vs APGD-T agreement on a 1k subset"
+  ],
+  "notes": "v1.1 rejected (vacuous threshold on 1k; single-view ff already cleared bar). This is paired on 5k."
+}

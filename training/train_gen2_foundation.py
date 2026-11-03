@@ -598,6 +598,7 @@ def run_gen2_phase(
     img_size: Optional[int] = None,
     n_epochs: Optional[int] = None,
     training_seed: Optional[int] = None,
+    allow_fresh_optimizer: bool = False,
 ) -> Dict[str, Any]:
     """Train one phase of the Gen-2 (or control/ablation) ladder.
 
@@ -761,25 +762,26 @@ def run_gen2_phase(
     best_rob_acc = 0.0
     stall_count = 0
     start_time = time.time()
+    fallback_events = []
 
     # Resume check — with stale-checkpoint detection
     # All checkpoint paths use eff_name so phase_override_name is honoured.
     rolling_path = os.path.join(ckpt_dir, f"foundation_{eff_name}_rolling.pth")
     if os.path.exists(rolling_path):
         print(f"Resuming from rolling checkpoint: {rolling_path}")
-        saved = torch.load(rolling_path, map_location="cpu")
-        saved_keys = set(saved["model"].keys())
+        saved = torch.load(rolling_path, map_location="cpu", weights_only=False)
+        saved_keys = set(saved.get("model", {}).keys())
         model_keys = set(model.state_dict().keys())
         missing = model_keys - saved_keys
         unexpected = saved_keys - model_keys
         if missing or unexpected:
-            print(f"WARNING: Stale rolling checkpoint detected!")
-            if missing:
-                print(f"  Missing keys ({len(missing)}): {sorted(missing)[:5]}{'...' if len(missing) > 5 else ''}")
-            if unexpected:
-                print(f"  Unexpected keys ({len(unexpected)}): {sorted(unexpected)[:5]}{'...' if len(unexpected) > 5 else ''}")
-            print(f"  Discarding stale checkpoint. Phase will restart from inherited or warm-start weights.")
+            msg = f"Stale rolling checkpoint detected (missing={len(missing)}, unexpected={len(unexpected)})"
+            fallback_events.append({"type": "stale_checkpoint_keys", "error": msg, "epoch": saved.get('epoch', 0)})
+            print(f"ERROR: {msg}")
             os.rename(rolling_path, rolling_path + ".stale")
+            if not allow_fresh_optimizer:
+                raise RuntimeError(f"ABORT: {msg}; pass allow_fresh_optimizer=True to permit restart")
+            print(f"  WARNING: Discarding stale checkpoint. Phase will restart from inherited or warm-start weights (explicitly allowed).")
         else:
             start_epoch = saved.get("epoch", 0) + 1
             model.load_state_dict(saved["model"])
@@ -787,14 +789,29 @@ def run_gen2_phase(
                 try:
                     optimizer.load_state_dict(saved["optimizer"])
                 except Exception as e:
-                    print(f"  Note: optimizer state could not be loaded ({e}); continuing with fresh optimizer state.")
+                    msg = f"optimizer state could not be loaded ({e})"
+                    fallback_events.append({"type": "optimizer_load_failure", "error": str(e), "epoch": start_epoch})
+                    print(f"  ERROR: {msg}")
+                    if not allow_fresh_optimizer:
+                        raise RuntimeError(f"ABORT: {msg}; pass allow_fresh_optimizer=True to permit fresh optimizer state")
+                    print(f"  WARNING: continuing with fresh optimizer state (explicitly allowed by --allow-fresh-optimizer)")
             if "scheduler" in saved:
                 try:
                     scheduler.load_state_dict(saved["scheduler"])
                 except Exception as e:
-                    print(f"  Note: scheduler state could not be loaded ({e}); advancing scheduler to epoch {start_epoch - 1}.")
+                    msg = f"scheduler state could not be loaded ({e})"
+                    fallback_events.append({"type": "scheduler_load_failure", "error": str(e), "epoch": start_epoch})
+                    print(f"  ERROR: {msg}")
+                    if not allow_fresh_optimizer:
+                        raise RuntimeError(f"ABORT: {msg}; pass allow_fresh_optimizer=True to permit scheduler reset")
+                    print(f"  WARNING: advancing scheduler to epoch {start_epoch - 1} (explicitly allowed)")
                     for _ in range(start_epoch - 1):
                         scheduler.step()
+            elif "scheduler" not in saved and start_epoch > 1:
+                msg = "no scheduler state in checkpoint"
+                fallback_events.append({"type": "scheduler_missing", "error": msg, "epoch": start_epoch})
+                if not allow_fresh_optimizer:
+                    raise RuntimeError(f"ABORT: {msg}; pass allow_fresh_optimizer=True")
             best_clean_acc = saved.get("best_clean_acc", 0.0)
             best_rob_acc = saved.get("best_rob_acc", 0.0)
             print(f"Resumed at epoch {start_epoch}. Verified rolling state.")
@@ -1015,15 +1032,24 @@ def run_gen2_phase(
             "best_clean_acc": max(best_clean_acc, val_clean_acc),
             "best_rob_acc": max(best_rob_acc, val_rob_acc),
         }
-        torch.save(ckpt_state, rolling_path)
+        # Atomic write
+        tmp_path = rolling_path + ".tmp"
+        torch.save(ckpt_state, tmp_path)
+        os.replace(tmp_path, rolling_path)
 
         if val_clean_acc > best_clean_acc:
             best_clean_acc = val_clean_acc
-            torch.save(ckpt_state, os.path.join(ckpt_dir, f"foundation_{eff_name}_best_clean.pth"))
+            best_clean_path = os.path.join(ckpt_dir, f"foundation_{eff_name}_best_clean.pth")
+            tmp_b = best_clean_path + ".tmp"
+            torch.save(ckpt_state, tmp_b)
+            os.replace(tmp_b, best_clean_path)
 
         if val_rob_acc > best_rob_acc:
             best_rob_acc = val_rob_acc
-            torch.save(ckpt_state, os.path.join(ckpt_dir, f"foundation_{eff_name}_best_robust.pth"))
+            best_rob_path = os.path.join(ckpt_dir, f"foundation_{eff_name}_best_robust.pth")
+            tmp_r = best_rob_path + ".tmp"
+            torch.save(ckpt_state, tmp_r)
+            os.replace(tmp_r, best_rob_path)
 
         # Durable append-only JSONL record
         log_record = {
@@ -1034,6 +1060,7 @@ def run_gen2_phase(
             "loss_kl": tot_kl / max(n_samples, 1),
             "health_flags": health_flags,
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "fallback_events": fallback_events,
         }
         with open(jsonl_path, "a", encoding="utf-8") as f_log:
             f_log.write(json.dumps(log_record) + "\n")

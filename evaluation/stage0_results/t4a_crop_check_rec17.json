@@ -1,0 +1,7 @@
+{
+  "protocol_id": "consolidated-flagship-112/1",
+  "arm": "recurrence_112_seed17",
+  "checkpoint": "foundation_recurrence_112_seed17_final_636e4b1c.pth",
+  "overall_mean_cross_glimpse_cos_sim": 0.8275025077164173,
+  "n_pairs": 48
+}

@@ -1,0 +1,1229 @@
+{
+ "protocol_id": "gen2-closure/1",
+ "prereg_hash": "a7cc0d447a64a191b39bd194da5150afc6c9fdcd387d8279d98bde2e3e9bde25",
+ "stamp": "20261024_151737",
+ "repo_sha": "2461bc260e42f830da16b586f98d24e5a156db5d",
+ "branch": "feature/gen2-rebuild",
+ "tag": {
+  "name": "gen2-final-pre-closure",
+  "target": "2461bc260e42f830da16b586f98d24e5a156db5d",
+  "created_local": false,
+  "pushed": false,
+  "note": "tag created in the session clone only; push requires a credential: git push origin refs/tags/gen2-final-pre-closure"
+ },
+ "eps_pixel": 0.02124313725490196,
+ "eps_pixel_255": 5.417,
+ "slice_sha256": "d129534adf0d1f5816a13ebebf20e49e502f935c0f8bd878ce162acefddd6b25",
+ "gates": [
+  {
+   "gate": "canonical slice SHA-256",
+   "passed": true,
+   "detail": "d129534adf0d1f5816a13ebebf20e49e502f935c0f8bd878ce162acefddd6b25"
+  },
+  {
+   "gate": "full val path SHA-256",
+   "passed": true,
+   "detail": "6a78a2fde02bfc1ff93b063eeddb32fb32759d9da4994421adda7353636a3be7"
+  },
+  {
+   "gate": "checkpoint parity (c1_gist_only_cont)",
+   "passed": true,
+   "detail": "5k=59.16% vs monitor 59.12% [replayed from cache]"
+  },
+  {
+   "gate": "two-pipeline 5k parity (c1_gist_only_cont)",
+   "passed": true,
+   "detail": "drift=0.00pp [replayed from cache]"
+  },
+  {
+   "gate": "two-pipeline 1k parity (c1_gist_only_cont)",
+   "passed": true,
+   "detail": "drift=0.00pp [replayed from cache]"
+  },
+  {
+   "gate": "T-invariance of parameters (T=1..4)",
+   "passed": true,
+   "detail": "identical state_dict, 0 missing / 0 unexpected"
+  },
+  {
+   "gate": "checkpoint parity (recurrence_only)",
+   "passed": true,
+   "detail": "5k=63.44% vs monitor 63.44%"
+  },
+  {
+   "gate": "construction parity (harness loader vs manual builder)",
+   "passed": true,
+   "detail": "194 tensors, max|delta|=0.0e+00"
+  },
+  {
+   "gate": "forward parity (module vs harvested trajectory)",
+   "passed": true,
+   "detail": "TT1:0.0e+00, TT2:0.0e+00, TT3:0.0e+00, TT4:0.0e+00"
+  },
+  {
+   "gate": "checkpoint parity (recurrence_only_T1)",
+   "passed": true,
+   "detail": "5k=63.44% vs monitor 63.44% [replayed from cache]"
+  },
+  {
+   "gate": "two-pipeline 1k parity (recurrence_only_T1)",
+   "passed": true,
+   "detail": "drift=0.10pp [replayed from cache]"
+  },
+  {
+   "gate": "checkpoint parity (recurrence_only_T2)",
+   "passed": true,
+   "detail": "5k=63.44% vs monitor 63.44% [replayed from cache]"
+  },
+  {
+   "gate": "two-pipeline 1k parity (recurrence_only_T2)",
+   "passed": true,
+   "detail": "drift=0.10pp [replayed from cache]"
+  },
+  {
+   "gate": "checkpoint parity (recurrence_only_T3)",
+   "passed": true,
+   "detail": "5k=63.44% vs monitor 63.44% [replayed from cache]"
+  },
+  {
+   "gate": "two-pipeline 1k parity (recurrence_only_T3)",
+   "passed": true,
+   "detail": "drift=0.00pp [replayed from cache]"
+  },
+  {
+   "gate": "checkpoint parity (recurrence_only_T4)",
+   "passed": true,
+   "detail": "5k=63.44% vs monitor 63.44% [replayed from cache]"
+  },
+  {
+   "gate": "two-pipeline 1k parity (recurrence_only_T4)",
+   "passed": true,
+   "detail": "drift=0.10pp [replayed from cache]"
+  },
+  {
+   "gate": "trajectory/slice parity (normalized, T=1..4)",
+   "passed": true,
+   "detail": "harvest_trajectory(_normalize_pixel(x)) vs run_arm slice preds"
+  },
+  {
+   "gate": "checkpoint parity (c4_four_views_no_refine)",
+   "passed": true,
+   "detail": "5k=61.86% vs monitor 61.90%"
+  },
+  {
+   "gate": "two-pipeline 5k parity (c4_four_views_no_refine)",
+   "passed": true,
+   "detail": "gate=61.86% scan=61.86% drift=0.00pp"
+  },
+  {
+   "gate": "two-pipeline 1k parity (c4_four_views_no_refine)",
+   "passed": "True",
+   "detail": "5k-scan subset=63.00% raw-scan=63.10% drift=0.10pp"
+  }
+ ],
+ "parity_ok": false,
+ "checkpoint_inventory": {
+  "foundation_ff_56_final.pth": {
+   "file": "foundation_ff_56_final.pth",
+   "sha256": "9853aeed2566f88c6548ff0532cf6e2321cc8d1d38207e8b74aa4bf8f2f4ac05",
+   "bytes": 266243984,
+   "role": "ff_56_candidate",
+   "phase": "g2_gist_only",
+   "epoch": 15,
+   "val_clean_acc": 0.6788,
+   "val_rob_acc": 0.431640625,
+   "best_clean_acc": 0.6788,
+   "reported_monitor": true
+  },
+  "foundation_ff_112_final.pth": {
+   "file": "foundation_ff_112_final.pth",
+   "sha256": "d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc",
+   "bytes": 266465897,
+   "role": "arm:ff_112",
+   "phase": "ff_112",
+   "epoch": 15,
+   "val_clean_acc": 0.743,
+   "val_rob_acc": 0.39453125,
+   "best_clean_acc": 0.743,
+   "reported_monitor": true
+  },
+  "foundation_recurrence_only_final.pth": {
+   "file": "foundation_recurrence_only_final.pth",
+   "sha256": "ef5b0ddacd7c48c3de471ce5826b2c15212c17d89596134a0f050482c0fee479",
+   "bytes": 280465872,
+   "role": "arm:recurrence_only",
+   "phase": "recurrence_only",
+   "epoch": 15,
+   "val_clean_acc": 0.6344,
+   "val_rob_acc": 0.34765625,
+   "best_clean_acc": 0.6344,
+   "reported_monitor": true
+  },
+  "foundation_g2_gist_only_cont_final.pth": {
+   "file": "foundation_g2_gist_only_cont_final.pth",
+   "sha256": "eadf81c0bbe8af40871ebd2f8c2abf2c43b340922f425f06cfdaa009cc3a99fc",
+   "bytes": 266252732,
+   "role": "arm:c1_gist_only_cont",
+   "phase": "g2_gist_only_cont",
+   "epoch": 15,
+   "val_clean_acc": 0.5912,
+   "val_rob_acc": 0.22265625,
+   "best_clean_acc": 0.5922,
+   "reported_monitor": true
+  },
+  "foundation_g2_gist_only_final.pth": {
+   "file": "foundation_g2_gist_only_final.pth",
+   "sha256": "475fdc09f5be233385d73fcc04b84a80fa90fa9f36371903fd4d2f99d73241c9",
+   "bytes": 266249087,
+   "role": "arm:g2_gist_only",
+   "phase": "g2_gist_only",
+   "epoch": 30,
+   "val_clean_acc": 0.6218,
+   "val_rob_acc": 0.3046875,
+   "best_clean_acc": 0.6482,
+   "reported_monitor": true
+  },
+  "foundation_gen1_core_best_clean.pth": {
+   "file": "foundation_gen1_core_best_clean.pth",
+   "sha256": "cbeb85b09c8f0dc221e33fdc0987be7dd8c299a2af564e2ceb4bd0b5fcccd417",
+   "bytes": 333176277,
+   "role": "arm:gen1_core",
+   "phase": "gen1_core",
+   "epoch": 14,
+   "val_clean_acc": 0.5846,
+   "val_rob_acc": 0.296875,
+   "best_clean_acc": 0.5846,
+   "reported_monitor": true
+  },
+  "foundation_c4_four_views_no_refine_final.pth": {
+   "file": "foundation_c4_four_views_no_refine_final.pth",
+   "sha256": "7262d0c66c9a578af474de4f46ce63df43aef85f94b7e9d67a8b6315ddc5b2af",
+   "bytes": 266257106,
+   "role": "arm:c4_four_views_no_refine",
+   "phase": "c4_four_views_no_refine",
+   "epoch": 15,
+   "val_clean_acc": 0.619,
+   "val_rob_acc": 0.248046875,
+   "best_clean_acc": 0.619,
+   "reported_monitor": true
+  }
+ },
+ "ff56_identity": {
+  "candidates": {
+   "foundation_ff_56_final.pth": {
+    "file": "foundation_ff_56_final.pth",
+    "sha256": "9853aeed2566f88c6548ff0532cf6e2321cc8d1d38207e8b74aa4bf8f2f4ac05",
+    "bytes": 266243984,
+    "role": "ff_56_candidate",
+    "phase": "g2_gist_only",
+    "epoch": 15,
+    "val_clean_acc": 0.6788,
+    "val_rob_acc": 0.431640625,
+    "best_clean_acc": 0.6788,
+    "reported_monitor": true
+   }
+  },
+  "status": "UNRESOLVED",
+  "true_file": null,
+  "stale_files": [],
+  "hg_actions": [],
+  "note": "no candidate carries the Rung-3 15-epoch fingerprint (phase='ff_56', epoch=15, clean~0.5904)."
+ },
+ "cka": {
+  "n": 1000,
+  "slice_sha256": "d129534adf0d1f5816a13ebebf20e49e502f935c0f8bd878ce162acefddd6b25",
+  "layer": "backbone.blocks[11] (block 12), CLS token, last trunk pass per forward",
+  "estimator": "linear CKA, float64",
+  "labels": [
+   "ff_112",
+   "recurrence_only",
+   "c1_gist_only_cont",
+   "g2_gist_only",
+   "gen1_core"
+  ],
+  "matrix": {
+   "ff_112": {
+    "ff_112": 1.0,
+    "recurrence_only": 0.5221335008302125,
+    "c1_gist_only_cont": 0.6293377839484703,
+    "g2_gist_only": 0.5737513452832869,
+    "gen1_core": 0.2802224035218996
+   },
+   "recurrence_only": {
+    "ff_112": 0.5221335008302125,
+    "recurrence_only": 1.0,
+    "c1_gist_only_cont": 0.7925572924359053,
+    "g2_gist_only": 0.7676377351316748,
+    "gen1_core": 0.43528292228340365
+   },
+   "c1_gist_only_cont": {
+    "ff_112": 0.6293377839484703,
+    "recurrence_only": 0.7925572924359053,
+    "c1_gist_only_cont": 1.0,
+    "g2_gist_only": 0.8144643125915498,
+    "gen1_core": 0.42924678810781824
+   },
+   "g2_gist_only": {
+    "ff_112": 0.5737513452832869,
+    "recurrence_only": 0.7676377351316748,
+    "c1_gist_only_cont": 0.8144643125915498,
+    "g2_gist_only": 1.0,
+    "gen1_core": 0.3679201762693205
+   },
+   "gen1_core": {
+    "ff_112": 0.2802224035218996,
+    "recurrence_only": 0.43528292228340365,
+    "c1_gist_only_cont": 0.42924678810781824,
+    "g2_gist_only": 0.3679201762693205,
+    "gen1_core": 1.0
+   }
+  },
+  "trunk_passes_per_forward": {
+   "ff_112": 1,
+   "recurrence_only": 4,
+   "c1_gist_only_cont": 1,
+   "g2_gist_only": 1,
+   "gen1_core": 4
+  },
+  "checkpoint_sha256": {
+   "ff_112": "d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc",
+   "recurrence_only": "ef5b0ddacd7c48c3de471ce5826b2c15212c17d89596134a0f050482c0fee479",
+   "c1_gist_only_cont": "eadf81c0bbe8af40871ebd2f8c2abf2c43b340922f425f06cfdaa009cc3a99fc",
+   "g2_gist_only": "475fdc09f5be233385d73fcc04b84a80fa90fa9f36371903fd4d2f99d73241c9",
+   "gen1_core": "cbeb85b09c8f0dc221e33fdc0987be7dd8c299a2af564e2ceb4bd0b5fcccd417"
+  },
+  "ff_56_row": {},
+  "ff_56_column": {},
+  "historical_matrix_found": true,
+  "delta_vs_historical": {
+   "recurrence_only": {
+    "recurrence_only": 0.0,
+    "c1_gist_only_cont": -6.701210142345815e-09,
+    "ff_112": -2.8356036296806053e-08,
+    "g2_gist_only": 5.486899379292254e-09,
+    "gen1_core": -0.0003641779267861689
+   },
+   "c1_gist_only_cont": {
+    "recurrence_only": -6.701210142345815e-09,
+    "c1_gist_only_cont": 0.0,
+    "ff_112": -3.679703541870083e-09,
+    "g2_gist_only": 1.0112762161007538e-07,
+    "gen1_core": -0.009716595328384758
+   },
+   "ff_112": {
+    "recurrence_only": -2.8356036296806053e-08,
+    "c1_gist_only_cont": -3.679703541870083e-09,
+    "ff_112": 0.0,
+    "g2_gist_only": 1.4907615475401315e-08,
+    "gen1_core": -0.007802975659008615
+   },
+   "g2_gist_only": {
+    "recurrence_only": 5.486899379292254e-09,
+    "c1_gist_only_cont": 1.0112762161007538e-07,
+    "ff_112": 1.4907615475401315e-08,
+    "g2_gist_only": 0.0,
+    "gen1_core": -0.013144238708706846
+   },
+   "gen1_core": {
+    "recurrence_only": -0.0003641779267861689,
+    "c1_gist_only_cont": -0.009716595328384758,
+    "ff_112": -0.007802975659008615,
+    "g2_gist_only": -0.013144238708706846,
+    "gen1_core": 0.0
+   }
+  }
+ },
+ "battery": {
+  "c1_gist_only_cont": {
+   "label": "c1_gist_only_cont",
+   "phase": "g2_gist_only",
+   "img_size": 56,
+   "num_glimpses": 1,
+   "checkpoint": "foundation_g2_gist_only_cont_final.pth",
+   "sha256": "eadf81c0bbe8af40871ebd2f8c2abf2c43b340922f425f06cfdaa009cc3a99fc",
+   "meta": {
+    "phase": "g2_gist_only_cont",
+    "epoch": 15,
+    "val_clean_acc": 0.5912,
+    "val_rob_acc": 0.22265625,
+    "best_clean_acc": 0.5922,
+    "best_rob_acc": 0.2265625
+   },
+   "gate": {
+    "passed": true,
+    "acc_5k": 0.5916,
+    "monitor": 0.5912,
+    "detail": "5k=59.16% vs monitor 59.12%"
+   },
+   "acc_clean_5k": 0.5916,
+   "slice": {
+    "clean": 0.598,
+    "pgd50": 0.242,
+    "apgd_ce": 0.234,
+    "apgd_dlr": 0.237,
+    "autoattack_core": 0.225,
+    "worst_case": 0.225
+   },
+   "parity": {
+    "drift_5k_pp": 0.0,
+    "drift_1k_pp": 0.0
+   },
+   "runtime_s": {
+    "clean_5k": 147.11131858825684,
+    "slice": {
+     "clean": 0.7255525588989258,
+     "pgd50": 31.29206919670105,
+     "apgd_ce": 54.3116991519928,
+     "apgd_dlr": 57.72031378746033
+    }
+   },
+   "max_linf_255": {
+    "clean": 0.0,
+    "pgd50": 5.4170045256614685,
+    "apgd_ce": 5.4170045256614685,
+    "apgd_dlr": 5.4170045256614685
+   },
+   "prereg_hash": "a7cc0d447a64a191b39bd194da5150afc6c9fdcd387d8279d98bde2e3e9bde25"
+  },
+  "recurrence_only_T1": {
+   "label": "recurrence_only_T1",
+   "phase": "recurrence_only",
+   "img_size": 56,
+   "num_glimpses": 1,
+   "checkpoint": "foundation_recurrence_only_final.pth",
+   "sha256": "ef5b0ddacd7c48c3de471ce5826b2c15212c17d89596134a0f050482c0fee479",
+   "meta": {
+    "phase": "recurrence_only",
+    "epoch": 15,
+    "val_clean_acc": 0.6344,
+    "val_rob_acc": 0.34765625,
+    "best_clean_acc": 0.6344,
+    "best_rob_acc": 0.34765625
+   },
+   "gate": {
+    "passed": true,
+    "acc_5k": 0.6344,
+    "monitor": 0.6344,
+    "detail": "5k=63.44% vs monitor 63.44%"
+   },
+   "acc_clean_5k": 0.632,
+   "slice": {
+    "clean": 0.639,
+    "pgd50": 0.174,
+    "apgd_ce": 0.145,
+    "apgd_dlr": 0.155,
+    "autoattack_core": 0.138,
+    "worst_case": 0.138
+   },
+   "parity": {
+    "drift_5k_pp": null,
+    "drift_1k_pp": 0.10000000000000009
+   },
+   "runtime_s": {
+    "clean_5k": 180.08701467514038,
+    "slice": {
+     "clean": 0.7545723915100098,
+     "pgd50": 42.12060570716858,
+     "apgd_ce": 66.11491107940674,
+     "apgd_dlr": 67.91116499900818
+    }
+   },
+   "max_linf_255": {
+    "clean": 0.0,
+    "pgd50": 5.4170045256614685,
+    "apgd_ce": 5.4170045256614685,
+    "apgd_dlr": 5.4170045256614685
+   },
+   "prereg_hash": "a7cc0d447a64a191b39bd194da5150afc6c9fdcd387d8279d98bde2e3e9bde25"
+  },
+  "recurrence_only_T2": {
+   "label": "recurrence_only_T2",
+   "phase": "recurrence_only",
+   "img_size": 56,
+   "num_glimpses": 2,
+   "checkpoint": "foundation_recurrence_only_final.pth",
+   "sha256": "ef5b0ddacd7c48c3de471ce5826b2c15212c17d89596134a0f050482c0fee479",
+   "meta": {
+    "phase": "recurrence_only",
+    "epoch": 15,
+    "val_clean_acc": 0.6344,
+    "val_rob_acc": 0.34765625,
+    "best_clean_acc": 0.6344,
+    "best_rob_acc": 0.34765625
+   },
+   "gate": {
+    "passed": true,
+    "acc_5k": 0.6344,
+    "monitor": 0.6344,
+    "detail": "5k=63.44% vs monitor 63.44%"
+   },
+   "acc_clean_5k": 0.6382,
+   "slice": {
+    "clean": 0.636,
+    "pgd50": 0.208,
+    "apgd_ce": 0.193,
+    "apgd_dlr": 0.207,
+    "autoattack_core": 0.189,
+    "worst_case": 0.189
+   },
+   "parity": {
+    "drift_5k_pp": null,
+    "drift_1k_pp": 0.10000000000000009
+   },
+   "runtime_s": {
+    "clean_5k": 335.18740701675415,
+    "slice": {
+     "clean": 0.9420921802520752,
+     "pgd50": 82.74984526634216,
+     "apgd_ce": 123.12555027008057,
+     "apgd_dlr": 125.15523147583008
+    }
+   },
+   "max_linf_255": {
+    "clean": 0.0,
+    "pgd50": 5.4170045256614685,
+    "apgd_ce": 5.4170045256614685,
+    "apgd_dlr": 5.4170045256614685
+   },
+   "prereg_hash": "a7cc0d447a64a191b39bd194da5150afc6c9fdcd387d8279d98bde2e3e9bde25"
+  },
+  "recurrence_only_T3": {
+   "label": "recurrence_only_T3",
+   "phase": "recurrence_only",
+   "img_size": 56,
+   "num_glimpses": 3,
+   "checkpoint": "foundation_recurrence_only_final.pth",
+   "sha256": "ef5b0ddacd7c48c3de471ce5826b2c15212c17d89596134a0f050482c0fee479",
+   "meta": {
+    "phase": "recurrence_only",
+    "epoch": 15,
+    "val_clean_acc": 0.6344,
+    "val_rob_acc": 0.34765625,
+    "best_clean_acc": 0.6344,
+    "best_rob_acc": 0.34765625
+   },
+   "gate": {
+    "passed": true,
+    "acc_5k": 0.6344,
+    "monitor": 0.6344,
+    "detail": "5k=63.44% vs monitor 63.44%"
+   },
+   "acc_clean_5k": 0.6298,
+   "slice": {
+    "clean": 0.637,
+    "pgd50": 0.221,
+    "apgd_ce": 0.206,
+    "apgd_dlr": 0.224,
+    "autoattack_core": 0.202,
+    "worst_case": 0.202
+   },
+   "parity": {
+    "drift_5k_pp": null,
+    "drift_1k_pp": 0.0
+   },
+   "runtime_s": {
+    "clean_5k": 493.95995593070984,
+    "slice": {
+     "clean": 1.3179688453674316,
+     "pgd50": 123.88695812225342,
+     "apgd_ce": 181.41504001617432,
+     "apgd_dlr": 183.99580907821655
+    }
+   },
+   "max_linf_255": {
+    "clean": 0.0,
+    "pgd50": 5.4170045256614685,
+    "apgd_ce": 5.4170045256614685,
+    "apgd_dlr": 5.4170045256614685
+   },
+   "prereg_hash": "a7cc0d447a64a191b39bd194da5150afc6c9fdcd387d8279d98bde2e3e9bde25"
+  },
+  "recurrence_only_T4": {
+   "label": "recurrence_only_T4",
+   "phase": "recurrence_only",
+   "img_size": 56,
+   "num_glimpses": 4,
+   "checkpoint": "foundation_recurrence_only_final.pth",
+   "sha256": "ef5b0ddacd7c48c3de471ce5826b2c15212c17d89596134a0f050482c0fee479",
+   "meta": {
+    "phase": "recurrence_only",
+    "epoch": 15,
+    "val_clean_acc": 0.6344,
+    "val_rob_acc": 0.34765625,
+    "best_clean_acc": 0.6344,
+    "best_rob_acc": 0.34765625
+   },
+   "gate": {
+    "passed": true,
+    "acc_5k": 0.6344,
+    "monitor": 0.6344,
+    "detail": "5k=63.44% vs monitor 63.44%"
+   },
+   "acc_clean_5k": 0.6344,
+   "slice": {
+    "clean": 0.652,
+    "pgd50": 0.266,
+    "apgd_ce": 0.249,
+    "apgd_dlr": 0.253,
+    "autoattack_core": 0.238,
+    "worst_case": 0.238
+   },
+   "parity": {
+    "drift_5k_pp": null,
+    "drift_1k_pp": 0.10000000000000009
+   },
+   "runtime_s": {
+    "clean_5k": 673.1287105083466,
+    "slice": {
+     "clean": 1.716346025466919,
+     "pgd50": 165.42742490768433,
+     "apgd_ce": 250.02319073677063,
+     "apgd_dlr": 252.4414541721344
+    }
+   },
+   "max_linf_255": {
+    "clean": 0.0,
+    "pgd50": 5.4170045256614685,
+    "apgd_ce": 5.4170045256614685,
+    "apgd_dlr": 5.4170045256614685
+   },
+   "prereg_hash": "a7cc0d447a64a191b39bd194da5150afc6c9fdcd387d8279d98bde2e3e9bde25"
+  },
+  "c4_four_views_no_refine": {
+   "label": "c4_four_views_no_refine",
+   "phase": "c4_four_views_no_refine",
+   "img_size": 56,
+   "num_glimpses": 1,
+   "checkpoint": "foundation_c4_four_views_no_refine_final.pth",
+   "sha256": "7262d0c66c9a578af474de4f46ce63df43aef85f94b7e9d67a8b6315ddc5b2af",
+   "meta": {
+    "phase": "c4_four_views_no_refine",
+    "epoch": 15,
+    "val_clean_acc": 0.619,
+    "val_rob_acc": 0.248046875,
+    "best_clean_acc": 0.619,
+    "best_rob_acc": 0.25390625
+   },
+   "gate": {
+    "passed": true,
+    "acc_5k": 0.6186,
+    "monitor": 0.619,
+    "detail": "5k=61.86% vs monitor 61.90%"
+   },
+   "acc_clean_5k": 0.6186,
+   "slice": {
+    "clean": 0.631,
+    "pgd50": 0.171,
+    "apgd_ce": 0.15,
+    "apgd_dlr": 0.169,
+    "autoattack_core": 0.143,
+    "worst_case": 0.143
+   },
+   "parity": {
+    "drift_5k_pp": 0.0,
+    "drift_1k_pp": 0.10000000000000009
+   },
+   "runtime_s": {
+    "clean_5k": 153.9615659713745,
+    "slice": {
+     "clean": 0.731421709060669,
+     "pgd50": 34.831061124801636,
+     "apgd_ce": 55.935487270355225,
+     "apgd_dlr": 59.2750461101532
+    }
+   },
+   "max_linf_255": {
+    "clean": 0.0,
+    "pgd50": 5.4170045256614685,
+    "apgd_ce": 5.4170045256614685,
+    "apgd_dlr": 5.4170045256614685
+   }
+  }
+ },
+ "t_parity": {
+  "t_invariance": {
+   "T1": {
+    "missing": 0,
+    "unexpected": 0
+   },
+   "T2": {
+    "missing": 0,
+    "unexpected": 0
+   },
+   "T3": {
+    "missing": 0,
+    "unexpected": 0
+   },
+   "T4": {
+    "missing": 0,
+    "unexpected": 0
+   }
+  },
+  "forward_parity": {
+   "T1": 0.0,
+   "T2": 0.0,
+   "T3": 0.0,
+   "T4": 0.0
+  }
+ },
+ "decisions": [
+  {
+   "id": "P0.3",
+   "status": "not_evaluable",
+   "decisive": false
+  },
+  {
+   "id": "P1.1",
+   "status": "ff56_unresolved",
+   "sweep": {
+    "T1": {
+     "acc_5k": 0.632,
+     "clean_1k": 0.639,
+     "worst_1k": 0.138
+    },
+    "T2": {
+     "acc_5k": 0.6382,
+     "clean_1k": 0.636,
+     "worst_1k": 0.189
+    },
+    "T3": {
+     "acc_5k": 0.6298,
+     "clean_1k": 0.637,
+     "worst_1k": 0.202
+    },
+    "T4": {
+     "acc_5k": 0.6344,
+     "clean_1k": 0.652,
+     "worst_1k": 0.238
+    }
+   },
+   "monotone_clean": false,
+   "step_gains_pp": [
+    0.6199999999999983,
+    -0.8399999999999963,
+    0.45999999999999375
+   ],
+   "gate_applied": false,
+   "branch": null,
+   "rationale": "ff_56 identity is unresolved, so the pre-registered comparison cannot be made. The T-sweep numbers are recorded; the gate is not applied and no Phase 1 verdict is decisive. C4 still runs because the weights-vs-views question is open either way.",
+   "decisive": false
+  },
+  {
+   "id": "P1.2",
+   "status": "evaluated",
+   "oracle": {
+    "clean_slice": {
+     "n": 1000,
+     "accuracy_by_fixed_T": {
+      "T=1": 0.639,
+      "T=2": 0.636,
+      "T=3": 0.637,
+      "T=4": 0.652
+     },
+     "oracle_curve": {
+      "T<=1": 0.639,
+      "T<=2": 0.673,
+      "T<=3": 0.691,
+      "T<=4": 0.706
+     },
+     "oracle_all_T": 0.706,
+     "expected_views": 1.997,
+     "views_histogram": {
+      "1": 639,
+      "2": 34,
+      "3": 18,
+      "4": 309
+     },
+     "headroom_vs_last_pp": 5.399999999999993,
+     "headroom_vs_T4_pp": 5.399999999999993,
+     "samples_fixed_by_extra_views": 67
+    },
+    "worst_slice": {
+     "n": 1000,
+     "accuracy_by_fixed_T": {
+      "T=1": 0.138,
+      "T=2": 0.189,
+      "T=3": 0.202,
+      "T=4": 0.238
+     },
+     "oracle_curve": {
+      "T<=1": 0.138,
+      "T<=2": 0.195,
+      "T<=3": 0.216,
+      "T<=4": 0.252
+     },
+     "oracle_all_T": 0.252,
+     "expected_views": 3.451,
+     "views_histogram": {
+      "1": 138,
+      "2": 57,
+      "3": 21,
+      "4": 784
+     },
+     "headroom_vs_last_pp": 1.4000000000000012,
+     "headroom_vs_T4_pp": 1.4000000000000012,
+     "samples_fixed_by_extra_views": 114
+    },
+    "clean_5k": {
+     "n": 5000,
+     "accuracy_by_fixed_T": {
+      "T=1": 0.632,
+      "T=2": 0.6382,
+      "T=3": 0.6298,
+      "T=4": 0.6344
+     },
+     "oracle_curve": {
+      "T<=1": 0.632,
+      "T<=2": 0.6736,
+      "T<=3": 0.694,
+      "T<=4": 0.7062
+     },
+     "oracle_all_T": 0.7062,
+     "expected_views": 2.0004,
+     "views_histogram": {
+      "1": 3160,
+      "2": 208,
+      "3": 102,
+      "4": 1530
+     },
+     "headroom_vs_last_pp": 7.180000000000009,
+     "headroom_vs_T4_pp": 7.180000000000009,
+     "samples_fixed_by_extra_views": 371
+    }
+   },
+   "headroom_clean5k_pp": 7.180000000000009,
+   "headroom_clean1k_pp": 5.399999999999993,
+   "expected_views_clean5k": 2.0004,
+   "adaptive_compute_worthwhile": true,
+   "probe_run": false,
+   "probe_verdict": "not required by the pre-registered gate (branch=None, headroom=+7.18 pp)",
+   "decisive": false
+  },
+  {
+   "id": "P1.3",
+   "status": "evaluated",
+   "mode": "auto",
+   "estimate": {
+    "start_epoch": 1,
+    "remaining_epochs": 15,
+    "estimated_gpu_h": 6.5,
+    "elapsed_h": 0.12,
+    "session_budget_h": 10.5
+   },
+   "train_result": {
+    "status": "complete",
+    "phase": "c4_four_views_no_refine",
+    "best_clean": 0.619,
+    "best_robust": 0.25390625
+   },
+   "checkpoint_epoch": 15,
+   "c4_5k": 0.6186,
+   "c4_clean_1k": 0.631,
+   "c4_worst_1k": 0.143,
+   "mcnemar_vs_rec_T4_clean5k": {
+    "b": 287,
+    "c": 366,
+    "n_discordant": 653,
+    "stat": 9.316998468606432,
+    "p_exact": 0.00224586616983858,
+    "p_chi2cc": 0.002270376091826414,
+    "delta_pp": -1.5799999999999925
+   },
+   "mcnemar_vs_rec_T4_worst1k": {
+    "b": 3,
+    "c": 98,
+    "n_discordant": 101,
+    "stat": 87.48514851485149,
+    "p_exact": 1.3552788123878027e-25,
+    "p_chi2cc": 8.491501964735974e-21,
+    "delta_pp": -9.5
+   },
+   "matches_recurrence": false,
+   "verdict": "INTERACTION: C4 does not match recurrence_only. The effect is an interaction between views and depth; report it as unattributed and spend no more on it.",
+   "note": "c4 checkpoint evaluated under the same protocol",
+   "decisive": false
+  },
+  {
+   "id": "P0.4",
+   "tag": {
+    "name": "gen2-final-pre-closure",
+    "target": "2461bc260e42f830da16b586f98d24e5a156db5d",
+    "created_local": false,
+    "pushed": false,
+    "note": "tag created in the session clone only; push requires a credential: git push origin refs/tags/gen2-final-pre-closure"
+   },
+   "status": "exported",
+   "n_files": 62,
+   "archive": "docs_report_export_2461bc26.tar.gz",
+   "archive_sha256": "78aca121526fb34d04bc14fa64ffe18d963ccf6fa5f1f1866723413f2153ce51",
+   "archive_bytes": 6194026,
+   "manifest": "docs_report_manifest.json",
+   "aggregate_sha256": "f4be54e4a2604860dff8794097f2d2aae03a0438b8b5f3b92fc1a5cb985d8d53",
+   "warning": "docs/rhan_nxa is absent from this source: only the tracked part of docs/ was exported. The handbook sources are gitignored and must be attached (RHAN_DOCS_DIR) to be preserved.",
+   "decisive": null
+  }
+ ],
+ "hf_actions": [
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/cache/recurrence_traj__T4__56px__ef5b0ddacd.json",
+   "sha256": "57a78d0ecd8d6330d6292a108ba4d3c0efd863c2c8b544420e543270b419fc6a",
+   "bytes": 188
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/cache/recurrence_traj__T4__56px__ef5b0ddacd.npz",
+   "sha256": "0d0cededff0fd4c1897844809c46d670f57486eb78ab951088e54c7318b8d7c6",
+   "bytes": 3580471
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean.pth",
+   "sha256": "00fc008d52c0b53417cc3c3cbb978705e8e560ffd7820073b8211c65ae77caaf",
+   "bytes": 266260751
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust.pth",
+   "sha256": "0e1c6e87bf3cc22b477eec7c8436a6b0eeb598f7a297c72caf18e189221d6337",
+   "bytes": 266261480
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log.jsonl",
+   "sha256": "afab212d1058145f8eea8ad8399e84a2fab6d0616bf56b6ce3d0269a6f96babd",
+   "bytes": 303
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean.pth",
+   "sha256": "00fc008d52c0b53417cc3c3cbb978705e8e560ffd7820073b8211c65ae77caaf"
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust.pth",
+   "sha256": "0e1c6e87bf3cc22b477eec7c8436a6b0eeb598f7a297c72caf18e189221d6337"
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__02a720e1.jsonl",
+   "sha256": "02a720e16ecdd4119dced2d611e246e0d394433c5ba2264d5b58003b733a8969",
+   "bytes": 605
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean.pth",
+   "sha256": "00fc008d52c0b53417cc3c3cbb978705e8e560ffd7820073b8211c65ae77caaf"
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust.pth",
+   "sha256": "0e1c6e87bf3cc22b477eec7c8436a6b0eeb598f7a297c72caf18e189221d6337"
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__8898cac9.jsonl",
+   "sha256": "8898cac9bb1050686370365572eeb31d772e0cfbe5ebc97ffb71bb1208b75bfd",
+   "bytes": 906
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean.pth",
+   "sha256": "00fc008d52c0b53417cc3c3cbb978705e8e560ffd7820073b8211c65ae77caaf"
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust.pth",
+   "sha256": "0e1c6e87bf3cc22b477eec7c8436a6b0eeb598f7a297c72caf18e189221d6337"
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__3031c362.jsonl",
+   "sha256": "3031c36228637b51a6a0fdce8313e5321b8f02b26023cc9752d10eab4d20e802",
+   "bytes": 1209
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean.pth",
+   "sha256": "00fc008d52c0b53417cc3c3cbb978705e8e560ffd7820073b8211c65ae77caaf"
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust.pth",
+   "sha256": "0e1c6e87bf3cc22b477eec7c8436a6b0eeb598f7a297c72caf18e189221d6337"
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__d2384325.jsonl",
+   "sha256": "d23843258fce0df368e33fc2a3eba2bd18a6171192ed0945913fb91ab198f772",
+   "bytes": 1512
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean.pth",
+   "sha256": "00fc008d52c0b53417cc3c3cbb978705e8e560ffd7820073b8211c65ae77caaf"
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust.pth",
+   "sha256": "0e1c6e87bf3cc22b477eec7c8436a6b0eeb598f7a297c72caf18e189221d6337"
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__8d07bc95.jsonl",
+   "sha256": "8d07bc9580032c19e700186a36bf2abbdfa66638bded1df781d3b25f20a32a94",
+   "bytes": 1815
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean.pth",
+   "sha256": "00fc008d52c0b53417cc3c3cbb978705e8e560ffd7820073b8211c65ae77caaf"
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust.pth",
+   "sha256": "0e1c6e87bf3cc22b477eec7c8436a6b0eeb598f7a297c72caf18e189221d6337"
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__f81f16e9.jsonl",
+   "sha256": "f81f16e96a83abe75f1707336e24e88169cf91826de8a265f0a4ba96bc54889a",
+   "bytes": 2117
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean.pth",
+   "sha256": "00fc008d52c0b53417cc3c3cbb978705e8e560ffd7820073b8211c65ae77caaf"
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust__f80da957.pth",
+   "sha256": "f80da957782959eace5a9094772f01fe08408fa5024817a0d4cac989bae94cd9",
+   "bytes": 266261480
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__12a5f33c.jsonl",
+   "sha256": "12a5f33cffc45353e8ee9a08d80ca66b0dc7d73c08a1a152e97bd00c15a631dc",
+   "bytes": 2420
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean.pth",
+   "sha256": "00fc008d52c0b53417cc3c3cbb978705e8e560ffd7820073b8211c65ae77caaf"
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust__f80da957.pth",
+   "sha256": "f80da957782959eace5a9094772f01fe08408fa5024817a0d4cac989bae94cd9"
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__949a0b2e.jsonl",
+   "sha256": "949a0b2e13f47bae52b657c7d257083be3329ddf671d3ae3b5f9bb44df86b495",
+   "bytes": 2729
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean.pth",
+   "sha256": "00fc008d52c0b53417cc3c3cbb978705e8e560ffd7820073b8211c65ae77caaf"
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust__cc56e3e2.pth",
+   "sha256": "cc56e3e211a0d78fbd9f560a55b6f57c730984ef58aec608456451e69e78c4ec",
+   "bytes": 266261480
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__ef0ce4d0.jsonl",
+   "sha256": "ef0ce4d0d46f22812c8304a2f85b5c1577a9a627066fe53f8bd60cd167bb9b81",
+   "bytes": 3037
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean__fc761342.pth",
+   "sha256": "fc76134281cdec0467a70649042b12f40c0b6401b14105416464deffb179a355",
+   "bytes": 266260751
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust__666025f4.pth",
+   "sha256": "666025f428a9d26dec4de7b032ffba597cdc7cf16c70f818120379cfaa36fba3",
+   "bytes": 266261480
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__72dabcaa.jsonl",
+   "sha256": "72dabcaa1d7cd78af4ea8ed4390d188415b785f5759c04d10a84caa35b730cab",
+   "bytes": 3339
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean__fc761342.pth",
+   "sha256": "fc76134281cdec0467a70649042b12f40c0b6401b14105416464deffb179a355"
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust__666025f4.pth",
+   "sha256": "666025f428a9d26dec4de7b032ffba597cdc7cf16c70f818120379cfaa36fba3"
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__31a9714b.jsonl",
+   "sha256": "31a9714b7c006ee79d8e8db14c4304c293d36468591f94e295d7ae511a522013",
+   "bytes": 3643
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean__4b9c663a.pth",
+   "sha256": "4b9c663af7094d5004d4842ba86b59f91c61c2c1e811c3e06433a92c82985934",
+   "bytes": 266260751
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust__666025f4.pth",
+   "sha256": "666025f428a9d26dec4de7b032ffba597cdc7cf16c70f818120379cfaa36fba3"
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__3cf48692.jsonl",
+   "sha256": "3cf48692a453ab0b6a10a75ad153d916c41fc9cfecea4e93c8681407c3d591cc",
+   "bytes": 3946
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean__4b9c663a.pth",
+   "sha256": "4b9c663af7094d5004d4842ba86b59f91c61c2c1e811c3e06433a92c82985934"
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust__666025f4.pth",
+   "sha256": "666025f428a9d26dec4de7b032ffba597cdc7cf16c70f818120379cfaa36fba3"
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__62852055.jsonl",
+   "sha256": "628520551b65727802fdffe3c378d580ff502fb0eb579bf3d19c9c12803e64cb",
+   "bytes": 4243
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean__af437a60.pth",
+   "sha256": "af437a6063589258c4503c86f32aa58e41a2a1893e523eecf3c075883f380a14",
+   "bytes": 266260751
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust__666025f4.pth",
+   "sha256": "666025f428a9d26dec4de7b032ffba597cdc7cf16c70f818120379cfaa36fba3"
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__14017ce3.jsonl",
+   "sha256": "14017ce3cd473fdedf4fee3957d386bf14237624b873e6dedb08b2507751e5c6",
+   "bytes": 4546
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_final.pth",
+   "sha256": "7262d0c66c9a578af474de4f46ce63df43aef85f94b7e9d67a8b6315ddc5b2af",
+   "bytes": 266257106
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_clean__af437a60.pth",
+   "sha256": "af437a6063589258c4503c86f32aa58e41a2a1893e523eecf3c075883f380a14"
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "foundation_c4_four_views_no_refine_best_robust__666025f4.pth",
+   "sha256": "666025f428a9d26dec4de7b032ffba597cdc7cf16c70f818120379cfaa36fba3"
+  },
+  {
+   "action": "skip_same",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/20261024_151737/gen2_epoch_log__14017ce3.jsonl",
+   "sha256": "14017ce3cd473fdedf4fee3957d386bf14237624b873e6dedb08b2507751e5c6"
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/cache/c4_four_views_no_refine__T1__56px__7262d0c66c.json",
+   "sha256": "4b5ec4cc685e0db99d2a3a2edd551eb2be4e4875f0e41d00ea426329575d8c19",
+   "bytes": 1275
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-g2-checkpoints",
+   "name": "closure/cache/c4_four_views_no_refine__T1__56px__7262d0c66c.npz",
+   "sha256": "07dc485699b23fee3e7dbe25c2f9c573057aecf4d8029bae6566c8fe6352fc2b",
+   "bytes": 195348
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-docs-report",
+   "name": "docs_report_export_2461bc26.tar.gz",
+   "sha256": "78aca121526fb34d04bc14fa64ffe18d963ccf6fa5f1f1866723413f2153ce51",
+   "bytes": 6194026
+  },
+  {
+   "action": "upload",
+   "repo": "FerrariKazu/rhan-nxa-docs-report",
+   "name": "docs_report_manifest.json",
+   "sha256": "40a2c6123b68a2dae1390197e175ca441136a45b81a4bd6fe158ad4394d508bb",
+   "bytes": 9947
+  }
+ ],
+ "session_hours": 8.87741958896319
+}

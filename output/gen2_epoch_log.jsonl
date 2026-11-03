@@ -1,0 +1,1 @@
+{"phase": "c4_four_views_no_refine", "arm": "v1", "epoch": 1, "total_epochs": 15, "val_acc_clean": 0.6052, "val_acc_robust": 0.232421875, "loss_total": 1.1672902970704313, "loss_ce": 0.9552326574046398, "loss_kl": 0.4668453141183011, "health_flags": [], "timestamp": "2026-10-24T15:58:44.618444+00:00"}

@@ -1,0 +1,66 @@
+=== Original T5 Feedforward Battery ===
+
+======================================================================
+[T5 BATTERY] Running ff_112_seed17 (foundation_ff_112_seed17_final_d00fb750.pth)
+======================================================================
+  Clean 1k: 73.90% | ECE: 6.52%
+  PGD-50: 37.90% | PGD-100: 37.60% | Gap: 0.30 pp
+  Eps Sweep 0.5x (2.71/255): 57.30%
+  Eps Sweep 1.0x (5.42/255): 38.00%
+  Eps Sweep 2.0x (10.83/255): 10.40%
+  Running AutoAttack standard (APGD-CE, APGD-T, FAB-T, Square)...
+setting parameters for standard version
+using standard version including apgd-ce, apgd-t, fab-t, square
+robust accuracy by APGD-CE 	 37.40% 	 (time attack: 117.7 s)
+robust accuracy by APGD-T 	 35.00% 	 (time attack: 1353.5 s)
+robust accuracy by FAB-T 	 35.40% 	 (time attack: 2406.3 s)
+robust accuracy by SQUARE 	 52.30% 	 (time attack: 3624.2 s)
+    apgd-ce: 37.40%
+    apgd-t: 35.00%
+    fab-t: 35.40%
+    square: 52.30%
+  AutoAttack Standard Worst-Case: 35.00%
+
+======================================================================
+[T5 BATTERY] Running ff_112_seed42 (foundation_ff_112_seed42_final_2920df54.pth)
+======================================================================
+  Clean 1k: 74.20% | ECE: 6.15%
+  PGD-50: 37.50% | PGD-100: 37.40% | Gap: 0.10 pp
+  Eps Sweep 0.5x (2.71/255): 56.80%
+  Eps Sweep 1.0x (5.42/255): 37.50%
+  Eps Sweep 2.0x (10.83/255): 10.70%
+  Running AutoAttack standard (APGD-CE, APGD-T, FAB-T, Square)...
+setting parameters for standard version
+using standard version including apgd-ce, apgd-t, fab-t, square
+robust accuracy by APGD-CE 	 36.90% 	 (time attack: 155.1 s)
+robust accuracy by APGD-T 	 35.80% 	 (time attack: 1140.9 s)
+robust accuracy by FAB-T 	 36.00% 	 (time attack: 2468.8 s)
+robust accuracy by SQUARE 	 51.20% 	 (time attack: 4248.5 s)
+    apgd-ce: 36.90%
+    apgd-t: 35.80%
+    fab-t: 36.00%
+    square: 51.20%
+  AutoAttack Standard Worst-Case: 35.80%
+
+======================================================================
+[T5 BATTERY] Running ff_112_seed99 (foundation_ff_112_seed99_final_abde98a0.pth)
+======================================================================
+  Clean 1k: 73.90% | ECE: 6.49%
+  PGD-50: 36.50% | PGD-100: 36.30% | Gap: 0.20 pp
+  Eps Sweep 0.5x (2.71/255): 56.80%
+  Eps Sweep 1.0x (5.42/255): 36.50%
+  Eps Sweep 2.0x (10.83/255): 11.30%
+  Running AutoAttack standard (APGD-CE, APGD-T, FAB-T, Square)...
+setting parameters for standard version
+using standard version including apgd-ce, apgd-t, fab-t, square
+robust accuracy by APGD-CE 	 36.30% 	 (time attack: 150.3 s)
+robust accuracy by APGD-T 	 35.00% 	 (time attack: 1061.2 s)
+robust accuracy by FAB-T 	 35.40% 	 (time attack: 2345.0 s)
+robust accuracy by SQUARE 	 50.60% 	 (time attack: 3887.5 s)
+    apgd-ce: 36.30%
+    apgd-t: 35.00%
+    fab-t: 35.40%
+    square: 50.60%
+  AutoAttack Standard Worst-Case: 34.80%
+
+T5 Battery Complete. Results written to evaluation/stage0_results/t5_feedforward_battery.json

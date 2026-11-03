@@ -1,0 +1,52 @@
+{
+ "label": "recurrence_only_T2",
+ "phase": "recurrence_only",
+ "img_size": 56,
+ "num_glimpses": 2,
+ "checkpoint": "foundation_recurrence_only_final.pth",
+ "sha256": "ef5b0ddacd7c48c3de471ce5826b2c15212c17d89596134a0f050482c0fee479",
+ "meta": {
+  "phase": "recurrence_only",
+  "epoch": 15,
+  "val_clean_acc": 0.6344,
+  "val_rob_acc": 0.34765625,
+  "best_clean_acc": 0.6344,
+  "best_rob_acc": 0.34765625
+ },
+ "gate": {
+  "passed": true,
+  "acc_5k": 0.6344,
+  "monitor": 0.6344,
+  "detail": "5k=63.44% vs monitor 63.44%"
+ },
+ "acc_clean_5k": 0.6382,
+ "slice": {
+  "clean": 0.636,
+  "pgd50": 0.208,
+  "apgd_ce": 0.193,
+  "apgd_dlr": 0.207,
+  "autoattack_core": 0.189,
+  "worst_case": 0.189
+ },
+ "parity": {
+  "drift_5k_pp": null,
+  "drift_1k_pp": 0.10000000000000009
+ },
+ "runtime_s": {
+  "clean_5k": 335.18740701675415,
+  "slice": {
+   "clean": 0.9420921802520752,
+   "pgd50": 82.74984526634216,
+   "apgd_ce": 123.12555027008057,
+   "apgd_dlr": 125.15523147583008
+  }
+ },
+ "max_linf_255": {
+  "clean": 0.0,
+  "pgd50": 5.4170045256614685,
+  "apgd_ce": 5.4170045256614685,
+  "apgd_dlr": 5.4170045256614685
+ },
+ "cache_key": "recurrence_only_T2__T2__56px__ef5b0ddacd",
+ "prereg_hash": "a7cc0d447a64a191b39bd194da5150afc6c9fdcd387d8279d98bde2e3e9bde25"
+}

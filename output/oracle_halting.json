@@ -1,0 +1,90 @@
+{
+ "id": "P1.2",
+ "status": "evaluated",
+ "oracle": {
+  "clean_slice": {
+   "n": 1000,
+   "accuracy_by_fixed_T": {
+    "T=1": 0.639,
+    "T=2": 0.636,
+    "T=3": 0.637,
+    "T=4": 0.652
+   },
+   "oracle_curve": {
+    "T<=1": 0.639,
+    "T<=2": 0.673,
+    "T<=3": 0.691,
+    "T<=4": 0.706
+   },
+   "oracle_all_T": 0.706,
+   "expected_views": 1.997,
+   "views_histogram": {
+    "1": 639,
+    "2": 34,
+    "3": 18,
+    "4": 309
+   },
+   "headroom_vs_last_pp": 5.399999999999993,
+   "headroom_vs_T4_pp": 5.399999999999993,
+   "samples_fixed_by_extra_views": 67
+  },
+  "worst_slice": {
+   "n": 1000,
+   "accuracy_by_fixed_T": {
+    "T=1": 0.138,
+    "T=2": 0.189,
+    "T=3": 0.202,
+    "T=4": 0.238
+   },
+   "oracle_curve": {
+    "T<=1": 0.138,
+    "T<=2": 0.195,
+    "T<=3": 0.216,
+    "T<=4": 0.252
+   },
+   "oracle_all_T": 0.252,
+   "expected_views": 3.451,
+   "views_histogram": {
+    "1": 138,
+    "2": 57,
+    "3": 21,
+    "4": 784
+   },
+   "headroom_vs_last_pp": 1.4000000000000012,
+   "headroom_vs_T4_pp": 1.4000000000000012,
+   "samples_fixed_by_extra_views": 114
+  },
+  "clean_5k": {
+   "n": 5000,
+   "accuracy_by_fixed_T": {
+    "T=1": 0.632,
+    "T=2": 0.6382,
+    "T=3": 0.6298,
+    "T=4": 0.6344
+   },
+   "oracle_curve": {
+    "T<=1": 0.632,
+    "T<=2": 0.6736,
+    "T<=3": 0.694,
+    "T<=4": 0.7062
+   },
+   "oracle_all_T": 0.7062,
+   "expected_views": 2.0004,
+   "views_histogram": {
+    "1": 3160,
+    "2": 208,
+    "3": 102,
+    "4": 1530
+   },
+   "headroom_vs_last_pp": 7.180000000000009,
+   "headroom_vs_T4_pp": 7.180000000000009,
+   "samples_fixed_by_extra_views": 371
+  }
+ },
+ "headroom_clean5k_pp": 7.180000000000009,
+ "headroom_clean1k_pp": 5.399999999999993,
+ "expected_views_clean5k": 2.0004,
+ "adaptive_compute_worthwhile": true,
+ "probe_run": false,
+ "probe_verdict": "not required by the pre-registered gate (branch=None, headroom=+7.18 pp)"
+}

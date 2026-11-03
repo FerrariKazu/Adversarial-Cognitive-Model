@@ -1,0 +1,104 @@
+{
+ "n": 1000,
+ "slice_sha256": "d129534adf0d1f5816a13ebebf20e49e502f935c0f8bd878ce162acefddd6b25",
+ "layer": "backbone.blocks[11] (block 12), CLS token, last trunk pass per forward",
+ "estimator": "linear CKA, float64",
+ "labels": [
+  "ff_112",
+  "recurrence_only",
+  "c1_gist_only_cont",
+  "g2_gist_only",
+  "gen1_core"
+ ],
+ "matrix": {
+  "ff_112": {
+   "ff_112": 1.0,
+   "recurrence_only": 0.5221335008302125,
+   "c1_gist_only_cont": 0.6293377839484703,
+   "g2_gist_only": 0.5737513452832869,
+   "gen1_core": 0.2802224035218996
+  },
+  "recurrence_only": {
+   "ff_112": 0.5221335008302125,
+   "recurrence_only": 1.0,
+   "c1_gist_only_cont": 0.7925572924359053,
+   "g2_gist_only": 0.7676377351316748,
+   "gen1_core": 0.43528292228340365
+  },
+  "c1_gist_only_cont": {
+   "ff_112": 0.6293377839484703,
+   "recurrence_only": 0.7925572924359053,
+   "c1_gist_only_cont": 1.0,
+   "g2_gist_only": 0.8144643125915498,
+   "gen1_core": 0.42924678810781824
+  },
+  "g2_gist_only": {
+   "ff_112": 0.5737513452832869,
+   "recurrence_only": 0.7676377351316748,
+   "c1_gist_only_cont": 0.8144643125915498,
+   "g2_gist_only": 1.0,
+   "gen1_core": 0.3679201762693205
+  },
+  "gen1_core": {
+   "ff_112": 0.2802224035218996,
+   "recurrence_only": 0.43528292228340365,
+   "c1_gist_only_cont": 0.42924678810781824,
+   "g2_gist_only": 0.3679201762693205,
+   "gen1_core": 1.0
+  }
+ },
+ "trunk_passes_per_forward": {
+  "ff_112": 1,
+  "recurrence_only": 4,
+  "c1_gist_only_cont": 1,
+  "g2_gist_only": 1,
+  "gen1_core": 4
+ },
+ "checkpoint_sha256": {
+  "ff_112": "d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc",
+  "recurrence_only": "ef5b0ddacd7c48c3de471ce5826b2c15212c17d89596134a0f050482c0fee479",
+  "c1_gist_only_cont": "eadf81c0bbe8af40871ebd2f8c2abf2c43b340922f425f06cfdaa009cc3a99fc",
+  "g2_gist_only": "475fdc09f5be233385d73fcc04b84a80fa90fa9f36371903fd4d2f99d73241c9",
+  "gen1_core": "cbeb85b09c8f0dc221e33fdc0987be7dd8c299a2af564e2ceb4bd0b5fcccd417"
+ },
+ "ff_56_row": {},
+ "ff_56_column": {},
+ "historical_matrix_found": true,
+ "delta_vs_historical": {
+  "recurrence_only": {
+   "recurrence_only": 0.0,
+   "c1_gist_only_cont": -6.701210142345815e-09,
+   "ff_112": -2.8356036296806053e-08,
+   "g2_gist_only": 5.486899379292254e-09,
+   "gen1_core": -0.0003641779267861689
+  },
+  "c1_gist_only_cont": {
+   "recurrence_only": -6.701210142345815e-09,
+   "c1_gist_only_cont": 0.0,
+   "ff_112": -3.679703541870083e-09,
+   "g2_gist_only": 1.0112762161007538e-07,
+   "gen1_core": -0.009716595328384758
+  },
+  "ff_112": {
+   "recurrence_only": -2.8356036296806053e-08,
+   "c1_gist_only_cont": -3.679703541870083e-09,
+   "ff_112": 0.0,
+   "g2_gist_only": 1.4907615475401315e-08,
+   "gen1_core": -0.007802975659008615
+  },
+  "g2_gist_only": {
+   "recurrence_only": 5.486899379292254e-09,
+   "c1_gist_only_cont": 1.0112762161007538e-07,
+   "ff_112": 1.4907615475401315e-08,
+   "g2_gist_only": 0.0,
+   "gen1_core": -0.013144238708706846
+  },
+  "gen1_core": {
+   "recurrence_only": -0.0003641779267861689,
+   "c1_gist_only_cont": -0.009716595328384758,
+   "ff_112": -0.007802975659008615,
+   "g2_gist_only": -0.013144238708706846,
+   "gen1_core": 0.0
+  }
+ }
+}

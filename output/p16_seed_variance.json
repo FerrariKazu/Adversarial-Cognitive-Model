@@ -1,0 +1,11 @@
+{
+ "id": "P1.6",
+ "status": "deferred",
+ "mode": "auto",
+ "b_prime_status": "DROPPED",
+ "b_prime_rationale": "B' (directly trained recurrence) dropped: C1 ~ ff_56 proves recipe invariance; detecting ~1 pp difference requires more samples than available in val split.",
+ "seeds": {},
+ "sigma_clean_pp": null,
+ "sigma_worst_pp": null,
+ "reason": "Only 1 seed available; extra seed training deferred or pending."
+}
