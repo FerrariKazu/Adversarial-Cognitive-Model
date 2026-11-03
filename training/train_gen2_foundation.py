@@ -778,9 +778,9 @@ def run_gen2_phase(
             msg = f"Stale rolling checkpoint detected (missing={len(missing)}, unexpected={len(unexpected)})"
             fallback_events.append({"type": "stale_checkpoint_keys", "error": msg, "epoch": saved.get('epoch', 0)})
             print(f"ERROR: {msg}")
-            os.rename(rolling_path, rolling_path + ".stale")
             if not allow_fresh_optimizer:
                 raise RuntimeError(f"ABORT: {msg}; pass allow_fresh_optimizer=True to permit restart")
+            os.rename(rolling_path, rolling_path + ".stale")
             print(f"  WARNING: Discarding stale checkpoint. Phase will restart from inherited or warm-start weights (explicitly allowed).")
         else:
             start_epoch = saved.get("epoch", 0) + 1
@@ -819,7 +819,9 @@ def run_gen2_phase(
                 print(f"✓ Phase '{phase}' rolling checkpoint already completed all {total_epochs} epochs. Marking complete.")
                 final_path = os.path.join(ckpt_dir, f"foundation_{phase}_final.pth")
                 if not os.path.exists(final_path):
-                    torch.save(saved, final_path)
+                    tmp_f = final_path + ".tmp"
+                    torch.save(saved, tmp_f)
+                    os.replace(tmp_f, final_path)
                     print(f"  Saved final checkpoint from rolling state to: {final_path}")
                 return {
                     "status": "complete", "phase": phase,
@@ -835,11 +837,14 @@ def run_gen2_phase(
         # Safe 11h cutoff
         if elapsed_hours >= 11.0:
             print(f"\n[Session Safety] 11.0h limit reached ({elapsed_hours:.2f}h). Saving clean checkpoint and halting.")
-            torch.save({
+            cutoff_state = {
                 "phase": phase, "epoch": epoch - 1, "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(),
                 "best_clean_acc": best_clean_acc, "best_rob_acc": best_rob_acc,
-            }, rolling_path)
+            }
+            tmp_cut = rolling_path + ".tmp"
+            torch.save(cutoff_state, tmp_cut)
+            os.replace(tmp_cut, rolling_path)
             if epoch_callback is not None:
                 try:
                     epoch_callback(phase, epoch - 1)
@@ -1097,7 +1102,9 @@ def run_gen2_phase(
     # Final checkpoint at completion
     final_path = os.path.join(ckpt_dir, f"foundation_{eff_name}_final.pth")
     if ckpt_state is not None:
-        torch.save(ckpt_state, final_path)
+        tmp_f = final_path + ".tmp"
+        torch.save(ckpt_state, tmp_f)
+        os.replace(tmp_f, final_path)
     print(f"\n✓ Phase '{eff_name}' COMPLETE. Final checkpoint: {final_path}")
     print(f"  best_clean: {best_clean_acc*100:.2f}%  best_robust: {best_rob_acc*100:.2f}%")
     return {
