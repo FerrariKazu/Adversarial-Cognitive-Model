@@ -852,6 +852,28 @@ def run_gen2_phase(
             start_epoch = saved.get("epoch", 0) + 1
             model.load_state_dict(saved["model"])
             if "optimizer" in saved:
+                saved_optimizer = saved["optimizer"]
+                saved_optimizer_state = (
+                    saved_optimizer.get("state")
+                    if isinstance(saved_optimizer, dict)
+                    else None
+                )
+                saved_epoch = saved.get("epoch", 0) or 0
+                if (
+                    saved_epoch >= 1
+                    and isinstance(saved_optimizer_state, dict)
+                    and len(saved_optimizer_state) == 0
+                ):
+                    msg = f"optimizer state is empty at saved epoch {saved_epoch}"
+                    fallback_events.append(
+                        {"type": "optimizer_state_empty", "error": msg, "epoch": saved_epoch}
+                    )
+                    print(f"  ERROR: {msg}")
+                    if not allow_fresh_optimizer:
+                        raise RuntimeError(
+                            f"ABORT: {msg}; pass allow_fresh_optimizer=True to permit fresh optimizer state"
+                        )
+                    print("  WARNING: continuing with fresh optimizer state (explicitly allowed by --allow-fresh-optimizer)")
                 try:
                     optimizer.load_state_dict(saved["optimizer"])
                 except Exception as e:

@@ -188,6 +188,72 @@ def test_resume_allows_fresh_optimizer_with_fallback_event(tmp_path, monkeypatch
     assert "scheduler_missing" in types
 
 
+def _empty_optimizer_state():
+    model = _model()
+    opt, _ = build_gen2_optimizer(model, warmup_epochs=3, total_epochs=15)
+    state = opt.state_dict()
+    assert state["state"] == {}
+    return state
+
+
+def _optimizer_state_with_history():
+    model = _model()
+    opt, _ = build_gen2_optimizer(model, warmup_epochs=3, total_epochs=15)
+    for group in opt.param_groups:
+        for p in group["params"]:
+            p.grad = torch.zeros_like(p)
+    opt.step()
+    opt.zero_grad(set_to_none=True)
+    state = opt.state_dict()
+    assert state["state"]
+    return state
+
+
+def test_resume_aborts_on_empty_optimizer_state(tmp_path, monkeypatch):
+    _patch_loaders(monkeypatch)
+    ckpt_dir, report_dir = _ckpt_dirs(tmp_path)
+    _write_rolling(
+        ckpt_dir,
+        "foundation_ff_112_rolling.pth",
+        optimizer=_empty_optimizer_state(),
+    )
+    _expect_aborts_twice(tmp_path, ckpt_dir, report_dir)
+    assert not (ckpt_dir / "foundation_ff_112_rolling.pth.stale").exists()
+
+
+def test_resume_allows_empty_optimizer_state_with_fallback_event(tmp_path, monkeypatch):
+    _patch_loaders(monkeypatch)
+    ckpt_dir, report_dir = _ckpt_dirs(tmp_path)
+    _write_rolling(
+        ckpt_dir,
+        "foundation_ff_112_rolling.pth",
+        optimizer=_empty_optimizer_state(),
+    )
+    _run(tmp_path, ckpt_dir, report_dir, allow=True, n_epochs=6)
+    log_path = report_dir / "gen2_epoch_log.jsonl"
+    assert log_path.exists()
+    with open(log_path) as f:
+        rec = json.loads(f.readline())
+    types = [ev["type"] for ev in rec["fallback_events"]]
+    assert "optimizer_state_empty" in types
+
+
+def test_clean_resume_with_optimizer_state_no_fallback_events(tmp_path, monkeypatch):
+    _patch_loaders(monkeypatch)
+    ckpt_dir, report_dir = _ckpt_dirs(tmp_path)
+    _write_rolling(
+        ckpt_dir,
+        "foundation_ff_112_rolling.pth",
+        optimizer=_optimizer_state_with_history(),
+    )
+    _run(tmp_path, ckpt_dir, report_dir, n_epochs=6)
+    log_path = report_dir / "gen2_epoch_log.jsonl"
+    assert log_path.exists()
+    with open(log_path) as f:
+        rec = json.loads(f.readline())
+    assert rec["fallback_events"] == []
+
+
 def test_resume_allows_missing_optimizer_with_fallback_event(tmp_path, monkeypatch):
     _patch_loaders(monkeypatch)
     ckpt_dir, report_dir = _ckpt_dirs(tmp_path)
@@ -226,7 +292,12 @@ def test_already_completed_branch_uses_effective_name(tmp_path, monkeypatch):
     _patch_loaders(monkeypatch)
     ckpt_dir, report_dir = _ckpt_dirs(tmp_path)
     eff = "recurrence_112_seed17"
-    _write_rolling(ckpt_dir, f"foundation_{eff}_rolling.pth", epoch=1)
+    _write_rolling(
+        ckpt_dir,
+        f"foundation_{eff}_rolling.pth",
+        epoch=1,
+        optimizer=_optimizer_state_with_history(),
+    )
     # Sentinel: the arch-phase-named final must not be created or touched.
     sentinel = ckpt_dir / "foundation_ff_112_final.pth"
     sentinel.write_bytes(b"untouched")
