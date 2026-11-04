@@ -41,7 +41,7 @@ USAGE ON GOOGLE COLAB
   1. New Colab notebook. Runtime > Change runtime type > T4 GPU (or A100/V100).
   2. Secrets (key icon in left sidebar) > Add secret "HF_TOKEN" > Enable notebook access.
   3. Run all cells in sequence (or run via terminal: `python3 cloud_setup/colab_consolidated.py`).
-     The launcher clones `stage0-release-prep` by default; set `COLAB_BRANCH` to the branch you pushed (for example `part13/empty-optimizer-guard`).
+     The launcher clones `part13/empty-optimizer-guard` by default; push that branch first, or set `COLAB_BRANCH` to another pushed branch.
   4. Disconnect resilience:
      - Live sync uploads rolling checkpoints & logs to HuggingFace after every epoch.
      - On restart, Step 4 pulls the latest rolling checkpoint and training automatically resumes.
@@ -114,7 +114,7 @@ else:
 
 # %%
 REPO_NAME = "Adversarial-Cognitive-Model"
-BRANCH    = os.environ.get("COLAB_BRANCH", "stage0-release-prep")
+BRANCH    = os.environ.get("COLAB_BRANCH", "part13/empty-optimizer-guard")
 
 if os.path.exists("/content"):
     WORK_DIR = Path(f"/content/{REPO_NAME}")
