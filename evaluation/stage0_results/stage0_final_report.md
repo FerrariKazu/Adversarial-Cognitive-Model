@@ -32,6 +32,16 @@
 
 ---
 
+## 1a. Caveats found after the verdict
+
+These caveats were found after the pre-registered verdict was recorded. They do not change the verdict label above, and none of them was part of the original decision rule.
+
+1. **Batch size was not matched.** The three `ff_112` baselines were trained with loader batch size 48: `126,689 // 48 = 2,639` optimizer steps per epoch, or `15 x 2,639 = 39,585` steps over 15 epochs. The `recurrence_112` flagship was trained with batch size 64: `126,689 // 64 = 1,979` steps per epoch, or `15 x 1,979 = 29,685` steps. The feedforward baselines therefore received 9,900 more optimizer steps than the flagship. The original comparison was not optimizer-step matched.
+2. **Flagship seed 17 optimizer reset at epoch 5.** The local epoch-4 rolling checkpoint has five optimizer parameter groups but zero optimizer state entries. The epoch-15 final checkpoint has an AdamW step counter of 21,762, consistent with 11 epochs at 1,979 steps per epoch (`11 x 1,979 = 21,769`), not 15 epochs. Seed 42's final counter is 29,668, consistent with 15 continuous epochs. Seed 17 is therefore contaminated by an optimizer reset; the reset is a confound, not a demonstrated cause of the accuracy difference. See `forensics_seed17.md` §3a and `optimizer_state_empty_trace.md`.
+3. **The prereg batch description does not match any run.** `prereg/stage0_decision_v1.json` lines 13-15 state `effective_batch_size: 64`, `micro_batch_size: 16`, `grad_accum_steps: 4`. The training code has no gradient accumulation: the loader batch size is the effective batch size per optimizer step. The flagship ran with batch 64 (micro 64, accumulation 1), and the `ff_112` baselines ran with batch 48 (micro 48, accumulation 1). No Stage 0 run used micro-batch 16 with 4 accumulation steps. This is a prereg description error, not a change to the executed runs.
+
+---
+
 ## 2. T2 Full-Val Evaluation (5,000 images, $\varepsilon = 5.417/255$)
 
 ### Flagship — recurrence_112 (T=4)

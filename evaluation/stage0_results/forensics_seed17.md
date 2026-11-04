@@ -49,6 +49,35 @@ Monitor metrics logged during training (5,000 images clean, 512 images robust PG
 
 ---
 
+## 3a. Checkpoint Census and Optimizer-Step Arithmetic
+
+The following census was read directly from the local checkpoint files. `step` is the AdamW `state[*]["step"]` value; all entries in a checkpoint carry the same value. `state entries` is `len(optimizer["state"])`; `param groups` is `len(optimizer["param_groups"])`.
+
+| Run | File | Epoch | State entries | Param groups | AdamW step | Expected steps | Note |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+| `recurrence_112_seed17` (local rolling) | `foundation_recurrence_112_seed17_rolling.pth` | 4 | 0 | 5 | n/a | 4 x 1,979 = 7,916 if retained | Empty optimizer `state`; model/metrics are real epoch-4 values |
+| `recurrence_112_seed17` (final) | `foundation_recurrence_112_seed17_final.pth` | 15 | 191 | 5 | 21,762 | 11 x 1,979 = 21,769 | Fresh optimizer from epoch 5 (epochs 5-15) |
+| `recurrence_112_seed42` (final) | `foundation_recurrence_112_seed42_final.pth` | 15 | 191 | 5 | 29,668 | 15 x 1,979 = 29,685 | Continuous; no reset |
+| `ff_112_seed17` (final) | `foundation_ff_112_seed17_final_d00fb750.pth` | 15 | 177 | 5 | 39,566 | 15 x 2,639 = 39,585 | Continuous; batch 48 |
+| `ff_112_seed42` (final) | `foundation_ff_112_seed42_final_2920df54.pth` | 15 | 177 | 5 | 39,568 | 15 x 2,639 = 39,585 | Continuous; batch 48 |
+| `ff_112_seed99` (final) | `foundation_ff_112_seed99_final_abde98a0.pth` | 15 | 177 | 5 | 39,567 | 15 x 2,639 = 39,585 | Continuous; batch 48 |
+| `c3_refine_single` (rolling/best) | `foundation_c3_refine_single_rolling.pth` | 14 | 191 | 5 | 25,746 | 14 x 1,979 = 27,706 | About one epoch short; report only |
+| `c4_four_views_no_refine` (rolling/best) | `foundation_c4_four_views_no_refine_rolling.pth` | 11 | 177 | 5 | 21,760 | 11 x 1,979 = 21,769 | Consistent; report only |
+
+**Arithmetic stated in the Part 13 request:**
+
+- `11 x 1979 = 21,769` vs `21,762` observed for `recurrence_112_seed17`.
+- `15 x 1979 = 29,685` vs `29,668` observed for `recurrence_112_seed42`.
+- `15 x 2639 = 39,585` vs `39,566 / 39,568 / 39,567` observed for the three `ff_112` seeds.
+- `14 x 1979 = 27,706` vs `25,746` observed for `c3_refine_single`.
+- `11 x 1979 = 21,769` vs `21,760` observed for `c4_four_views_no_refine`.
+
+**What this shows.** The seed-17 final optimizer is fresh from epoch 5: 11 epochs of optimizer steps remain, not 15, and the missing epoch-4 rolling file has an empty optimizer `state`. The epoch-4 model weights and metrics were preserved, but the optimizer moments were not, so the epoch 5 resume started AdamW from zero moments. Seed 42 is continuous (29,668 vs 29,685 across 15 epochs), and the three `ff_112` seeds are continuous at 15 epochs with batch 48.
+
+**What this does not show.** It does not show that the optimizer reset caused seed 17's lower accuracy (67.04% clean / 33.40% robust vs seed 42's 76.10% / 40.04%), and it says nothing about epochs 1-4 beyond the saved epoch-4 weights and metrics. The reset is a confound, not an established cause. See `optimizer_state_empty_trace.md` for the read-only mechanism trace.
+
+---
+
 ## 4. Learning Rate Schedule per Epoch (Replayed from Code, Not Logged)
 
 > [!NOTE]
