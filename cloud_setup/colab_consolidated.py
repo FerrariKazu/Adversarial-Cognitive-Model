@@ -26,7 +26,7 @@ TRAINING RULES
    - Abort if eps != 0.0940 +/- 0.001 or KL <= 0.0 on any adversarial batch.
    - Abort if PGD-10 training monitor robust accuracy < 15.0% by epoch 3.
 5. Gate 5k clean accuracy against the epoch-15 monitor (within 1.0 pp).
-6. Effective batch size = 64 (micro-batch size 16, grad_accum_steps 4).
+6. Effective batch size = 64 (loader batch; no gradient accumulation).
 
 PRE-REGISTERED DECISION RULE
 ----------------------------
@@ -41,6 +41,7 @@ USAGE ON GOOGLE COLAB
   1. New Colab notebook. Runtime > Change runtime type > T4 GPU (or A100/V100).
   2. Secrets (key icon in left sidebar) > Add secret "HF_TOKEN" > Enable notebook access.
   3. Run all cells in sequence (or run via terminal: `python3 cloud_setup/colab_consolidated.py`).
+     The launcher clones `stage0-release-prep` by default; set `COLAB_BRANCH` to the branch you pushed (for example `part13/empty-optimizer-guard`).
   4. Disconnect resilience:
      - Live sync uploads rolling checkpoints & logs to HuggingFace after every epoch.
      - On restart, Step 4 pulls the latest rolling checkpoint and training automatically resumes.
@@ -113,7 +114,7 @@ else:
 
 # %%
 REPO_NAME = "Adversarial-Cognitive-Model"
-BRANCH    = "feature/gen2-rebuild"
+BRANCH    = os.environ.get("COLAB_BRANCH", "stage0-release-prep")
 
 if os.path.exists("/content"):
     WORK_DIR = Path(f"/content/{REPO_NAME}")
@@ -259,7 +260,7 @@ def print_preregistration() -> None:
     print(f"  inner PGD     : {PROTOCOL['trades_steps']} steps, alpha={PROTOCOL['alpha']:.5f}")
     print(f"  epochs        : {PROTOCOL['n_epochs']} (Rung 3 from epoch 1, no warmup)")
     print(f"  seeds         : {PROTOCOL['seeds']}")
-    print(f"  effective bs  : {PROTOCOL['effective_batch_size']} (micro {PROTOCOL['micro_batch_size']} x {PROTOCOL['grad_accum_steps']} accum)")
+    print(f"  effective bs  : {PROTOCOL['effective_batch_size']} (loader batch; no gradient accumulation)")
     print(f"  clean set     : {PROTOCOL['clean_set']['n']} images (full val)")
     print(f"  robust set    : {PROTOCOL['robust_set']['n']} images (full val, worst-of-3 attacks)")
     print(f"  decision rule : min(rec_112) > max(ff_112) AND pooled McNemar p < 0.01")
