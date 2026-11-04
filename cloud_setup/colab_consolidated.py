@@ -41,7 +41,7 @@ USAGE ON GOOGLE COLAB
   1. New Colab notebook. Runtime > Change runtime type > T4 GPU (or A100/V100).
   2. Secrets (key icon in left sidebar) > Add secret "HF_TOKEN" > Enable notebook access.
   3. Run all cells in sequence (or run via terminal: `python3 cloud_setup/colab_consolidated.py`).
-     The launcher clones `part13/empty-optimizer-guard` by default; push that branch first, or set `COLAB_BRANCH` to another pushed branch.
+     Set `COLAB_COMMIT` to the full 40-character SHA of the commit to run. The launcher aborts when it is unset, is not a full SHA, does not match HEAD, or the working tree is dirty.
   4. Disconnect resilience:
      - Live sync uploads rolling checkpoints & logs to HuggingFace after every epoch.
      - On restart, Step 4 pulls the latest rolling checkpoint and training automatically resumes.
@@ -53,6 +53,7 @@ USAGE ON GOOGLE COLAB
 
 # %%
 import os
+import re
 import sys
 import json
 import time
@@ -114,7 +115,24 @@ else:
 
 # %%
 REPO_NAME = "Adversarial-Cognitive-Model"
-BRANCH    = os.environ.get("COLAB_BRANCH", "part13/empty-optimizer-guard")
+COMMIT_SHA = os.environ.get("COLAB_COMMIT", "").strip()
+if not re.fullmatch(r"[0-9a-f]{40}", COMMIT_SHA):
+    raise SystemExit(
+        "ERROR: COLAB_COMMIT must be a full 40-character lowercase git SHA. "
+        "Refusing to run from a branch or partial SHA."
+    )
+
+def git(*args: str) -> str:
+    return subprocess.check_output(["git", *args], text=True, cwd=str(REPO_DIR)).strip()
+
+def assert_pinned_clean() -> None:
+    head = git("rev-parse", "HEAD")
+    if head != COMMIT_SHA:
+        raise SystemExit(f"ERROR: HEAD {head} != COLAB_COMMIT {COMMIT_SHA}")
+    dirty = git("status", "--porcelain")
+    if dirty:
+        raise SystemExit("ERROR: working tree is not clean:\n" + dirty)
+    print(f"PIN OK: {head}; tree clean")
 
 if os.path.exists("/content"):
     WORK_DIR = Path(f"/content/{REPO_NAME}")
@@ -127,11 +145,12 @@ if os.path.exists("/content"):
         )
     os.chdir(str(WORK_DIR))
     subprocess.run("git fetch origin", shell=True, check=True)
-    subprocess.run(f"git checkout -B {BRANCH} origin/{BRANCH}", shell=True, check=True)
-    subprocess.run(f"git reset --hard origin/{BRANCH}", shell=True, check=True)
+    subprocess.run(f"git checkout --detach {COMMIT_SHA}", shell=True, check=True)
     REPO_DIR = WORK_DIR.resolve()
 else:
     REPO_DIR = Path(".").resolve()
+
+assert_pinned_clean()
 
 sys.path.insert(0, str(REPO_DIR))
 os.environ["PYTHONPATH"] = f"{REPO_DIR}:{os.environ.get('PYTHONPATH', '')}"
@@ -141,11 +160,8 @@ for mod in list(sys.modules.keys()):
     if any(mod.startswith(p) for p in ["training", "gen2_foundation", "noesis_vision"]):
         del sys.modules[mod]
 
-try:
-    sha = subprocess.check_output("git rev-parse --short HEAD", shell=True, text=True, cwd=str(REPO_DIR)).strip()
-    print(f"Checked out {BRANCH} @ commit {sha}")
-except Exception:
-    sha = "unknown"
+sha = git("rev-parse", "HEAD")
+print(f"Pinned commit: {sha}")
 
 # Define canonical directory layout
 OUT_DIR    = REPO_DIR / "output"
