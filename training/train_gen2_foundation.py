@@ -837,13 +837,17 @@ def run_gen2_phase(
         missing = model_keys - saved_keys
         unexpected = saved_keys - model_keys
         if missing or unexpected:
-            print(f"WARNING: Stale rolling checkpoint detected!")
+            msg = f"Stale rolling checkpoint detected (missing={len(missing)}, unexpected={len(unexpected)})"
+            fallback_events.append({"type": "stale_checkpoint_keys", "error": msg, "epoch": saved.get("epoch", 0)})
+            print(f"ERROR: {msg}")
             if missing:
                 print(f"  Missing keys ({len(missing)}): {sorted(missing)[:5]}{'...' if len(missing) > 5 else ''}")
             if unexpected:
                 print(f"  Unexpected keys ({len(unexpected)}): {sorted(unexpected)[:5]}{'...' if len(unexpected) > 5 else ''}")
-            print(f"  Discarding stale checkpoint. Phase will restart from inherited or warm-start weights.")
+            if not allow_fresh_optimizer:
+                raise RuntimeError(f"ABORT: {msg}; pass allow_fresh_optimizer=True to permit restart")
             os.rename(rolling_path, rolling_path + ".stale")
+            print(f"  WARNING: Discarding stale checkpoint. Phase will restart from inherited or warm-start weights (explicitly allowed).")
         else:
             start_epoch = saved.get("epoch", 0) + 1
             model.load_state_dict(saved["model"])
@@ -857,7 +861,14 @@ def run_gen2_phase(
                     if not allow_fresh_optimizer:
                         raise RuntimeError(f"ABORT: {msg}; pass allow_fresh_optimizer=True to permit fresh optimizer state")
                     print(f"  WARNING: continuing with fresh optimizer state (explicitly allowed by --allow-fresh-optimizer)")
-            if "scheduler" in saved and saved["scheduler"] is not None:
+            else:
+                msg = "no optimizer state in checkpoint"
+                fallback_events.append({"type": "optimizer_missing", "error": msg, "epoch": start_epoch})
+                print(f"  ERROR: {msg}")
+                if not allow_fresh_optimizer:
+                    raise RuntimeError(f"ABORT: {msg}; pass allow_fresh_optimizer=True to permit fresh optimizer state")
+                print(f"  WARNING: continuing with fresh optimizer state (explicitly allowed)")
+            if "scheduler" in saved:
                 try:
                     scheduler.load_state_dict(saved["scheduler"])
                 except Exception as e:
@@ -870,7 +881,7 @@ def run_gen2_phase(
                     current = scheduler.last_epoch
                     for _ in range(start_epoch - 1 - current):
                         scheduler.step()
-            else:
+            elif "scheduler" not in saved and start_epoch > 1:
                 msg = "no scheduler state in checkpoint"
                 fallback_events.append({"type": "scheduler_missing", "error": msg, "epoch": start_epoch})
                 if not allow_fresh_optimizer:
@@ -918,13 +929,15 @@ def run_gen2_phase(
             best_rob_acc = saved.get("best_rob_acc", 0.0)
             print(f"Resumed at epoch {start_epoch}. Verified rolling state.")
             if start_epoch > total_epochs:
-                print(f"✓ Phase '{phase}' rolling checkpoint already completed all {total_epochs} epochs. Marking complete.")
-                final_path = os.path.join(ckpt_dir, f"foundation_{phase}_final.pth")
+                print(f"✓ Phase '{eff_name}' rolling checkpoint already completed all {total_epochs} epochs. Marking complete.")
+                final_path = os.path.join(ckpt_dir, f"foundation_{eff_name}_final.pth")
                 if not os.path.exists(final_path):
-                    torch.save(saved, final_path)
+                    tmp_final = final_path + ".tmp"
+                    torch.save(saved, tmp_final)
+                    os.replace(tmp_final, final_path)
                     print(f"  Saved final checkpoint from rolling state to: {final_path}")
                 return {
-                    "status": "complete", "phase": phase,
+                    "status": "complete", "phase": eff_name,
                     "best_clean": best_clean_acc, "best_robust": best_rob_acc,
                 }
 
@@ -938,7 +951,7 @@ def run_gen2_phase(
         if elapsed_hours >= 11.0:
             print(f"\n[Session Safety] 11.0h limit reached ({elapsed_hours:.2f}h). Saving clean checkpoint and halting.")
             commit_hash, is_dirty = _get_git_info()
-            torch.save({
+            cutoff_state = {
                 "phase": phase, "epoch": epoch - 1, "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(),
                 "best_clean_acc": best_clean_acc, "best_rob_acc": best_rob_acc,
@@ -949,7 +962,10 @@ def run_gen2_phase(
                 "dirty_tree": is_dirty,
                 "source_hashes": _get_source_hashes(),
                 "seed": training_seed,
-            }, rolling_path)
+            }
+            tmp_cutoff = rolling_path + ".tmp"
+            torch.save(cutoff_state, tmp_cutoff)
+            os.replace(tmp_cutoff, rolling_path)
             if epoch_callback is not None:
                 try:
                     epoch_callback(phase, epoch - 1)
@@ -1157,15 +1173,21 @@ def run_gen2_phase(
             "source_hashes": _get_source_hashes(),
             "seed": training_seed,
         }
-        torch.save(ckpt_state, rolling_path)
+        tmp_rolling = rolling_path + ".tmp"
+        torch.save(ckpt_state, tmp_rolling)
+        os.replace(tmp_rolling, rolling_path)
 
         if val_clean_acc > best_clean_acc:
             best_clean_acc = val_clean_acc
-            torch.save(ckpt_state, os.path.join(ckpt_dir, f"foundation_{eff_name}_best_clean.pth"))
+            tmp_best_clean = os.path.join(ckpt_dir, f"foundation_{eff_name}_best_clean.pth") + ".tmp"
+            torch.save(ckpt_state, tmp_best_clean)
+            os.replace(tmp_best_clean, os.path.join(ckpt_dir, f"foundation_{eff_name}_best_clean.pth"))
 
         if val_rob_acc > best_rob_acc:
             best_rob_acc = val_rob_acc
-            torch.save(ckpt_state, os.path.join(ckpt_dir, f"foundation_{eff_name}_best_robust.pth"))
+            tmp_best_robust = os.path.join(ckpt_dir, f"foundation_{eff_name}_best_robust.pth") + ".tmp"
+            torch.save(ckpt_state, tmp_best_robust)
+            os.replace(tmp_best_robust, os.path.join(ckpt_dir, f"foundation_{eff_name}_best_robust.pth"))
 
         # Durable append-only JSONL record
         log_record = {
@@ -1220,7 +1242,9 @@ def run_gen2_phase(
     # Final checkpoint at completion
     final_path = os.path.join(ckpt_dir, f"foundation_{eff_name}_final.pth")
     if ckpt_state is not None:
-        torch.save(ckpt_state, final_path)
+        tmp_final_ckpt = final_path + ".tmp"
+        torch.save(ckpt_state, tmp_final_ckpt)
+        os.replace(tmp_final_ckpt, final_path)
     print(f"\n✓ Phase '{eff_name}' COMPLETE. Final checkpoint: {final_path}")
     print(f"  best_clean: {best_clean_acc*100:.2f}%  best_robust: {best_rob_acc*100:.2f}%")
     return {
