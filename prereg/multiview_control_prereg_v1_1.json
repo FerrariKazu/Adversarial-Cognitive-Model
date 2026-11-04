@@ -1,0 +1,43 @@
+{
+  "protocol_id": "multiview-control-112/1.1",
+  "protocol_version": "v1.1",
+  "created_at_utc": "2026-11-02T14:35:00Z",
+  "purpose": "Evaluate feedforward ViT-S checkpoints (ff_112 seeds 17, 42, 99) wrapped with the flagship's spatial gaze sampler and recurrent fusion at test time, attacked end-to-end.",
+  "hypothesis": "Does the observed robustness difference between feedforward (ff_112) and flagship (recurrence_112 seed 42) stem from recurrent state dynamics per se, or simply from multi-view spatial sampling and feature integration?",
+  "wrapper_specification": {
+    "gaze_sampler": "Imported from noesis_vision.models.foveation.foveal_sample (not re-implemented)",
+    "gaze_schedule": "Flagship 4-view canonical schedule: [(0.0, 0.0), (0.3, 0.3), (-0.3, 0.3), (0.0, -0.3)]",
+    "fovea_size": 112,
+    "fusion_mechanism": "Flagship fixed-EMA recurrence: z_0 = g_0; z_t = 0.5 * z_{t-1} + 0.5 * g_t for t in 1..3",
+    "trunk_and_head": "Imported from trained ff_112 checkpoints (backbone + cls_head)",
+    "attack_surface": "End-to-end differentiable forward pass through foveal_sample, ViT backbone, and fusion into classification head"
+  },
+  "seeds_evaluated": [17, 42, 99],
+  "threat_model": {
+    "norm": "Linf",
+    "eps_pixel": 0.02124313725490196,
+    "eps_255": 5.417,
+    "attacks": ["clean", "pgd50", "pgd100", "apgd_ce", "apgd_t"],
+    "evaluation_slice": "canonical 1k slice (seed 42 torch generator)"
+  },
+  "reference_benchmark": {
+    "model": "recurrence_112_seed42 (flagship)",
+    "harness": "harness v1 on canonical 1k slice",
+    "worst_case_robust": 37.40,
+    "clean_acc": 76.40
+  },
+  "decision_rule": {
+    "match_threshold_formula": "reference - 1.5 pp",
+    "match_threshold_value": 35.90,
+    "match": "Control worst-case robust accuracy >= 35.90% under the same battery and slice => MATCH. Concludes that multi-view spatial sampling and feature integration explain the robust performance.",
+    "shortfall": "Control worst-case robust accuracy < 35.90% => INCONCLUSIVE. Shortfall is inconclusive because ff_112 was never trained on shifted views (feedforward weights were trained exclusively on centered inputs, making test-time shifted glimpses out-of-distribution)."
+  },
+  "reporting_requirements": {
+    "clean_accuracy": "Report clean accuracy alongside robust worst-case to quantify clean distribution shift.",
+    "attack_sanity_checks": [
+      "PGD-50 vs PGD-100 gap: assert PGD-100 <= PGD-50 within standard numerical margin (checks gradient masking / step saturation).",
+      "APGD-CE vs APGD-T agreement: verify targeted and untargeted APGD produce concordant bounds."
+    ]
+  }
+}
+

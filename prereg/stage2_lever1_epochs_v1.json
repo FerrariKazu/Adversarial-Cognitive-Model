@@ -1,0 +1,47 @@
+{
+  "protocol_id": "stage2-lever1-epochs-ff112/1",
+  "protocol_version": "v1",
+  "created_at_utc": "2026-11-03T00:00:00Z",
+  "status": "DRAFT - LAUNCHES ON APPROVAL, AFTER INFRA GATE",
+  "description": "ff_112 recipe unchanged except 30 epochs (warmup 3, cosine over 30)",
+  "recipe_changes": {
+    "n_epochs": 30,
+    "warmup_epochs": 3,
+    "schedule": "cosine_annealing_over_30",
+    "other_params_unchanged": true
+  },
+  "seeds": [17, 42],
+  "baseline": {
+    "description": "3 existing 15-epoch ff_112 seeds",
+    "arms": ["ff_112_seed17", "ff_112_seed42", "ff_112_seed99"],
+    "source": "evaluation/stage0_results/stage0_harness_results.json"
+  },
+  "evaluation": {
+    "battery": "v2",
+    "surface": "5k full validation set",
+    "note": "all five (2 new + 3 baseline) scored under battery v2 on the 5k"
+  },
+  "pass_rule": {
+    "conditions": [
+      {
+        "description": "both 30-epoch seeds beat the highest baseline worst-case by >= 1.0 pp",
+        "threshold_pp": 1.0,
+        "requires_all_seeds": true
+      },
+      {
+        "description": "each seed's clean >= baseline mean - 0.5 pp",
+        "threshold_pp": -0.5,
+        "baseline_reference": "mean of clean across 3 baseline seeds",
+        "requires_all_seeds": true
+      }
+    ],
+    "pass_if": "both conditions satisfied for both seeds"
+  },
+  "fail_outcome": {
+    "meaning": "If not passed, 15 epochs stays and no further epoch lever is tried."
+  },
+  "gates": {
+    "requires_infra_gate_passed": true,
+    "infra_gate_ref": "B1-B3 passed and committed"
+  }
+}

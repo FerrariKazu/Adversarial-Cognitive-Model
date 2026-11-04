@@ -1,0 +1,74 @@
+{
+  "protocol_id": "consolidated-flagship-112/1",
+  "methodology": {
+    "sample_level": "Per-image boolean indicator: correct under clean AND all robust attacks",
+    "pooling_structure": "Full Cartesian pairing: 2 flagship seeds (17, 42) x 3 baseline seeds (17, 42, 99) x 5,000 validation samples = 30,000 paired sample evaluations (mean = 15,000 per flagship seed)",
+    "exact_test": "Exact two-sided binomial test on discordant pairs: min(b, c) ~ Binomial(n_disc, 0.5)",
+    "confidence_interval": "Wald 95% CI on difference in proportions: delta +/- 1.96 * (sqrt(n_disc) / N)"
+  },
+  "pooled_gating_test": {
+    "b_flagship_win": 1227,
+    "c_baseline_win": 1778,
+    "n_disc": 3005,
+    "delta_pp": -1.8366666666666642,
+    "p_exact": 8.191524323374671e-24,
+    "ci_95_low": -2.1948101512584626,
+    "ci_95_high": -1.478523182074866
+  },
+  "descriptive_pairwise_matrix": {
+    "rec17_vs_ff17": {
+      "b_flagship_win": 145,
+      "c_baseline_win": 438,
+      "n_disc": 583,
+      "delta_pp": -5.8599999999999985,
+      "p_exact": 3.7714500626486483e-35,
+      "ci_95_low": -6.8064994030637305,
+      "ci_95_high": -4.913500596936267
+    },
+    "rec17_vs_ff42": {
+      "b_flagship_win": 129,
+      "c_baseline_win": 414,
+      "n_disc": 543,
+      "delta_pp": -5.699999999999999,
+      "p_exact": 7.92228216466321e-36,
+      "ci_95_low": -6.613452527502113,
+      "ci_95_high": -4.786547472497886
+    },
+    "rec17_vs_ff99": {
+      "b_flagship_win": 151,
+      "c_baseline_win": 414,
+      "n_disc": 565,
+      "delta_pp": -5.259999999999998,
+      "p_exact": 2.7331720855349386e-29,
+      "ci_95_low": -6.191773363001968,
+      "ci_95_high": -4.3282266369980285
+    },
+    "rec42_vs_ff17": {
+      "b_flagship_win": 268,
+      "c_baseline_win": 184,
+      "n_disc": 452,
+      "delta_pp": 1.6799999999999982,
+      "p_exact": 9.064106776816138e-05,
+      "ci_95_low": 0.8465965682816016,
+      "ci_95_high": 2.5134034317183946
+    },
+    "rec42_vs_ff42": {
+      "b_flagship_win": 256,
+      "c_baseline_win": 164,
+      "n_disc": 420,
+      "delta_pp": 1.8399999999999972,
+      "p_exact": 8.306750190485107e-06,
+      "ci_95_low": 1.0366390599487647,
+      "ci_95_high": 2.6433609400512297
+    },
+    "rec42_vs_ff99": {
+      "b_flagship_win": 278,
+      "c_baseline_win": 164,
+      "n_disc": 442,
+      "delta_pp": 2.2799999999999985,
+      "p_exact": 6.523865535198635e-08,
+      "ci_95_low": 1.4558671951681559,
+      "ci_95_high": 3.104132804831841
+    }
+  }
+}

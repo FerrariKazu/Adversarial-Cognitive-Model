@@ -1,0 +1,147 @@
+{
+  "protocol_id": "consolidated-flagship-112/1",
+  "diagnostic": "T5 Feedforward Battery (Standard AutoAttack, Eps Sweep, ECE, PGD Gap)",
+  "slice_sha256": "d129534adf0d1f5816a13ebebf20e49e502f935c0f8bd878ce162acefddd6b25",
+  "n_samples": 1000,
+  "arms": {
+    "ff_112_seed17": {
+      "arm_id": "ff_112_seed17",
+      "seed": 17,
+      "is_official": true,
+      "clean_1k": 0.739,
+      "ece": 0.0652148005217314,
+      "pgd50": 0.379,
+      "pgd100": 0.376,
+      "pgd_gap_pp": 0.30000000000000027,
+      "eps_sweep": {
+        "0.5x": {
+          "factor": 0.5,
+          "eps_pixel": 0.01062156862745098,
+          "eps_255": 2.7085,
+          "acc_robust": 0.573,
+          "acc_pct": 57.3
+        },
+        "1.0x": {
+          "factor": 1.0,
+          "eps_pixel": 0.02124313725490196,
+          "eps_255": 5.417,
+          "acc_robust": 0.38,
+          "acc_pct": 38.0
+        },
+        "2.0x": {
+          "factor": 2.0,
+          "eps_pixel": 0.04248627450980392,
+          "eps_255": 10.834,
+          "acc_robust": 0.104,
+          "acc_pct": 10.4
+        }
+      },
+      "autoattack": {
+        "apgd_ce": 0.374,
+        "apgd_t": 0.35,
+        "fab_t": 0.354,
+        "square": 0.523,
+        "aa_worst_case": 0.35
+      }
+    },
+    "ff_112_seed42": {
+      "arm_id": "ff_112_seed42",
+      "seed": 42,
+      "is_official": false,
+      "clean_1k": 0.742,
+      "ece": 0.061510666087269794,
+      "pgd50": 0.375,
+      "pgd100": 0.374,
+      "pgd_gap_pp": 0.10000000000000009,
+      "eps_sweep": {
+        "0.5x": {
+          "factor": 0.5,
+          "eps_pixel": 0.01062156862745098,
+          "eps_255": 2.7085,
+          "acc_robust": 0.568,
+          "acc_pct": 56.8
+        },
+        "1.0x": {
+          "factor": 1.0,
+          "eps_pixel": 0.02124313725490196,
+          "eps_255": 5.417,
+          "acc_robust": 0.375,
+          "acc_pct": 37.5
+        },
+        "2.0x": {
+          "factor": 2.0,
+          "eps_pixel": 0.04248627450980392,
+          "eps_255": 10.834,
+          "acc_robust": 0.107,
+          "acc_pct": 10.7
+        }
+      },
+      "autoattack": {
+        "apgd_ce": 0.369,
+        "apgd_t": 0.358,
+        "fab_t": 0.36,
+        "square": 0.512,
+        "aa_worst_case": 0.358
+      }
+    },
+    "ff_112_seed99": {
+      "arm_id": "ff_112_seed99",
+      "seed": 99,
+      "is_official": false,
+      "clean_1k": 0.739,
+      "ece": 0.06492692716419697,
+      "pgd50": 0.365,
+      "pgd100": 0.363,
+      "pgd_gap_pp": 0.20000000000000018,
+      "eps_sweep": {
+        "0.5x": {
+          "factor": 0.5,
+          "eps_pixel": 0.01062156862745098,
+          "eps_255": 2.7085,
+          "acc_robust": 0.568,
+          "acc_pct": 56.8
+        },
+        "1.0x": {
+          "factor": 1.0,
+          "eps_pixel": 0.02124313725490196,
+          "eps_255": 5.417,
+          "acc_robust": 0.365,
+          "acc_pct": 36.5
+        },
+        "2.0x": {
+          "factor": 2.0,
+          "eps_pixel": 0.04248627450980392,
+          "eps_255": 10.834,
+          "acc_robust": 0.113,
+          "acc_pct": 11.3
+        }
+      },
+      "autoattack": {
+        "apgd_ce": 0.363,
+        "apgd_t": 0.35,
+        "fab_t": 0.354,
+        "square": 0.506,
+        "aa_worst_case": 0.348
+      }
+    }
+  },
+  "three_seed_summary": {
+    "clean_mean": 74.00000000000001,
+    "clean_range": [
+      73.9,
+      74.2
+    ],
+    "pgd50_mean": 37.300000000000004,
+    "pgd50_range": [
+      36.5,
+      37.9
+    ],
+    "aa_worst_mean": 35.199999999999996,
+    "aa_worst_range": [
+      34.8,
+      35.8
+    ],
+    "designated_official_seed": 17,
+    "official_model_name": "RHAN-NXA-A, variant feedforward-112"
+  }
+}

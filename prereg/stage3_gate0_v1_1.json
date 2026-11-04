@@ -1,0 +1,84 @@
+{
+  "protocol_id": "stage3-gate0-selective-looking/1.1",
+  "protocol_version": "v1.1",
+  "created_at_utc": "2026-11-03T00:00:00Z",
+  "status": "DRAFT - AWAITING APPROVAL AFTER REVISION",
+  "replaces": "prereg/stage3_gate0_v1.json",
+  "purpose": "Measure headroom for selective looking WITHOUT any learned gaze policy, with heuristic-gaze viability test.",
+  "measurements_only": true,
+  "no_learned_gaze_policy": true,
+  "benchmark": {
+    "source": "ImageNet-100",
+    "target_area_fraction": [0.01, 0.05],
+    "canvas_size_px": [224, 448],
+    "cpu_only_build": true,
+    "trunk": "official_ff_112 (foundation_ff_112_seed17_final_d00fb750.pth)",
+    "trunk_fixed": true
+  },
+  "arms": [
+    {
+      "name": "uniform_downsample",
+      "description": "Uniform downsample to matched pixel budget"
+    },
+    {
+      "name": "random_glimpses",
+      "description": "Random glimpses at matched pixel budget"
+    },
+    {
+      "name": "oracle_glimpses",
+      "description": "Oracle glimpses using ground-truth target location at matched pixel budget"
+    },
+    {
+      "name": "heuristic_gaze_zero_training",
+      "description": "Zero-training heuristic-gaze arm: glimpses chosen by the trunk's own gist-level uncertainty or attention (no learned parameters)",
+      "learned_parameters": false
+    },
+    {
+      "name": "k_glimpses_plus_gist",
+      "description": "K glimpses of 112 px plus a low-res gist",
+      "k_values": [1, 2, 4]
+    }
+  ],
+  "seeds_definition": {
+    "what_seeds_vary": "scene sampling and glimpse randomness",
+    "trunk": "fixed (official ff_112)",
+    "note": "Seeds do not vary trunk weights; they vary data sampling and stochastic glimpse/heuristic choices as applicable"
+  },
+  "budgets": "matched_pixel_budgets_across_arms",
+  "seeds": [17, 42, 99],
+  "thresholds_chosen": [
+    {
+      "name": "oracle_vs_max_random_uniform_gap_pp",
+      "value": 10.0,
+      "units": "percentage_points",
+      "rationale": "HEADROOM threshold"
+    },
+    {
+      "name": "heuristic_recovers_fraction_of_oracle_random_gap",
+      "value": 0.3,
+      "units": "fraction",
+      "rationale": "VIABILITY threshold - heuristic must recover >=30% of oracle-random gap"
+    },
+    {
+      "name": "heuristic_min_seeds",
+      "value": 2,
+      "rationale": "Heuristic must meet viability on >= 2 of 3 seeds"
+    }
+  ],
+  "pass_rule": {
+    "split": true,
+    "HEADROOM": {
+      "rule": "oracle - max(random, uniform) >= 10 pp at some budget, on all 3 seeds",
+      "required": true
+    },
+    "VIABILITY": {
+      "rule": "heuristic recovers >= 30% of the oracle-random gap at the same budget on >= 2 of 3 seeds",
+      "required": true,
+      "definition": "recovered_fraction = (acc_heuristic - acc_random) / max(acc_oracle - acc_random, eps) >= 0.3"
+    },
+    "note": "A headroom pass alone does NOT authorize learned-gaze work. Both HEADROOM and VIABILITY must be satisfied as specified."
+  },
+  "fail_predeclaration": {
+    "meaning": "If gate0 fails, no learned-gaze work is permitted until a new preregistration is written and approved."
+  }
+}

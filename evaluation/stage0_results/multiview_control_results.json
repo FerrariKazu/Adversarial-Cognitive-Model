@@ -1,0 +1,44 @@
+{
+  "protocol_id": "multiview-control-112/1",
+  "prereg": "prereg/multiview_control_prereg_v1.json",
+  "slice_sha256": "d129534adf0d1f5816a13ebebf20e49e502f935c0f8bd878ce162acefddd6b25",
+  "n_samples": 1000,
+  "eps_pixel": 0.02124313725490196,
+  "eps_255": 5.417,
+  "flagship_seed42_ref": {
+    "clean_1k": 0.764,
+    "worst_case_5k": 0.3772,
+    "threshold_match": 0.37
+  },
+  "arms": {
+    "ff_112_seed17": {
+      "arm_id": "ff_112_seed17",
+      "seed": 17,
+      "clean_1k": 0.708,
+      "pgd50_1k": 0.381,
+      "apgd_ce_1k": 0.368,
+      "worst_case_1k": 0.368
+    },
+    "ff_112_seed42": {
+      "arm_id": "ff_112_seed42",
+      "seed": 42,
+      "clean_1k": 0.716,
+      "pgd50_1k": 0.378,
+      "apgd_ce_1k": 0.369,
+      "worst_case_1k": 0.369
+    },
+    "ff_112_seed99": {
+      "arm_id": "ff_112_seed99",
+      "seed": 99,
+      "clean_1k": 0.718,
+      "pgd50_1k": 0.371,
+      "apgd_ce_1k": 0.356,
+      "worst_case_1k": 0.356
+    }
+  },
+  "summary": {
+    "mean_worst_case_1k": 0.36433333333333334,
+    "match_threshold": 0.37,
+    "declared_reading": "inconclusive"
+  }
+}

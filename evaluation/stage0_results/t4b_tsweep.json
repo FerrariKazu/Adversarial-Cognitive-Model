@@ -1,0 +1,88 @@
+{
+  "protocol_id": "consolidated-flagship-112/1",
+  "diagnostic": "T4b Recurrence Sweep (T=1..4)",
+  "slice_sha256": "d129534adf0d1f5816a13ebebf20e49e502f935c0f8bd878ce162acefddd6b25",
+  "n_samples": 1000,
+  "eps_pixel": 0.02124313725490196,
+  "eps_pixel_255": 5.417,
+  "pgd_steps": 50,
+  "pgd_alpha": 0.0021243137254901958,
+  "seeds": {
+    "recurrence_112_seed42": {
+      "T_1": {
+        "T": 1,
+        "clean_acc_1k": 0.76,
+        "clean_acc_pct": 76.0,
+        "pgd50_acc_1k": 0.306,
+        "pgd50_acc_pct": 30.6,
+        "clean_time_s": 1.37,
+        "pgd50_time_s": 78.67
+      },
+      "T_2": {
+        "T": 2,
+        "clean_acc_1k": 0.755,
+        "clean_acc_pct": 75.5,
+        "pgd50_acc_1k": 0.334,
+        "pgd50_acc_pct": 33.4,
+        "clean_time_s": 1.42,
+        "pgd50_time_s": 153.15
+      },
+      "T_3": {
+        "T": 3,
+        "clean_acc_1k": 0.753,
+        "clean_acc_pct": 75.3,
+        "pgd50_acc_1k": 0.361,
+        "pgd50_acc_pct": 36.1,
+        "clean_time_s": 2.05,
+        "pgd50_time_s": 229.64
+      },
+      "T_4": {
+        "T": 4,
+        "clean_acc_1k": 0.764,
+        "clean_acc_pct": 76.4,
+        "pgd50_acc_1k": 0.387,
+        "pgd50_acc_pct": 38.7,
+        "clean_time_s": 2.67,
+        "pgd50_time_s": 920.46
+      }
+    },
+    "recurrence_112_seed17": {
+      "T_1": {
+        "T": 1,
+        "clean_acc_1k": 0.654,
+        "clean_acc_pct": 65.4,
+        "pgd50_acc_1k": 0.268,
+        "pgd50_acc_pct": 26.8,
+        "clean_time_s": 3.56,
+        "pgd50_time_s": 215.14
+      },
+      "T_2": {
+        "T": 2,
+        "clean_acc_1k": 0.642,
+        "clean_acc_pct": 64.2,
+        "pgd50_acc_1k": 0.267,
+        "pgd50_acc_pct": 26.7,
+        "clean_time_s": 6.82,
+        "pgd50_time_s": 462.15
+      },
+      "T_3": {
+        "T": 3,
+        "clean_acc_1k": 0.672,
+        "clean_acc_pct": 67.2,
+        "pgd50_acc_1k": 0.267,
+        "pgd50_acc_pct": 26.7,
+        "clean_time_s": 12.96,
+        "pgd50_time_s": 1894.26
+      },
+      "T_4": {
+        "T": 4,
+        "clean_acc_1k": 0.666,
+        "clean_acc_pct": 66.6,
+        "pgd50_acc_1k": 0.313,
+        "pgd50_acc_pct": 31.3,
+        "clean_time_s": 27.97,
+        "pgd50_time_s": 1025.66
+      }
+    }
+  }
+}
