@@ -76,6 +76,8 @@ The following census was read directly from the local checkpoint files. `step` i
 
 **What this does not show.** It does not show that the optimizer reset caused seed 17's lower accuracy (67.04% clean / 33.40% robust vs seed 42's 76.10% / 40.04%), and it says nothing about epochs 1-4 beyond the saved epoch-4 weights and metrics. The reset is a confound, not an established cause. See `optimizer_state_empty_trace.md` for the read-only mechanism trace.
 
+**c3/c4 disposition.** The `c3_refine_single` counter is about one epoch short (`25,746` vs `27,706`), and the `c4_four_views_no_refine` counter is consistent (`21,760` vs `21,769`). Both are report-only; neither requires a new investigation for Stage 0.
+
 ---
 
 ## 4. Learning Rate Schedule per Epoch (Replayed from Code, Not Logged)
