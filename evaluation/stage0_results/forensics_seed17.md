@@ -44,7 +44,7 @@ Monitor metrics logged during training (5,000 images clean, 512 images robust PG
 * `recurrence_112_seed17` achieved final training loss **0.678**, compared to 0.699 for seed 42, 0.746 for ff seed 17, 0.726 for ff seed 42, and 0.708 for ff seed 99 (`evaluation/stage0_results/t4c_per_seed_slopes.json`).
 * However, Seed 17 achieved validation clean accuracy of 67.04% vs 76.10% for seed 42.
 * **Diagnosis Status: UNSUPPORTED.** The previously suggested "severe overfitting" diagnosis is not supported by the available evidence. While the loss/accuracy gap is consistent with overfitting under TRADES in principle, no direct diagnostic (e.g., train/val loss split logged per epoch, generalization gap breakdown, or causal attribution) confirms it as the definitive root cause. Other factors—such as optimization state corruption across preemptions/resumes, scheduler stepping behavior, or initialization/run-to-run variance—cannot be ruled out from existing data.
-* **Missing Rec17 Epochs 1–2 in `gen2_epoch_log.jsonl`:** Rec17 experienced its first preemption during early execution (epochs 1–2). Local `/kaggle/working/output/` on Kaggle was non-persistent across container preemptions; HF log syncing was only added later (commit `19c5ea9`). The original log file for epochs 1–2 was lost at session reset (log recreated). Checkpoint mtimes show the rolling/final checkpoints were written from resumed sessions starting at epoch 3; when resumed at epoch 3, a new `gen2_epoch_log.jsonl` was initialized and only epochs 3–15 were recorded.
+* **Missing Epoch Records in `gen2_epoch_log.jsonl`: UNRESOLVED, SOURCE NOT FOUND.** No epoch log for `recurrence_112` exists anywhere in the repository: a scan of every `*.jsonl` in the tree returns only `scratch/gen2_epoch_log.jsonl`, `scratch/c2_historical/gen2_epoch_log.jsonl`, `report/gen2_epoch_log.jsonl`, `report/controls/gen2_epoch_log.jsonl` and `controls/gen2_epoch_log.jsonl`, whose combined phase set is `{ais_v2_swap, belief_no_f, belief_with_f, ff_112, ff_56, g2_gist_only, g2_gist_only_cont, gen1_core, recurrence_only, c3_refine_single, c4_four_views_no_refine}` — `recurrence_112` is absent. A claim that rec17's epochs 1–2 were lost to a session reset therefore cannot be checked against any file in this tree and is recorded here as an unsourced narrative. The only epoch-record gap that the available logs actually show is in an `ff_112` run, where epoch 3 is absent (`scratch/gen2_epoch_log.jsonl`, run 2: epochs logged `[1, 2, 4, 5, ..., 15]`).
 * **Failure Triggering Try/Except:** The try/except around `optimizer.load_state_dict()` and `scheduler.load_state_dict()` was added at commit `6399601` (`fix(resume): graceful optimizer and scheduler load on parameter group mismatch`), as shown by `git show 6399601`. Commit `19c5ea9` (`fix(kaggle): add HF checkpoint restore and per-epoch sync to resume seamlessly`) later added HF sync/restore infrastructure in cloud launchers (see §6), not the try/except. The fix in `6399601` addresses parameter group mismatches on resume by catching load errors and continuing with fresh optimizer state and advancing the scheduler. 6399601 is seed 17’s run commit context per project notes, indicating the fallback was written for a resume problem that existed at that time. No log lines confirming the fallback fired were found in searched logs (absence of evidence).
 
 ---
@@ -113,14 +113,19 @@ Across all model architecture files (`gen2_foundation/model.py`, `gen2_foundatio
 
 ## 7. Run Session & Resumption Reconciliation
 
-Two different resume counts appear in project notes due to differing definitions:
-* **Definition A (Inter-Epoch Session Gaps > 1h in `gen2_epoch_log.jsonl`):** Measures gaps in epoch completion timestamps within recorded logs.
-* **Definition B (Total Process Preemption & Restart Launches on Cloud Infrastructure):** Measures total container/session invocations from scratch, including cold restarts where epochs 1–2 had to be restarted or resumed.
+**Definition used (replaces the earlier Def A / Def B pair):** a resume is an inter-epoch timestamp delta that exceeds **1.5 × the run's own median epoch delta**, computed from the epoch-completion `timestamp` field of `gen2_epoch_log.jsonl`. The earlier "> 1 h gap" definition is retired: a 1 h threshold is not normalised to a run's cadence, and the earlier Def B counts (container/session invocations) have no source file in this tree.
 
-| Run Arm | Run Commit | Resumes (Def A: Timestamp Gaps > 1h) | Documented Gap Details (Def A) | Resumes (Def B: Kaggle Preemption Events) | Source File |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| `ff_112_seed17` | `512a562` | 1 | 3.2h gap before ep 11 | 1 | `gen2_epoch_log.jsonl` |
-| `ff_112_seed42` | `512a562` | 2 | 3.1h before ep 4; 4.6h before ep 15 | 2 | `gen2_epoch_log.jsonl` |
-| `ff_112_seed99` | `512a562` | 1 | 7.5h before ep 9 | 1 | `gen2_epoch_log.jsonl` |
-| `recurrence_112_seed17` | `6399601` | 4 | 2.3h (ep 5-6); 7.7h (ep 6-7); 2.0h (ep 7-8); 4.3h (ep 8-9) | 5 (1 preemption during ep 1-2 + 4 later) | `gen2_epoch_log.jsonl` & Kaggle logs |
-| `recurrence_112_seed42` | `19c5ea9` | 0 | None (continuous ~2.2h per-epoch cadence) | 0 | `gen2_epoch_log.jsonl` |
+**Source and coverage.** All rows below come from `scratch/gen2_epoch_log.jsonl` (153 lines). That file carries no `seed` field — records are keyed only by `phase`, `arm` and `epoch` — so the three `ff_112` runs are identified here by their position in the log (run 1/2/3) and the arm labels are the ones used in earlier write-ups, not a value read from the file. The two `recurrence_112` runs cannot be measured at all: **no `recurrence_112` epoch log exists in the repository** (see §3), so their rows are NOT COMPUTABLE rather than zero.
+
+| Run arm (label by log order) | Source log | Epochs logged | Median epoch Δ | 1.5 × median = resume threshold | Flagged resume epochs | Gap duration at each flagged epoch |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `ff_112` run 1 (written up as seed 17) | `scratch/gen2_epoch_log.jsonl` | 1–15 (15) | 1805.1 s = 30.08 min | 2707.6 s = 45.13 min | ep 11 | 11419.8 s = 190.33 min = 3.17 h |
+| `ff_112` run 2 (written up as seed 42) | `scratch/gen2_epoch_log.jsonl` | 1, 2, 4–15 (14) | 1792.2 s = 29.87 min | 2688.3 s = 44.81 min | ep 4, ep 15 | ep 4: 11266.8 s = 187.78 min = 3.13 h (spans the unlogged ep 3); ep 15: 16414.0 s = 273.57 min = 4.56 h |
+| `ff_112` run 3 (written up as seed 99) | `scratch/gen2_epoch_log.jsonl` | 1–15 (15) | 1945.9 s = 32.43 min | 2918.8 s = 48.65 min | ep 9 | 15170.3 s = 252.84 min = 4.21 h |
+| `recurrence_112_seed17` | none | — | NOT COMPUTABLE | NOT COMPUTABLE | NOT COMPUTABLE | No `recurrence_112` epoch log in the repository |
+| `recurrence_112_seed42` | none | — | NOT COMPUTABLE | NOT COMPUTABLE | NOT COMPUTABLE | No `recurrence_112` epoch log in the repository |
+
+**Discrepancies against the earlier table, reported not resolved:**
+* The earlier table gave `ff_112` run 3 ("seed 99") a 7.5 h gap before epoch 9; the log gives 15170.3 s = 4.21 h.
+* The earlier table attributed 4 timestamp-gap resumes and 5 total preemptions to `recurrence_112_seed17`. That count is deleted here: there is no `recurrence_112` log in the tree to support it, and the phrase "1 preemption during ep 1-2" was inferred, not observed.
+* Of the three `ff_112` runs, only run 2 is missing an epoch record (epoch 3). The missing-record phenomenon is therefore documented on an `ff_112` run, not on rec17.
