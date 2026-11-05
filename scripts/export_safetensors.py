@@ -58,6 +58,33 @@ def _build_model(config: Dict[str, Any]) -> Gen2FoundationModel:
     return Gen2FoundationModel(**kwargs)
 
 
+def _imagenet100_classes() -> Tuple[list[str], str]:
+    """Return classes in ImageFolder index order and name the implicit source."""
+    val_dir = REPO_ROOT / "data" / "imagenet100" / "val"
+    if val_dir.is_dir():
+        names = sorted(path.name for path in val_dir.iterdir() if path.is_dir())
+        if len(names) == 100:
+            return names, (
+                "sorted directory names under data/imagenet100/val "
+                "(torchvision ImageFolder.classes order); no index-ordered "
+                "class list is tracked in the repository"
+            )
+    fingerprint = REPO_ROOT / "data" / "imagenet100" / "fingerprint.json"
+    if fingerprint.is_file():
+        payload = json.loads(fingerprint.read_text(encoding="utf-8"))
+        names = sorted(payload.get("class_names_to_dirs", {}).values())
+        if len(names) == 100:
+            return names, (
+                "values of data/imagenet100/fingerprint.json sorted by directory "
+                "name (ImageFolder order); no index-ordered class list is tracked "
+                "in the repository"
+            )
+    return [], (
+        "unavailable at export time; class order is defined by sorted "
+        "ImageFolder directory names at evaluation time"
+    )
+
+
 def load_exported_model(export_dir: Path) -> Gen2FoundationModel:
     """Load model.safetensors using the sibling config.json."""
     from safetensors.torch import load_file
@@ -107,7 +134,12 @@ def export_checkpoint(
         key: value.detach().cpu().contiguous().clone()
         for key, value in model.state_dict().items()
     }
-    param_count = sum(parameter.numel() for parameter in model.parameters())
+    num_state_dict_values = sum(value.numel() for value in model.state_dict().values())
+    num_unique_parameters = sum(parameter.numel() for parameter in model.parameters())
+    num_trainable_parameters = sum(
+        parameter.numel() for parameter in model.parameters() if parameter.requires_grad
+    )
+    class_names, class_names_source = _imagenet100_classes()
 
     output_dir.mkdir(parents=True, exist_ok=True)
     weights_path = output_dir / "model.safetensors"
@@ -133,9 +165,13 @@ def export_checkpoint(
         "format": "safetensors",
         "model_name": "RHAN-NXA, feedforward-112",
         "state_dict_file": "model.safetensors",
-        "param_count": param_count,
+        "num_state_dict_values": num_state_dict_values,
+        "num_unique_parameters": num_unique_parameters,
+        "num_trainable_parameters": num_trainable_parameters,
         "input": {"height": img_size, "width": img_size, "channels": 3},
         "num_classes": 100,
+        "class_names": class_names,
+        "class_names_source": class_names_source,
         "normalization": {
             "mean": list(IMAGENET_MEAN),
             "std": list(IMAGENET_STD),
@@ -170,7 +206,9 @@ def export_checkpoint(
         "source_sha256": source_sha256,
         "weights_sha256": exported_sha256,
         "config_sha256": sha256_file(config_path),
-        "param_count": param_count,
+        "num_state_dict_values": num_state_dict_values,
+        "num_unique_parameters": num_unique_parameters,
+        "num_trainable_parameters": num_trainable_parameters,
         "parity_max_abs": parity_max_abs,
     }
 
@@ -194,7 +232,9 @@ def main() -> int:
     print(f"SOURCE_SHA256={result['source_sha256']}")
     print(f"WEIGHTS_SHA256={result['weights_sha256']}")
     print(f"CONFIG_SHA256={result['config_sha256']}")
-    print(f"PARAM_COUNT={result['param_count']}")
+    print(f"NUM_STATE_DICT_VALUES={result['num_state_dict_values']}")
+    print(f"NUM_UNIQUE_PARAMETERS={result['num_unique_parameters']}")
+    print(f"NUM_TRAINABLE_PARAMETERS={result['num_trainable_parameters']}")
     print(f"PARITY_MAX_ABS={result['parity_max_abs']}")
     print(f"WEIGHTS={result['weights_path']}")
     print(f"CONFIG={result['config_path']}")
