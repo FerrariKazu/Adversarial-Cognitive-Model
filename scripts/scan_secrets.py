@@ -6,6 +6,7 @@ and match length.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import subprocess
@@ -32,7 +33,17 @@ PATTERNS: Dict[str, re.Pattern[str]] = {
     "GITHUB_PAT_LITERAL": re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
     "AWS_ACCESS_KEY": re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     "PRIVATE_KEY_MARKER": re.compile(r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----"),
-    "TOKEN_ASSIGNMENT": re.compile(r"\b(?:HF|GITHUB)_TOKEN\s*=\s*\S{8,}"),
+}
+ASSIGNMENT_PATTERN = re.compile(
+    r"\b(?P<lhs>HF_TOKEN|GITHUB_TOKEN|KAGGLE_KEY|KAGGLE_USERNAME|PASSWORD|SECRET|API_KEY|ACCESS_KEY)"
+    r"\s*=\s*(?P<rhs>[^\s#]+)",
+    re.IGNORECASE,
+)
+ENV_LOOKUP_RE = re.compile(r"^(?:os\.(?:environ|getenv)|getenv|env|settings\.|\$\{|\$[A-Za-z_])")
+PLACEHOLDERS = {
+    "", '""', "''", "null", "none", "~", "changeme", "change-me", "redacted",
+    "placeholder", "example", "dummy", "test", "test_token", "testtoken",
+    "***", "your_token_here",
 }
 
 
@@ -80,10 +91,52 @@ def _read_text(path: Path) -> str | None:
         return None
 
 
-def _findings(text: str) -> Iterator[Tuple[str, int]]:
+def _classify_assignment(rhs: str) -> str:
+    raw = rhs.strip().rstrip(",;")
+    if not raw:
+        return "EMPTY_OR_PLACEHOLDER"
+    if ENV_LOOKUP_RE.match(raw) or "os.environ" in raw or "getenv(" in raw:
+        return "ENV_LOOKUP"
+    if len(raw) >= 2 and raw[0] in "\"'" and raw[-1] == raw[0]:
+        inner = raw[1:-1]
+        lowered = inner.lower()
+        if not inner or lowered in PLACEHOLDERS:
+            return "EMPTY_OR_PLACEHOLDER"
+        if any(marker in lowered for marker in ("fake", "dummy", "placeholder", "example", "redacted")):
+            return "EMPTY_OR_PLACEHOLDER"
+        return "QUOTED_LITERAL"
+    if raw.lower() in PLACEHOLDERS:
+        return "EMPTY_OR_PLACEHOLDER"
+    return "OTHER"
+
+
+def _is_plausible_literal(shape: str, rhs: str) -> bool:
+    if shape == "QUOTED_LITERAL":
+        return True
+    if shape != "OTHER":
+        return False
+    raw = rhs.strip().rstrip(",;")
+    if raw.isidentifier():
+        return False
+    if not re.fullmatch(r"[A-Za-z0-9_.\-]{8,}", raw):
+        return False
+    return any(ch.isdigit() for ch in raw) and any(ch in "_.-" for ch in raw)
+
+
+def _findings(text: str) -> Iterator[Tuple[str, int, str | None]]:
     for name, pattern in PATTERNS.items():
         for match in pattern.finditer(text):
-            yield name, len(match.group(0))
+            yield name, len(match.group(0)), None
+    for match in ASSIGNMENT_PATTERN.finditer(text):
+        rhs = match.group("rhs")
+        shape = _classify_assignment(rhs)
+        if _is_plausible_literal(shape, rhs):
+            yield "TOKEN_ASSIGNMENT", len(match.group(0)), shape
+
+
+def _line_hash(content: str) -> str:
+    normalized = " ".join(content.split())
+    return hashlib.sha256(normalized.encode("utf-8", "replace")).hexdigest()
 
 
 def _working_tree_paths() -> List[str]:
@@ -105,9 +158,11 @@ def scan_working_tree() -> List[str]:
         text = _read_text(path)
         if text is None:
             continue
-        for pattern_name, length in _findings(text):
+        for pattern_name, length, shape in _findings(text):
+            extra = f" shape={shape}" if shape else ""
             findings.append(
-                f"FINDING file={rel} commit=WORKTREE pattern={pattern_name} match_len={length}"
+                f"FINDING file={rel} commit=WORKTREE pattern={pattern_name} "
+                f"match_len={length}{extra}"
             )
     return findings
 
@@ -115,7 +170,11 @@ def scan_working_tree() -> List[str]:
 def scan_git_history() -> List[str]:
     findings: List[str] = []
     revs = [r for r in _git_bytes(["git", "rev-list", "--all"]).decode().splitlines() if r]
-    needle = "hf_|ghp_|gho_|github_pat_|AKIA|PRIVATE KEY|HF_TOKEN|GITHUB_TOKEN"
+    needle = (
+        "hf_|ghp_|gho_|github_pat_|AKIA|PRIVATE KEY|HF_TOKEN|GITHUB_TOKEN|"
+        "KAGGLE_KEY|KAGGLE_USERNAME|PASSWORD|SECRET|API_KEY|ACCESS_KEY"
+    )
+    seen: set[Tuple[str, str, str]] = set()
     for i in range(0, len(revs), 100):
         chunk = revs[i:i + 100]
         result = _run(["git", "grep", "-I", "-n", "-E", "-e", needle, *chunk, "--"])
@@ -126,9 +185,15 @@ def scan_git_history() -> List[str]:
             if len(parts) < 4:
                 continue
             commit, rel, _lineno, content = parts
-            for pattern_name, length in _findings(content):
+            for pattern_name, length, shape in _findings(content):
+                key = (rel, _line_hash(content), pattern_name)
+                if key in seen:
+                    continue
+                seen.add(key)
+                extra = f" shape={shape}" if shape else ""
                 findings.append(
-                    f"FINDING file={rel} commit={commit} pattern={pattern_name} match_len={length}"
+                    f"FINDING file={rel} commit={commit} pattern={pattern_name} "
+                    f"match_len={length}{extra}"
                 )
     return findings
 
@@ -188,9 +253,11 @@ def scan_hf_datasets() -> Tuple[List[str], List[str]]:
                 continue
             if text is None:
                 continue
-            for pattern_name, length in _findings(text):
+            for pattern_name, length, shape in _findings(text):
+                extra = f" shape={shape}" if shape else ""
                 findings.append(
-                    f"FINDING file={repo_id}:{rel} commit=HF pattern={pattern_name} match_len={length}"
+                    f"FINDING file={repo_id}:{rel} commit=HF pattern={pattern_name} "
+                    f"match_len={length}{extra}"
                 )
     return findings, notes
 
