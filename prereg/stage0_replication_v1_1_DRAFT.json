@@ -1,0 +1,212 @@
+{
+  "protocol_id": "stage0-replication/1.1-draft",
+  "protocol_version": "v1.1-DRAFT",
+  "status": "DRAFT",
+  "created_at_utc": "2026-11-05T00:00:00Z",
+  "supersedes": {
+    "file": "prereg/stage0_replication_v1_DRAFT.json",
+    "sha256": "aa51428c3ffe0511500eb8c592f5149a59ec9ef63aa3a849be383a15ab794f5d"
+  },
+  "changes_from_v1": [
+    "Fixed the replication run set: clean recurrence_112 seed 17 and seed 99 reruns at batch 64, reuse of the Stage 0 recurrence_112 seed 42 checkpoint, and ff_112 batch-64 controls for seeds 17, 42, and 99.",
+    "Added a single-run Stage A stability gate on recurrence_112_seed17_b64 before the remaining four runs.",
+    "Fixed the decision metric as the bitwise worst-case AND of PGD-50, APGD-CE 100, and APGD-DLR 100 on the full 5,000-image validation split.",
+    "Fixed the primary decision rule: POSITIVE requires min(flagship) > max(ff_b64) and a mean gap of at least +1.0 pp; REVERSED requires max(flagship) < min(ff_b64); otherwise NULL.",
+    "Made McNemar a secondary/descriptive test rather than a decision criterion.",
+    "Defined the Stage 0 batch-48 ff_112 results as a historical reference only, with a 0.6 pp mean-gap tolerance for reporting a batch/steps effect.",
+    "Kept the official ff_112 seed 17 batch-48 model unchanged."
+  ],
+  "purpose": "DRAFT ONLY. No run has been launched. This file records the design for a matched-recipe replication of the Stage 0 recurrent-vs-feedforward comparison at 112 px, with the no-run Stage A gate and the fixed decision rule.",
+  "question": "Does the recurrent flagship beat feedforward at 112 px under a matched recipe, after accounting for the two confounds found after the Stage 0 verdict (batch 48 vs 64; contaminated flagship seed 17)?",
+  "confounds_addressed": [
+    {
+      "id": "batch_mismatch",
+      "description": "Stage 0 trained ff_112 at loader batch 48 (2,639 steps/epoch, 39,585 steps over 15 epochs) and recurrence_112 at loader batch 64 (1,979 steps/epoch, 29,685 steps). The replication trains every arm at batch 64.",
+      "stage0_evidence": "evaluation/stage0_results/forensics_seed17.md section 3a; evaluation/stage0_results/stage0_final_report.md section 1a"
+    },
+    {
+      "id": "seed17_optimizer_reset",
+      "description": "The Stage 0 recurrence_112 seed 17 final checkpoint has an AdamW step counter of 21,762, consistent with a fresh optimizer from epoch 5 (11 x 1,979 = 21,769), not 15 continuous epochs. The local epoch-4 rolling checkpoint has five parameter groups and zero optimizer state entries. The replication reruns seed 17 under the empty-state guard.",
+      "stage0_evidence": "evaluation/stage0_results/forensics_seed17.md section 3a; evaluation/stage0_results/optimizer_state_empty_trace.md"
+    }
+  ],
+  "design": {
+    "stage_a": {
+      "description": "Stability gate. Run only recurrence_112_seed17_b64 first and evaluate its worst-case accuracy on the full 5k split before spending compute on the remaining four runs.",
+      "run_name": "recurrence_112_seed17_b64",
+      "phase": "consolidated_112",
+      "phase_override_name": "recurrence_112_seed17_b64",
+      "training_seed": 17,
+      "batch_size": 64,
+      "steps_per_epoch": 1979,
+      "n_epochs": 15,
+      "continue_if": "worst_case_accuracy >= 35.44",
+      "borderline_if": "33.0 < worst_case_accuracy < 35.44",
+      "stop_if": "worst_case_accuracy <= 33.0",
+      "stop_rule": "If stop_if triggers, do not run Stage B and report the flagship as unstable; the Stage 0 NULL verdict stands. The comparison is strict at exactly 33.0 (stop) and exactly 35.44 (continue).",
+      "status": "PLANNED"
+    },
+    "stage_b": {
+      "description": "Remaining four matched-batch-64 runs. Launch only if Stage A continues or is borderline.",
+      "runs": [
+        {
+          "run_name": "recurrence_112_seed99_b64",
+          "phase": "consolidated_112",
+          "phase_override_name": "recurrence_112_seed99_b64",
+          "training_seed": 99,
+          "batch_size": 64,
+          "steps_per_epoch": 1979,
+          "n_epochs": 15,
+          "status": "PLANNED"
+        },
+        {
+          "run_name": "ff_112_seed17_b64",
+          "phase": "ff_112",
+          "phase_override_name": "ff_112_seed17_b64",
+          "training_seed": 17,
+          "batch_size": 64,
+          "steps_per_epoch": 1979,
+          "n_epochs": 15,
+          "status": "PLANNED"
+        },
+        {
+          "run_name": "ff_112_seed42_b64",
+          "phase": "ff_112",
+          "phase_override_name": "ff_112_seed42_b64",
+          "training_seed": 42,
+          "batch_size": 64,
+          "steps_per_epoch": 1979,
+          "n_epochs": 15,
+          "status": "PLANNED"
+        },
+        {
+          "run_name": "ff_112_seed99_b64",
+          "phase": "ff_112",
+          "phase_override_name": "ff_112_seed99_b64",
+          "training_seed": 99,
+          "batch_size": 64,
+          "steps_per_epoch": 1979,
+          "n_epochs": 15,
+          "status": "PLANNED"
+        }
+      ]
+    },
+    "reuse": {
+      "existing_flagship_seed42": {
+        "description": "Stage 0 recurrence_112 seed 42 was trained at batch 64, has a continuous optimizer history (29,668 steps vs 15 x 1,979 = 29,685), and had no observed reset. Reuse it rather than retrain it.",
+        "checkpoint": "checkpoints/foundation_recurrence_112_seed42_final_eb40bf84.pth",
+        "epoch": 15,
+        "optimizer_step": 29668,
+        "status": "DECIDED - REUSE"
+      }
+    }
+  },
+  "run_names": {
+    "replication_runs": [
+      "recurrence_112_seed17_b64",
+      "recurrence_112_seed99_b64",
+      "ff_112_seed17_b64",
+      "ff_112_seed42_b64",
+      "ff_112_seed99_b64"
+    ],
+    "reused_runs": [
+      "recurrence_112_seed42"
+    ]
+  },
+  "pinned_commit": null,
+  "pinned_commit_status": "OPEN - fill with the full 40-character SHA of the clean tip at launch. The tip must contain B1-B5 and the empty-state guard.",
+  "launch_requires_clean_tree": true,
+  "infra": {
+    "required_gates": "B1-B5 passed on the pinned clean tree",
+    "empty_optimizer_state_guard": "active; a checkpoint with optimizer.state entries == 0 at saved epoch >= 1 must abort unless allow_fresh_optimizer is explicitly passed",
+    "allow_fresh_optimizer_for_replication": false,
+    "fallback_events_allowed": false,
+    "resume_equivalence": "scripts/test_resume_equivalence.py must pass with exact weight/RNG equality on the pinned tip",
+    "strict_abort_tests": "tests/test_resume_strict_abort.py must pass on the pinned tip"
+  },
+  "recipe": {
+    "data": {
+      "dataset": "ImageNet-100",
+      "train_images": 126689,
+      "val_images": 5000,
+      "train_root": "data/imagenet100/train",
+      "val_root": "data/imagenet100/val",
+      "augmentation": "RandomResizedCrop(112, scale 0.35-1.0), horizontal flip, ImageNet normalization"
+    },
+    "model": {
+      "input_resolution_px": 112,
+      "num_glimpses": 4,
+      "eval_t": 4,
+      "flagship_arch_phase": "recurrence_only",
+      "flagship_launch_phase": "consolidated_112",
+      "feedforward_phase": "ff_112",
+      "backbone": "DINOv2-S/14 warm start"
+    },
+    "optimization": {
+      "optimizer": "AdamW multi-group",
+      "batch_size": 64,
+      "micro_batch_size": 64,
+      "grad_accum_steps": 1,
+      "steps_per_epoch": 1979,
+      "n_epochs": 15,
+      "backbone_lr": 5e-05,
+      "heads_lr": 0.0005,
+      "weight_decay": 0.05,
+      "weight_decay_scope": "tensors with ndim >= 2 only",
+      "clip_norm": 1.0,
+      "scheduler": "3-epoch linear warmup then cosine decay, stepped once per epoch"
+    },
+    "adversarial": {
+      "loss": "TRADES",
+      "beta": 2.5,
+      "w_trades": 0.55,
+      "pgd_steps": 4,
+      "alpha": 0.05875,
+      "eps_norm": 0.094,
+      "eps_pixel": 0.02124313725490196,
+      "eps_pixel_255": 5.417,
+      "clamp_normalized": [-4, 4],
+      "curriculum": "constant across epochs; epsilon and TRADES weights do not change with epoch"
+    },
+    "checkpoint_policy": "final epoch only; no selection on validation or evaluation images"
+  },
+  "evaluation": {
+    "harness": "evaluation/run_stage0_harness.py",
+    "battery": "Stage 0 canonical harness: clean + PGD-50 + APGD-CE + APGD-DLR at eps = 5.417/255",
+    "slice": "full 5,000-image ImageNet-100 validation split; the 1k canonical slice is not used for the decision",
+    "attacks": {
+      "pgd50": {"steps": 50, "loss": "ce"},
+      "apgd_ce": {"steps": 100, "loss": "ce"},
+      "apgd_dlr": {"steps": 100, "loss": "dlr"}
+    },
+    "worst_case": "bitwise AND of PGD-50, APGD-CE, APGD-DLR correctness arrays",
+    "checkpoint_gate_pp": 1.0,
+    "per_sample_artifacts": "one .npz per arm with per-sample correctness arrays",
+    "reuse_stage0_harness_code": true
+  },
+  "analysis": {
+    "primary": "Compare recurrent and feedforward worst-case robust accuracy on the full 5k surface at matched batch 64.",
+    "per_seed": "Report clean, PGD-50, APGD-CE, APGD-DLR, and worst-case for every seed.",
+    "decision_metric": "worst-case accuracy = mean of the bitwise AND of PGD-50, APGD-CE, and APGD-DLR correctness arrays on the full 5,000-image split",
+    "decision_rule": {
+      "POSITIVE": "min(flagship worst-case over seeds 17, 42, 99) > max(ff_b64 worst-case over seeds 17, 42, 99) AND mean(flagship worst-case) - mean(ff_b64 worst-case) >= +1.0 pp",
+      "REVERSED": "max(flagship worst-case) < min(ff_b64 worst-case)",
+      "NULL": "all other outcomes, including any non-strict tie or a mean gap below +1.0 pp"
+    },
+    "mcnemar": "Pooled McNemar exact two-sided test on discordant pairs is secondary and descriptive; it does not change the decision.",
+    "selection": "No checkpoint selection; evaluate the epoch-15 final checkpoint only.",
+    "batch_reference": {
+      "stage0_ff_batch48_seeds": [17, 42, 99],
+      "stage0_ff_batch48_mean_pp": 35.79,
+      "tolerance_pp": 0.6,
+      "rule": "Report the Stage 0 batch-48 ff_112 seeds as historical reference only. If mean(ff_b64) differs from 35.79 pp by more than 0.6 pp, report that the batch/steps change affected the feedforward baseline. Do not change the decision rule or verdict."
+    },
+    "official_model_unchanged": "The official ff_112 seed 17 batch-48 model is not retrained, replaced, or re-selected by this replication."
+  },
+  "OPEN": [
+    "Pinned commit value: fill with the full 40-character clean-tip SHA at launch; do not launch from a dirty tree.",
+    "Order, parallelism, GPU allocation, and wall-clock budget for the four Stage B runs after Stage A passes.",
+    "Whether to add the 1k canonical slice or AutoAttack as secondary diagnostics; the decision remains on the full 5k surface.",
+    "The 30-epoch Stage 2 lever is out of scope for this replication and is not decided here."
+  ]
+}
