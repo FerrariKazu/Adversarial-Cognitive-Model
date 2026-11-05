@@ -160,6 +160,18 @@ for mod in list(sys.modules.keys()):
     if any(mod.startswith(p) for p in ["training", "gen2_foundation", "noesis_vision"]):
         del sys.modules[mod]
 
+from cloud_setup.ckpt_select import (
+    CandidateError,
+    can_overwrite_remote,
+    files_for_active_runs,
+    load_metadata,
+    parse_checkpoint_kind,
+    select_best_candidate,
+    sha256_file,
+    validate_candidate,
+    validate_reuse_candidate,
+)
+
 sha = git("rev-parse", "HEAD")
 print(f"Pinned commit: {sha}")
 
@@ -176,6 +188,64 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 (OUT_DIR / "audit_rev1").mkdir(parents=True, exist_ok=True)
 (OUT_DIR / "report").mkdir(parents=True, exist_ok=True)
 CKPT_DIR.mkdir(parents=True, exist_ok=True)
+
+# %% [markdown]
+# ## Step 2b: Replication Run Allowlist (COLAB_RUNS)
+
+# %%
+PREREG_REL = "prereg/stage0_replication_v1_1_DRAFT.json"
+
+def load_pinned_prereg() -> Dict[str, Any]:
+    try:
+        return json.loads(git("show", f"{COMMIT_SHA}:{PREREG_REL}"))
+    except Exception as exc:
+        raise SystemExit(f"ERROR: cannot read {PREREG_REL} at {COMMIT_SHA}: {exc}")
+
+REPLICATION_PREREG = load_pinned_prereg()
+RUN_SPECS: Dict[str, Dict[str, Any]] = {}
+_STAGE_A = REPLICATION_PREREG["design"]["stage_a"]
+RUN_SPECS[_STAGE_A["run_name"]] = {**_STAGE_A, "stage": "A", "train": True}
+for _run in REPLICATION_PREREG["design"]["stage_b"]["runs"]:
+    RUN_SPECS[_run["run_name"]] = {**_run, "stage": "B", "train": True}
+for _run_name in REPLICATION_PREREG.get("run_names", {}).get("reused_runs", []):
+    RUN_SPECS[_run_name] = {
+        "run_name": _run_name,
+        "phase": "consolidated_112",
+        "phase_override_name": _run_name,
+        "training_seed": 42,
+        "batch_size": 64,
+        "n_epochs": 15,
+        "stage": "REUSE",
+        "train": False,
+        "checkpoint": "checkpoints/foundation_recurrence_112_seed42_final.pth",
+    }
+STAGE_A_RUN = _STAGE_A["run_name"]
+STAGE_B_RUNS = [r["run_name"] for r in REPLICATION_PREREG["design"]["stage_b"]["runs"]]
+ALLOWED_RUNS = tuple(RUN_SPECS)
+
+COLAB_RUNS_RAW = os.environ.get("COLAB_RUNS", "").strip()
+if not COLAB_RUNS_RAW:
+    raise SystemExit(
+        "ERROR: COLAB_RUNS is unset or empty. Set a comma-separated allowlist "
+        f"from {PREREG_REL}."
+    )
+_REQUESTED = [x.strip() for x in COLAB_RUNS_RAW.split(",")]
+if any(not x for x in _REQUESTED):
+    raise SystemExit(f"ERROR: COLAB_RUNS contains an empty entry: {COLAB_RUNS_RAW!r}")
+if len(set(_REQUESTED)) != len(_REQUESTED):
+    raise SystemExit(f"ERROR: COLAB_RUNS contains duplicates: {COLAB_RUNS_RAW!r}")
+_UNKNOWN = [x for x in _REQUESTED if x not in RUN_SPECS]
+if _UNKNOWN:
+    raise SystemExit(
+        f"ERROR: COLAB_RUNS contains names not in {PREREG_REL}: {_UNKNOWN}; "
+        f"allowed={list(ALLOWED_RUNS)}"
+    )
+if any(x in STAGE_B_RUNS for x in _REQUESTED) and STAGE_A_RUN not in _REQUESTED:
+    raise SystemExit(
+        f"ERROR: Stage B runs require the Stage A gate run {STAGE_A_RUN} in COLAB_RUNS."
+    )
+ACTIVE_RUNS = tuple(_REQUESTED)
+print(f"COLAB_RUNS OK: {list(ACTIVE_RUNS)}")
 
 # %% [markdown]
 # ## Step 3: Hardware Verification & Locked Pre-Registration
@@ -301,73 +371,233 @@ if hf_token:
         except Exception as e:
             print(f"  HF check {r}: {e}")
 
+FINAL_HASH_LEDGER = OUT_DIR / "final_hashes.json"
+_REMOTE_EPOCH_CACHE: Dict[Tuple[str, str], Optional[int]] = {}
+
+
+def _write_json_atomic(path: Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w") as f:
+        json.dump(payload, f, indent=2, sort_keys=True)
+    os.replace(tmp, path)
+
+
+def _load_hash_ledger() -> Dict[str, str]:
+    if not FINAL_HASH_LEDGER.exists():
+        return {}
+    try:
+        data = json.loads(FINAL_HASH_LEDGER.read_text())
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _record_final_hash(run_name: str, path: Path) -> str:
+    ledger = _load_hash_ledger()
+    digest = sha256_file(path)
+    ledger[run_name] = digest
+    _write_json_atomic(FINAL_HASH_LEDGER, ledger)
+    return digest
+
+
+def _verify_final_hash(run_name: str, path: Path) -> bool:
+    ledger = _load_hash_ledger()
+    digest = sha256_file(path)
+    if run_name in ledger:
+        if ledger[run_name] != digest:
+            raise SystemExit(
+                f"ERROR: final hash mismatch for {run_name}: "
+                f"ledger={ledger[run_name]} local={digest}"
+            )
+        return True
+    _record_final_hash(run_name, path)
+    return True
+
+
+def _final_path(run_name: str) -> Path:
+    return CKPT_DIR / f"foundation_{run_name}_final.pth"
+
+
+def _eval_json_path(run_name: str) -> Path:
+    return OUT_DIR / "eval" / f"{run_name}_112.json"
+
+
+def _eval_npz_path(run_name: str) -> Path:
+    return OUT_DIR / "eval" / f"{run_name}_112.npz"
+
+
+def _run_for_filename(filename: str) -> Optional[str]:
+    for run_name in ACTIVE_RUNS:
+        if parse_checkpoint_kind(filename, run_name):
+            return run_name
+    return None
+
+
+def _download_to_part(repo_id: str, filename: str) -> Path:
+    cache_path = hf_hub_download(
+        repo_id=repo_id, filename=filename, repo_type="dataset", token=hf_token
+    )
+    part = CKPT_DIR / (filename + ".part")
+    part.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(cache_path, part)
+    return part
+
+
+def _remote_epoch(repo_id: str, filename: str) -> Optional[int]:
+    key = (repo_id, filename)
+    if key in _REMOTE_EPOCH_CACHE:
+        return _REMOTE_EPOCH_CACHE[key]
+    epoch: Optional[int] = None
+    try:
+        cache_path = hf_hub_download(
+            repo_id=repo_id, filename=filename, repo_type="dataset", token=hf_token
+        )
+        state = torch.load(cache_path, map_location="cpu", weights_only=False)
+        if isinstance(state, dict) and isinstance(state.get("epoch"), int):
+            epoch = int(state["epoch"])
+    except Exception:
+        epoch = None
+    _REMOTE_EPOCH_CACHE[key] = epoch
+    return epoch
+
+
 def restore_checkpoints_from_hf() -> None:
-    """Pull any checkpoints/logs/reports from HF that are missing locally.
-    Enables Colab to resume training seamlessly from a prior session's rolling checkpoint."""
+    """Restore only fully valid candidates for runs in COLAB_RUNS.
+
+    Candidates are downloaded to .part, inspected internally, validated, and
+    only then atomically renamed. Selection is by highest valid epoch across
+    both repositories, never by repository or filename order.
+    """
     if not hf_token:
         return
-    restored = 0
-    api = HfApi(token=hf_token)
+    grouped: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
     for repo_id in [HF_BEST, HF_ROLLING]:
         try:
             files = list_repo_files(repo_id=repo_id, repo_type="dataset", token=hf_token)
-            for f in files:
-                bn = os.path.basename(f)
-                is_rec_rolling = bn.startswith("foundation_recurrence_112_") and bn.endswith("_rolling.pth")
-                is_final_needed = bn.startswith("foundation_") and bn.endswith("_final.pth") and (
-                    "recurrence_112" in bn or "ff_112" in bn
-                )
-                if is_rec_rolling or is_final_needed:
-                    local_f = CKPT_DIR / bn
-                elif bn.startswith("eval_") and "112" in bn:
-                    local_f = OUT_DIR / "eval" / bn
-                elif bn == "gen2_epoch_log.jsonl" and not f.startswith("closure/"):
-                    local_f = OUT_DIR / bn
-                else:
-                    continue
-                if local_f is not None:
-                    # For rolling checkpoints, always refresh from HF to get latest epoch state
-                    needs_download = not local_f.exists() or bn.endswith("_rolling.pth")
-                    if needs_download:
-                        print(f"  Restoring/updating {f} from {repo_id}...")
-                        p = hf_hub_download(repo_id=repo_id, filename=f,
-                                            repo_type="dataset", token=hf_token)
-                        local_f.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copyfile(p, str(local_f))
-                        restored += 1
         except Exception as e:
             print(f"  Note: {repo_id}: {e}")
-    print(f"Restored {restored} file(s) from HF.")
+            continue
+        for filename in files:
+            run_name = _run_for_filename(filename)
+            if run_name is None:
+                continue
+            kind = parse_checkpoint_kind(filename, run_name)
+            if kind not in ("rolling", "final"):
+                continue
+            spec = RUN_SPECS[run_name]
+            part = None
+            try:
+                part = _download_to_part(repo_id, filename)
+                state = load_metadata(part)
+                validate_candidate(
+                    state,
+                    expected_run=run_name,
+                    expected_phase=spec["phase"],
+                    expected_commit=COMMIT_SHA,
+                    expected_seed=spec["training_seed"],
+                    require_run_name=True,
+                    require_provenance=True,
+                )
+                digest = sha256_file(part)
+                grouped.setdefault((run_name, kind), []).append({
+                    "metadata": state,
+                    "source": repo_id,
+                    "path": str(part),
+                    "sha256": digest,
+                    "filename": filename,
+                })
+            except CandidateError as exc:
+                print(f"  Rejected {repo_id}:{filename}: {exc}")
+                if part is not None:
+                    part.unlink(missing_ok=True)
+
+    restored = 0
+    for (run_name, kind), candidates in sorted(grouped.items()):
+        try:
+            best = select_best_candidate(candidates)
+        except CandidateError as exc:
+            print(f"  Cannot select {run_name} {kind}: {exc}")
+            for c in candidates:
+                Path(c["path"]).unlink(missing_ok=True)
+            continue
+        target = CKPT_DIR / f"foundation_{run_name}_{kind}.pth"
+        local_epoch = 0
+        if target.exists():
+            try:
+                local_epoch = int(load_metadata(target).get("epoch", 0))
+            except Exception:
+                local_epoch = 0
+        remote_epoch = int(best["metadata"]["epoch"])
+        if remote_epoch <= local_epoch:
+            print(
+                f"  Keeping local {target.name} (epoch {local_epoch}) over "
+                f"remote epoch {remote_epoch}"
+            )
+            Path(best["path"]).unlink(missing_ok=True)
+        else:
+            os.replace(best["path"], target)
+            if kind == "final":
+                _record_final_hash(run_name, target)
+            restored += 1
+            print(f"  Restored {best['source']}:{best['filename']} -> {target.name} (epoch {remote_epoch})")
+        for c in candidates:
+            Path(c["path"]).unlink(missing_ok=True)
+    print(f"Restored {restored} valid checkpoint(s) for active runs.")
+
 
 def sync_to_hf() -> None:
-    """Upload new checkpoints, eval JSONs, and JSONL logs to HF.
-    Called on each completed epoch via epoch_callback to prevent loss of training progress."""
+    """Upload only active-run checkpoints and never downgrade a remote epoch."""
     if not hf_token:
         return
     api = HfApi(token=hf_token)
-    # 1. Rolling checkpoints
-    for cp in CKPT_DIR.glob("*_rolling.pth"):
+    filenames = [p.name for p in CKPT_DIR.iterdir() if p.is_file()]
+    active_files = files_for_active_runs(filenames, ACTIVE_RUNS)
+    for filename in active_files:
+        run_name = _run_for_filename(filename)
+        if run_name is None:
+            continue
+        kind = parse_checkpoint_kind(filename, run_name)
+        spec = RUN_SPECS[run_name]
+        path = CKPT_DIR / filename
         try:
-            api.upload_file(path_or_fileobj=str(cp), path_in_repo=cp.name,
-                            repo_id=HF_ROLLING, repo_type="dataset", token=hf_token)
-        except Exception as e:
-            print(f"  Warning: rolling sync {cp.name}: {e}")
-    # 2. Final and best checkpoints
-    for cp in list(CKPT_DIR.glob("*_final.pth")) + list(CKPT_DIR.glob("*_best_*.pth")):
+            state = load_metadata(path)
+            validate_candidate(
+                state,
+                expected_run=run_name,
+                expected_phase=spec["phase"],
+                expected_commit=COMMIT_SHA,
+                expected_seed=spec["training_seed"],
+                require_run_name=True,
+                require_provenance=True,
+            )
+        except CandidateError as exc:
+            print(f"  Sync skipped {filename}: {exc}")
+            continue
+        repo_id = HF_ROLLING if kind == "rolling" else HF_BEST
+        local_epoch = int(state["epoch"])
+        remote_epoch = _remote_epoch(repo_id, filename)
+        if not can_overwrite_remote(local_epoch, remote_epoch):
+            print(
+                f"  Sync refused downgrade {filename}: local epoch {local_epoch} "
+                f"< remote epoch {remote_epoch}"
+            )
+            continue
+        if remote_epoch == local_epoch:
+            print(f"  Sync skipped {filename}: remote already at epoch {remote_epoch}")
+            continue
         try:
-            api.upload_file(path_or_fileobj=str(cp), path_in_repo=cp.name,
-                            repo_id=HF_BEST, repo_type="dataset", token=hf_token)
+            api.upload_file(
+                path_or_fileobj=str(path),
+                path_in_repo=filename,
+                repo_id=repo_id,
+                repo_type="dataset",
+                token=hf_token,
+            )
+            _REMOTE_EPOCH_CACHE[(repo_id, filename)] = local_epoch
         except Exception as e:
-            print(f"  Warning: best sync {cp.name}: {e}")
-    # 3. JSONL epoch logs
-    for log_file in list(OUT_DIR.glob("*.jsonl")) + list((REPO_DIR / "report").glob("*.jsonl")):
-        try:
-            api.upload_file(path_or_fileobj=str(log_file), path_in_repo=log_file.name,
-                            repo_id=HF_ROLLING, repo_type="dataset", token=hf_token)
-        except Exception as e:
-            print(f"  Warning: log sync {log_file.name}: {e}")
+            print(f"  Warning: sync {filename}: {e}")
 
-restore_checkpoints_from_hf()
 
 # %% [markdown]
 # ## Step 5: DINOv2 Weights & ImageNet-100 Data Bootstrap
@@ -618,6 +848,102 @@ def train_consolidated_seed(seed: int) -> Path:
     sync_to_hf()
     return final_ckpt
 
+def _restore_remote_final_if_verified(run_name: str) -> bool:
+    ledger = _load_hash_ledger()
+    if run_name not in ledger:
+        return False
+    expected = ledger[run_name]
+    spec = RUN_SPECS[run_name]
+    for repo_id in [HF_BEST, HF_ROLLING]:
+        try:
+            files = list_repo_files(repo_id=repo_id, repo_type="dataset", token=hf_token)
+        except Exception:
+            continue
+        for filename in files:
+            if parse_checkpoint_kind(filename, run_name) != "final":
+                continue
+            part = None
+            try:
+                part = _download_to_part(repo_id, filename)
+                state = load_metadata(part)
+                validate_candidate(
+                    state,
+                    expected_run=run_name,
+                    expected_phase=spec["phase"],
+                    expected_commit=COMMIT_SHA,
+                    expected_seed=spec["training_seed"],
+                    require_run_name=True,
+                    require_provenance=True,
+                )
+                if sha256_file(part) != expected:
+                    print(f"  Remote final {repo_id}:{filename} does not match local record")
+                    part.unlink(missing_ok=True)
+                    continue
+                os.replace(part, _final_path(run_name))
+                print(f"  Verified remote final {repo_id}:{filename}; skipping training")
+                return True
+            except CandidateError as exc:
+                print(f"  Remote final rejected {repo_id}:{filename}: {exc}")
+                if part is not None:
+                    part.unlink(missing_ok=True)
+    return False
+
+
+def train_run(run_name: str) -> Path:
+    spec = RUN_SPECS[run_name]
+    final = _final_path(run_name)
+    banner(f"RUN {run_name} ({spec['stage']})")
+    if not spec.get("train", False):
+        if not final.exists():
+            raise SystemExit(f"ERROR: reuse checkpoint missing for {run_name}: {final}")
+        validate_reuse_candidate(
+            load_metadata(final),
+            expected_phase=spec["phase"],
+            expected_epoch=int(spec["n_epochs"]),
+            expected_seed=int(spec["training_seed"]),
+        )
+        _verify_final_hash(run_name, final)
+        print(f"Reusing verified final checkpoint: {final}")
+        return final
+    if final.exists():
+        validate_candidate(
+            load_metadata(final),
+            expected_run=run_name,
+            expected_phase=spec["phase"],
+            expected_commit=COMMIT_SHA,
+            expected_seed=int(spec["training_seed"]),
+            require_run_name=True,
+            require_provenance=True,
+        )
+        _verify_final_hash(run_name, final)
+        print(f"Final checkpoint already exists and is verified: {final}")
+        return final
+    if _restore_remote_final_if_verified(run_name):
+        return final
+    ensure_dino_weights(DINO_PATH)
+    run_gen2_phase(
+        phase=spec["phase"],
+        arm="v1",
+        data_root=str(DATA_ROOT),
+        ckpt_dir=str(CKPT_DIR),
+        report_dir=str(OUT_DIR),
+        dino_path=DINO_PATH,
+        batch_size=int(spec["batch_size"]),
+        num_workers=2,
+        smoke=False,
+        n_epochs=int(spec["n_epochs"]),
+        training_seed=int(spec["training_seed"]),
+        phase_override_name=run_name,
+        epoch_callback=lambda p, ep: sync_to_hf(),
+    )
+    if not final.exists():
+        raise SystemExit(f"ERROR: expected final checkpoint at {final}")
+    _record_final_hash(run_name, final)
+    print(f"Verified final checkpoint for {run_name} at {final}")
+    sync_to_hf()
+    return final
+
+
 # %% [markdown]
 # ## Step 9: Full 5,000-Image Evaluation Battery
 
@@ -759,6 +1085,122 @@ def mcnemar_test(corr_a: np.ndarray, corr_b: np.ndarray) -> Dict[str, Any]:
 # ## Step 11: Main Orchestration & HuggingFace Dual-Upload
 
 # %%
+def eval_run_resumable(run_name: str) -> Dict[str, Any]:
+    json_path = _eval_json_path(run_name)
+    if json_path.exists():
+        try:
+            previous = json.loads(json_path.read_text())
+            if previous.get("status") == "complete" and previous.get("run_name") == run_name:
+                print(f"Evaluation already complete: {json_path}")
+                return previous
+        except Exception:
+            pass
+    final = _final_path(run_name)
+    if not final.exists():
+        raise SystemExit(f"ERROR: final checkpoint missing for evaluation: {final}")
+    spec = RUN_SPECS[run_name]
+    arch_phase = "recurrence_only" if spec["phase"] == "consolidated_112" else spec["phase"]
+    model = Gen2FoundationModel(
+        phase=arch_phase, arm="v1", fovea_size=112, num_glimpses=4
+    ).to(DEVICE)
+    state = torch.load(final, map_location=DEVICE, weights_only=False)
+    model.load_state_dict(state.get("model", state))
+    res = full_5k_battery(model, run_name)
+    payload = {
+        "status": "complete",
+        "run_name": run_name,
+        "phase": spec["phase"],
+        "seed": int(spec["training_seed"]),
+        "final_sha256": sha256_file(final),
+        "acc_clean": float(res["acc_clean"]),
+        "acc_pgd50": float(res["acc_pgd50"]),
+        "acc_apgd_ce": float(res["acc_apgd_ce"]),
+        "acc_apgd_dlr": float(res["acc_apgd_dlr"]),
+        "acc_worst_case": float(res["acc_worst_case"]),
+    }
+    _write_json_atomic(json_path, payload)
+    npz_path = _eval_npz_path(run_name)
+    npz_tmp = npz_path.with_suffix(".npz.tmp")
+    with open(npz_tmp, "wb") as f:
+        np.savez_compressed(
+            f,
+            corr_clean=res["corr_clean"],
+            corr_pgd50=res["corr_pgd50"],
+            corr_apgd_ce=res["corr_apgd_ce"],
+            corr_apgd_dlr=res["corr_apgd_dlr"],
+            corr_worst_case=res["corr_worst_case"],
+        )
+    os.replace(npz_tmp, npz_path)
+    return payload
+
+
+def _print_replication_decision() -> None:
+    groups = {
+        "flagship": [STAGE_A_RUN, "recurrence_112_seed42", "recurrence_112_seed99_b64"],
+        "ff_b64": ["ff_112_seed17_b64", "ff_112_seed42_b64", "ff_112_seed99_b64"],
+    }
+    accs: Dict[str, List[float]] = {}
+    for group, run_names in groups.items():
+        vals: List[float] = []
+        for run_name in run_names:
+            path = _eval_json_path(run_name)
+            if not path.exists():
+                print(f"DECISION INCOMPLETE: missing evaluation for {run_name}")
+                return
+            data = json.loads(path.read_text())
+            vals.append(float(data["acc_worst_case"]) * 100.0)
+        accs[group] = vals
+    rec = accs["flagship"]
+    ff = accs["ff_b64"]
+    mean_gap = sum(rec) / 3.0 - sum(ff) / 3.0
+    positive = min(rec) > max(ff) and mean_gap >= 1.0
+    reversed_ = max(rec) < min(ff)
+    verdict = "POSITIVE" if positive else ("REVERSED" if reversed_ else "NULL")
+    payload = {
+        "flagship_worst_case_pp": rec,
+        "ff_b64_worst_case_pp": ff,
+        "min_flagship_pp": min(rec),
+        "max_ff_b64_pp": max(ff),
+        "mean_gap_pp": mean_gap,
+        "verdict": verdict,
+    }
+    _write_json_atomic(OUT_DIR / "replication_decision.json", payload)
+    print(
+        f"REPLICATION DECISION: {verdict} | flagship={rec} | ff_b64={ff} "
+        f"| mean_gap={mean_gap:+.2f} pp"
+    )
+
+
+def main_replication() -> None:
+    banner("MATCHED REPLICATION -- STAGE A GATE + STAGE B + EVAL")
+    print(f"Active runs: {list(ACTIVE_RUNS)}")
+    print(f"Pinned prereg: {PREREG_REL}")
+    ensure_dino_weights(DINO_PATH)
+    bootstrap_imagenet100(DATA_ROOT)
+    restore_checkpoints_from_hf()
+
+    if STAGE_A_RUN in ACTIVE_RUNS:
+        train_run(STAGE_A_RUN)
+        result = eval_run_resumable(STAGE_A_RUN)
+        worst = float(result["acc_worst_case"]) * 100.0
+        print(f"STAGE A worst-case: {worst:.2f}%")
+        if worst <= 33.0:
+            print("STAGE A STOP: <= 33.0%; Stage B is not launched; the NULL verdict stands.")
+            return
+        if worst >= 35.44:
+            print("STAGE A CONTINUE: >= 35.44%.")
+        else:
+            print("STAGE A BORDERLINE: 33.0% < worst-case < 35.44%; continue with Stage B.")
+
+    for run_name in ACTIVE_RUNS:
+        if run_name == STAGE_A_RUN:
+            continue
+        train_run(run_name)
+        eval_run_resumable(run_name)
+
+    _print_replication_decision()
+
+
 def main() -> None:
     print_preregistration()
 
@@ -906,4 +1348,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main_replication()
