@@ -40,15 +40,28 @@
       "batch_size": 64,
       "steps_per_epoch": 1979,
       "n_epochs": 15,
-      "continue_if": "worst_case_accuracy >= 35.44",
-      "borderline_if": "33.0 < worst_case_accuracy < 35.44",
       "stop_if": "worst_case_accuracy <= 33.0",
-      "stop_rule": "If stop_if triggers, do not run Stage B and report the flagship as unstable; the Stage 0 NULL verdict stands. The comparison is strict at exactly 33.0 (stop) and exactly 35.44 (continue).",
-      "status": "PLANNED"
+      "stop_rule": "If stop_if triggers, do not run Stage B and report: \"flagship unstable at this recipe; NULL stands; Stage B not run\". Otherwise continue. The 35.44 pp figure is the lowest existing Stage 0 ff_112 batch-48 seed and is recorded as a descriptive reference only; it is not a gate.",
+      "status": "PLANNED",
+      "descriptive_reference": {
+        "stage0_ff_batch48_lowest_seed_pp": 35.44,
+        "gate": false,
+        "note": "Lowest existing Stage 0 ff_112 batch-48 seed; shown for context only."
+      }
     },
     "stage_b": {
-      "description": "Remaining four matched-batch-64 runs. Launch only if Stage A continues or is borderline.",
+      "description": "Remaining four matched-batch-64 runs. Launch only if Stage A does not trigger its stop rule.",
       "runs": [
+        {
+          "run_name": "ff_112_seed42_b64",
+          "phase": "ff_112",
+          "phase_override_name": "ff_112_seed42_b64",
+          "training_seed": 42,
+          "batch_size": 64,
+          "steps_per_epoch": 1979,
+          "n_epochs": 15,
+          "status": "PLANNED"
+        },
         {
           "run_name": "recurrence_112_seed99_b64",
           "phase": "consolidated_112",
@@ -70,16 +83,6 @@
           "status": "PLANNED"
         },
         {
-          "run_name": "ff_112_seed42_b64",
-          "phase": "ff_112",
-          "phase_override_name": "ff_112_seed42_b64",
-          "training_seed": 42,
-          "batch_size": 64,
-          "steps_per_epoch": 1979,
-          "n_epochs": 15,
-          "status": "PLANNED"
-        },
-        {
           "run_name": "ff_112_seed99_b64",
           "phase": "ff_112",
           "phase_override_name": "ff_112_seed99_b64",
@@ -89,7 +92,19 @@
           "n_epochs": 15,
           "status": "PLANNED"
         }
-      ]
+      ],
+      "execution": {
+        "mode": "sequential",
+        "parallelism": 1,
+        "platform": "Colab",
+        "order": [
+          "ff_112_seed42_b64",
+          "recurrence_112_seed99_b64",
+          "ff_112_seed17_b64",
+          "ff_112_seed99_b64"
+        ],
+        "interim_stopping_rule": "none"
+      }
     },
     "reuse": {
       "existing_flagship_seed42": {
@@ -114,15 +129,19 @@
     ]
   },
   "pinned_commit": null,
-  "pinned_commit_status": "OPEN - fill with the full 40-character SHA of the clean tip at launch. The tip must contain B1-B5 and the empty-state guard.",
+  "pinned_commit_status": "OPEN - pinned_commit remains null until launch. Fill with the full 40-character SHA of the clean tip at launch. The pinned tip must contain B1-B5, the empty optimizer-state guard, and commit 46c1f94 (checkpoints record run_name). COLAB_RUNS must list exactly the run names in this file.",
   "launch_requires_clean_tree": true,
   "infra": {
-    "required_gates": "B1-B5 passed on the pinned clean tree",
+    "required_gates": "B1-B5 passed on the pinned clean tree; pinned tip contains commit 46c1f94 (checkpoints record run_name); COLAB_RUNS equals the run names in this file",
     "empty_optimizer_state_guard": "active; a checkpoint with optimizer.state entries == 0 at saved epoch >= 1 must abort unless allow_fresh_optimizer is explicitly passed",
     "allow_fresh_optimizer_for_replication": false,
     "fallback_events_allowed": false,
     "resume_equivalence": "scripts/test_resume_equivalence.py must pass with exact weight/RNG equality on the pinned tip",
-    "strict_abort_tests": "tests/test_resume_strict_abort.py must pass on the pinned tip"
+    "strict_abort_tests": "tests/test_resume_strict_abort.py must pass on the pinned tip",
+    "colab_runs": {
+      "must_equal": "run_names.replication_runs",
+      "extra_or_missing_allowed": false
+    }
   },
   "recipe": {
     "data": {
@@ -182,7 +201,14 @@
     "worst_case": "bitwise AND of PGD-50, APGD-CE, APGD-DLR correctness arrays",
     "checkpoint_gate_pp": 1.0,
     "per_sample_artifacts": "one .npz per arm with per-sample correctness arrays",
-    "reuse_stage0_harness_code": true
+    "reuse_stage0_harness_code": true,
+    "diagnostics": {
+      "secondary_diagnostics": false,
+      "one_k_slice": false,
+      "autoattack": false,
+      "decision_surface": "full 5,000-image ImageNet-100 validation split",
+      "attacks": ["PGD-50", "APGD-CE 100", "APGD-DLR 100"]
+    }
   },
   "analysis": {
     "primary": "Compare recurrent and feedforward worst-case robust accuracy on the full 5k surface at matched batch 64.",
@@ -204,9 +230,16 @@
     "official_model_unchanged": "The official ff_112 seed 17 batch-48 model is not retrained, replaced, or re-selected by this replication."
   },
   "OPEN": [
-    "Pinned commit value: fill with the full 40-character clean-tip SHA at launch; do not launch from a dirty tree.",
-    "Order, parallelism, GPU allocation, and wall-clock budget for the four Stage B runs after Stage A passes.",
-    "Whether to add the 1k canonical slice or AutoAttack as secondary diagnostics; the decision remains on the full 5k surface.",
+    "Pinned commit value: fill with the full 40-character clean-tip SHA at launch; do not launch from a dirty tree."
+  ],
+  "out_of_scope": [
     "The 30-epoch Stage 2 lever is out of scope for this replication and is not decided here."
+  ],
+  "changes_from_previous": [
+    "Stage A now has a single stop rule at worst_case_accuracy <= 33.0; the 35.44 continue and borderline thresholds were removed. The 35.44 pp figure is retained as a descriptive reference only, explicitly not a gate.",
+    "Stage B is sequential, one run at a time on Colab, in fixed order ff_112_seed42_b64, recurrence_112_seed99_b64, ff_112_seed17_b64, ff_112_seed99_b64, with no interim stopping rule and no wall-clock or GPU-hour budget field.",
+    "No secondary diagnostics: no 1k slice and no AutoAttack. The decision uses only the full 5,000-image split with PGD-50, APGD-CE 100, and APGD-DLR 100.",
+    "The 30-epoch Stage 2 lever is explicitly out of scope for this replication; OPEN 4 is closed.",
+    "OPEN 1 remains pinned_commit null until launch; the pinned tip must contain commit 46c1f94 (checkpoints record run_name), and COLAB_RUNS must list exactly the run names in this file."
   ]
 }
