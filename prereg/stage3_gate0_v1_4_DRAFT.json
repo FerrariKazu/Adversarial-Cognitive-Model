@@ -1,0 +1,147 @@
+{
+  "protocol_id": "stage3-gate0/1.4",
+  "protocol_version": "v1.4",
+  "created_at_utc": "2026-11-05T00:00:00Z",
+  "status": "DRAFT",
+  "supersedes": {
+    "file": "prereg/stage3_gate0_v1_3.json",
+    "sha256": "40bdccad669036d16ed8f3aa04af41c79df477857ab6354d88ea838c5177283c"
+  },
+  "changes_from_v1_3": [
+    "Target composition uses a phase-scrambled background and hard-pastes the target; the v1.3 alpha-blend/Poisson compositing rule is superseded.",
+    "Target and four distractors are phase-scrambled ImageNet-100 val images on the same side as the target; labels depend only on the target.",
+    "Glimpses are native 112x112 pixel crops and the gist is a whole-canvas antialiased downsample to 112x112; every budget includes the gist.",
+    "K values are {1,2,4} with primary K=2; arm logits are averaged over the K glimpses plus the gist before argmax.",
+    "uniform_downsample is gist-only and is explicitly not compute-matched to the glimpse policies.",
+    "Random, oracle, and heuristic centre rules are fully specified; the oracle shift order and heuristic NMS radius are fixed.",
+    "The pass rule is evaluated on canvas 448 only (canvas 224 is descriptive), HEADROOM uses oracle minus random, and VIABILITY must reach 0.30 on at least two of three scene seeds.",
+    "Trunk identity is pinned to the official ff_112 seed 17 checkpoint; only forward passes are permitted."
+  ],
+  "purpose": "Gate 0 for selective looking. Measurement-only, no learned gaze policy. Tests whether a frozen 112px trunk has a where-to-look headroom and whether a parameter-free attention-rollout heuristic captures part of it.",
+  "ground_truth": {
+    "trunk": "official ff_112 seed 17 (frozen)",
+    "trunk_sha256": "d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc",
+    "dataset": "ImageNet-100",
+    "split": "val",
+    "note": "Use ImageNet-100 VAL split for targets, backgrounds, and distractors."
+  },
+  "target_composition": {
+    "target_source": "whole ImageNet-100 val image of class t, scaled preserving aspect ratio so its short side is s = round(sqrt(u)*C) px; hard-pasted without cropping",
+    "background_source": "phase-scrambled version of a random ImageNet-100 val image (class may equal t; the label is defined only by the target)",
+    "background_construction": "keep source FFT magnitude, replace phase with the phase of white noise, resize to CxC, and match per-channel mean/std to the source image",
+    "distractor_count": 4,
+    "distractor_source": "phase-scrambled ImageNet-100 val images whose original class is not t, each scaled preserving aspect ratio to a short side between s/2 and s",
+    "distractor_placement": "non-overlapping with the target and with each other, with a gap of at least 8 px",
+    "target_area_fraction": "u ~ U[0.01, 0.05]",
+    "position_distribution": "uniform placement of the full target box with at least 10% of C margin from every canvas border",
+    "minimum_gap_px": 8,
+    "placement_attempts": 200,
+    "placement_fallback": "if 200 attempts fail, resample the scene rather than relaxing constraints",
+    "compositing_rule": "hard paste; no alpha blending",
+    "canvas_sizes_px": [
+      224,
+      448
+    ],
+    "canvas_crossing": "evaluate both canvas sizes; canvas 448 is the decision surface and canvas 224 is descriptive",
+    "number_of_scenes_per_scene_seed": 200,
+    "rng_rule": "fixed RNG per (scene_seed, policy); identical scene content across policies",
+    "target_side_px": "s = round(sqrt(u)*C) (short side; aspect ratio preserved)"
+  },
+  "factors": {
+    "selection_policy": [
+      "uniform_downsample",
+      "random",
+      "oracle",
+      "heuristic"
+    ],
+    "K": [
+      1,
+      2,
+      4
+    ],
+    "primary_K": 2
+  },
+  "budgets": {
+    "definition": "K native 112x112 glimpse crops plus one 112x112 gist for every policy and K",
+    "primary_budget": {
+      "K": 2
+    },
+    "gist_included": true,
+    "uniform_downsample_compute_matched": false
+  },
+  "glimpse_gist": {
+    "glimpse_size_px": 112,
+    "glimpse_source": "native canvas pixels, bilinear resize of the selected window to 112x112",
+    "gist_construction": "whole canvas antialiased downsample to 112x112",
+    "gist_used_by": [
+      "uniform_downsample",
+      "random",
+      "oracle",
+      "heuristic"
+    ],
+    "aggregation": "mean of logits over the K glimpses and the gist, followed by argmax over the 100 ImageNet-100 classes"
+  },
+  "arms": {
+    "uniform_downsample": {
+      "description": "Gist only; single 112x112 downsampled whole-canvas view. This is a reference floor and is NOT compute-matched to the glimpse policies."
+    },
+    "random": {
+      "description": "K glimpse centres drawn uniformly from positions that keep each 112x112 window fully inside the canvas, plus the gist."
+    },
+    "oracle": {
+      "description": "Glimpse 1 is a 112x112 window centred on the target-box centre, clamped so the window stays inside the canvas. Glimpses 2..K are that same window shifted in fixed order: (+x,+y), (-x,-y), (+x,-y), each by the largest amount that keeps the target box fully inside the window. K=1 uses glimpse 1 only; K=4 uses all shifts.",
+      "shift_order": [
+        "(+x,+y)",
+        "(-x,-y)",
+        "(+x,-y)"
+      ],
+      "target_fully_inside_window": true
+    },
+    "heuristic": {
+      "rule": "CLS attention rollout on the gist using the frozen ff_112 trunk. For each of the 12 transformer blocks, compute the mean attention over heads A_mean, form A' = (A_mean + I) / 2, row-normalise A', and multiply the 12 matrices in block order. Take the CLS row over the 8x8 patch tokens, bilinear-upsample to canvas pixel coordinates, and select the top-K peaks with non-maximum suppression.",
+      "layers": "all 12 transformer blocks",
+      "head_aggregation": "mean",
+      "normalisation": "(A_mean + I) / 2 followed by row normalisation",
+      "topK": "K peaks after NMS",
+      "nms_radius_canvas_px": 56,
+      "learned_parameters": false
+    }
+  },
+  "compositing_rule_trunk": {
+    "description": "K glimpses + gist combined by mean logit averaging (fixed). Same for all policies."
+  },
+  "seeds": {
+    "count": 3,
+    "name": "scene_seed",
+    "what_varies": "Scene sampling and glimpse randomness. Trunk fixed.",
+    "decision_uses": "all 3 scene seeds"
+  },
+  "reporting": {
+    "CIs": "bootstrap 95% CIs over scenes for every arm",
+    "canvas_224": "descriptive only",
+    "canvas_448": "decision surface",
+    "reference_only": [
+      "trunk accuracy on the isolated target image resized to 112x112",
+      "oracle minus uniform_downsample"
+    ]
+  },
+  "pass_rule": {
+    "evaluated_on": "canvas 448 only",
+    "thresholds_flagged": true,
+    "HEADROOM": {
+      "condition": "acc(oracle,K=2) - acc(random,K=2) >= 10 pp on each of the 3 scene seeds",
+      "description": "Oracle must beat random by at least 10 percentage points at the primary budget on all three scene seeds."
+    },
+    "VIABILITY": {
+      "condition": "(acc(heuristic,K=2) - acc(random,K=2)) / (acc(oracle,K=2) - acc(random,K=2)) >= 0.30 on at least 2 of 3 scene seeds",
+      "description": "The parameter-free heuristic must capture at least 30% of the oracle-random gap at the primary budget."
+    },
+    "note": "Headroom alone does not authorize learned-gaze work. Canvas 224 results and reference-only numbers are descriptive, not decision inputs."
+  },
+  "constraints": {
+    "trunk_mode": "frozen, forward passes only",
+    "scope": "This gate measures where-to-look value for the official ff_112 seed 17 trunk at 112px. It says nothing about recurrence, a learned gaze policy, or any other backbone.",
+    "no_benchmark_code": true,
+    "no_training": true
+  }
+}
