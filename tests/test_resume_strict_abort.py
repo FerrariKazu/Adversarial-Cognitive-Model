@@ -288,6 +288,16 @@ def test_clean_resume_no_fallback_events(tmp_path, monkeypatch):
     assert rec["fallback_events"] == []
 
 
+def test_checkpoints_record_effective_run_name(tmp_path, monkeypatch):
+    _patch_loaders(monkeypatch)
+    ckpt_dir, report_dir = _ckpt_dirs(tmp_path)
+    eff = "recurrence_112_seed17"
+    _run(tmp_path, ckpt_dir, report_dir, phase_override=eff, n_epochs=1)
+    for name in (f"foundation_{eff}_rolling.pth", f"foundation_{eff}_final.pth"):
+        state = torch.load(ckpt_dir / name, map_location="cpu", weights_only=False)
+        assert state["run_name"] == eff
+
+
 def test_already_completed_branch_uses_effective_name(tmp_path, monkeypatch):
     _patch_loaders(monkeypatch)
     ckpt_dir, report_dir = _ckpt_dirs(tmp_path)

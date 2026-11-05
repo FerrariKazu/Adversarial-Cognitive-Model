@@ -955,6 +955,7 @@ def run_gen2_phase(
                 final_path = os.path.join(ckpt_dir, f"foundation_{eff_name}_final.pth")
                 if not os.path.exists(final_path):
                     tmp_final = final_path + ".tmp"
+                    saved["run_name"] = eff_name
                     torch.save(saved, tmp_final)
                     os.replace(tmp_final, final_path)
                     print(f"  Saved final checkpoint from rolling state to: {final_path}")
@@ -974,6 +975,7 @@ def run_gen2_phase(
             print(f"\n[Session Safety] 11.0h limit reached ({elapsed_hours:.2f}h). Saving clean checkpoint and halting.")
             commit_hash, is_dirty = _get_git_info()
             cutoff_state = {
+                "run_name": eff_name,
                 "phase": phase, "epoch": epoch - 1, "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(),
                 "best_clean_acc": best_clean_acc, "best_rob_acc": best_rob_acc,
@@ -1179,6 +1181,7 @@ def run_gen2_phase(
         # Checkpoints saving
         commit_hash, is_dirty = _get_git_info()
         ckpt_state = {
+            "run_name": eff_name,
             "phase": phase, "arm": arm, "epoch": epoch,
             "model": model.state_dict(),
             "optimizer": optimizer.state_dict(),
