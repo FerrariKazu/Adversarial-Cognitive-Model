@@ -317,7 +317,7 @@ def _first_eligible_look(risk: torch.Tensor, lam: float, k_min: int) -> Tuple[to
     hit = risk <= lam
     hit[:, :k_min] = False
     decided = hit.any(1)
-    first = torch.where(decided, hit.to(torch.float32).argmax(1), torch.full((B,), T1 - 1))
+    first = torch.where(decided, hit.to(torch.float32).argmax(1), torch.full((B,), T1 - 1, device=risk.device))
     return first, decided
 
 

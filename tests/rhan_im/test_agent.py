@@ -74,3 +74,24 @@ def test_tiling_visits_the_whole_canvas():
     scene = world.sample(4, torch.Generator().manual_seed(6))
     out = run_search(scene, vis, "tiling", 9, 0.4, order=tiling_order(6, 6, 2))
     assert len(set(out["fix"][0].tolist())) == 9
+
+
+def test_a_nan_risk_never_stops_a_trial_online_and_is_no_hit_offline(monkeypatch):
+    """Found by my own differential fuzz of the stopping rule: `active & (risk > lam)` stopped a trial whose risk was NaN, while the offline rule
+    (`risk <= lam`) counts NaN as no hit. A corrupted posterior must run to the budget in both."""
+    from rhan_im.belief import SearchPosterior
+    world, vis = toy(d0=1.6)
+    real = SearchPosterior.risk
+    calls = {"n": 0}
+
+    def sometimes_nan(self):
+        calls["n"] += 1
+        r = real(self)
+        return torch.full_like(r, float("nan")) if calls["n"] == 1 else r                  # the stop check after the first look sees a NaN risk for every trial
+
+    monkeypatch.setattr(SearchPosterior, "risk", sometimes_nan)
+    stop = run_search(world.sample(64, torch.Generator().manual_seed(5)), vis, "map", 4, 0.4, stop_lambda=0.999, generator=torch.Generator().manual_seed(9))
+    assert calls["n"] >= 2 and bool((stop["n_fix"] == 2).all())                             # nobody stopped at look 1; everybody stopped at look 2, where the risk is real
+    risk = torch.tensor([[0.6, float("nan"), 0.01]])
+    t, _ = stopped_stats(risk, torch.ones(1, 3, dtype=torch.bool), 0.05)
+    assert int(t) == 2                                                                      # offline: NaN is no hit, the first real hit is column 2

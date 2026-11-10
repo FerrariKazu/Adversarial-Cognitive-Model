@@ -345,3 +345,44 @@ def test_the_hash_list_covers_every_repository_module_the_measurement_loads():
     unhashed = sorted(f for f in loaded if f not in g1.MEASUREMENT_CODE_FILES and f not in side_effect_only)
     assert unhashed == [], f"loaded by the measurement but not hashed into the freeze: {unhashed}"
     assert set(g1.MEASUREMENT_CODE_FILES) <= loaded, sorted(set(g1.MEASUREMENT_CODE_FILES) - loaded)   # nothing listed that the measurement never loads
+
+
+# ------------------------------------------------------------------------------------------------ unreadable runs, seed types, other unmeasured quantities
+def test_a_run_that_cannot_be_read_is_a_deviation_not_a_crash_and_not_a_vote(frozen):
+    """Found by my own mutation fuzz: a missing summary key or a string where a number belongs raised a traceback instead of a label."""
+    pre, _ = frozen
+    breakers = (lambda r: r.pop("summary"), lambda r: r["summary"].pop("d_gist"), lambda r: r["summary"].pop("op_block_tokens"),
+                lambda r: r["summary"].update(d_gist="x"), lambda r: r["summary"].update(vif_null_op=[1.0]), lambda r: r["summary"].update(d_native_centre=True),
+                lambda r: r["summary"].update(d_gist_full="1.0"), lambda r: r.update(config=[1, 2]), lambda r: r.update(trunk=None))
+    for i, breaker in enumerate(breakers):
+        runs = three()
+        breaker(runs[1])
+        res = P.aggregate(pre, runs, repo_root=ROOT)
+        assert res["gate1"].startswith("INVALID") and res["deviations"], i
+        assert res["gate1_if_deviations_and_unmeasured_quantities_were_ignored"] in ("PASS", "FAIL")
+    res = P.aggregate(pre, three()[:2] + ["not a run"], repo_root=ROOT)
+    assert res["gate1"].startswith("INVALID") and any("not a JSON object" in d for d in res["deviations"])
+    broken = run(17, sha(b"other"), name="ff112_seed42.pth")
+    del broken["summary"]
+    sec = P.aggregate(pre, three(), [broken, "junk"], repo_root=ROOT)["secondary_trunks"]
+    assert [s["valid"] for s in sec] == [False, False] and sec[0]["pass_all"] is False
+
+
+def test_seeds_must_be_the_frozen_integers(frozen):
+    pre, _ = frozen
+    for seeds in (("17", "42", "99"), (17.0, 42.0, 99.0), (True, 42, 99), (17, 42, None)):
+        res = P.aggregate(pre, [run(s, sha(PRIMARY)) for s in seeds], repo_root=ROOT)
+        assert res["gate1"].startswith("INVALID") and any("primary seeds" in d for d in res["deviations"]), seeds
+
+
+def test_a_missing_centre_gist_or_null_sd_in_one_run_is_not_out_voted(frozen):
+    """'Could not be measured' is not 'failed', and two clean runs do not rescue a third whose measurement is missing."""
+    pre, _ = frozen
+    for key, name in (("d_native_centre", "d_native_centre"), ("d_gist", "d_gist"), ("null_sd_median", "null_sd_median")):
+        for bad in (None, float("nan"), float("inf")):
+            res = P.aggregate(pre, [run(17, sha(PRIMARY), over={key: bad}), run(42, sha(PRIMARY)), run(99, sha(PRIMARY))], repo_root=ROOT)
+            assert res["gate1"].startswith("INCONCLUSIVE") and res["unmeasured"] == {"17": [name]}, (key, bad)
+    res = P.aggregate(pre, [run(17, sha(PRIMARY), over={"zroc_slope_median": float("nan"), "pos_sd_median": float("nan")}), run(42, sha(PRIMARY)), run(99, sha(PRIMARY))], repo_root=ROOT)
+    assert res["gate1"].startswith("INCONCLUSIVE") and res["unmeasured"] == {"17": ["zroc_slope_median"]}
+    ok = P.aggregate(pre, [run(17, sha(PRIMARY), over={"zroc_slope_median": float("nan")}), run(42, sha(PRIMARY)), run(99, sha(PRIMARY))], repo_root=ROOT)   # the sd-ratio fallback measures it
+    assert ok["gate1"] == "PASS" and ok["unmeasured"] == {}

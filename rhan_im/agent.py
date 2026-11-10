@@ -101,7 +101,7 @@ def run_search(
         if hook is not None:
             hook(t + 1, post, k, z)
         if stop_lambda is not None and t + 1 >= k_min:
-            active = active & (post.risk() > stop_lambda)
+            active = active & ~(post.risk() <= stop_lambda)          # not "> lam": a NaN risk must never stop a trial (offline: NaN <= lam is False, so it is no hit)
     out = {n: torch.stack(v, 1) for n, v in rec.items()}
     out["fix"] = torch.stack(fixes, 1)
     out["label"] = scene.label

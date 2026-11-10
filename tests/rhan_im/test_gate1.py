@@ -373,3 +373,91 @@ def test_verdict_compares_against_the_best_case_gist():
     assert not g1.verdict({**ok, "d_gist_full": 2.5})["looking_closer_pays"]          # 3.0 / 2.5 = 1.2 < 1.5
     assert g1.verdict({**ok, "d_gist_full": float("nan")})["looking_closer_pays"]     # unmeasurable: fall back to the pooled value
     assert g1.verdict({**ok, "d_gist_full": 0.4})["native_over_gist"] == pytest.approx(3.0)   # the larger of the two is used
+
+
+# ------------------------------------------------------------------------------------------------ fail closed for every quantity a criterion needs
+def _base():
+    return dict(zroc_slope_median=1.0, null_sd_median=1.0, pos_sd_median=1.0, d_native_centre=3.0, d_gist=1.0, rho_null=0.05,
+                vif_null_op=1.0, vif_pos_op=1.0, op_block_tokens=16.0)
+
+
+def test_every_quantity_a_criterion_needs_is_listed_as_unmeasured_and_never_passes():
+    base = _base()
+    assert g1.verdict(base)["unmeasured"] == [] and g1.verdict(base)["pass_all"]
+    for key in ("d_native_centre", "null_sd_median", "vif_null_op", "op_block_tokens", "d_gist"):
+        for bad in (None, float("nan"), float("inf"), float("-inf")):
+            v = g1.verdict({**base, key: bad})
+            assert key in v["unmeasured"] and not v["pass_all"], (key, bad)
+    for key in ("vif_null_op", "op_block_tokens"):                                      # a variance-inflation factor or a token count is positive or it was not measured
+        for bad in (0.0, -1.0):
+            v = g1.verdict({**base, key: bad})
+            assert key in v["unmeasured"] and not v["pass_all"] and not v["informative"], (key, bad)
+    v = g1.verdict({**base, "d_gist": None, "d_gist_full": 1.0})                         # either gist measure is enough
+    assert v["unmeasured"] == [] and v["pass_all"]
+    v = g1.verdict({**base, "zroc_slope_median": float("nan")})                          # the sd-ratio fallback measures the slope
+    assert v["unmeasured"] == [] and v["pass_all"]
+    for psd in (float("nan"), float("inf"), float("-inf")):
+        v = g1.verdict({**base, "zroc_slope_median": float("nan"), "pos_sd_median": psd})
+        assert "zroc_slope_median" in v["unmeasured"] and not v["sdt_adequate"], psd
+
+
+def _oracle(s, thr):
+    """An independent statement of the documented rule (07 section 6), written from the text, not from verdict()."""
+    nan = float("nan")
+    fin = lambda x: x is not None and math.isfinite(x)                                    # noqa: E731
+    s = {k: (nan if v is None else float(v)) for k, v in s.items()}
+    slope, nsd, psd = s["zroc_slope_median"], s["null_sd_median"], s["pos_sd_median"]
+    if not fin(slope):
+        slope = nsd / max(psd, 1e-6) if (fin(nsd) and fin(psd)) else nan
+    sdt = fin(slope) and fin(nsd) and thr["zroc_slope"][0] <= slope <= thr["zroc_slope"][1] and thr["null_sd"][0] <= nsd <= thr["null_sd"][1]
+    dc, vn, n = s["d_native_centre"], s["vif_null_op"], s["op_block_tokens"]
+    block_known = fin(vn) and vn > 0 and fin(n) and n > 0
+    used = vn if (block_known and vn > thr["vif_independent_max"]) else 1.0
+    informative = bool(fin(dc) and block_known and dc >= thr["d_centre_min"] and dc * math.sqrt(n / used) >= thr["d_block_min"])
+    gists = [g for g in (s["d_gist"], s.get("d_gist_full", nan)) if fin(g)]
+    pays = bool(gists) and fin(dc) and dc / max(max(gists), 1e-6) >= thr["native_over_gist_min"]
+    missing = set()
+    if not (fin(vn) and vn > 0):
+        missing.add("vif_null_op")
+    if not (fin(n) and n > 0):
+        missing.add("op_block_tokens")
+    if not fin(dc):
+        missing.add("d_native_centre")
+    if not gists:
+        missing.add("d_gist")
+    if not fin(nsd):
+        missing.add("null_sd_median")
+    if not fin(slope):
+        missing.add("zroc_slope_median")
+    return bool(sdt), informative, bool(pays), missing
+
+
+def test_verdict_agrees_with_an_independent_statement_of_the_rule_on_random_and_degenerate_summaries():
+    import random
+    rnd = random.Random(7)
+    pool = {"zroc_slope_median": [None, float("nan"), 0.79, 0.8, 1.0, 1.25, 1.26, 2.0, -1.0, float("inf")],
+            "null_sd_median": [None, float("nan"), 0.84, 0.85, 1.0, 1.2, 1.21, 0.0, float("inf")],
+            "pos_sd_median": [None, float("nan"), 0.0, 1e-9, 0.5, 1.0, 3.0, float("inf"), float("-inf")],
+            "d_native_centre": [None, float("nan"), 0.0, 1.49, 1.5, 3.0, 7.0, -2.0, float("inf")],
+            "d_gist": [None, float("nan"), -0.5, 0.0, 1.0, 2.0, 3.0, 100.0, float("inf")],
+            "d_gist_full": [None, float("nan"), 0.5, 1.0, 2.0, float("-inf")],
+            "rho_null": [None, float("nan"), 0.0, 0.2, 0.4, 0.6, 0.9],
+            "vif_null_op": [None, float("nan"), -1.0, 0.0, 0.9, 1.0, 1.25, 1.3, 4.0, 40.0, float("inf")],
+            "vif_pos_op": [None, float("nan"), 1.0, 5.0],
+            "op_block_tokens": [None, float("nan"), -16.0, 0.0, 4.0, 16.0, 36.0]}
+    good = {"zroc_slope_median": [1.0], "null_sd_median": [1.0], "pos_sd_median": [1.0], "d_native_centre": [3.0, 7.0], "d_gist": [1.0, 2.0], "rho_null": [0.05],
+            "vif_null_op": [1.0, 4.0], "vif_pos_op": [1.0], "op_block_tokens": [16.0, 36.0]}          # typical values, so that the pass side of the rule is exercised too
+    seen_pass = seen_unmeasured = 0
+    for _ in range(6000):
+        s = {k: rnd.choice(good[k] if (k in good and rnd.random() < 0.8) else v) for k, v in pool.items()}
+        if rnd.random() < 0.5:
+            del s["d_gist_full"]
+        sdt, inf, pays, missing = _oracle(s, g1.DEFAULT_THRESHOLDS)
+        v = g1.verdict(s)
+        assert (v["sdt_adequate"], v["informative"], v["looking_closer_pays"]) == (sdt, inf, pays), s
+        assert v["pass_all"] == (sdt and inf and pays) and set(v["unmeasured"]) == missing, s
+        if v["unmeasured"]:
+            assert not v["pass_all"], s
+        seen_pass += v["pass_all"]
+        seen_unmeasured += bool(v["unmeasured"])
+    assert seen_pass > 100 and seen_unmeasured > 1000                                      # the sample exercises both sides of the rule

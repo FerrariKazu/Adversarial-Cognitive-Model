@@ -63,7 +63,8 @@ AGGREGATION = {
     "invalid_if": "any deviation in the primary runs: self-test, a checkpoint other than the frozen primary, a configuration value other than the frozen one "
                   "or a missing key, code or data listing other than the frozen ones (hashes recorded by each run), a set of seeds other than the frozen one, "
                   "the analysis-time code differing from the frozen hashes; the verdict the rule would have given is reported separately and decides nothing",
-    "inconclusive_if": "a primary run could not measure a required quantity (vif_null_op, op_block_tokens); re-run, or freeze a new version",
+    "inconclusive_if": "a primary run could not measure a required quantity (vif_null_op, op_block_tokens, d_native_centre, d_gist and d_gist_full both, null_sd_median, "
+                       "zroc_slope_median together with its sd-ratio fallback); one such run is enough, it is not out-voted by the others; re-run, or freeze a new version",
 }
 NEXT_STEP = {
     "sdt_adequate": "04 section 11 P1: unequal-variance (heteroscedastic) likelihood, or S3; if still outside the band, drop the exact-Bayes claim and keep the risk-control layer",
@@ -137,10 +138,38 @@ def freeze(primary: pathlib.Path, secondary: List[pathlib.Path], data_root: Opti
     }
 
 
+SUMMARY_REQUIRED = ("zroc_slope_median", "null_sd_median", "pos_sd_median", "d_native_centre", "d_gist", "rho_null", "vif_null_op", "vif_pos_op", "op_block_tokens")
+
+
+def _number_or_null(v: object) -> bool:
+    return v is None or (isinstance(v, (int, float)) and not isinstance(v, bool))
+
+
+def run_schema_problems(r: object) -> List[str]:
+    """Ways a run JSON does not have the shape gate1_measure_dprime.py writes. A run that cannot be read is not a run: it is a
+    deviation (INVALID), never a crash and never a vote."""
+    if not isinstance(r, dict):
+        return ["the run is not a JSON object"]
+    out = [f"'{k}' is missing or not an object" for k in ("config", "trunk", "summary") if not isinstance(r.get(k), dict)]
+    if isinstance(r.get("summary"), dict):
+        s = r["summary"]
+        out += [f"summary lacks {k!r}" for k in SUMMARY_REQUIRED if k not in s]
+        out += [f"summary[{k!r}] = {s[k]!r} is neither a number nor null" for k in (*SUMMARY_REQUIRED, "d_gist_full") if k in s and not _number_or_null(s[k])]
+    return out
+
+
+def _unreadable_verdict() -> Dict[str, object]:
+    """Stand-in for a run that could not be read: nothing passes and nothing counts as measured or flagged (the aggregate is INVALID anyway)."""
+    return {"sdt_adequate": False, "informative": False, "looking_closer_pays": False, "pass_all": False, "combination_rule": "best (run unreadable)",
+            "shared_difficulty": False, "shared_difficulty_assessed": False, "unmeasured": []}
+
+
 def run_deviations(r: Dict, prereg: Dict, label: str, expected_sha: Optional[str], what: str) -> List[str]:
     """Every way one run differs from the frozen protocol. A missing piece of evidence counts as a difference."""
-    dev: List[str] = []
-    cfg = r.get("config", {})
+    dev: List[str] = [f"{label}: {p}" for p in run_schema_problems(r)]
+    if not isinstance(r, dict):
+        return dev
+    cfg = r["config"] if isinstance(r.get("config"), dict) else {}
     for k, v in prereg["protocol"]["config"].items():
         if k not in cfg:
             dev.append(f"{label}: config key {k!r} is missing (frozen {v!r})")
@@ -148,7 +177,7 @@ def run_deviations(r: Dict, prereg: Dict, label: str, expected_sha: Optional[str
             dev.append(f"{label}: config {k} = {cfg[k]!r}, frozen {v!r}")
     if cfg.get("self_test"):
         dev.append(f"{label}: this is a self-test run (random-init trunk, synthetic data)")
-    trunk = r.get("trunk", {})
+    trunk = r["trunk"] if isinstance(r.get("trunk"), dict) else {}
     if expected_sha is None:
         dev.append(f"{label}: checkpoint {trunk.get('checkpoint')!r} is not in the frozen checkpoint list")
     elif trunk.get("sha256") != expected_sha:
@@ -185,11 +214,12 @@ def aggregate(prereg: Dict, runs: List[Dict], secondary: Optional[List[Dict]] = 
 
     per_run = []
     for r in runs:
-        seed = r.get("config", {}).get("seed")
+        readable = not run_schema_problems(r)
+        seed = r["config"].get("seed") if (isinstance(r, dict) and isinstance(r.get("config"), dict)) else None
         deviations += run_deviations(r, prereg, f"seed {seed}", prereg["checkpoint_hashes"].get(primary_name), "the frozen primary checkpoint")
-        per_run.append({"seed": seed, "verdict": g1.verdict(r["summary"], thr), "summary": r["summary"]})
-    seeds, want_seeds = sorted(str(x["seed"]) for x in per_run), sorted(str(s) for s in prereg["protocol"]["primary_seeds"])
-    if seeds != want_seeds:
+        per_run.append({"seed": seed, "verdict": g1.verdict(r["summary"], thr) if readable else _unreadable_verdict(), "summary": r["summary"] if readable else {}})
+    seeds, want_seeds = [x["seed"] for x in per_run], list(prereg["protocol"]["primary_seeds"])
+    if not (all(isinstance(s, int) and not isinstance(s, bool) for s in seeds) and sorted(seeds) == sorted(want_seeds)):    # integers only: "17" is not 17
         deviations.append(f"primary seeds {seeds}, frozen {want_seeds}")
     if len(per_run) != agg["n_primary_runs"]:
         deviations.append(f"{len(per_run)} primary runs, frozen {agg['n_primary_runs']}")
@@ -240,10 +270,10 @@ def aggregate(prereg: Dict, runs: List[Dict], secondary: Optional[List[Dict]] = 
     if secondary:
         sec = []
         for r in secondary:
-            name = r.get("trunk", {}).get("checkpoint")
+            name = r["trunk"].get("checkpoint") if (isinstance(r, dict) and isinstance(r.get("trunk"), dict)) else None
             expected = prereg["checkpoint_hashes"].get(name) if name != primary_name else None
             dev = run_deviations(r, prereg, f"secondary {name}", expected, f"the frozen hash of {name}")
-            v = g1.verdict(r["summary"], thr)
+            v = g1.verdict(r["summary"], thr) if not run_schema_problems(r) else _unreadable_verdict()
             sec.append({"checkpoint": name, "valid": not dev and not v["unmeasured"], "deviations": dev, "unmeasured": v["unmeasured"],
                         "pass_all": v["pass_all"], "verdict": v})
         out["secondary_trunks"] = sec

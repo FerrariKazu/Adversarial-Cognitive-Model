@@ -49,7 +49,7 @@ Machine-readable results: `RHAN_IM_toy_theory_checks.json`, `RHAN_IM_toy_image_w
 ## How to reproduce
 
 ```
-python -m pytest tests/rhan_im -q                                    # 145 tests, about a minute on CPU
+python -m pytest tests/rhan_im -q                                    # 151 tests, about a minute on CPU
 python scripts/rhan_im/toy_theory_checks.py                          # toy SDT world
 python scripts/rhan_im/toy_image_world.py                            # Gabor-on-1/f image world
 python scripts/rhan_im/model_budget.py                               # parameters / FLOPs / memory of the real trunk, random init

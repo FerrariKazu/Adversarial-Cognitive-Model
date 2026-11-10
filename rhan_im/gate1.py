@@ -361,7 +361,8 @@ def verdict(summary: Dict[str, float], thr: Optional[Dict] = None) -> Dict[str, 
     nlo, nhi = thr["null_sd"]
     slope = summary["zroc_slope_median"]
     if not math.isfinite(slope):                                   # d' too high for the z-ROC: use sd_null / sd_pos (equal to the slope)
-        slope = summary["null_sd_median"] / max(summary["pos_sd_median"], 1e-6)
+        psd = summary["pos_sd_median"]
+        slope = summary["null_sd_median"] / max(psd, 1e-6) if math.isfinite(psd) else float("nan")
     adequate = lo <= slope <= hi and nlo <= summary["null_sd_median"] <= nhi
     # within-look token dependence (measured, not a pass/fail item). Noise dependence under H_0 (VIF_null) is corrected by
     # 1/sqrt(VIF) (exact for equicorrelated tokens). Dependence only on TARGET scenes (VIF_pos well above VIF_null) is shared image
@@ -370,27 +371,38 @@ def verdict(summary: Dict[str, float], thr: Optional[Dict] = None) -> Dict[str, 
     def finite_or_none(x):
         return float(x) if (x is not None and math.isfinite(float(x))) else None
 
-    vn, vp = finite_or_none(summary.get("vif_null_op")), finite_or_none(summary.get("vif_pos_op"))
-    n_op = finite_or_none(summary.get("op_block_tokens"))                 # tokens of one operating-size target in a window
-    n_op = n_op if (n_op is not None and n_op > 0) else None
+    def positive_or_none(x):                                              # a variance-inflation factor or a token count is > 0 or it was not measured
+        v = finite_or_none(x)
+        return v if (v is not None and v > 0) else None
+
+    vn, vp = positive_or_none(summary.get("vif_null_op")), positive_or_none(summary.get("vif_pos_op"))
+    n_op = positive_or_none(summary.get("op_block_tokens"))               # tokens of one operating-size target in a window
     # FAIL CLOSED: the block-level detectability needs both VIF_null and the block size. A missing or non-finite one
     # used to be read as "independent tokens" / "no block test", which can only help a pass (a reviewer showed d_block
     # 7.2 instead of 2.08 for d_centre 1.8 and VIF 12). Now `informative` fails and the quantity is listed as unmeasured;
-    # the aggregate (scripts/rhan_im/gate1_prereg.py) reports INCONCLUSIVE rather than a verdict on the trunk.
+    # the aggregate (scripts/rhan_im/gate1_prereg.py) reports INCONCLUSIVE rather than a verdict on the trunk. The same holds
+    # for every other quantity a criterion needs (centre detectability, gist detectability, null sd, z-ROC slope with its
+    # sd-ratio fallback): "could not be measured" is not "failed".
     unmeasured = [name for name, val in (("vif_null_op", vn), ("op_block_tokens", n_op)) if val is None]
+    if not math.isfinite(slope) or not math.isfinite(summary["null_sd_median"]):
+        unmeasured += [name for name, val in (("zroc_slope_median", slope), ("null_sd_median", summary["null_sd_median"])) if not math.isfinite(val)]
+    if not math.isfinite(summary["d_native_centre"]):
+        unmeasured.append("d_native_centre")
+    if not any(v is not None and math.isfinite(v) for v in (summary["d_gist"], summary.get("d_gist_full"))):
+        unmeasured.append("d_gist")
     noise_dependent = vn is not None and vn > thr["vif_independent_max"]
     token_rule = "correct z and d by 1/sqrt(VIF_null)" if noise_dependent else ("independent" if vn is not None else "unmeasured")
     vif_used = vn if noise_dependent else 1.0
     shared_assessed = vn is not None and vp is not None                    # unassessed is not the same as absent
     shared_difficulty = shared_assessed and vp / max(vn, 1.0) > thr["vif_independent_max"]
     d_c = summary["d_native_centre"]
-    d_block = d_c * math.sqrt(n_op / vif_used) if (not unmeasured and math.isfinite(d_c)) else float("nan")
+    d_block = d_c * math.sqrt(n_op / vif_used) if (vn is not None and n_op is not None and math.isfinite(d_c)) else float("nan")
     informative = bool(math.isfinite(d_c) and d_c >= thr["d_centre_min"] and math.isfinite(d_block) and d_block >= thr["d_block_min"])
     # comparator for "looking closer pays": the BEST case gist (pooled mean over overlapped tokens, or tokens fully covered
     # by the target, whichever is larger); NaN if neither is measurable, which counts as "does not pay"
     gists = [v for v in (summary["d_gist"], summary.get("d_gist_full")) if v is not None and math.isfinite(v)]
     dg = max(gists) if gists else float("nan")
-    ratio = summary["d_native_centre"] / max(dg, 1e-6) if gists else float("nan")
+    ratio = summary["d_native_centre"] / max(dg, 1e-6) if (gists and math.isfinite(summary["d_native_centre"])) else float("nan")
     pays = bool(gists) and ratio >= thr["native_over_gist_min"]
     rho = summary["rho_null"]
     rule = "sum" if rho <= thr["rho_sum_max"] else ("best" if rho >= thr["rho_best_min"] else "best (conservative; sum is not justified)")

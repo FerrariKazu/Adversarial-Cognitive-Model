@@ -999,7 +999,7 @@
   },
   "code_sha256": {
     "scripts/rhan_im/gate1_measure_dprime.py": "4c59ce05c00f91dfa70ec1f6101e3c313cdf22e6c14f2e82f6aa45a77abb99fd",
-    "rhan_im/gate1.py": "70c6d66c9c245a50e0fe25207681f17c05ea3069bbfcf60621fdfcd03d174287",
+    "rhan_im/gate1.py": "dd8647157f98dbdae007a53b8e47075b1077f4d5b3cbfe9e2c795eef6b009112",
     "rhan_im/layout.py": "cd042048b5ee77286ddd0a37e2ef70c9220ea127d7150a46ff85060537d54b4c",
     "rhan_im/trunk_adapter.py": "a3e9c83c091ba8fd35728145e55b92de167f9de8ba4ab2585c48701427b78e72",
     "rhan_im/window_head.py": "35a96251bcb2ae48bc8413e4dcf838b1321306785c3758bd4384383fafd252b7",
@@ -1095,5 +1095,5 @@
       1.137527585029602
     ]
   ],
-  "seconds": 30.0
+  "seconds": 21.9
 }
