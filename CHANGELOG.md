@@ -10,6 +10,84 @@ find out what happened to it.
 
 ---
 
+## 3.4 — 28 October 2026
+
+This edition adds ten implementation-derived schematics and the machinery that keeps them honest;
+it changes no number and re-runs no experiment. It carries 254 pages, 107 figures and the same 276
+registry metrics (127 `VERIFIED`, 147 `SUPPORTED_WITH_LIMITATIONS`, 2 `RETRACTED`).
+
+**Why schematics rather than more plots.** The evidence figures in 3.3 answer "what was measured".
+They do not answer "what does the model actually compute", which is the question a reader of Part I
+arrives with, and the previous architecture diagrams were wallsheet drawings of the *design*. The
+ten new figures are read off a hooked run of the shipped model instead: `figures/model_facts.py`
+executes `gen1_core` under forward hooks and writes `data/model_facts.json` (shapes, call counts,
+parameter totals), and `figures/make_v34_schematics.py` draws only from that file. No shape, count
+or parameter total in a v3.4 drawing is typed into the drawing code.
+
+**The ten figures** (Appendix G.8; per-figure record in `07_deliverables/figure_inventory_v34.md`):
+
+| Manifest id | Section | What it settles | Class |
+|---|---|---|---|
+| `V34-ARCH-OVERVIEW` | 3.1 | the whole pass: one tokenizer, 12 + 1 blocks, four-step loop, two-head readout | A |
+| `V34-BLOCK-ANATOMY` | 3.3 | one block's operations, and where its MACs and parameters sit | A |
+| `V34-EXEC-SCHEDULE` | 13.3 | what runs at each step, with application counts per cell | A |
+| `V34-FOVEA-MECHANISM` | 4.2 | θ from the gaze, and the `s = 1` consequence for what a crop can add | D |
+| `V34-GIST-PATH` | 4.3 | `z_0` as a token mean, and `fuse()` as uncalled | A |
+| `V34-BELIEF-STEP` | 6.4 | the v2 update and its four detach sites | A |
+| `V34-DIRICHLET-FANOUT` | 6.1 | one evidence vector, three wired consumers, one absent | A |
+| `V34-TRAIN-STEP` | 11.2 | one batch in three precision lanes (attack fp32, loss autocast, scaler/clip) | A |
+| `V34-PROTOCOL-MATRIX` | 22.1 | four attack protocols and what each one can support | B |
+| `V34-REUSE-ACCOUNT` | 24.2 | parameter sets against applications per pass | A |
+
+Eight are class A (implementation-derived), one B (experimentally derived) and one D (mixed).
+There is no class C figure: where a claim has no code or artifact behind it the drawing is hatched
+and labelled, rather than promoted into a finding.
+
+**One visual language.** `figures/schematics.py` is a millimetre-coordinate canvas with one
+vocabulary — module box, data edge, gradient edge, shared-parameter link, evidence badge — so the
+ten figures can be read against each other. The evidence badge is not decoration: `impl`, `exp`,
+`concept` and `mixed` each render as a distinct badge, and the badge text is the manifest's
+`evidence_class`. The palette, the arm colours and the badge geometry come from `figures/style.py`,
+so a schematic cannot drift from the figures beside it.
+
+**Print size is measured, not asserted.** A drawing at 170 mm is printed inside the 170 mm text
+block at 165.8 mm (97.5 %), so a 5.8 pt badge renders at 5.66 pt. `scripts/handbook/qa_v34_contact_sheet.py`
+locates each image in the shipped PDF by content fingerprint, converts the placed box to
+millimetres, recomputes the scale and reports the smallest effective label against a 5.5 pt floor;
+it writes `report/handbook_audit_v34/figure_placement_v34.json` and a labelled contact sheet of the
+ten figures *as printed*. All ten clear the floor, and the check fails the release rather than
+warning if one does not.
+
+**Bookkeeping that follows from the new figures.**
+
+1. The figure manifest now merges **five** generators (priority, carried, suite, chapter, v3.4).
+   `tests/test_handbook_registry.py` counts the fifth and asserts that every v3.4 record is actually
+   present in the merge, not merely generated.
+2. `PROV-TRACE-001` (`provenance_layers.png`) reads its bar heights from the manifest at generation
+   time and was re-rendered, so the appendix prints 107 figure records and 39 that cite a metric
+   rather than the 3.3 values. This is a count refresh, not a change of claim.
+3. Appendix G gains G.8 (the ten figures, their sources and their print geometry) and its generator
+   list now says five, not four. The duplicated G.7 heading that the insertion would otherwise have
+   created is resolved: table provenance stays G.7, the schematics are G.8.
+4. `07_deliverables/figure_inventory_v34.md` records purpose, class, source, section and
+   inspection status per figure, and lists the three figures considered and **not** drawn because the
+   evidence does not exist (a component runtime profile, an attention map, a per-arm calibration plot).
+5. Figure density is 107 figures in 254 pages, one per 2.37; `figure_coverage.py` still resolves
+   107 of 107 references to a file.
+
+**Validation.** `scripts/validate_rhan_handbook.py` passes on the 254-page build: 0 blank pages, 0
+pages with ink outside the frame, 361 contents entries with 0 unresolved, five part dividers on the
+page the contents claims, and 107 captions adjacent to their image. The typography stage is clean on
+all seven checks (text outside the frame, text collisions, hyphenated identifiers, caption
+adjacency, orphan headings, undersized figures, vertical holes). `validate_numbers.py` reports 276
+metrics with 0 errors and 0 warnings; `verify_claims.py`, the percentage audit and the point-delta
+audit pass.
+
+**What did not change.** The 97 carried figures are byte-identical except `provenance_layers.png`;
+no figure was deleted, replaced or renumbered, and no number in the registry moved. The limitations
+of 3.3 stand, including the missing matched-ε adaptive attack for `ff_112` and the single checkpoint
+per arm.
+
 ## 3.3 — 25 October 2026
 
 This edition adds one section and two appendix sections; no earlier number was edited and no experiment

@@ -121,7 +121,23 @@ def test_run_on_an_imagefolder_uses_disjoint_calibration_and_test_pools(tmp_path
             super().__init__(root, split, target_classes, bg_classes, seed=seed, part=part)
 
     monkeypatch.setattr(m, "FolderBank", Recorder)
-    res = m.run(tiny_args(self_test=False, data_root=str(root), classes=2, steps=4, batch=8, n_cal=60, n_test=80, n_pairs=20))
+    # a Gate-1 run needs the FINAL class-split file and pools file (no fallback split): written here for the fake two-target / six-background dataset
+    import json
+    from rhan_im import gate1 as g1
+    classes = sorted(p.name for p in (root / "train").iterdir())
+    t = [{"wnid": f"n{100 + i:08d}", "dirname": d} for i, d in enumerate(classes[:2])]
+    b = [{"wnid": f"n{200 + i:08d}", "dirname": d} for i, d in enumerate(classes[2:])]
+    h = g1.class_split_sha256(3, t, b)
+    sp = tmp_path / "split.json"
+    sp.write_text(json.dumps({"status": "FINAL", "seed": 3, "targets": t, "backgrounds": b, "hashes": {"class_split_sha256": h}}))
+    cal = {c: sorted(q.name for q in (root / "val" / c).iterdir())[0::2] for c in classes}
+    tst = {c: sorted(q.name for q in (root / "val" / c).iterdir())[1::2] for c in classes}
+    vh = g1.listing_hash(root / "val")["sha256"]
+    ah = g1.hashlib.sha256(g1.canonical_json_bytes({"rule_id": "r", "class_split": h, "val_repo_listing_sha256": vh, "calibration": cal, "test": tst})).hexdigest()
+    pp = tmp_path / "pools.json"
+    pp.write_text(json.dumps({"status": "FINAL", "rule_id": "r", "class_split": h, "calibration_pool_part_0_of_2": cal, "test_pool_part_1_of_2": tst,
+                              "listing_binding": {"val": {"repo_listing_sha256": vh}}, "pool_assignment_sha256": ah}))
+    res = m.run(tiny_args(self_test=False, data_root=str(root), classes=2, steps=4, batch=8, n_cal=60, n_test=80, n_pairs=20, class_split=str(sp), pools=str(pp)))
     assert ("train", None) in calls and ("val", (0, 2)) in calls and ("val", (1, 2)) in calls
     assert ("val", None) not in calls                                           # no bank may see the whole val split
     assert "within_look" in res and set(res["within_look"]) == {"size2_alpha1.0", "size3_alpha1.0"}

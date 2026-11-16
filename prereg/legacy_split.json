@@ -1,0 +1,448 @@
+{
+ "backgrounds": [
+  {
+   "dirname": "robin_American_robin_Turdus_migratorius",
+   "wnid": "n01558993"
+  },
+  {
+   "dirname": "lorikeet",
+   "wnid": "n01820546"
+  },
+  {
+   "dirname": "rock_crab_Cancer_irroratus",
+   "wnid": "n01978455"
+  },
+  {
+   "dirname": "little_blue_heron_Egretta_caerulea",
+   "wnid": "n02009229"
+  },
+  {
+   "dirname": "papillon",
+   "wnid": "n02086910"
+  },
+  {
+   "dirname": "toy_terrier",
+   "wnid": "n02087046"
+  },
+  {
+   "dirname": "vizsla_Hungarian_pointer",
+   "wnid": "n02100583"
+  },
+  {
+   "dirname": "kuvasz",
+   "wnid": "n02104029"
+  },
+  {
+   "dirname": "komondor",
+   "wnid": "n02105505"
+  },
+  {
+   "dirname": "standard_poodle",
+   "wnid": "n02113799"
+  },
+  {
+   "dirname": "red_fox_Vulpes_vulpes",
+   "wnid": "n02119022"
+  },
+  {
+   "dirname": "tabby_tabby_cat",
+   "wnid": "n02123045"
+  },
+  {
+   "dirname": "meerkat_mierkat",
+   "wnid": "n02138441"
+  },
+  {
+   "dirname": "walking_stick_walkingstick_stick_insect",
+   "wnid": "n02231487"
+  },
+  {
+   "dirname": "leafhopper",
+   "wnid": "n02259212"
+  },
+  {
+   "dirname": "wild_boar_boar_Sus_scrofa",
+   "wnid": "n02396427"
+  },
+  {
+   "dirname": "langur",
+   "wnid": "n02488291"
+  },
+  {
+   "dirname": "jean_blue_jean_denim",
+   "wnid": "n03594734"
+  },
+  {
+   "dirname": "lampshade_lamp_shade",
+   "wnid": "n03637318"
+  },
+  {
+   "dirname": "laptop_laptop_computer",
+   "wnid": "n03642806"
+  },
+  {
+   "dirname": "milk_can",
+   "wnid": "n03764736"
+  },
+  {
+   "dirname": "mixing_bowl",
+   "wnid": "n03775546"
+  },
+  {
+   "dirname": "modem",
+   "wnid": "n03777754"
+  },
+  {
+   "dirname": "moped",
+   "wnid": "n03785016"
+  },
+  {
+   "dirname": "mortarboard",
+   "wnid": "n03787032"
+  },
+  {
+   "dirname": "mousetrap",
+   "wnid": "n03794056"
+  },
+  {
+   "dirname": "obelisk",
+   "wnid": "n03837869"
+  },
+  {
+   "dirname": "park_bench",
+   "wnid": "n03891251"
+  },
+  {
+   "dirname": "pedestal_plinth_footstall",
+   "wnid": "n03903868"
+  },
+  {
+   "dirname": "pickup_pickup_truck",
+   "wnid": "n03930630"
+  },
+  {
+   "dirname": "pirate_pirate_ship",
+   "wnid": "n03947888"
+  },
+  {
+   "dirname": "purse",
+   "wnid": "n04026417"
+  },
+  {
+   "dirname": "reel",
+   "wnid": "n04067472"
+  },
+  {
+   "dirname": "rocking_chair_rocker",
+   "wnid": "n04099969"
+  },
+  {
+   "dirname": "rotisserie",
+   "wnid": "n04111531"
+  },
+  {
+   "dirname": "safety_pin",
+   "wnid": "n04127249"
+  },
+  {
+   "dirname": "sarong",
+   "wnid": "n04136333"
+  },
+  {
+   "dirname": "ski_mask",
+   "wnid": "n04229816"
+  },
+  {
+   "dirname": "slide_rule_slipstick",
+   "wnid": "n04238763"
+  },
+  {
+   "dirname": "stretcher",
+   "wnid": "n04336792"
+  },
+  {
+   "dirname": "theater_curtain_theatre_curtain",
+   "wnid": "n04418357"
+  },
+  {
+   "dirname": "throne",
+   "wnid": "n04429376"
+  },
+  {
+   "dirname": "tile_roof",
+   "wnid": "n04435653"
+  },
+  {
+   "dirname": "tripod",
+   "wnid": "n04485082"
+  },
+  {
+   "dirname": "tub_vat",
+   "wnid": "n04493381"
+  },
+  {
+   "dirname": "vacuum_vacuum_cleaner",
+   "wnid": "n04517823"
+  },
+  {
+   "dirname": "window_screen",
+   "wnid": "n04589890"
+  },
+  {
+   "dirname": "wing",
+   "wnid": "n04592741"
+  },
+  {
+   "dirname": "pineapple_ananas",
+   "wnid": "n07753275"
+  },
+  {
+   "dirname": "stinkhorn_carrion_fungus",
+   "wnid": "n13040303"
+  }
+ ],
+ "backgrounds_category": {
+  "animal": 17,
+  "non_animal": 33
+ },
+ "backgrounds_subcategory": {
+  "artifact": 31,
+  "dog": 6,
+  "food": 1,
+  "fungus": 1,
+  "other_animal": 11
+ },
+ "boundary": [
+  "iron_smoothing_iron",
+  "jean_blue_jean_denim"
+ ],
+ "legacy_split_sha256": "14d71d0aeafa6c2d417c7288a7fb4c669c6cce376b8ed093fc0bb00f360dbb25",
+ "names_digests": {
+  "backgrounds": "9cf59f03794f7b5b3d7770a108db472ffd9114fbdcf72caeb2f3ada3143d9661",
+  "targets": "8bcdb86508db6d71a4b84d9a3f5c2df9f357721d2fbf25cdd54cbe7fba99b9e1"
+ },
+ "rule": "script rule: sorted folder names (code point), first 50 = targets, last 50 = backgrounds; used for ONE report-only run",
+ "status": "FINAL",
+ "targets": [
+  {
+   "dirname": "Gila_monster_Heloderma_suspectum",
+   "wnid": "n01692333"
+  },
+  {
+   "dirname": "hognose_snake_puff_adder_sand_viper",
+   "wnid": "n01729322"
+  },
+  {
+   "dirname": "garter_snake_grass_snake",
+   "wnid": "n01735189"
+  },
+  {
+   "dirname": "green_mamba",
+   "wnid": "n01749939"
+  },
+  {
+   "dirname": "garden_spider_Aranea_diademata",
+   "wnid": "n01773797"
+  },
+  {
+   "dirname": "goose",
+   "wnid": "n01855672"
+  },
+  {
+   "dirname": "fiddler_crab",
+   "wnid": "n01980166"
+  },
+  {
+   "dirname": "American_lobster_Northern_lobster_Maine_lobster_Homarus_americanus",
+   "wnid": "n01983481"
+  },
+  {
+   "dirname": "American_coot_marsh_hen_mud_hen_water_hen_Fulica_americana",
+   "wnid": "n02018207"
+  },
+  {
+   "dirname": "Chihuahua",
+   "wnid": "n02085620"
+  },
+  {
+   "dirname": "Shih_Tzu",
+   "wnid": "n02086240"
+  },
+  {
+   "dirname": "Walker_hound_Walker_foxhound",
+   "wnid": "n02089867"
+  },
+  {
+   "dirname": "English_foxhound",
+   "wnid": "n02089973"
+  },
+  {
+   "dirname": "borzoi_Russian_wolfhound",
+   "wnid": "n02090622"
+  },
+  {
+   "dirname": "Saluki_gazelle_hound",
+   "wnid": "n02091831"
+  },
+  {
+   "dirname": "American_Staffordshire_terrier_Staffordshire_terrier_American_pit_bull_terrier_p",
+   "wnid": "n02093428"
+  },
+  {
+   "dirname": "Chesapeake_Bay_retriever",
+   "wnid": "n02099849"
+  },
+  {
+   "dirname": "Rottweiler",
+   "wnid": "n02106550"
+  },
+  {
+   "dirname": "Doberman_Doberman_pinscher",
+   "wnid": "n02107142"
+  },
+  {
+   "dirname": "boxer",
+   "wnid": "n02108089"
+  },
+  {
+   "dirname": "Great_Dane",
+   "wnid": "n02109047"
+  },
+  {
+   "dirname": "Mexican_hairless",
+   "wnid": "n02113978"
+  },
+  {
+   "dirname": "coyote_prairie_wolf_brush_wolf_Canis_latrans",
+   "wnid": "n02114855"
+  },
+  {
+   "dirname": "African_hunting_dog_hyena_dog_Cape_hunting_dog_Lycaon_pictus",
+   "wnid": "n02116738"
+  },
+  {
+   "dirname": "dung_beetle",
+   "wnid": "n02172182"
+  },
+  {
+   "dirname": "hare",
+   "wnid": "n02326432"
+  },
+  {
+   "dirname": "gibbon_Hylobates_lar",
+   "wnid": "n02483362"
+  },
+  {
+   "dirname": "ambulance",
+   "wnid": "n02701002"
+  },
+  {
+   "dirname": "bannister_banister_balustrade_balusters_handrail",
+   "wnid": "n02788148"
+  },
+  {
+   "dirname": "bassinet",
+   "wnid": "n02804414"
+  },
+  {
+   "dirname": "boathouse",
+   "wnid": "n02859443"
+  },
+  {
+   "dirname": "bonnet_poke_bonnet",
+   "wnid": "n02869837"
+  },
+  {
+   "dirname": "bottlecap",
+   "wnid": "n02877765"
+  },
+  {
+   "dirname": "car_wheel",
+   "wnid": "n02974003"
+  },
+  {
+   "dirname": "chime_bell_gong",
+   "wnid": "n03017168"
+  },
+  {
+   "dirname": "cinema_movie_theater_movie_theatre_movie_house_picture_palace",
+   "wnid": "n03032252"
+  },
+  {
+   "dirname": "cocktail_shaker",
+   "wnid": "n03062245"
+  },
+  {
+   "dirname": "computer_keyboard_keypad",
+   "wnid": "n03085013"
+  },
+  {
+   "dirname": "Dutch_oven",
+   "wnid": "n03259280"
+  },
+  {
+   "dirname": "football_helmet",
+   "wnid": "n03379051"
+  },
+  {
+   "dirname": "gasmask_respirator_gas_helmet",
+   "wnid": "n03424325"
+  },
+  {
+   "dirname": "hard_disc_hard_disk_fixed_disk",
+   "wnid": "n03492542"
+  },
+  {
+   "dirname": "harmonica_mouth_organ_harp_mouth_harp",
+   "wnid": "n03494278"
+  },
+  {
+   "dirname": "honeycomb",
+   "wnid": "n03530642"
+  },
+  {
+   "dirname": "iron_smoothing_iron",
+   "wnid": "n03584829"
+  },
+  {
+   "dirname": "head_cabbage",
+   "wnid": "n07714571"
+  },
+  {
+   "dirname": "cauliflower",
+   "wnid": "n07715103"
+  },
+  {
+   "dirname": "carbonara",
+   "wnid": "n07831146"
+  },
+  {
+   "dirname": "chocolate_sauce_chocolate_syrup",
+   "wnid": "n07836838"
+  },
+  {
+   "dirname": "gyromitra",
+   "wnid": "n13037406"
+  }
+ ],
+ "targets_category": {
+  "animal": 27,
+  "non_animal": 23
+ },
+ "targets_subcategory": {
+  "artifact": 18,
+  "dog": 13,
+  "food": 4,
+  "fungus": 1,
+  "other_animal": 14
+ },
+ "tool": {
+  "note": "recorded for provenance; not part of any identity hash",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+  "python": "3.10.12",
+  "python_optimize_flag": 0,
+  "tool": "gate1_freeze_tools_v2",
+  "tool_sha256": "6aa8727c3aa6580ddf258fe53aa40ec69018959360c01ae464718893900fb837",
+  "tool_version": "2.0.0-proposed"
+ }
+}

@@ -40,7 +40,7 @@ sys.path.insert(0, str(ROOT))
 from rhan_im import gate1 as g1  # noqa: E402
 
 # every file whose content can change what the measurement computes, and the aggregator that applies the decision rule
-CODE_FILES = list(g1.MEASUREMENT_CODE_FILES) + ["scripts/rhan_im/gate1_prereg.py"]
+CODE_FILES = list(g1.MEASUREMENT_CODE_FILES) + ["scripts/rhan_im/gate1_prereg.py", "scripts/rhan_im/gate1_slope_heterogeneity.py"]   # C4: the report-only analysis is hashed too
 DOCUMENTED_PRIMARY_SHA256 = "d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc"   # foundation_ff_112_seed17_final_d00fb750.pth
 DATA_KEYS = ("train_path_listing", "val_path_listing")
 
@@ -49,6 +49,8 @@ PLANNED_CONFIG = {
     "p_null": 0.3, "steps": 600, "batch": 48, "lr": 0.002, "n_cal": 3000, "n_test": 6000, "n_pairs": 2000, "chunk_scenes": 200,
 }
 PRIMARY_SEEDS = [17, 42, 99]
+SECONDARY_SEED = 17            # C5: the two secondary checkpoints are measured with this seed; the aggregator now checks it
+HEX = set("0123456789abcdef")
 AGGREGATION = {
     "n_primary_runs": 3,
     "min_runs_pass_all": 2,
@@ -61,7 +63,9 @@ AGGREGATION = {
     "secondary_trunks": "reported only; a secondary trunk that fails marks the result 'trunk-dependent' and restricts the claim to the primary trunk; "
                         "a secondary run that deviates from the frozen protocol is reported as invalid and ignored",
     "invalid_if": "any deviation in the primary runs: self-test, a checkpoint other than the frozen primary, a configuration value other than the frozen one "
-                  "or a missing key, code or data listing other than the frozen ones (hashes recorded by each run), a set of seeds other than the frozen one, "
+                  "or a missing key, code or data listing other than the frozen ones (hashes recorded by each run), a class split or pools file other than the frozen ones, "
+                  "a head-initialisation seed other than the run's measurement seed, a missing provenance-sidecar hash, file or runtime record, a provenance linkage hash that is not the hash of the run's own "
+                  "protocol fields, a set of seeds other than the frozen one, "
                   "the analysis-time code differing from the frozen hashes; the verdict the rule would have given is reported separately and decides nothing",
     "inconclusive_if": "a primary run could not measure a required quantity (vif_null_op, op_block_tokens, d_native_centre, d_gist and d_gist_full both, null_sd_median, "
                        "zroc_slope_median together with its sd-ratio fallback); one such run is enough, it is not out-voted by the others; re-run, or freeze a new version",
@@ -88,7 +92,8 @@ def git(*args: str, cwd: pathlib.Path = ROOT) -> Optional[str]:
 
 
 def freeze(primary: pathlib.Path, secondary: List[pathlib.Path], data_root: Optional[pathlib.Path], allow_dirty: bool = False,
-           repo_root: pathlib.Path = ROOT, allow_other_primary: bool = False) -> Dict[str, object]:
+           repo_root: pathlib.Path = ROOT, allow_other_primary: bool = False, class_split: Optional[pathlib.Path] = None,
+           pools: Optional[pathlib.Path] = None) -> Dict[str, object]:
     status = git("status", "--porcelain", "--", *CODE_FILES, cwd=repo_root)
     head = git("rev-parse", "HEAD", cwd=repo_root)
     if (status is None or head is None) and not allow_dirty:
@@ -109,6 +114,15 @@ def freeze(primary: pathlib.Path, secondary: List[pathlib.Path], data_root: Opti
     ckpts = {primary.name: p_sha}
     ckpts.update({p.name: sha256_file(p) for p in secondary})
     data = {f"{split}_path_listing": listing_hash(data_root / split) for split in ("train", "val")}
+    if class_split is None or pools is None:
+        raise SystemExit("refusing to freeze: --class-split and --pools are required (the freeze pins the class split and the image pools every run must use)")
+    try:
+        sp = g1.read_class_split(class_split)
+        pl = g1.read_pools(pools, sp["class_split_sha256"])
+    except (ValueError, KeyError, OSError) as e:
+        raise SystemExit(f"refusing to freeze: {e}")
+    if pl["val_repo_listing_sha256"] != data["val_path_listing"]["sha256"]:
+        raise SystemExit("refusing to freeze: the pools file was made from a different val listing than the one in --data-root")
     return {
         "protocol_id": "rhan-im-gate1/1",
         "protocol_version": "rhan_im_gate1_v1",
@@ -123,8 +137,15 @@ def freeze(primary: pathlib.Path, secondary: List[pathlib.Path], data_root: Opti
             "secondary_checkpoints": [p.name for p in secondary],
             "primary_seeds": PRIMARY_SEEDS,
             "config": PLANNED_CONFIG,
-            "target_background_split": "target = the first `classes` of the first half of the sorted ImageNet-100 class names; background = the second half",
-            "calibration_test_split": "disjoint halves of the val images: every second file of each class's sorted list",
+            "class_split": {"file": class_split.name, "file_sha256": sp["file_sha256"], "class_split_sha256": sp["class_split_sha256"],
+                            "class_lists_sha256": sp["class_lists_sha256"], "seed": sp["seed"]},
+            "pools": {"file": pools.name, "file_sha256": pl["file_sha256"], "pool_assignment_sha256": pl["pool_assignment_sha256"]},
+            "secondary_seed": SECONDARY_SEED,
+            "head_init_seed_rule": "config.head_init_seed equals config.seed in every run (explicit, recorded)",
+            "original_split_run": "not part of Gate 1 (decision OI-06, 15 Nov 2026): no run on the original sorted-name split is preregistered, measured or aggregated",
+            "target_background_split": "the FINAL class-split file pinned in protocol.class_split; every run must report its class_split_sha256 and class_lists_sha256",
+            "calibration_test_split": "the pools file pinned in protocol.pools: disjoint halves of the val images (every second file of each class's sorted list); "
+                                      "each run checks that its banks draw from exactly those files",
         },
         "rules": {
             "thresholds": {k: list(v) if isinstance(v, tuple) else v for k, v in g1.DEFAULT_THRESHOLDS.items()},
@@ -164,8 +185,12 @@ def _unreadable_verdict() -> Dict[str, object]:
             "shared_difficulty": False, "shared_difficulty_assessed": False, "unmeasured": []}
 
 
-def run_deviations(r: Dict, prereg: Dict, label: str, expected_sha: Optional[str], what: str) -> List[str]:
-    """Every way one run differs from the frozen protocol. A missing piece of evidence counts as a difference."""
+def _hex64(x: object) -> bool:
+    return isinstance(x, str) and len(x) == 64 and set(x) <= HEX
+
+
+def run_deviations(r: Dict, prereg: Dict, label: str, expected_sha: Optional[str], what: str, expected_seed: Optional[int] = None) -> List[str]:
+    """Every way one run differs from the frozen protocol. A missing piece of evidence counts as a difference: there is no default and no fallback."""
     dev: List[str] = [f"{label}: {p}" for p in run_schema_problems(r)]
     if not isinstance(r, dict):
         return dev
@@ -177,6 +202,43 @@ def run_deviations(r: Dict, prereg: Dict, label: str, expected_sha: Optional[str
             dev.append(f"{label}: config {k} = {cfg[k]!r}, frozen {v!r}")
     if cfg.get("self_test"):
         dev.append(f"{label}: this is a self-test run (random-init trunk, synthetic data)")
+    if expected_seed is not None and cfg.get("seed") != expected_seed:
+        dev.append(f"{label}: measurement seed {cfg.get('seed')!r}, frozen {expected_seed!r}")
+    hs = cfg.get("head_init_seed")
+    if hs is None or isinstance(hs, bool) or hs != cfg.get("seed"):
+        dev.append(f"{label}: head_init_seed {hs!r} is not the run's measurement seed {cfg.get('seed')!r}")
+    proto = prereg["protocol"]
+    cs = r.get("class_split") if isinstance(r.get("class_split"), dict) else {}
+    fz = proto.get("class_split")
+    if not isinstance(fz, dict) or not isinstance(proto.get("pools"), dict):
+        dev.append(f"{label}: the frozen file does not pin a class split and pools")
+    else:
+        if cs.get("mode") != "class_split_file":
+            dev.append(f"{label}: class split mode {cs.get('mode')!r}, frozen 'class_split_file'")
+        for k in ("class_split_sha256", "class_lists_sha256"):
+            if cs.get(k) != fz.get(k):
+                dev.append(f"{label}: {k} {str(cs.get(k))[:12]}… is not the frozen {str(fz.get(k))[:12]}…")
+        pl = r.get("pools") if isinstance(r.get("pools"), dict) else {}
+        if pl.get("pool_assignment_sha256") != proto["pools"].get("pool_assignment_sha256"):
+            dev.append(f"{label}: pool_assignment_sha256 is not the frozen one (or the run used no pools file)")
+    prov = r.get("provenance") if isinstance(r.get("provenance"), dict) else {}
+    if not (_hex64(prov.get("sidecar_sha256")) and _hex64(prov.get("link_sha256"))):
+        dev.append(f"{label}: no per-scene provenance sidecar hash was recorded")
+    else:                                                                      # OI-04: the linkage hash must be the one of THIS run's protocol fields
+        try:
+            plk = r.get("pools") if isinstance(r.get("pools"), dict) else {}
+            link = g1.provenance_link(cfg["seed"], cfg["head_init_seed"], (r.get("trunk") or {}).get("sha256"), cs.get("class_lists_sha256"),
+                                      plk.get("pool_assignment_sha256"), cfg["n_cal"], cfg["n_test"], min(cfg["n_pairs"], cfg["n_test"]))
+            if g1.provenance_link_sha256(link) != prov["link_sha256"]:
+                dev.append(f"{label}: the provenance linkage hash is not the hash of this run's seed, head seed, checkpoint, class lists, pools and scene counts")
+        except (KeyError, TypeError, ValueError):
+            dev.append(f"{label}: the provenance linkage hash could not be recomputed from the run's own fields")
+    env = r.get("environment") if isinstance(r.get("environment"), dict) else {}
+    if not (env.get("python") and env.get("torch")):
+        dev.append(f"{label}: runtime / dependency metadata was not recorded")
+    head = r.get("head") if isinstance(r.get("head"), dict) else {}
+    if head.get("head_init_seed") != hs or not _hex64(head.get("final_weights_sha256")):
+        dev.append(f"{label}: head record missing or inconsistent with config.head_init_seed")
     trunk = r["trunk"] if isinstance(r.get("trunk"), dict) else {}
     if expected_sha is None:
         dev.append(f"{label}: checkpoint {trunk.get('checkpoint')!r} is not in the frozen checkpoint list")
@@ -197,7 +259,33 @@ def run_deviations(r: Dict, prereg: Dict, label: str, expected_sha: Optional[str
     return dev
 
 
-def aggregate(prereg: Dict, runs: List[Dict], secondary: Optional[List[Dict]] = None, repo_root: pathlib.Path = ROOT) -> Dict[str, object]:
+def _seed_of(r: object) -> object:
+    return r["config"].get("seed") if (isinstance(r, dict) and isinstance(r.get("config"), dict)) else None
+
+
+def _ckpt_of(r: object) -> object:
+    return r["trunk"].get("checkpoint") if (isinstance(r, dict) and isinstance(r.get("trunk"), dict)) else None
+
+
+def sidecar_file_problems(r: Dict, run_path: pathlib.Path, label: str) -> List[str]:
+    """OI-04 / OI-05: the sidecar file named by the run must sit next to the run JSON and its bytes must hash to the recorded sidecar_sha256
+    (a recorded hash without the file is missing provenance)."""
+    prov = r.get("provenance") if isinstance(r, dict) and isinstance(r.get("provenance"), dict) else {}
+    name = prov.get("file")
+    if not isinstance(name, str) or not name or pathlib.PurePath(name).name != name:
+        return [f"{label}: the run names no provenance sidecar file next to it"]
+    path = pathlib.Path(run_path).with_name(name)
+    if not path.is_file():
+        return [f"{label}: provenance sidecar file {name} is missing next to the run JSON"]
+    if sha256_file(path) != prov.get("sidecar_sha256"):
+        return [f"{label}: provenance sidecar file {name} does not hash to the recorded sidecar_sha256"]
+    return []
+
+
+def aggregate(prereg: Dict, runs: List[Dict], secondary: Optional[List[Dict]] = None, repo_root: pathlib.Path = ROOT,
+              sidecar_problems: Optional[Dict[str, List[str]]] = None) -> Dict[str, object]:
+    """`sidecar_problems`: label -> problems found by sidecar_file_problems() for the run files on disk (the aggregator itself sees only the run JSONs)."""
+    sidecar_problems = sidecar_problems or {}
     thr = prereg["rules"]["thresholds"]
     agg = prereg["rules"]["aggregation"]
     primary_name = prereg["protocol"]["primary_checkpoint"]
@@ -207,6 +295,9 @@ def aggregate(prereg: Dict, runs: List[Dict], secondary: Optional[List[Dict]] = 
     for f in CODE_FILES + list(DATA_KEYS):                                           # the frozen file must pin everything this tool checks
         if f not in frozen:
             deviations.append(f"the frozen file does not pin {f} (frozen by an older tool, or without --data-root)")
+    for k in ("class_split", "pools", "secondary_seed"):
+        if k not in prereg["protocol"]:
+            deviations.append(f"the frozen file does not pin protocol.{k}")
     for f in CODE_FILES:                                                             # code at analysis time vs frozen
         p = repo_root / f
         if f in frozen and (not p.exists() or sha256_file(p) != frozen[f]):
@@ -217,6 +308,7 @@ def aggregate(prereg: Dict, runs: List[Dict], secondary: Optional[List[Dict]] = 
         readable = not run_schema_problems(r)
         seed = r["config"].get("seed") if (isinstance(r, dict) and isinstance(r.get("config"), dict)) else None
         deviations += run_deviations(r, prereg, f"seed {seed}", prereg["checkpoint_hashes"].get(primary_name), "the frozen primary checkpoint")
+        deviations += sidecar_problems.get(f"seed {seed}", [])
         per_run.append({"seed": seed, "verdict": g1.verdict(r["summary"], thr) if readable else _unreadable_verdict(), "summary": r["summary"] if readable else {}})
     seeds, want_seeds = [x["seed"] for x in per_run], list(prereg["protocol"]["primary_seeds"])
     if not (all(isinstance(s, int) and not isinstance(s, bool) for s in seeds) and sorted(seeds) == sorted(want_seeds)):    # integers only: "17" is not 17
@@ -272,7 +364,8 @@ def aggregate(prereg: Dict, runs: List[Dict], secondary: Optional[List[Dict]] = 
         for r in secondary:
             name = r["trunk"].get("checkpoint") if (isinstance(r, dict) and isinstance(r.get("trunk"), dict)) else None
             expected = prereg["checkpoint_hashes"].get(name) if name != primary_name else None
-            dev = run_deviations(r, prereg, f"secondary {name}", expected, f"the frozen hash of {name}")
+            dev = run_deviations(r, prereg, f"secondary {name}", expected, f"the frozen hash of {name}", expected_seed=prereg["protocol"].get("secondary_seed"))
+            dev += sidecar_problems.get(f"secondary {name}", [])
             v = g1.verdict(r["summary"], thr) if not run_schema_problems(r) else _unreadable_verdict()
             sec.append({"checkpoint": name, "valid": not dev and not v["unmeasured"], "deviations": dev, "unmeasured": v["unmeasured"],
                         "pass_all": v["pass_all"], "verdict": v})
@@ -288,6 +381,8 @@ def main() -> None:
     f.add_argument("--primary", required=True, type=pathlib.Path)
     f.add_argument("--secondary", nargs="*", default=[], type=pathlib.Path)
     f.add_argument("--data-root", required=True, type=pathlib.Path)
+    f.add_argument("--class-split", required=True, type=pathlib.Path, help="FINAL class-split JSON (gate1_freeze_tools_v2.py split)")
+    f.add_argument("--pools", required=True, type=pathlib.Path, help="FINAL pools JSON (gate1_freeze_tools_v2.py pools) for that class split")
     f.add_argument("--allow-dirty", action="store_true")
     f.add_argument("--allow-other-primary", action="store_true", help="the primary checkpoint is not the documented ff_112 seed-17 file")
     f.add_argument("--out", type=pathlib.Path, default=ROOT / "prereg" / "rhan_im_gate1_v1.json")
@@ -300,14 +395,20 @@ def main() -> None:
     if args.cmd == "freeze":
         if args.out.exists():
             raise SystemExit(f"{args.out} exists: a frozen pre-registration is never overwritten (write a new version instead)")
-        res = freeze(args.primary, args.secondary, args.data_root, args.allow_dirty, allow_other_primary=args.allow_other_primary)
+        res = freeze(args.primary, args.secondary, args.data_root, args.allow_dirty, allow_other_primary=args.allow_other_primary,
+                     class_split=args.class_split, pools=args.pools)
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(res, indent=2) + "\n")
         print("froze", args.out)
         print(json.dumps({k: res[k] for k in ("git_head", "code_dirty_at_freeze", "checkpoint_hashes")}, indent=2))
     else:
         prereg = json.loads(args.prereg.read_text())
-        res = aggregate(prereg, [json.loads(p.read_text()) for p in args.runs], [json.loads(p.read_text()) for p in args.secondary])
+        runs = [json.loads(p.read_text()) for p in args.runs]
+        sec = [json.loads(p.read_text()) for p in args.secondary]
+        problems: Dict[str, List[str]] = {}
+        for r, path, label in [(r, p, f"seed {_seed_of(r)}") for r, p in zip(runs, args.runs)] + [(r, p, f"secondary {_ckpt_of(r)}") for r, p in zip(sec, args.secondary)]:
+            problems.setdefault(label, []).extend(sidecar_file_problems(r, path, label))
+        res = aggregate(prereg, runs, sec, sidecar_problems=problems)
         text = json.dumps(res, indent=2, default=lambda o: None)
         if args.out:
             args.out.write_text(text + "\n")

@@ -23,6 +23,7 @@ Pipeline
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import pathlib
 from typing import Callable, Dict, Optional, Tuple
@@ -65,6 +66,69 @@ def listing_hash(folder) -> Dict[str, object]:
     folder = pathlib.Path(folder)
     rel = sorted(str(p.relative_to(folder)) for p in folder.rglob("*") if p.is_file())
     return {"sha256": hashlib.sha256("\n".join(rel).encode()).hexdigest(), "n_files": len(rel)}
+
+
+# --------------------------------------------------------------------------- class split and pool files (C1, C8)
+# The files are written by gate1_freeze_tools_v2.py (outside the measurement code). The definitions below are the ones that tool documents;
+# tests/rhan_im/test_gate1_class_split.py recomputes them by hand so the two cannot drift apart unnoticed.
+def canonical_json_bytes(obj) -> bytes:
+    """Serialisation behind every class-split / pool hash: sorted keys, no spaces, ASCII escapes, no NaN."""
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode("ascii")
+
+
+def class_split_sha256(seed, targets, backgrounds) -> str:
+    """seed + the {wnid, dirname} lists of both roles, each sorted by wnid. Covers the draw and the folder mapping; not the taxonomy labels."""
+    key = lambda L: [{"wnid": r["wnid"], "dirname": r["dirname"]} for r in sorted(L, key=lambda r: r["wnid"])]
+    return hashlib.sha256(canonical_json_bytes({"seed": seed, "targets": key(targets), "backgrounds": key(backgrounds)})).hexdigest()
+
+
+def class_lists_sha256(target_dirnames, background_dirnames) -> str:
+    """The two folder lists a run really used (each sorted by code point)."""
+    return hashlib.sha256(canonical_json_bytes({"targets": sorted(target_dirnames), "backgrounds": sorted(background_dirnames)})).hexdigest()
+
+
+def provenance_link(seed, head_init_seed, checkpoint_sha256, class_lists_sha256, pool_assignment_sha256, n_cal, n_test, n_pairs) -> Dict[str, object]:
+    """C7 / OI-04: the protocol linkage record of one run. Its canonical-JSON sha256 (`provenance_link_sha256`) is stored in the run JSON next to the
+    sidecar's own sha256; the aggregator recomputes it from the run JSON's own fields, so a sidecar cannot be attached to another run's protocol."""
+    return {"seed": seed, "head_init_seed": head_init_seed, "checkpoint_sha256": checkpoint_sha256, "class_lists_sha256": class_lists_sha256,
+            "pool_assignment_sha256": pool_assignment_sha256, "n_cal": n_cal, "n_test": n_test, "n_pairs": n_pairs}
+
+
+def provenance_link_sha256(link: Dict[str, object]) -> str:
+    return hashlib.sha256(canonical_json_bytes(link)).hexdigest()
+
+
+def read_class_split(path) -> Dict[str, object]:
+    """Read a FINAL class-split file and recompute its hash. ValueError (the callers turn it into a refusal) on anything else."""
+    raw = pathlib.Path(path).read_bytes()
+    sp = json.loads(raw)
+    if sp.get("status") != "FINAL":
+        raise ValueError(f"{path}: status is {sp.get('status')!r}; only a FINAL class split (dirnames verified against the data root) may be used")
+    t, b = sp["targets"], sp["backgrounds"]
+    tn, bn = [r["dirname"] for r in t], [r["dirname"] for r in b]
+    if not (len(set(tn)) == len(tn) and len(set(bn)) == len(bn) and not set(tn) & set(bn) and len({r["wnid"] for r in t + b}) == len(t) + len(b)):
+        raise ValueError(f"{path}: targets and backgrounds must be duplicate-free and disjoint (by folder name and by wnid)")
+    h = class_split_sha256(sp["seed"], t, b)
+    if sp.get("hashes", {}).get("class_split_sha256") != h:
+        raise ValueError(f"{path}: the stored class_split_sha256 does not equal the value recomputed from its content")
+    return {"seed": sp["seed"], "targets": sorted(tn), "backgrounds": sorted(bn), "class_split_sha256": h,
+            "class_lists_sha256": class_lists_sha256(tn, bn), "file_sha256": hashlib.sha256(raw).hexdigest()}
+
+
+def read_pools(path, class_split_hash: str) -> Dict[str, object]:
+    """Read a FINAL pools file bound to `class_split_hash`; recompute pool_assignment_sha256 from its own content."""
+    raw = pathlib.Path(path).read_bytes()
+    p = json.loads(raw)
+    if p.get("status") != "FINAL" or p.get("class_split") != class_split_hash:
+        raise ValueError(f"{path}: not a FINAL pools file for class_split_sha256 {class_split_hash[:12]}…")
+    cal, test = p["calibration_pool_part_0_of_2"], p["test_pool_part_1_of_2"]
+    ah = hashlib.sha256(canonical_json_bytes({"rule_id": p["rule_id"], "class_split": p["class_split"],
+                                              "val_repo_listing_sha256": p["listing_binding"]["val"]["repo_listing_sha256"],
+                                              "calibration": cal, "test": test})).hexdigest()
+    if p.get("pool_assignment_sha256") != ah:
+        raise ValueError(f"{path}: the stored pool_assignment_sha256 does not equal the value recomputed from its content")
+    return {"calibration": cal, "test": test, "pool_assignment_sha256": ah, "file_sha256": hashlib.sha256(raw).hexdigest(),
+            "val_repo_listing_sha256": p["listing_binding"]["val"]["repo_listing_sha256"]}
 
 
 # --------------------------------------------------------------------------- scene geometry

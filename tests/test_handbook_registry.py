@@ -171,16 +171,18 @@ def test_experiment_manifest_hashes_match_the_artifacts() -> None:
 
 def test_figures_have_status_file_and_alt_text() -> None:
     man = json.loads((DATA / "figure_manifest.json").read_text())
-    # The canonical manifest merges three generators: the priority figures plus
-    # the carried legacy records, the suite, and the chapter openers / mechanism
-    # figures. The total must equal the sum, and the chapter share must equal
-    # 30 openers plus however many `fig_*` generators `main` actually calls —
-    # never a number typed here after the fact.
+    # The canonical manifest merges four generators: the priority figures plus
+    # the carried legacy records, the suite, the chapter openers / mechanism
+    # figures, and (since v3.4) the schematic release manifest. The total must
+    # equal the sum, and the chapter share must equal 30 openers plus however
+    # many `fig_*` generators `main` actually calls — never a number typed here
+    # after the fact.
     legacy = json.loads((ROOT / "docs/rhan_nxa/figures/figure_manifest.json").read_text())
     suite = json.loads((DATA / "figure_suite_manifest.json").read_text())
     chapter = json.loads((DATA / "figure_chapter_manifest.json").read_text())
+    v34 = json.loads((DATA / "figure_manifest_v34.json").read_text())
     published = {f["id"] for f in suite["figures"]} | {
-        f["id"] for f in chapter["figures"]}
+        f["id"] for f in chapter["figures"]} | {f["id"] for f in v34["figures"]}
     carried = [f for f in legacy["figures"] if f["id"] not in published]
     # Count the priority generators main() actually calls rather than a literal.
     psrc = (ROOT / "docs/rhan_nxa/figures/make_priority_figures.py").read_text()
@@ -188,7 +190,9 @@ def test_figures_have_status_file_and_alt_text() -> None:
                       re.S | re.M).group(1)
     priority = re.findall(r"^\s+(fig_\w+)\(\)", pmain, re.M)
     expected = (len(priority) + len(carried) + len(suite["figures"])
-                + len(chapter["figures"]))
+                + len(chapter["figures"]) + len(v34["figures"]))
+    # Every v3.4 record must actually be merged, not merely generated.
+    assert {f["id"] for f in v34["figures"]} <= {f["id"] for f in man["figures"]}
     assert man["figure_count"] == len(man["figures"]) == expected
     openers = [f for f in chapter["figures"] if f["id"].startswith("OPEN-CH")]
     assert len(openers) == 30

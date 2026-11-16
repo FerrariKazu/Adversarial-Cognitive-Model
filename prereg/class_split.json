@@ -1,0 +1,755 @@
+{
+ "backgrounds": [
+  {
+   "category": "animal",
+   "dirname": "Gila_monster_Heloderma_suspectum",
+   "name": "Gila monster, Heloderma suspectum",
+   "subcategory": "other_animal",
+   "wnid": "n01692333"
+  },
+  {
+   "category": "animal",
+   "dirname": "hognose_snake_puff_adder_sand_viper",
+   "name": "hognose snake, puff adder, sand viper",
+   "subcategory": "other_animal",
+   "wnid": "n01729322"
+  },
+  {
+   "category": "animal",
+   "dirname": "garter_snake_grass_snake",
+   "name": "garter snake, grass snake",
+   "subcategory": "other_animal",
+   "wnid": "n01735189"
+  },
+  {
+   "category": "animal",
+   "dirname": "rock_crab_Cancer_irroratus",
+   "name": "rock crab, Cancer irroratus",
+   "subcategory": "other_animal",
+   "wnid": "n01978455"
+  },
+  {
+   "category": "animal",
+   "dirname": "little_blue_heron_Egretta_caerulea",
+   "name": "little blue heron, Egretta caerulea",
+   "subcategory": "other_animal",
+   "wnid": "n02009229"
+  },
+  {
+   "category": "animal",
+   "dirname": "American_coot_marsh_hen_mud_hen_water_hen_Fulica_americana",
+   "name": "American coot, marsh hen, mud hen, water hen, Fulica americana",
+   "subcategory": "other_animal",
+   "wnid": "n02018207"
+  },
+  {
+   "category": "animal",
+   "dirname": "Shih_Tzu",
+   "name": "Shih-Tzu",
+   "subcategory": "dog",
+   "wnid": "n02086240"
+  },
+  {
+   "category": "animal",
+   "dirname": "papillon",
+   "name": "papillon",
+   "subcategory": "dog",
+   "wnid": "n02086910"
+  },
+  {
+   "category": "animal",
+   "dirname": "English_foxhound",
+   "name": "English foxhound",
+   "subcategory": "dog",
+   "wnid": "n02089973"
+  },
+  {
+   "category": "animal",
+   "dirname": "borzoi_Russian_wolfhound",
+   "name": "borzoi, Russian wolfhound",
+   "subcategory": "dog",
+   "wnid": "n02090622"
+  },
+  {
+   "category": "animal",
+   "dirname": "Chesapeake_Bay_retriever",
+   "name": "Chesapeake Bay retriever",
+   "subcategory": "dog",
+   "wnid": "n02099849"
+  },
+  {
+   "category": "animal",
+   "dirname": "kuvasz",
+   "name": "kuvasz",
+   "subcategory": "dog",
+   "wnid": "n02104029"
+  },
+  {
+   "category": "animal",
+   "dirname": "komondor",
+   "name": "komondor",
+   "subcategory": "dog",
+   "wnid": "n02105505"
+  },
+  {
+   "category": "animal",
+   "dirname": "Mexican_hairless",
+   "name": "Mexican hairless",
+   "subcategory": "dog",
+   "wnid": "n02113978"
+  },
+  {
+   "category": "animal",
+   "dirname": "African_hunting_dog_hyena_dog_Cape_hunting_dog_Lycaon_pictus",
+   "name": "African hunting dog, hyena dog, Cape hunting dog, Lycaon pictus",
+   "subcategory": "other_animal",
+   "wnid": "n02116738"
+  },
+  {
+   "category": "animal",
+   "dirname": "red_fox_Vulpes_vulpes",
+   "name": "red fox, Vulpes vulpes",
+   "subcategory": "other_animal",
+   "wnid": "n02119022"
+  },
+  {
+   "category": "animal",
+   "dirname": "tabby_tabby_cat",
+   "name": "tabby, tabby cat",
+   "subcategory": "other_animal",
+   "wnid": "n02123045"
+  },
+  {
+   "category": "animal",
+   "dirname": "meerkat_mierkat",
+   "name": "meerkat, mierkat",
+   "subcategory": "other_animal",
+   "wnid": "n02138441"
+  },
+  {
+   "category": "animal",
+   "dirname": "dung_beetle",
+   "name": "dung beetle",
+   "subcategory": "other_animal",
+   "wnid": "n02172182"
+  },
+  {
+   "category": "animal",
+   "dirname": "leafhopper",
+   "name": "leafhopper",
+   "subcategory": "other_animal",
+   "wnid": "n02259212"
+  },
+  {
+   "category": "animal",
+   "dirname": "hare",
+   "name": "hare",
+   "subcategory": "other_animal",
+   "wnid": "n02326432"
+  },
+  {
+   "category": "animal",
+   "dirname": "langur",
+   "name": "langur",
+   "subcategory": "other_animal",
+   "wnid": "n02488291"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "bannister_banister_balustrade_balusters_handrail",
+   "name": "bannister, banister, balustrade, balusters, handrail",
+   "subcategory": "artifact",
+   "wnid": "n02788148"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "car_wheel",
+   "name": "car wheel",
+   "subcategory": "artifact",
+   "wnid": "n02974003"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "chime_bell_gong",
+   "name": "chime, bell, gong",
+   "subcategory": "artifact",
+   "wnid": "n03017168"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "cinema_movie_theater_movie_theatre_movie_house_picture_palace",
+   "name": "cinema, movie theater, movie theatre, movie house, picture palace",
+   "subcategory": "artifact",
+   "wnid": "n03032252"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "computer_keyboard_keypad",
+   "name": "computer keyboard, keypad",
+   "subcategory": "artifact",
+   "wnid": "n03085013"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "Dutch_oven",
+   "name": "Dutch oven",
+   "subcategory": "artifact",
+   "wnid": "n03259280"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "football_helmet",
+   "name": "football helmet",
+   "subcategory": "artifact",
+   "wnid": "n03379051"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "jean_blue_jean_denim",
+   "name": "jean, blue jean, denim",
+   "subcategory": "artifact",
+   "wnid": "n03594734"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "laptop_laptop_computer",
+   "name": "laptop, laptop computer",
+   "subcategory": "artifact",
+   "wnid": "n03642806"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "milk_can",
+   "name": "milk can",
+   "subcategory": "artifact",
+   "wnid": "n03764736"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "moped",
+   "name": "moped",
+   "subcategory": "artifact",
+   "wnid": "n03785016"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "obelisk",
+   "name": "obelisk",
+   "subcategory": "artifact",
+   "wnid": "n03837869"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "park_bench",
+   "name": "park bench",
+   "subcategory": "artifact",
+   "wnid": "n03891251"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "pickup_pickup_truck",
+   "name": "pickup, pickup truck",
+   "subcategory": "artifact",
+   "wnid": "n03930630"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "pirate_pirate_ship",
+   "name": "pirate, pirate ship",
+   "subcategory": "artifact",
+   "wnid": "n03947888"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "purse",
+   "name": "purse",
+   "subcategory": "artifact",
+   "wnid": "n04026417"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "reel",
+   "name": "reel",
+   "subcategory": "artifact",
+   "wnid": "n04067472"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "rocking_chair_rocker",
+   "name": "rocking chair, rocker",
+   "subcategory": "artifact",
+   "wnid": "n04099969"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "rotisserie",
+   "name": "rotisserie",
+   "subcategory": "artifact",
+   "wnid": "n04111531"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "sarong",
+   "name": "sarong",
+   "subcategory": "artifact",
+   "wnid": "n04136333"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "ski_mask",
+   "name": "ski mask",
+   "subcategory": "artifact",
+   "wnid": "n04229816"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "slide_rule_slipstick",
+   "name": "slide rule, slipstick",
+   "subcategory": "artifact",
+   "wnid": "n04238763"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "stretcher",
+   "name": "stretcher",
+   "subcategory": "artifact",
+   "wnid": "n04336792"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "theater_curtain_theatre_curtain",
+   "name": "theater curtain, theatre curtain",
+   "subcategory": "artifact",
+   "wnid": "n04418357"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "tile_roof",
+   "name": "tile roof",
+   "subcategory": "artifact",
+   "wnid": "n04435653"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "tripod",
+   "name": "tripod",
+   "subcategory": "artifact",
+   "wnid": "n04485082"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "wing",
+   "name": "wing",
+   "subcategory": "artifact",
+   "wnid": "n04592741"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "stinkhorn_carrion_fungus",
+   "name": "stinkhorn, carrion fungus",
+   "subcategory": "fungus",
+   "wnid": "n13040303"
+  }
+ ],
+ "backgrounds_category_counts": {
+  "animal": 22,
+  "non_animal": 28
+ },
+ "backgrounds_subcategory_counts": {
+  "artifact": 27,
+  "dog": 8,
+  "food": 0,
+  "fungus": 1,
+  "other_animal": 14
+ },
+ "definitions": {
+  "assignment_sha256": "rule id, seed and the target / background WNID lists only; independent of folder names",
+  "class_split_sha256": "seed + targets/backgrounds as {wnid, dirname}; the value the run code recomputes from the split file (draw + mapping; excludes taxonomy labels)",
+  "dirname_mapping_sha256": "the (wnid, folder name) pairs only",
+  "taxonomy_sha256": "names and categories of the 100 classes (wnid, name, category, subcategory); not folder names, not notes"
+ },
+ "dirname_rule": "re.sub('[^A-Za-z0-9]+', '_', name).strip('_')[:80]",
+ "dirname_source": "verified against the data root (fill)",
+ "hashes": {
+  "assignment_sha256": "cad146ee885be071da63967223ae9105c72af1cc5efca3cb65cb9ce7fa2a2c99",
+  "class_split_sha256": "289f2818f0eae4dd7b654627d4bdf197cc11d43923300c52df7b4c0bdecc1241",
+  "dirname_mapping_sha256": "126461ffe4359e5d64a328b9a5cefa469f557be9231b6ca63941b1e0ee70a51a",
+  "taxonomy_sha256": "48c75dd2b3ae3946eb509b43a0c1731753bd4f36fee24ee1a63b9242e2aca4dd"
+ },
+ "rule": "per category: rank by sha256(f'{seed}|{wnid}') ascending; first half = targets, second half = backgrounds",
+ "rule_id": "category-hash-halves-v1",
+ "seed": 20261113,
+ "status": "FINAL",
+ "targets": [
+  {
+   "category": "animal",
+   "dirname": "robin_American_robin_Turdus_migratorius",
+   "name": "robin, American robin, Turdus migratorius",
+   "subcategory": "other_animal",
+   "wnid": "n01558993"
+  },
+  {
+   "category": "animal",
+   "dirname": "green_mamba",
+   "name": "green mamba",
+   "subcategory": "other_animal",
+   "wnid": "n01749939"
+  },
+  {
+   "category": "animal",
+   "dirname": "garden_spider_Aranea_diademata",
+   "name": "garden spider, Aranea diademata",
+   "subcategory": "other_animal",
+   "wnid": "n01773797"
+  },
+  {
+   "category": "animal",
+   "dirname": "lorikeet",
+   "name": "lorikeet",
+   "subcategory": "other_animal",
+   "wnid": "n01820546"
+  },
+  {
+   "category": "animal",
+   "dirname": "goose",
+   "name": "goose",
+   "subcategory": "other_animal",
+   "wnid": "n01855672"
+  },
+  {
+   "category": "animal",
+   "dirname": "fiddler_crab",
+   "name": "fiddler crab",
+   "subcategory": "other_animal",
+   "wnid": "n01980166"
+  },
+  {
+   "category": "animal",
+   "dirname": "American_lobster_Northern_lobster_Maine_lobster_Homarus_americanus",
+   "name": "American lobster, Northern lobster, Maine lobster, Homarus americanus",
+   "subcategory": "other_animal",
+   "wnid": "n01983481"
+  },
+  {
+   "category": "animal",
+   "dirname": "Chihuahua",
+   "name": "Chihuahua",
+   "subcategory": "dog",
+   "wnid": "n02085620"
+  },
+  {
+   "category": "animal",
+   "dirname": "toy_terrier",
+   "name": "toy terrier",
+   "subcategory": "dog",
+   "wnid": "n02087046"
+  },
+  {
+   "category": "animal",
+   "dirname": "Walker_hound_Walker_foxhound",
+   "name": "Walker hound, Walker foxhound",
+   "subcategory": "dog",
+   "wnid": "n02089867"
+  },
+  {
+   "category": "animal",
+   "dirname": "Saluki_gazelle_hound",
+   "name": "Saluki, gazelle hound",
+   "subcategory": "dog",
+   "wnid": "n02091831"
+  },
+  {
+   "category": "animal",
+   "dirname": "American_Staffordshire_terrier_Staffordshire_terrier_American_pit_bull_terrier_p",
+   "name": "American Staffordshire terrier, Staffordshire terrier, American pit bull terrier, pit bull terrier",
+   "subcategory": "dog",
+   "wnid": "n02093428"
+  },
+  {
+   "category": "animal",
+   "dirname": "vizsla_Hungarian_pointer",
+   "name": "vizsla, Hungarian pointer",
+   "subcategory": "dog",
+   "wnid": "n02100583"
+  },
+  {
+   "category": "animal",
+   "dirname": "Rottweiler",
+   "name": "Rottweiler",
+   "subcategory": "dog",
+   "wnid": "n02106550"
+  },
+  {
+   "category": "animal",
+   "dirname": "Doberman_Doberman_pinscher",
+   "name": "Doberman, Doberman pinscher",
+   "subcategory": "dog",
+   "wnid": "n02107142"
+  },
+  {
+   "category": "animal",
+   "dirname": "boxer",
+   "name": "boxer",
+   "subcategory": "dog",
+   "wnid": "n02108089"
+  },
+  {
+   "category": "animal",
+   "dirname": "Great_Dane",
+   "name": "Great Dane",
+   "subcategory": "dog",
+   "wnid": "n02109047"
+  },
+  {
+   "category": "animal",
+   "dirname": "standard_poodle",
+   "name": "standard poodle",
+   "subcategory": "dog",
+   "wnid": "n02113799"
+  },
+  {
+   "category": "animal",
+   "dirname": "coyote_prairie_wolf_brush_wolf_Canis_latrans",
+   "name": "coyote, prairie wolf, brush wolf, Canis latrans",
+   "subcategory": "other_animal",
+   "wnid": "n02114855"
+  },
+  {
+   "category": "animal",
+   "dirname": "walking_stick_walkingstick_stick_insect",
+   "name": "walking stick, walkingstick, stick insect",
+   "subcategory": "other_animal",
+   "wnid": "n02231487"
+  },
+  {
+   "category": "animal",
+   "dirname": "wild_boar_boar_Sus_scrofa",
+   "name": "wild boar, boar, Sus scrofa",
+   "subcategory": "other_animal",
+   "wnid": "n02396427"
+  },
+  {
+   "category": "animal",
+   "dirname": "gibbon_Hylobates_lar",
+   "name": "gibbon, Hylobates lar",
+   "subcategory": "other_animal",
+   "wnid": "n02483362"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "ambulance",
+   "name": "ambulance",
+   "subcategory": "artifact",
+   "wnid": "n02701002"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "bassinet",
+   "name": "bassinet",
+   "subcategory": "artifact",
+   "wnid": "n02804414"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "boathouse",
+   "name": "boathouse",
+   "subcategory": "artifact",
+   "wnid": "n02859443"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "bonnet_poke_bonnet",
+   "name": "bonnet, poke bonnet",
+   "subcategory": "artifact",
+   "wnid": "n02869837"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "bottlecap",
+   "name": "bottlecap",
+   "subcategory": "artifact",
+   "wnid": "n02877765"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "cocktail_shaker",
+   "name": "cocktail shaker",
+   "subcategory": "artifact",
+   "wnid": "n03062245"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "gasmask_respirator_gas_helmet",
+   "name": "gasmask, respirator, gas helmet",
+   "subcategory": "artifact",
+   "wnid": "n03424325"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "hard_disc_hard_disk_fixed_disk",
+   "name": "hard disc, hard disk, fixed disk",
+   "subcategory": "artifact",
+   "wnid": "n03492542"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "harmonica_mouth_organ_harp_mouth_harp",
+   "name": "harmonica, mouth organ, harp, mouth harp",
+   "subcategory": "artifact",
+   "wnid": "n03494278"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "honeycomb",
+   "name": "honeycomb",
+   "subcategory": "artifact",
+   "wnid": "n03530642"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "iron_smoothing_iron",
+   "name": "iron, smoothing iron",
+   "subcategory": "artifact",
+   "wnid": "n03584829"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "lampshade_lamp_shade",
+   "name": "lampshade, lamp shade",
+   "subcategory": "artifact",
+   "wnid": "n03637318"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "mixing_bowl",
+   "name": "mixing bowl",
+   "subcategory": "artifact",
+   "wnid": "n03775546"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "modem",
+   "name": "modem",
+   "subcategory": "artifact",
+   "wnid": "n03777754"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "mortarboard",
+   "name": "mortarboard",
+   "subcategory": "artifact",
+   "wnid": "n03787032"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "mousetrap",
+   "name": "mousetrap",
+   "subcategory": "artifact",
+   "wnid": "n03794056"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "pedestal_plinth_footstall",
+   "name": "pedestal, plinth, footstall",
+   "subcategory": "artifact",
+   "wnid": "n03903868"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "safety_pin",
+   "name": "safety pin",
+   "subcategory": "artifact",
+   "wnid": "n04127249"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "throne",
+   "name": "throne",
+   "subcategory": "artifact",
+   "wnid": "n04429376"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "tub_vat",
+   "name": "tub, vat",
+   "subcategory": "artifact",
+   "wnid": "n04493381"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "vacuum_vacuum_cleaner",
+   "name": "vacuum, vacuum cleaner",
+   "subcategory": "artifact",
+   "wnid": "n04517823"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "window_screen",
+   "name": "window screen",
+   "subcategory": "artifact",
+   "wnid": "n04589890"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "head_cabbage",
+   "name": "head cabbage",
+   "subcategory": "food",
+   "wnid": "n07714571"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "cauliflower",
+   "name": "cauliflower",
+   "subcategory": "food",
+   "wnid": "n07715103"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "pineapple_ananas",
+   "name": "pineapple, ananas",
+   "subcategory": "food",
+   "wnid": "n07753275"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "carbonara",
+   "name": "carbonara",
+   "subcategory": "food",
+   "wnid": "n07831146"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "chocolate_sauce_chocolate_syrup",
+   "name": "chocolate sauce, chocolate syrup",
+   "subcategory": "food",
+   "wnid": "n07836838"
+  },
+  {
+   "category": "non_animal",
+   "dirname": "gyromitra",
+   "name": "gyromitra",
+   "subcategory": "fungus",
+   "wnid": "n13037406"
+  }
+ ],
+ "targets_category_counts": {
+  "animal": 22,
+  "non_animal": 28
+ },
+ "targets_subcategory_counts": {
+  "artifact": 22,
+  "dog": 11,
+  "food": 5,
+  "fungus": 1,
+  "other_animal": 11
+ },
+ "tool": {
+  "note": "recorded for provenance; not part of any identity hash",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+  "python": "3.10.12",
+  "python_optimize_flag": 0,
+  "tool": "gate1_freeze_tools_v2",
+  "tool_sha256": "6aa8727c3aa6580ddf258fe53aa40ec69018959360c01ae464718893900fb837",
+  "tool_version": "2.0.0-proposed"
+ }
+}

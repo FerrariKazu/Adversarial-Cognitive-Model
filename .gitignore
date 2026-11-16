@@ -63,3 +63,9 @@ RHANarch.md
 RHANfuture.md
 build/
 *.pth.sync
+patches and bundles/
+*.bundle
+*.bundle*
+*.patch
+*.patch*
+check_sampler_geometry.py

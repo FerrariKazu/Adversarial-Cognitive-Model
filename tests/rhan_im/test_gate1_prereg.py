@@ -30,6 +30,32 @@ def fake_listing(n_files_per_class):
 
 LISTING = {"train_path_listing": fake_listing(3), "val_path_listing": fake_listing(2)}
 
+# the files gate1_freeze_tools_v2.py would write for the fixture's two-folder "dataset" (a = target, b = background); built by hand here
+SPLIT = {"status": "FINAL", "seed": 5, "targets": [{"wnid": "n00000001", "dirname": "a"}], "backgrounds": [{"wnid": "n00000002", "dirname": "b"}]}
+SPLIT["hashes"] = {"class_split_sha256": g1.class_split_sha256(5, SPLIT["targets"], SPLIT["backgrounds"])}
+POOL_LISTS = ({"a": ["0.jpg"], "b": ["0.jpg"]}, {"a": ["1.jpg"], "b": ["1.jpg"]})
+POOLS = {"status": "FINAL", "rule_id": "category-hash-halves-v1", "class_split": SPLIT["hashes"]["class_split_sha256"],
+         "calibration_pool_part_0_of_2": POOL_LISTS[0], "test_pool_part_1_of_2": POOL_LISTS[1],
+         "listing_binding": {"val": {"repo_listing_sha256": LISTING["val_path_listing"]["sha256"]}}}
+POOLS["pool_assignment_sha256"] = hashlib.sha256(g1.canonical_json_bytes({
+    "rule_id": POOLS["rule_id"], "class_split": POOLS["class_split"], "val_repo_listing_sha256": LISTING["val_path_listing"]["sha256"],
+    "calibration": POOL_LISTS[0], "test": POOL_LISTS[1]})).hexdigest()
+CLASS_LISTS = g1.class_lists_sha256(["a"], ["b"])
+
+
+def cf(tmp_path):
+    """keyword arguments for P.freeze: the two class files of the fixture dataset"""
+    return dict(zip(("class_split", "pools"), write_class_files(tmp_path)))
+
+
+def write_class_files(tmp_path, split=None, pools=None):
+    paths = []
+    for name, obj in (("class_split.json", split or SPLIT), ("pools.json", pools or POOLS)):
+        p = tmp_path / name
+        p.write_text(json.dumps(obj))
+        paths.append(p)
+    return paths
+
 
 def make_data(tmp_path):
     data = tmp_path / "imagenet100"
@@ -47,15 +73,23 @@ def frozen(tmp_path):
     ck.write_bytes(PRIMARY)
     sec = tmp_path / "ff112_seed42.pth"
     sec.write_bytes(b"other")
-    return P.freeze(ck, [sec], make_data(tmp_path), allow_dirty=True, allow_other_primary=True), ck
+    cs, pl = write_class_files(tmp_path)
+    return P.freeze(ck, [sec], make_data(tmp_path), allow_dirty=True, allow_other_primary=True, class_split=cs, pools=pl), ck
 
 
 def run(seed, sha, name="ff112_seed17.pth", over=None, cfg=None, code=None):
     summary = dict(zroc_slope_median=1.0, null_sd_median=1.0, pos_sd_median=1.0, d_native_centre=3.0, d_gist=1.0, rho_null=0.05,
                    vif_null_op=1.0, vif_pos_op=1.0, op_block_tokens=16.0)
     summary.update(over or {})
-    return {"config": {**P.PLANNED_CONFIG, "seed": seed, **(cfg or {})}, "trunk": {"sha256": sha, "checkpoint": name},
-            "code_sha256": dict(CODE if code is None else code), "data_listing": json.loads(json.dumps(LISTING)), "summary": summary}
+    c = {**P.PLANNED_CONFIG, "seed": seed, "head_init_seed": seed, **(cfg or {})}
+    return {"config": c, "trunk": {"sha256": sha, "checkpoint": name},
+            "code_sha256": dict(CODE if code is None else code), "data_listing": json.loads(json.dumps(LISTING)), "summary": summary,
+            "class_split": {"mode": "class_split_file", "class_split_sha256": SPLIT["hashes"]["class_split_sha256"], "class_lists_sha256": CLASS_LISTS},
+            "pools": {"pool_assignment_sha256": POOLS["pool_assignment_sha256"]},
+            "head": {"head_init_seed": c["head_init_seed"], "final_weights_sha256": "c" * 64},
+            "provenance": {"sidecar_sha256": "a" * 64, "file": f"run{seed}.provenance.json", "link_sha256": g1.provenance_link_sha256(g1.provenance_link(
+                c["seed"], c["head_init_seed"], sha, CLASS_LISTS, POOLS["pool_assignment_sha256"], c["n_cal"], c["n_test"], min(c["n_pairs"], c["n_test"])))},
+            "environment": {"python": "3.13", "torch": "2.x"}}
 
 
 def sha(b):
@@ -93,12 +127,12 @@ def test_freeze_refuses_a_dirty_measurement_tree_and_records_the_commit_when_cle
     ck = tmp_path / "c.pth"
     ck.write_bytes(PRIMARY)
     data = make_data(tmp_path)
-    ok = P.freeze(ck, [], data, repo_root=repo, allow_other_primary=True)
+    ok = P.freeze(ck, [], data, repo_root=repo, allow_other_primary=True, **cf(tmp_path))
     assert ok["code_dirty_at_freeze"] is False and ok["git_head"] == git("rev-parse", "HEAD").stdout.strip()
     (repo / "rhan_im" / "gate1.py").write_text((repo / "rhan_im" / "gate1.py").read_text() + "\n# edited after review\n")
     with pytest.raises(SystemExit, match="uncommitted"):
         P.freeze(ck, [], data, repo_root=repo, allow_other_primary=True)
-    assert P.freeze(ck, [], data, allow_dirty=True, repo_root=repo, allow_other_primary=True)["code_dirty_at_freeze"] is True
+    assert P.freeze(ck, [], data, allow_dirty=True, repo_root=repo, allow_other_primary=True, **cf(tmp_path))["code_dirty_at_freeze"] is True
 
 
 def test_freeze_does_not_read_an_unreadable_git_state_as_a_clean_tree(tmp_path, monkeypatch):
@@ -109,7 +143,7 @@ def test_freeze_does_not_read_an_unreadable_git_state_as_a_clean_tree(tmp_path, 
     monkeypatch.setattr(P, "git", lambda *a, **k: None)                                        # what git() returns when git cannot answer
     with pytest.raises(SystemExit, match="git state cannot be read"):
         P.freeze(ck, [], data, allow_other_primary=True)
-    pre = P.freeze(ck, [], data, allow_dirty=True, allow_other_primary=True)
+    pre = P.freeze(ck, [], data, allow_dirty=True, allow_other_primary=True, **cf(tmp_path))
     assert pre["code_dirty_at_freeze"] is None and pre["git_head"] is None                     # recorded as unknown, not as clean
 
 
@@ -131,9 +165,9 @@ def test_freeze_asserts_the_documented_primary_checkpoint_and_requires_the_data_
     data = make_data(tmp_path)
     with pytest.raises(SystemExit, match="documented ff_112 seed-17"):
         P.freeze(ck, [], data, allow_dirty=True)
-    assert P.freeze(ck, [], data, allow_dirty=True, allow_other_primary=True)["protocol"]["primary_is_the_documented_checkpoint"] is False
+    assert P.freeze(ck, [], data, allow_dirty=True, allow_other_primary=True, **cf(tmp_path))["protocol"]["primary_is_the_documented_checkpoint"] is False
     monkeypatch.setattr(P, "DOCUMENTED_PRIMARY_SHA256", sha(PRIMARY))
-    assert P.freeze(ck, [], data, allow_dirty=True)["protocol"]["primary_is_the_documented_checkpoint"] is True
+    assert P.freeze(ck, [], data, allow_dirty=True, **cf(tmp_path))["protocol"]["primary_is_the_documented_checkpoint"] is True
     with pytest.raises(SystemExit, match="--data-root is required"):
         P.freeze(ck, [], None, allow_dirty=True)
     twin = tmp_path / "sub"
@@ -308,7 +342,9 @@ def test_a_frozen_file_is_never_overwritten(tmp_path, monkeypatch):
     ck.write_bytes(PRIMARY)
     out = tmp_path / "prereg.json"
     out.write_text("{}")
-    monkeypatch.setattr(sys, "argv", ["x", "freeze", "--primary", str(ck), "--data-root", str(make_data(tmp_path)), "--allow-dirty", "--allow-other-primary", "--out", str(out)])
+    cs, pl = write_class_files(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["x", "freeze", "--primary", str(ck), "--data-root", str(make_data(tmp_path)), "--class-split", str(cs), "--pools", str(pl),
+                                      "--allow-dirty", "--allow-other-primary", "--out", str(out)])
     with pytest.raises(SystemExit, match="never overwritten"):
         P.main()
     assert out.read_text() == "{}"
@@ -386,3 +422,170 @@ def test_a_missing_centre_gist_or_null_sd_in_one_run_is_not_out_voted(frozen):
     assert res["gate1"].startswith("INCONCLUSIVE") and res["unmeasured"] == {"17": ["zroc_slope_median"]}
     ok = P.aggregate(pre, [run(17, sha(PRIMARY), over={"zroc_slope_median": float("nan")}), run(42, sha(PRIMARY)), run(99, sha(PRIMARY))], repo_root=ROOT)   # the sd-ratio fallback measures it
     assert ok["gate1"] == "PASS" and ok["unmeasured"] == {}
+
+
+# ------------------------------------------------------------------------------------------------ C1, C2, C5, C7, C8 (proposed)
+def test_freeze_pins_the_class_split_the_pools_and_the_secondary_seed(frozen):
+    pre, _ = frozen
+    p = pre["protocol"]
+    assert p["class_split"]["class_split_sha256"] == SPLIT["hashes"]["class_split_sha256"] and p["class_split"]["class_lists_sha256"] == CLASS_LISTS
+    assert p["pools"]["pool_assignment_sha256"] == POOLS["pool_assignment_sha256"] and p["secondary_seed"] == 17
+    assert "head_init_seed" in p["head_init_seed_rule"] and "original_split_report_only" not in p and "not part of Gate 1" in p["original_split_run"]
+    assert "scripts/rhan_im/gate1_slope_heterogeneity.py" in pre["code_and_data_hashes"]
+
+
+def test_freeze_refuses_without_split_or_pools_or_with_a_non_final_or_inconsistent_one(tmp_path):
+    ck = tmp_path / "ff112_seed17.pth"; ck.write_bytes(PRIMARY)
+    data = make_data(tmp_path)
+    cs, pl = write_class_files(tmp_path)
+    def go(**kw):
+        return P.freeze(ck, [], data, allow_dirty=True, allow_other_primary=True, **{"class_split": cs, "pools": pl, **kw})
+    with pytest.raises(SystemExit, match="required"):
+        P.freeze(ck, [], data, allow_dirty=True, allow_other_primary=True)
+    with pytest.raises(SystemExit, match="required"):
+        go(pools=None)
+    cand = {**SPLIT, "status": "CANDIDATE"}
+    cs2, _ = write_class_files(tmp_path / ".." / tmp_path.name, split=cand)
+    with pytest.raises(SystemExit, match="FINAL"):
+        go(class_split=cs2)
+    bad = json.loads(json.dumps(SPLIT)); bad["hashes"]["class_split_sha256"] = "0" * 64
+    cs3, _ = write_class_files(tmp_path, split=bad)
+    with pytest.raises(SystemExit, match="recomputed"):
+        go(class_split=cs3)
+    other_listing = json.loads(json.dumps(POOLS)); other_listing["listing_binding"]["val"]["repo_listing_sha256"] = "1" * 64
+    other_listing["pool_assignment_sha256"] = hashlib.sha256(g1.canonical_json_bytes({
+        "rule_id": POOLS["rule_id"], "class_split": POOLS["class_split"], "val_repo_listing_sha256": "1" * 64, "calibration": POOL_LISTS[0], "test": POOL_LISTS[1]})).hexdigest()
+    _, pl2 = write_class_files(tmp_path, pools=other_listing)
+    with pytest.raises(SystemExit, match="different val listing"):
+        go(pools=pl2)
+    with pytest.raises(TypeError):                                                                     # the original-split option no longer exists (OI-06)
+        go(legacy_split=cs)
+
+
+def test_the_class_split_the_pools_and_the_head_seed_of_every_primary_run_are_checked(frozen):
+    pre, _ = frozen
+    r = run(17, sha(PRIMARY)); r["class_split"]["class_split_sha256"] = "0" * 64
+    r2 = run(42, sha(PRIMARY)); r2["class_split"]["class_lists_sha256"] = "0" * 64
+    r3 = run(99, sha(PRIMARY)); r3["pools"]["pool_assignment_sha256"] = "0" * 64
+    res = P.aggregate(pre, [r, r2, r3])
+    text = "\n".join(res["deviations"])
+    assert res["gate1"].startswith("INVALID")
+    for needle in ("class_split_sha256", "class_lists_sha256", "pool_assignment_sha256"):
+        assert needle in text, needle
+    for mode in ("legacy_sorted_dirnames", None, "self_test"):                                         # no fallback mode is accepted
+        wrong = run(17, sha(PRIMARY)); wrong["class_split"]["mode"] = mode
+        assert any("class split mode" in d for d in P.aggregate(pre, [wrong, run(42, sha(PRIMARY)), run(99, sha(PRIMARY))])["deviations"]), mode
+    no_pools = run(17, sha(PRIMARY)); no_pools["pools"] = None
+    assert any("pool_assignment_sha256" in d for d in P.aggregate(pre, [no_pools, run(42, sha(PRIMARY)), run(99, sha(PRIMARY))])["deviations"])
+    for seed_cfg in ({"head_init_seed": 0}, {"head_init_seed": 18}, {"head_init_seed": None}, {"head_init_seed": True}):
+        res = P.aggregate(pre, [run(17, sha(PRIMARY), cfg=seed_cfg), run(42, sha(PRIMARY)), run(99, sha(PRIMARY))])
+        assert any("head_init_seed" in d and "measurement seed" in d for d in res["deviations"]), seed_cfg
+    missing = run(17, sha(PRIMARY)); del missing["config"]["head_init_seed"]
+    assert any("head_init_seed None" in d for d in P.aggregate(pre, [missing, run(42, sha(PRIMARY)), run(99, sha(PRIMARY))])["deviations"])
+    inconsistent = run(17, sha(PRIMARY)); inconsistent["head"]["head_init_seed"] = 0
+    assert any("head record missing or inconsistent" in d for d in P.aggregate(pre, [inconsistent, run(42, sha(PRIMARY)), run(99, sha(PRIMARY))])["deviations"])
+
+
+def test_a_run_without_provenance_hashes_or_runtime_record_is_a_deviation(frozen):
+    pre, _ = frozen
+    for key, needle in (("provenance", "provenance sidecar hash"), ("environment", "runtime / dependency metadata"), ("head", "head record")):
+        r = run(17, sha(PRIMARY)); del r[key]
+        res = P.aggregate(pre, [r, run(42, sha(PRIMARY)), run(99, sha(PRIMARY))])
+        assert res["gate1"].startswith("INVALID") and any(needle in d for d in res["deviations"]), key
+    r = run(17, sha(PRIMARY)); r["provenance"]["sidecar_sha256"] = "xyz"
+    assert any("provenance sidecar hash" in d for d in P.aggregate(pre, [r, run(42, sha(PRIMARY)), run(99, sha(PRIMARY))])["deviations"])
+
+
+def test_a_frozen_file_without_the_new_pins_is_a_deviation(frozen):
+    pre, _ = frozen
+    for k in ("class_split", "pools", "secondary_seed"):
+        q = json.loads(json.dumps(pre)); del q["protocol"][k]
+        assert any(f"does not pin protocol.{k}" in d for d in P.aggregate(q, three())["deviations"]), k
+
+
+def test_secondary_runs_must_use_the_frozen_secondary_seed(frozen):
+    pre, _ = frozen
+    prim = three()
+    ok = P.aggregate(pre, prim, [run(17, sha(b"other"), name="ff112_seed42.pth")])["secondary_trunks"][0]
+    assert ok["valid"]
+    bad = P.aggregate(pre, prim, [run(42, sha(b"other"), name="ff112_seed42.pth")])["secondary_trunks"][0]
+    assert not bad["valid"] and any("measurement seed 42, frozen 17" in d for d in bad["deviations"])
+
+
+def test_there_is_no_original_split_run_in_the_aggregator_or_the_freeze():
+    """OI-06: the original-split report-only run is not part of Gate 1; the options and the output section are gone."""
+    import inspect
+    assert "original_split" not in inspect.signature(P.aggregate).parameters and "legacy_split" not in inspect.signature(P.freeze).parameters
+    assert "kind" not in inspect.signature(P.run_deviations).parameters
+    src = (ROOT / "scripts" / "rhan_im" / "gate1_prereg.py").read_text()
+    assert "--legacy-split" not in src and "--original-split-run" not in src and "original_split_report_only" not in src
+
+
+def test_the_provenance_linkage_hash_must_be_the_hash_of_the_runs_own_protocol_fields(frozen):
+    pre, _ = frozen
+    ok = P.aggregate(pre, three())
+    assert not any("linkage" in d for d in ok["deviations"])
+    mutations = {
+        "seed": lambda r: r["config"].__setitem__("n_cal", 3001),
+        "checkpoint": lambda r: r["trunk"].__setitem__("sha256", "1" * 64),
+        "class lists": lambda r: r["class_split"].__setitem__("class_lists_sha256", "2" * 64),
+        "pools": lambda r: r["pools"].__setitem__("pool_assignment_sha256", "3" * 64),
+        "n_test": lambda r: r["config"].__setitem__("n_test", 5999),
+        "n_pairs": lambda r: r["config"].__setitem__("n_pairs", 1999),
+        "link itself": lambda r: r["provenance"].__setitem__("link_sha256", "4" * 64),
+    }
+    for name, mutate in mutations.items():
+        r = run(17, sha(PRIMARY)); mutate(r)
+        res = P.aggregate(pre, [r, run(42, sha(PRIMARY)), run(99, sha(PRIMARY))])
+        assert any("provenance linkage hash" in d for d in res["deviations"]), name
+    r = run(17, sha(PRIMARY)); del r["config"]["n_test"]
+    assert any("could not be recomputed" in d for d in P.aggregate(pre, [r, run(42, sha(PRIMARY)), run(99, sha(PRIMARY))])["deviations"])
+
+
+def test_the_sidecar_file_next_to_a_run_is_checked(tmp_path, frozen):
+    pre, _ = frozen
+    r = run(17, sha(PRIMARY))
+    path = tmp_path / "run17.json"
+    assert P.sidecar_file_problems(r, path, "seed 17") and "missing" in P.sidecar_file_problems(r, path, "seed 17")[0]
+    side = tmp_path / "run17.provenance.json"
+    side.write_bytes(b'{"x":1}')
+    assert "does not hash" in P.sidecar_file_problems(r, path, "seed 17")[0]
+    r["provenance"]["sidecar_sha256"] = hashlib.sha256(b'{"x":1}').hexdigest()
+    assert P.sidecar_file_problems(r, path, "seed 17") == []
+    for bad in (None, "", "../run17.provenance.json", "sub/x.json"):                                 # no file named, or a name that leaves the run's folder
+        r2 = json.loads(json.dumps(r)); r2["provenance"]["file"] = bad
+        assert "names no provenance sidecar" in P.sidecar_file_problems(r2, path, "seed 17")[0], bad
+    r3 = json.loads(json.dumps(r)); del r3["provenance"]
+    assert "names no provenance sidecar" in P.sidecar_file_problems(r3, path, "seed 17")[0]
+    # the aggregator turns the problems into deviations: primary and secondary alike
+    res = P.aggregate(pre, three(), [run(17, sha(b"other"), name="ff112_seed42.pth")],
+                      sidecar_problems={"seed 42": ["seed 42: provenance sidecar file x is missing next to the run JSON"],
+                                        "secondary ff112_seed42.pth": ["secondary ff112_seed42.pth: provenance sidecar file y is missing next to the run JSON"]})
+    assert res["gate1"].startswith("INVALID") and any("sidecar file x is missing" in d for d in res["deviations"])
+    assert not res["secondary_trunks"][0]["valid"] and any("sidecar file y is missing" in d for d in res["secondary_trunks"][0]["deviations"])
+
+
+def test_aggregate_main_reads_the_sidecar_files_from_disk(tmp_path, frozen, monkeypatch, capsys):
+    pre, _ = frozen
+    prereg = tmp_path / "prereg.json"; prereg.write_text(json.dumps(pre))
+    paths = []
+    for seed in (17, 42, 99):
+        r = run(seed, sha(PRIMARY))
+        side_bytes = f"sidecar {seed}".encode()
+        r["provenance"]["sidecar_sha256"] = hashlib.sha256(side_bytes).hexdigest()
+        (tmp_path / r["provenance"]["file"]).write_bytes(side_bytes)
+        rp = tmp_path / f"run{seed}.json"; rp.write_text(json.dumps(r)); paths.append(rp)
+    out = tmp_path / "verdict.json"
+    argv = ["x", "aggregate", "--prereg", str(prereg), "--runs", *map(str, paths), "--out", str(out)]
+    monkeypatch.setattr(sys, "argv", argv)
+    P.main()
+    assert not any("sidecar" in d for d in json.loads(out.read_text())["deviations"])
+    (tmp_path / "run42.provenance.json").unlink()                                                      # delete one sidecar: the verdict must say so
+    out.unlink()
+    P.main()
+    res = json.loads(out.read_text())
+    assert res["gate1"].startswith("INVALID") and any("seed 42" in d and "sidecar file" in d and "missing" in d for d in res["deviations"])
+    (tmp_path / "run42.provenance.json").write_bytes(b"altered")
+    out.unlink()
+    P.main()
+    assert any("seed 42" in d and "does not hash" in d for d in json.loads(out.read_text())["deviations"])

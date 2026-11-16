@@ -1,0 +1,83 @@
+# RHAN Handbook v3.4 — build dossier
+
+Status: **engineering record of a documentation release.** No experiment was run, no artifact was
+rewritten and no registered number changed in v3.4. The release adds ten implementation-derived
+schematics to the technical handbook, the drawing library they share, and the checks that keep the
+drawings — and the 97 figures already in the book — honest about where their numbers come from.
+
+This folder documents that work in enough detail that someone who has never opened the handbook can
+rebuild it, audit it, or lift the method for another document. It is deliberately *not* a second
+handbook: the handbook itself is `docs/rhan_nxa/`, and the two must not drift. Where this dossier and
+the handbook disagree, the handbook and its artifacts win.
+
+![Length and figure count across the recorded editions](RHAN_HB_figures/hb01_edition_trajectory.png)
+
+## 1. What is in this folder
+
+| # | Document | Answers |
+|---|---|---|
+| 1 | `RHAN_HB_01_WHAT_CHANGED.md` | What v3.4 added, file by file, and why each change was made |
+| 2 | `RHAN_HB_02_FIGURE_SYSTEM.md` | How a schematic is drawn, where every number in it comes from, and how print size is verified |
+| 3 | `RHAN_HB_03_NUMBERS_PIPELINE.md` | How 276 printed numbers are registered, rendered and audited |
+| 4 | `RHAN_HB_04_PAGE_QA.md` | The seven typography checks, the page-ink audit, the contact sheets, and what they cannot see |
+| 5 | `RHAN_HB_05_VERIFICATION_LOG.md` | The exact commands, their output, the hashes, and the limits of the verification |
+| 6 | `RHAN_HB_06_LESSONS.md` | What generalises, what to do next, and a checklist for the next edition |
+| – | `RHAN_HB_metrics.json` | Every number quoted in 1–6, machine-readable, collected from the artifacts |
+| – | `RHAN_HB_figures/` | Ten figures for this dossier, their generator and a manifest |
+
+## 2. The release in one paragraph
+
+The v3.4 handbook is 254 pages and 107 figures. The 97 figures carried from v3.3 are byte-identical
+except one count refresh (`provenance_layers.png`, which reads its own bar heights from the
+manifest); the ten new ones are drawings of what the shipped `gen1_core` actually computes, read from a hooked run
+of the model rather than from the design documents. They answer the question "what does the model do"
+at the level of a block, a step, a training batch and an attack protocol — questions the evidence
+plots do not answer. The drawings share one primitive library, one palette and one evidence-badge
+vocabulary, carry a four-way evidence class, and are measured after printing: every figure is authored
+at 170 mm, printed at 165.8 mm, and its smallest label is 5.66 pt against a 5.5 pt floor.
+
+## 3. Three claims, and what backs each
+
+| Claim | Backed by | Strength |
+|---|---|---|
+| Every number in a v3.4 drawing is read at generation time | `figures/model_facts.py` writes `data/model_facts.json` from a hooked run; `make_v34_schematics.py` imports it; grep finds no numeric literal for a shape or count in the drawing code | **verified by construction** (the generator would fail on a missing key) |
+| The drawings are legible at printed size | `scripts/handbook/qa_v34_contact_sheet.py` locates each image in the shipped PDF by content fingerprint, measures the printed box, recomputes the scale and the smallest effective label | **measured on the delivered PDF** (all ten: 165.8 mm, 5.66 pt) |
+| The book's own checks pass | `scripts/validate_rhan_handbook.py`: six gates, 254 pages rendered and measured, 0 blank, 0 margin overflow, 0 typography defects, 361 contents entries with 0 unresolved | **measured**, with the limitations in 5 |
+
+What is *not* claimed: that a human has read all 254 pages, that the schematics are error-free
+representations of the model, or that a figure proves anything about performance. The schematics are
+drawings of code paths; the evidence for the performance claims remains the artifacts cited in the
+handbook's appendices.
+
+## 4. Reproducing this dossier
+
+```bash
+# 1. rebuild the drawings and merge them (five generators -> 107 records)
+python3 docs/rhan_nxa/figures/model_facts.py --write
+python3 docs/rhan_nxa/figures/make_v34_schematics.py --merge
+
+# 2. build the PDF and validate the delivered file
+python3 scripts/build_rhan_handbook_pdf.py
+python3 scripts/validate_rhan_handbook.py
+
+# 3. the print-size check (placement JSON + contact sheet of the ten figures)
+python3 scripts/handbook/qa_v34_contact_sheet.py
+
+# 4. this dossier's figures and numbers
+python3 docs/research/RHAN_HB_figures/make_research_figures.py
+```
+
+Steps 1–3 belong to the handbook release. Step 4 reads only artifacts written by steps 1–3 plus the
+registry, and writes nothing into `docs/rhan_nxa/`.
+
+## 5. Reading order
+
+If you want to lift the *method*, read 2 and 4. If you want to check the *release*, read 1 and 5.
+If you are about to edit the handbook, read 3 (numbers) and 6 (checklist) first.
+
+## 6. Provenance of this dossier
+
+Every figure here is generated by `RHAN_HB_figures/make_research_figures.py`, which reads
+`docs/rhan_nxa/data/*.json` and `report/handbook_audit*/`. Their captions name those files. The
+dossier's own numbers are in `RHAN_HB_metrics.json`, written by the same script, so a diff of that
+file after a rebuild is the fastest way to see what moved.

@@ -52,7 +52,7 @@ import render_numbers  # noqa: E402  (path set above)
 TITLE = "RHAN — Recurrent Hierarchical Attention Network"
 SUBTITLE = "Technical Handbook"
 BLURB = "Architecture, Implementation, Experimental Evaluation, and Future Directions"
-VERSION = "Version 3.3 · 25 October 2026"
+VERSION = "Version 3.4 · 28 October 2026"
 RUNNING = "RHAN Technical Handbook"
 
 # Every consequential number is rendered from docs/rhan_nxa/data/numbers.json.
