@@ -26,7 +26,7 @@ def oc():
 
 
 def _same(old, new):
-    if isinstance(old, bool) or isinstance(new, bool) or isinstance(old, str) or isinstance(new, str):
+    if isinstance(old, (bool, str, list, tuple)) or isinstance(new, (bool, str, list, tuple)):
         return old == new
     old = float("nan") if old is None else float(old)             # strict JSON stores NaN as null
     new = float("nan") if new is None else float(new)
