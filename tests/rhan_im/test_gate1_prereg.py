@@ -592,3 +592,40 @@ def test_aggregate_main_reads_the_sidecar_files_from_disk(tmp_path, frozen, monk
     out.unlink()
     P.main()
     assert any("seed 42" in d and "does not hash" in d for d in json.loads(out.read_text())["deviations"])
+
+
+def test_freeze_v2_with_s3_provenance(tmp_path):
+    ck = tmp_path / "tuned_s3.pth"
+    ck.write_bytes(b"tuned trunk bytes")
+    base_ck = tmp_path / "base.pth"
+    base_ck.write_bytes(PRIMARY)
+    s3_script = tmp_path / "train_s3.py"
+    s3_script.write_bytes(b"s3 script content")
+    s3_split = tmp_path / "s3_split.json"
+    s3_split.write_bytes(b'{"train": [], "heldout": []}')
+    data = make_data(tmp_path)
+    cs, pl = write_class_files(tmp_path)
+
+    res = P.freeze(
+        primary=ck,
+        secondary=[],
+        data_root=data,
+        allow_dirty=True,
+        allow_other_primary=True,
+        class_split=cs,
+        pools=pl,
+        protocol_version="rhan_im_gate1_v2",
+        s3_script=s3_script,
+        s3_split=s3_split,
+        s3_base_ckpt=base_ck,
+    )
+
+    assert res["protocol_version"] == "rhan_im_gate1_v2"
+    assert res["protocol"]["primary_checkpoint"] == "tuned_s3.pth"
+    assert res["protocol"]["secondary_checkpoints"] == []
+    assert "s3_provenance" in res
+    assert res["s3_provenance"]["s3_script"]["sha256"] == hashlib.sha256(b"s3 script content").hexdigest()
+    assert res["s3_provenance"]["s3_split"]["sha256"] == hashlib.sha256(b'{"train": [], "heldout": []}').hexdigest()
+    assert res["s3_provenance"]["s3_base_checkpoint"]["file"] == "base.pth"
+    assert res["s3_provenance"]["s3_base_checkpoint"]["sha256"] == hashlib.sha256(PRIMARY).hexdigest()
+

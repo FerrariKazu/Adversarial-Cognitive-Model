@@ -15,7 +15,7 @@ Freeze Timing: Frozen **before** Stage S3 results are known; independent of the 
 
 ### 1.2 Strict Scope Boundaries
 - **No Spatial Resolution Claims:** Gate 1 v1 established that whole-scene gist views provide detectability comparable to native window crops. Therefore, Gate 2 **makes no claims** that adaptive looking beats whole-scene gist, nor that spatial resolution confers an advantage. Gate 2 focuses exclusively on selective classification, Bayesian belief accumulation, posterior calibration, and statistical risk control.
-- **Internal Qualification Only:** All validation images were part of ImageNet-100 `val/`. Because foundation self-supervised models saw `train/` and Gate 1 saw `val/`, Gate 2 claims are explicitly designated as internal qualification of the Bayesian stopping engine on natural clutter, not out-of-distribution generalization.
+- **Internal Qualification Only:** All validation images are from ImageNet-100 `val/`. The foundation backbone was trained (supervised TRADES fine-tuning) on `train/`, and Gate 1 evaluated on `val/`. Gate 2 claims are explicitly designated as internal qualification of the Bayesian stopping engine on pasted-squares-on-natural-backgrounds scenes, not out-of-distribution generalization.
 - **Trunk Independence:** Frozen strictly against the validated `ff_112_seed17` trunk. No reliance on Stage S3 fine-tuning.
 
 ---
@@ -44,14 +44,18 @@ Doc 05 line 34 requires that LTT calibration items must be strictly disjoint fro
 ### 3.1 Head Refit Procedure
 Gate 1 did not export a persistent head checkpoint. Gate 2 fits its own readout head from scratch:
 - **Architecture:** `Linear(384, 51)` exporting `score_c = logit_c - logit_bg`.
-- **Training Data:** Drawn exclusively from `fit_pool_part_0_of_3`.
+- **Training Data:** `data/imagenet100/train/` (~126,000 images, 600 steps, batch 48), exactly as Gate 1 did. This matches the Gate 1 head-fitting procedure identically.
 - **Optimization:** 600 steps, AdamW, learning rate 2e-3, cosine decay, batch size 48, seed matching the evaluation seed.
 - **Export:** Readout projection copied to `EvidenceHead(384, 50)`.
+- **Head File:** Pinned by SHA-256 hash in freeze JSON, or refitted deterministically from the pinned seed and training procedure.
 
 ### 3.2 Noise and Dependence Parameters
-Gate 2 does **not** copy Gate 1's $VIF_{\text{null}} = 11.605$.
-- $VIF_{\text{null}}$ and token standardizers ($\mu_0, \sigma_0$) are measured directly on `fit_pool_part_0_of_3` null scenes.
+Gate 2 does **not** copy Gate 1's $VIF_{\text{null}} = 11.605$. That value was measured on pasted squares on Gate 1's scene configuration; Gate 2 must measure its own.
+- $VIF_{\text{null}}$, token standardizers ($\mu_0, \sigma_0$), and noise-calibration parameter $\kappa$ are measured directly on `fit_pool_part_0_of_3` (1,700 images) null scenes.
 - If $VIF_{\text{null}} > 1.25$, token scores and detectabilities are scaled by $1 / \sqrt{VIF_{\text{null}}}$ (equicorrelated correction).
+
+### 3.3 Look Policy
+Gate 2 evaluates the **fixed look budget** policy: each scene receives up to $K = 8$ sequential looks (native 112×112 window or resampled gist view) with Bayesian belief accumulation. The "looks saved" criterion measures how many looks the stopping rule skips relative to the fixed $K = 8$ maximum. No adaptive spatial selection is claimed.
 
 ---
 
@@ -66,6 +70,7 @@ Gate 2 does **not** copy Gate 1's $VIF_{\text{null}} = 11.605$.
   - Per-target-size ECE (sizes 2, 4, 6 units).
 - **Decision Rules:**
   - **PASS:** $\text{ECE} \le 0.03$ with measured sensor parameters.
+  - **INCONCLUSIVE:** $\text{ECE} \in (0.03, 0.05]$: explicitly reported as inconclusive — insufficient evidence to pass, but not necessarily misspecified.
   - **DIAGNOSE / FAIL:** $\text{ECE} > 0.05 \implies$ likelihood misspecified; stop and diagnose before any deployment claim.
 
 ### 4.2 E5: Risk-Controlled Stopping (Learn-Then-Test)
@@ -73,9 +78,9 @@ Gate 2 does **not** copy Gate 1's $VIF_{\text{null}} = 11.605$.
 - **Primary Criterion (Doc 05 E5):**
   - Target error rate: $\alpha = 0.10$.
   - Target violation probability: $\delta = 0.10$.
-  - Evaluation resamples: $\ge 500$ independent bootstrap splits from the calibration and test pools.
+  - Resampling scheme: Subset $n_{\text{cal}} = 300$ from the 1,700-image calibration pool over $\ge 500$ overlapping bootstrap resamples.
 - **Exploratory Additions (explicitly labeled exploratory):**
-  - $\alpha \in \{0.01, 0.05\}$ with $\delta = 0.10$. (Labeled exploratory because $\alpha = 0.01$ on $n_{\text{cal}} \approx 1,700$ operates near the sample size boundary).
+  - $\alpha \in \{0.01, 0.05\}$ with $\delta = 0.10$. (Labeled exploratory because $\alpha = 0.01$ on $n_{\text{cal}} \approx 300$ operates near the sample size boundary for LTT coverage guarantees).
 - **Decision Rules:**
   - **Validity:** Empirical violation rate $\le \delta = 0.10$ across the $\ge 500$ resamples.
   - **Efficiency:** Mean looks saved vs fixed maximum budget ($K = 8$) $\ge 25\%$ at matched or lower error rate.
@@ -86,6 +91,12 @@ Gate 2 does **not** copy Gate 1's $VIF_{\text{null}} = 11.605$.
 
 ## 5. Aggregation and Reproducibility
 
-- **Seeds:** Three primary evaluation seeds (17, 42, 99) governing scene generation and bootstrap resampling.
+- **Seeds:** Three primary evaluation seeds (17, 42, 99) governing head initialisation, scene generation, and bootstrap resampling.
+- **Aggregation Rule:** 2-of-3 seeds must pass each criterion for the criterion to pass.
 - **Provenance:** Every run writes `<run>.json` and `<run>.provenance.json` side by side, recording the exact source images and scene parameters.
-- **Code Locking:** All measurement scripts and libraries pinned by SHA-256 in the final freeze JSON.
+- **Code Locking:** All measurement scripts and libraries pinned by SHA-256 hash (not git commit) in the final freeze JSON.
+
+## 6. Tuned-Trunk Gate 2
+
+If Gate 1 v2 passes (S3-tuned trunk restores $d_{\text{native}} / d_{\text{gist}} \ge 1.50$), a separate subsequent Gate 2 version may be registered against the tuned trunk with spatial resolution claims. That is not this document.
+

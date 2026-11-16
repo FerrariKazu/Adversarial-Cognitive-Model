@@ -39,6 +39,7 @@ from scripts.rhan_im.train_s3_dense_window import (
     refit_eval_head,
     set_trunk_train_mode,
     train_s3,
+    update_early_stopping,
 )
 
 
@@ -298,9 +299,10 @@ def test_train_s3_end_to_end_and_gate1_reload():
             steps_per_epoch=2,
             batch_size=2,
             eval_head_steps=2,
-            n_eval_cal=4,
-            n_eval_test=4,
-            heldout_per_class=3,
+            n_eval_cal=12,
+            n_eval_test=16,
+            heldout_per_class=5,
+            min_pos=2,
             seed=17,
         )
 
@@ -317,7 +319,7 @@ def test_train_s3_end_to_end_and_gate1_reload():
 
 
 def test_early_stopping_selection_logic():
-    """Unit test for early-stopping selection and no-improvement rule."""
+    """Unit test for update_early_stopping directly calling the script implementation."""
     trunk_init = CompactViTGen2(img_size=112)
     init_state = {k: v.clone() for k, v in trunk_init.state_dict().items()}
 
@@ -329,26 +331,107 @@ def test_early_stopping_selection_logic():
 
     epoch_ratios = [1.10, 1.20, 1.15]
     for ep, r in enumerate(epoch_ratios):
-        if r > best_ratio:
-            best_ratio = r
-            best_epoch = ep + 1
-            best_state = {"mock": ep}
+        best_ratio, best_epoch, best_state, improved = update_early_stopping(
+            best_ratio, best_epoch, best_state, r, ep + 1, {"mock": torch.tensor([ep])}
+        )
+        assert improved is False
 
     assert best_epoch == -1
     assert best_ratio == 1.25
-    # Must retain initial untuned state
     for k in init_state:
         assert torch.equal(best_state[k], init_state[k])
 
     # Case 2: Improvement occurs
     epoch_ratios = [1.20, 1.35, 1.30]
     for ep, r in enumerate(epoch_ratios):
-        if r > best_ratio:
-            best_ratio = r
-            best_epoch = ep + 1
-            best_state = {"mock": ep}
+        best_ratio, best_epoch, best_state, improved = update_early_stopping(
+            best_ratio, best_epoch, best_state, r, ep + 1, {"mock": torch.tensor([ep])}
+        )
 
     assert best_epoch == 2
     assert best_ratio == 1.35
-    assert best_state == {"mock": 1}
+    assert torch.equal(best_state["mock"], torch.tensor([1]))
+
+    # Case 3: Candidate ratio is NaN or inf (must NEVER update)
+    for bad_r in [float("nan"), float("inf"), float("-inf")]:
+        best_ratio, best_epoch, best_state, improved = update_early_stopping(
+            best_ratio, best_epoch, best_state, bad_r, 4, {"mock": torch.tensor([999])}
+        )
+        assert improved is False
+        assert best_epoch == 2
+        assert best_ratio == 1.35
+        assert torch.equal(best_state["mock"], torch.tensor([1]))
+
+
+def test_baseline_nan_aborts_training():
+    """Tests that train_s3 aborts immediately with RuntimeError if baseline held-out ratio is NaN."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = pathlib.Path(tmpdir)
+        train_dir = root / "train"
+        train_dir.mkdir(parents=True)
+        tcls, bcls = ["t_0"], ["b_0"]
+        all_cls = tcls + bcls
+
+        for c in all_cls:
+            cdir = train_dir / c
+            cdir.mkdir()
+            for img_i in range(10):
+                im = Image.new("RGB", (64, 64), color=(0, 0, 0))
+                im.save(cdir / f"im_{img_i:03d}.JPEG")
+
+        cs_data = {
+            "status": "FINAL",
+            "seed": 17,
+            "targets": [{"wnid": f"w_{c}", "dirname": c} for c in tcls],
+            "backgrounds": [{"wnid": f"w_{c}", "dirname": c} for c in bcls],
+        }
+        cs_hash = g1.class_split_sha256(17, cs_data["targets"], cs_data["backgrounds"])
+        cs_data["hashes"] = {"class_split_sha256": cs_hash}
+        cs_file = root / "class_split.json"
+        cs_file.write_text(json.dumps(cs_data))
+
+        p_cal = {c: [f"val_{i:02d}.JPEG" for i in range(5)] for c in all_cls}
+        p_tst = {c: [f"val_{i:02d}.JPEG" for i in range(5, 10)] for c in all_cls}
+        p_assign_sha = g1.canonical_json_bytes({"rule_id": "test", "class_split": cs_hash, "val_repo_listing_sha256": "dummy", "calibration": p_cal, "test": p_tst})
+        import hashlib
+        p_data = {
+            "status": "FINAL",
+            "rule_id": "test",
+            "class_split": cs_hash,
+            "listing_binding": {"val": {"repo_listing_sha256": "dummy"}},
+            "calibration_pool_part_0_of_2": p_cal,
+            "test_pool_part_1_of_2": p_tst,
+            "pool_assignment_sha256": hashlib.sha256(p_assign_sha).hexdigest(),
+        }
+        pools_file = root / "pools.json"
+        pools_file.write_text(json.dumps(p_data))
+
+        ckpt_path = root / "base_ckpt.pth"
+        _make_dummy_checkpoint(ckpt_path)
+
+        import scripts.rhan_im.train_s3_dense_window as s3_mod
+        orig_eval = s3_mod.evaluate_heldout_ratio
+        try:
+            s3_mod.evaluate_heldout_ratio = lambda *args, **kwargs: {"ratio": float("nan"), "d_native_centre": float("nan"), "d_gist": float("nan"), "d_gist_full": float("nan")}
+            with pytest.raises(RuntimeError, match="Baseline held-out ratio is not finite"):
+                train_s3(
+                    ckpt_path=ckpt_path,
+                    data_root=root,
+                    class_split_path=cs_file,
+                    pools_path=pools_file,
+                    out_ckpt_path=root / "out.pth",
+                    out_manifest_path=root / "split.json",
+                    device="cpu",
+                    epochs=1,
+                    steps_per_epoch=1,
+                    batch_size=2,
+                    eval_head_steps=1,
+                    n_eval_cal=2,
+                    n_eval_test=2,
+                    heldout_per_class=2,
+                    seed=17,
+                )
+        finally:
+            s3_mod.evaluate_heldout_ratio = orig_eval
+
 

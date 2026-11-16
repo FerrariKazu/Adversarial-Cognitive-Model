@@ -10,13 +10,13 @@ Binding mechanism: When approved, frozen via `prereg/rhan_im_gate1_v2.json` comm
 
 Gate 1 v1 evaluated the frozen feedforward trunk `foundation_ff_112_seed17_final_d00fb750.pth` across three primary seeds (17, 42, 99) and two secondary seeds.
 Results aggregated to **FAIL** (`runs/gate1_verdict.json`):
-- `sdt_adequate`: **PASS** (3/3 runs, z-ROC slope 0.899–0.969 ∈ [0.80, 1.25], null sd 0.999–1.002 ∈ [0.85, 1.20])
-- `informative`: **PASS** (3/3 runs, d_centre 2.871–2.877 ≥ 1.5, d_block 3.336–3.398 ≥ 2.0 with VIF_null 11.56–11.63 corrected)
+- `sdt_adequate`: **PASS** (3/3 runs, z-ROC slope 0.899–0.969 ∈ [0.80, 1.25], null sd 0.993–1.013 ∈ [0.85, 1.20])
+- `informative`: **PASS** (3/3 runs, d_centre 2.844–2.888 ≥ 1.5, d_block 3.336–3.398 ≥ 2.0 with VIF_null 11.56–11.63 corrected)
 - `looking_closer_pays`: **FAIL** (0/3 runs, native/gist ratio 1.063–1.113 < 1.50)
 
 The root cause was that coarse whole-scene gist views produced detectability ($d' \approx 2.56\text{--}2.70$) nearly as high as native-resolution crops ($d' \approx 2.87$). Resolution provided negligible advantage over whole-scene resampling.
 
-Per Doc 03 §9 and Doc 07 §7, the pre-registered protocol remedy for a failure on `looking_closer_pays` is **Stage S3 once**: fine-tune the top trunk blocks on dense window crops, early-stop on held-out native-over-gist ratio, discard the training head, and freeze a new Gate 1 v2.
+Per Doc 04 §10–11 and Doc 07 verdict table (`runs/gate1_verdict.json` → `next_step`), the pre-registered protocol remedy for a failure on `looking_closer_pays` is **Stage S3 once**: fine-tune the top trunk blocks on dense window crops, early-stop on held-out native-over-gist ratio, discard the training head, and freeze a new Gate 1 v2. The 448-px canvas test specified in Doc 03 §9 is **waived** for v2, since S3 is the primary architectural remedy on the standard 224-px canvas; if S3 fails, the 448-px path remains open as an independent future investigation.
 
 ---
 
@@ -40,7 +40,16 @@ Per Doc 03 §9 and Doc 07 §7, the pre-registered protocol remedy for a failure 
 | Single Attempt Boundary | S3 is run **exactly once** | If S3 fails to lift the ratio above 1.50 in Gate 1 v2, the protocol branch terminates; take the fallback (Gate 2 selective classification). |
 
 ### Evidence Boundary Note on Early Stopping
-The held-out ratio measured during S3 on `data/imagenet100/train/` held-out scenes is an internal selection signal only and is **NOT evidence**. All train images were seen during foundation self-supervised pre-training. Confirmatory evidence is produced only by the Gate 1 v2 evaluation on the unseen validation test pool.
+The held-out ratio measured during S3 on `data/imagenet100/train/` held-out scenes is an internal selection signal only and is **NOT evidence**. All train images were seen during the supervised TRADES fine-tuning of the foundation backbone. The S3 held-out ratio is not comparable to v1's 1.063–1.113 (measured on validation images that the foundation was never trained on). Confirmatory evidence is produced only by the Gate 1 v2 evaluation on the validation test pool, which is held out from S3 training but was used to evaluate Gate 1 v1 and was used for monitoring and abort gates per OI-13. It is not "unseen."
+
+### Exploratory Observation (Post-v1)
+After v1, an exploratory check on size-2 targets (28 px) showed a native/gist ratio of approximately 2.0, suggesting that resolution advantage exists at smaller target scales. However, the **operating cell remains locked at size 4 (56 px), opacity 1.0** for all v2 confirmatory evaluation. The size-2 observation motivates S3 but does not enter v2 evidence.
+
+### Trunk Seed Dependence
+S3 fine-tunes seed-17 trunk only. Trunk seed dependence (whether seeds 42 and 99 produce similar ratios) is **not assessed** in v2. The three v2 evaluation seeds (17, 42, 99) vary only the head initialisation and scene sampling, not the trunk weights.
+
+### Freeze Tool Extension
+`scripts/rhan_im/gate1_prereg.py freeze` must be extended to pin the S3 script hash, `prereg/s3_split.json` hash, and the base and tuned checkpoint hashes before the v2 freeze is committed.
 
 ---
 
@@ -62,7 +71,8 @@ All core protocol specifications from `docs/research/RHAN_IM_07_SUCCESSOR_DRAFT.
 
 ### 3.2 What Changes in v2
 - **Primary Checkpoint:** `checkpoints/foundation_ff_112_s3_tuned.pth` (replaces `foundation_ff_112_seed17_final_d00fb750.pth`).
-- **Validation Reuse Note:** The 5,000 validation images in `prereg/pools.json` were used to evaluate Gate 1 v1. S3 training NEVER touches `val/` (verified and asserted). Re-evaluating on `val/` is permitted as a single pre-registered confirmation of S3 tuning under §9 switch conditions, but is noted as post-v1 evaluation.
+- **Validation Reuse Note:** The 5,000 validation images in `prereg/pools.json` produced the v1 result and were used for monitoring and abort gates (OI-13). S3 training NEVER touches `val/` (verified and asserted). Re-evaluating on `val/` is permitted as a single pre-registered confirmation of S3 tuning under the Doc 04 §10–11 switch conditions. These images are "held out from S3 training" but are **not unseen**; this is a single-attempt evaluation. If it fails, take the fallback.
 - **Decision Consequences:**
   - If Gate 1 v2 **PASSES**: The tuned trunk restores the resolution advantage ($d_{\text{native}} / d_{\text{gist}} \ge 1.50$). Proceed to Gate 2 with adaptive looking policy claims.
   - If Gate 1 v2 **FAILS**: The hypothesis that "looking closer pays" is falsified for this trunk architecture. Do NOT attempt further trunk tuning. Conclude honestly and take the pre-registered fallback: Gate 2 scoped strictly to selective classification, calibration, and risk control without spatial resolution claims.
+

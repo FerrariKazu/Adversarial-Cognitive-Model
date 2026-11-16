@@ -93,7 +93,9 @@ def git(*args: str, cwd: pathlib.Path = ROOT) -> Optional[str]:
 
 def freeze(primary: pathlib.Path, secondary: List[pathlib.Path], data_root: Optional[pathlib.Path], allow_dirty: bool = False,
            repo_root: pathlib.Path = ROOT, allow_other_primary: bool = False, class_split: Optional[pathlib.Path] = None,
-           pools: Optional[pathlib.Path] = None) -> Dict[str, object]:
+           pools: Optional[pathlib.Path] = None, protocol_version: str = "rhan_im_gate1_v1",
+           s3_script: Optional[pathlib.Path] = None, s3_split: Optional[pathlib.Path] = None,
+           s3_base_ckpt: Optional[pathlib.Path] = None) -> Dict[str, object]:
     status = git("status", "--porcelain", "--", *CODE_FILES, cwd=repo_root)
     head = git("rev-parse", "HEAD", cwd=repo_root)
     if (status is None or head is None) and not allow_dirty:
@@ -123,9 +125,18 @@ def freeze(primary: pathlib.Path, secondary: List[pathlib.Path], data_root: Opti
         raise SystemExit(f"refusing to freeze: {e}")
     if pl["val_repo_listing_sha256"] != data["val_path_listing"]["sha256"]:
         raise SystemExit("refusing to freeze: the pools file was made from a different val listing than the one in --data-root")
+    s3_provenance = None
+    if protocol_version == "rhan_im_gate1_v2":
+        s3_provenance = {}
+        if s3_script is not None:
+            s3_provenance["s3_script"] = {"file": str(s3_script), "sha256": sha256_file(s3_script)}
+        if s3_split is not None:
+            s3_provenance["s3_split"] = {"file": str(s3_split), "sha256": sha256_file(s3_split)}
+        if s3_base_ckpt is not None:
+            s3_provenance["s3_base_checkpoint"] = {"file": s3_base_ckpt.name, "sha256": sha256_file(s3_base_ckpt)}
     return {
         "protocol_id": "rhan-im-gate1/1",
-        "protocol_version": "rhan_im_gate1_v1",
+        "protocol_version": protocol_version,
         "status": "FROZEN",
         "created_at_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "branch": git("rev-parse", "--abbrev-ref", "HEAD", cwd=repo_root),
@@ -156,6 +167,7 @@ def freeze(primary: pathlib.Path, secondary: List[pathlib.Path], data_root: Opti
         },
         "code_and_data_hashes": {**{f: sha256_file(repo_root / f) for f in CODE_FILES}, **data},
         "checkpoint_hashes": ckpts,
+        **({"s3_provenance": s3_provenance} if s3_provenance else {}),
     }
 
 
@@ -385,6 +397,11 @@ def main() -> None:
     f.add_argument("--pools", required=True, type=pathlib.Path, help="FINAL pools JSON (gate1_freeze_tools_v2.py pools) for that class split")
     f.add_argument("--allow-dirty", action="store_true")
     f.add_argument("--allow-other-primary", action="store_true", help="the primary checkpoint is not the documented ff_112 seed-17 file")
+    f.add_argument("--protocol-version", default="rhan_im_gate1_v1", choices=["rhan_im_gate1_v1", "rhan_im_gate1_v2"],
+                   help="protocol version; v2 allows empty secondary list and pins S3 provenance")
+    f.add_argument("--s3-script", type=pathlib.Path, default=None, help="(v2 only) S3 training script to pin")
+    f.add_argument("--s3-split", type=pathlib.Path, default=None, help="(v2 only) S3 train/heldout partition JSON to pin")
+    f.add_argument("--s3-base-ckpt", type=pathlib.Path, default=None, help="(v2 only) base checkpoint that S3 fine-tuned from")
     f.add_argument("--out", type=pathlib.Path, default=ROOT / "prereg" / "rhan_im_gate1_v1.json")
     a = sub.add_parser("aggregate")
     a.add_argument("--prereg", required=True, type=pathlib.Path)
@@ -396,7 +413,8 @@ def main() -> None:
         if args.out.exists():
             raise SystemExit(f"{args.out} exists: a frozen pre-registration is never overwritten (write a new version instead)")
         res = freeze(args.primary, args.secondary, args.data_root, args.allow_dirty, allow_other_primary=args.allow_other_primary,
-                     class_split=args.class_split, pools=args.pools)
+                     class_split=args.class_split, pools=args.pools, protocol_version=args.protocol_version,
+                     s3_script=args.s3_script, s3_split=args.s3_split, s3_base_ckpt=args.s3_base_ckpt)
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(res, indent=2) + "\n")
         print("froze", args.out)

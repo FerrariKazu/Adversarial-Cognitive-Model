@@ -117,7 +117,25 @@ def partition_train_split(
     out_manifest: Optional[pathlib.Path] = None,
     pools_path: Optional[pathlib.Path] = None,
 ) -> Tuple[List[str], List[str]]:
-    """Partitions data_root/train into disjoint (train_files, heldout_files) and asserts disjointness from val."""
+    """Loads or generates disjoint (train_files, heldout_files) partition of data_root/train.
+
+    If out_manifest exists on disk, reads and verifies the pinned manifest.
+    Otherwise partitions data_root/train deterministically and saves out_manifest.
+    Isolation guarantee: S3 exclusively reads from data_root/train.
+    """
+    if out_manifest and pathlib.Path(out_manifest).exists():
+        raw = json.loads(pathlib.Path(out_manifest).read_text())
+        if raw.get("status") == "FINAL":
+            h_files = raw["heldout_files"]
+            t_files = raw["train_files"]
+            h_sha = hashlib.sha256("\n".join(h_files).encode("utf-8")).hexdigest()
+            t_sha = hashlib.sha256("\n".join(t_files).encode("utf-8")).hexdigest()
+            if h_sha != raw.get("heldout_listing_sha256") or t_sha != raw.get("train_listing_sha256"):
+                raise ValueError(f"Corrupt manifest {out_manifest}: listing hashes do not match content")
+            if not set(h_files).isdisjoint(set(t_files)):
+                raise ValueError("Corrupt manifest: heldout_files and train_files overlap")
+            return t_files, h_files
+
     train_dir = data_root / "train"
     all_classes = sorted(tcls + bcls)
     heldout_files: List[str] = []
@@ -143,7 +161,7 @@ def partition_train_split(
     if not disjoint:
         raise ValueError("heldout_files and train_files are not disjoint")
 
-    # Assert strict disjointness from validation pools if pools_path provided
+    # Extra integrity check: verify no filename in train coincides with validation pools
     if pools_path and pathlib.Path(pools_path).exists():
         p_raw = json.loads(pathlib.Path(pools_path).read_text())
         val_files = set()
@@ -522,6 +540,28 @@ def refit_eval_head(
     return head
 
 
+def update_early_stopping(
+    best_ratio: float,
+    best_epoch: int,
+    best_trunk_state: Dict[str, torch.Tensor],
+    candidate_ratio: float,
+    candidate_epoch: int,
+    candidate_trunk_state: Dict[str, torch.Tensor],
+) -> Tuple[float, int, Dict[str, torch.Tensor], bool]:
+    """Evaluates candidate ratio against best_ratio and updates if strictly better and finite.
+
+    Returns (best_ratio, best_epoch, best_trunk_state, improved).
+    """
+    if math.isfinite(candidate_ratio) and candidate_ratio > best_ratio:
+        return (
+            candidate_ratio,
+            candidate_epoch,
+            {k: v.cpu().clone() for k, v in candidate_trunk_state.items()},
+            True,
+        )
+    return best_ratio, best_epoch, best_trunk_state, False
+
+
 def train_s3(
     ckpt_path: pathlib.Path,
     data_root: pathlib.Path,
@@ -539,6 +579,7 @@ def train_s3(
     n_eval_cal: int = 1000,
     n_eval_test: int = 1500,
     heldout_per_class: int = 50,
+    min_pos: int = 30,
     seed: int = 17,
 ) -> Dict[str, object]:
     """Executes S3 fine-tuning."""
@@ -574,17 +615,41 @@ def train_s3(
     print(f"Pre-generating fixed held-out scenes ({n_eval_cal} cal, {n_eval_test} test) for early stopping...")
     sc_cal, sc_tst = generate_fixed_eval_scenes(bank_heldout, lay, n_eval_cal, n_eval_test, seed=seed)
 
-    # Co-training head: Linear(384, C + 1)
+    # 6. Evaluate baseline ratio on untuned trunk with a freshly fitted head (matching Gate 1 procedure)
+    print(f"Refitting baseline evaluation head ({eval_head_steps} steps) on untuned trunk...")
+    baseline_head = refit_eval_head(trunk, bank_train, lay, device, steps=eval_head_steps, head_seed=seed)
+    print("Evaluating initial held-out ratio on untuned trunk...")
+    init_metrics = evaluate_heldout_ratio(trunk, baseline_head, sc_cal, sc_tst, lay, device, min_pos=min_pos)
+    print(
+        f"Initial held-out: d_native={init_metrics['d_native_centre']:.3f}, "
+        f"d_gist={init_metrics['d_gist']:.3f}, d_gist_full={init_metrics['d_gist_full']:.3f}, "
+        f"ratio={init_metrics['ratio']:.3f}"
+    )
+
+    if not math.isfinite(init_metrics["ratio"]):
+        raise RuntimeError(
+            f"Baseline held-out ratio is not finite: {init_metrics['ratio']}. "
+            "Aborting S3 training to avoid silent untuned trunk fallback."
+        )
+
+    best_ratio = init_metrics["ratio"]
+    best_epoch = -1
+    best_trunk_state = {k: v.cpu().clone() for k, v in trunk.state_dict().items()}
+
+    # 7. Co-training head warm-started from baseline head
     head_train = nn.Linear(384, C + 1).to(device)
-    nn.init.normal_(head_train.weight, std=0.01)
-    nn.init.zeros_(head_train.bias)
+    with torch.no_grad():
+        head_train.weight[:C].copy_(baseline_head.proj.weight)
+        head_train.weight[C].zero_()
+        head_train.bias[:C].copy_(baseline_head.proj.bias)
+        head_train.bias[C].zero_()
 
     total_trainable = sum(p.numel() for p in trunk.parameters() if p.requires_grad) + sum(
         p.numel() for p in head_train.parameters() if p.requires_grad
     )
     print(
         f"S3 setup: trunk blocks[9:12] + norm ({trunk_info['trainable_trunk_params']} params) + "
-        f"co-training head ({sum(p.numel() for p in head_train.parameters())} params)"
+        f"co-training head ({sum(p.numel() for p in head_train.parameters())} params, warm-started from baseline)"
     )
     print(f"Total trainable parameters: {total_trainable}")
 
@@ -599,21 +664,6 @@ def train_s3(
     )
     total_steps = epochs * steps_per_epoch
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, total_steps))
-
-    # Evaluate baseline ratio on untuned trunk with a freshly fitted head (matching Gate 1 procedure)
-    print(f"Refitting baseline evaluation head ({eval_head_steps} steps) on untuned trunk...")
-    baseline_head = refit_eval_head(trunk, bank_train, lay, device, steps=eval_head_steps, head_seed=seed)
-    print("Evaluating initial held-out ratio on untuned trunk...")
-    init_metrics = evaluate_heldout_ratio(trunk, baseline_head, sc_cal, sc_tst, lay, device)
-    print(
-        f"Initial held-out: d_native={init_metrics['d_native_centre']:.3f}, "
-        f"d_gist={init_metrics['d_gist']:.3f}, d_gist_full={init_metrics['d_gist_full']:.3f}, "
-        f"ratio={init_metrics['ratio']:.3f}"
-    )
-
-    best_ratio = init_metrics["ratio"]
-    best_epoch = -1
-    best_trunk_state = {k: v.cpu().clone() for k, v in trunk.state_dict().items()}
 
     log: List[Dict[str, object]] = []
 
@@ -676,7 +726,7 @@ def train_s3(
         # Held-out validation: refit fresh head on current trunk checkpoint, matching Gate 1
         trunk.eval()
         eval_head = refit_eval_head(trunk, bank_train, lay, device, steps=eval_head_steps, head_seed=seed)
-        metrics = evaluate_heldout_ratio(trunk, eval_head, sc_cal, sc_tst, lay, device)
+        metrics = evaluate_heldout_ratio(trunk, eval_head, sc_cal, sc_tst, lay, device, min_pos=min_pos)
         ratio = metrics["ratio"]
         print(
             f"Epoch {epoch + 1}/{epochs} ({elapsed:.1f}s): loss={mean_loss:.4f}, "
@@ -692,10 +742,10 @@ def train_s3(
         }
         log.append(entry)
 
-        if ratio > best_ratio:
-            best_ratio = ratio
-            best_epoch = epoch + 1
-            best_trunk_state = {k: v.cpu().clone() for k, v in trunk.state_dict().items()}
+        best_ratio, best_epoch, best_trunk_state, improved = update_early_stopping(
+            best_ratio, best_epoch, best_trunk_state, ratio, epoch + 1, trunk.state_dict()
+        )
+        if improved:
             print(f" -> New best held-out ratio: {best_ratio:.3f} (checkpoint staged)")
 
     # Save the tuned trunk checkpoint (discarding head)
@@ -768,6 +818,10 @@ def main():
         heldout_per_class=args.heldout_per_class,
         seed=args.seed,
     )
+    # Save full result with per-epoch log beside checkpoint
+    log_file = pathlib.Path(args.out_ckpt).with_suffix(".json")
+    log_file.write_text(json.dumps(res, indent=2, default=str))
+    print(f"Saved full training log to {log_file}")
     print(json.dumps({k: v for k, v in res.items() if k != "log"}, indent=2))
 
 
