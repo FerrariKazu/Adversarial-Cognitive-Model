@@ -1,0 +1,184 @@
+{
+  "gate1": "FAIL",
+  "gate1_if_deviations_and_unmeasured_quantities_were_ignored": "FAIL",
+  "runs": 3,
+  "pass_counts": {
+    "sdt_adequate": 3,
+    "informative": 3,
+    "looking_closer_pays": 0,
+    "pass_all": 0
+  },
+  "failed_criteria": [
+    "looking_closer_pays"
+  ],
+  "unmeasured": {},
+  "combination_rule": "best",
+  "token_evidence": "correct z and d by 1/sqrt(VIF_null)",
+  "vif_null_median": 11.60517469805412,
+  "vif_to_apply": 11.60517469805412,
+  "shared_difficulty": false,
+  "shared_difficulty_runs": 0,
+  "shared_difficulty_assessed_runs": 3,
+  "difficulty_cv_estimate": NaN,
+  "next_step": [
+    "S3 once as above; if native is no better than gist even then, looking closer does not pay on this trunk: switch conditions of 03 section 9 (temporal looks, fallback)"
+  ],
+  "per_run": [
+    {
+      "seed": 17,
+      "verdict": {
+        "sdt_adequate": true,
+        "informative": true,
+        "looking_closer_pays": false,
+        "native_over_gist": 1.0631234749882168,
+        "combination_rule": "best",
+        "token_evidence": "correct z and d by 1/sqrt(VIF_null)",
+        "vif_used": 11.60517469805412,
+        "vif_measured": true,
+        "shared_difficulty": false,
+        "shared_difficulty_assessed": true,
+        "d_block_effective": 3.369390420770296,
+        "unmeasured": [],
+        "pass_all": false
+      },
+      "summary": {
+        "operating_point": "size4_alpha1.0",
+        "d_native_centre": 2.869572401046753,
+        "d_native_edge_ring": 2.566551685333252,
+        "d_gist": 2.290968418121338,
+        "zroc_slope_median": 0.9688569903373718,
+        "null_sd_median": 1.0035682916641235,
+        "pos_sd_median": 1.1155568361282349,
+        "leakage_max": 1.9475336074829102,
+        "rho_null": 0.8400049419724109,
+        "vif_null_op": 11.60517469805412,
+        "vif_pos_op": 11.956414807762828,
+        "vif_pos_scenes_op": 253.0,
+        "op_block_tokens": 16.0,
+        "d_gist_full": 2.699190139770508,
+        "spill_adjacent_op": 1.097267746925354,
+        "spill_far_op": 0.35158830881118774
+      }
+    },
+    {
+      "seed": 42,
+      "verdict": {
+        "sdt_adequate": true,
+        "informative": true,
+        "looking_closer_pays": false,
+        "native_over_gist": 1.1127400205073943,
+        "combination_rule": "best",
+        "token_evidence": "correct z and d by 1/sqrt(VIF_null)",
+        "vif_used": 11.628124182239098,
+        "vif_measured": true,
+        "shared_difficulty": false,
+        "shared_difficulty_assessed": true,
+        "d_block_effective": 3.336373828455139,
+        "unmeasured": [],
+        "pass_all": false
+      },
+      "summary": {
+        "operating_point": "size4_alpha1.0",
+        "d_native_centre": 2.844261646270752,
+        "d_native_edge_ring": 2.5167317390441895,
+        "d_gist": 2.256427049636841,
+        "zroc_slope_median": 0.8985986113548279,
+        "null_sd_median": 0.992943286895752,
+        "pos_sd_median": 1.146553874015808,
+        "leakage_max": 1.9837521314620972,
+        "rho_null": 0.8443781304218514,
+        "vif_null_op": 11.628124182239098,
+        "vif_pos_op": 11.62017259578791,
+        "vif_pos_scenes_op": 267.0,
+        "op_block_tokens": 16.0,
+        "d_gist_full": 2.5560882091522217,
+        "spill_adjacent_op": 1.1592038869857788,
+        "spill_far_op": 0.3874173164367676
+      }
+    },
+    {
+      "seed": 99,
+      "verdict": {
+        "sdt_adequate": true,
+        "informative": true,
+        "looking_closer_pays": false,
+        "native_over_gist": 1.107813902228972,
+        "combination_rule": "best",
+        "token_evidence": "correct z and d by 1/sqrt(VIF_null)",
+        "vif_used": 11.560248327974712,
+        "vif_measured": true,
+        "shared_difficulty": false,
+        "shared_difficulty_assessed": true,
+        "d_block_effective": 3.398055435568957,
+        "unmeasured": [],
+        "pass_all": false
+      },
+      "summary": {
+        "operating_point": "size4_alpha1.0",
+        "d_native_centre": 2.888378143310547,
+        "d_native_edge_ring": 2.550447940826416,
+        "d_gist": 2.259819507598877,
+        "zroc_slope_median": 0.9090791940689087,
+        "null_sd_median": 1.0125194787979126,
+        "pos_sd_median": 1.1186721324920654,
+        "leakage_max": 1.958810567855835,
+        "rho_null": 0.8419303271294356,
+        "vif_null_op": 11.560248327974712,
+        "vif_pos_op": 11.942751644737408,
+        "vif_pos_scenes_op": 272.0,
+        "op_block_tokens": 16.0,
+        "d_gist_full": 2.6072773933410645,
+        "spill_adjacent_op": 1.1943283081054688,
+        "spill_far_op": 0.4224686026573181
+      }
+    }
+  ],
+  "deviations": [],
+  "secondary_trunks": [
+    {
+      "checkpoint": "foundation_ff_112_seed42_final_2920df54.pth",
+      "valid": true,
+      "deviations": [],
+      "unmeasured": [],
+      "pass_all": false,
+      "verdict": {
+        "sdt_adequate": true,
+        "informative": true,
+        "looking_closer_pays": false,
+        "native_over_gist": 1.0889046070331068,
+        "combination_rule": "best",
+        "token_evidence": "correct z and d by 1/sqrt(VIF_null)",
+        "vif_used": 11.462268778112218,
+        "vif_measured": true,
+        "shared_difficulty": false,
+        "shared_difficulty_assessed": true,
+        "d_block_effective": 3.3599317604525467,
+        "unmeasured": [],
+        "pass_all": false
+      }
+    },
+    {
+      "checkpoint": "foundation_ff_112_seed99_final_abde98a0.pth",
+      "valid": true,
+      "deviations": [],
+      "unmeasured": [],
+      "pass_all": false,
+      "verdict": {
+        "sdt_adequate": true,
+        "informative": true,
+        "looking_closer_pays": false,
+        "native_over_gist": 1.1018116745967275,
+        "combination_rule": "best",
+        "token_evidence": "correct z and d by 1/sqrt(VIF_null)",
+        "vif_used": 11.60231961845747,
+        "vif_measured": true,
+        "shared_difficulty": false,
+        "shared_difficulty_assessed": true,
+        "d_block_effective": 3.322776649672395,
+        "unmeasured": [],
+        "pass_all": false
+      }
+    }
+  ],
+  "trunk_dependent": false
+}

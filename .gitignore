@@ -14,6 +14,7 @@ phase3_human_study/data/
 phase4_analysis/figures/
 phase5_sdt/figures/
 runs/
+!runs/gate1_*
 *.pyc
 .env
 .tex
