@@ -29,6 +29,7 @@ def test_self_test_runs_end_to_end_and_is_deterministic():
     a, b = m.run(tiny_args()), m.run(tiny_args())
     for r in (a, b):
         r.pop("seconds")
+        r["provenance"].pop("build_and_hash_seconds")      # wall-clock timing of the sidecar build; everything else must be identical
     assert json.dumps(a, default=lambda o: None) == json.dumps(b, default=lambda o: None)
     for key in ("summary", "verdict_draft", "cross_look", "gist_by_overlap", "native", "gist", "within_look", "spillover", "head_training_log", "config", "trunk",
                 "code_sha256", "data_listing"):
