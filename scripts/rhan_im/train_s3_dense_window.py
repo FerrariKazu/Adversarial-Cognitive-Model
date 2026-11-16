@@ -3,8 +3,16 @@
 Pre-registered remedy for Gate 1 failure on 'looking_closer_pays'.
 Unfreezes trunk.blocks[9:12] and trunk.norm (5,326,464 parameters);
 trains with dense window cross-entropy on both native and gist looks;
-early-stops on held-out native-over-gist ratio at size 4, alpha 1.0 from train/ (never val/);
+evaluates early-stopping on held-out native-over-gist ratio at size 4, alpha 1.0
+from train/ (strictly disjoint from val/);
 discards the training head and saves the tuned trunk for Gate 1 v2 evaluation.
+
+Total training steps: 5 epochs x 300 steps/epoch x batch 48 = 1,500 steps.
+Rule for no improvement: If no epoch beats the baseline held-out ratio, the untuned
+trunk is retained (best_epoch = -1) and saved for Gate 1 v2.
+Evidence boundary note: Held-out ratio computed on train/ images is an internal
+selection signal only and is NOT comparable to Gate 1 v1's 1.06 on val/, because
+all train/ images were seen during foundation self-supervised pre-training.
 """
 from __future__ import annotations
 
@@ -16,7 +24,7 @@ import os
 import pathlib
 import sys
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -28,7 +36,8 @@ sys.path.insert(0, str(ROOT))
 from gen2_foundation.backbone import CompactViTGen2  # noqa: E402
 from rhan_im import gate1 as g1  # noqa: E402
 from rhan_im.layout import UnitLayout  # noqa: E402
-from rhan_im.trunk_adapter import native_crop  # noqa: E402
+from rhan_im.trunk_adapter import ff_token_fn, native_crop  # noqa: E402
+from rhan_im.window_head import EvidenceHead  # noqa: E402
 
 IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
 IMAGENET_STD = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
@@ -49,7 +58,11 @@ def sha256_file(p: pathlib.Path) -> str:
 
 
 class S3FolderBank:
-    """Loads images from a pinned list of relative paths within data_root/train."""
+    """Loads images on demand from a pinned list of relative paths within data_root/train.
+
+    No unbounded caching: images are loaded with PIL, converted, and immediately discarded
+    after batch creation to strictly prevent RAM exhaustion.
+    """
 
     def __init__(self, data_root: pathlib.Path, file_list: List[str], tcls: List[str], bcls: List[str]):
         self.data_root = data_root
@@ -76,28 +89,24 @@ class S3FolderBank:
                 raise ValueError(f"Background class index {c_idx} ({bcls[c_idx]}) has 0 images in partition")
 
         self.n_classes = len(tcls)
-        self._cache: Dict[pathlib.Path, torch.Tensor] = {}
 
-    def get_image(self, p: pathlib.Path) -> torch.Tensor:
-        if p not in self._cache:
-            from PIL import Image
-            import torchvision.transforms.functional as TF
-            with Image.open(p) as img:
-                img = img.convert("RGB")
-                t = TF.to_tensor(img)
-            self._cache[p] = t
-        return self._cache[p]
+    def _load_image(self, p: pathlib.Path) -> torch.Tensor:
+        from PIL import Image
+        import torchvision.transforms.functional as TF
+        with Image.open(p) as img:
+            img = img.convert("RGB")
+            return TF.to_tensor(img)
 
     def sample_target(self, c: int, g: torch.Generator) -> torch.Tensor:
         fl = self.target_files[c]
         idx = int(torch.randint(0, len(fl), (1,), generator=g).item())
-        return self.get_image(fl[idx])
+        return self._load_image(fl[idx])
 
     def sample_bg(self, g: torch.Generator) -> torch.Tensor:
         bg_c = int(torch.randint(0, len(self.bg_files), (1,), generator=g).item())
         fl = self.bg_files[bg_c]
         idx = int(torch.randint(0, len(fl), (1,), generator=g).item())
-        return self.get_image(fl[idx])
+        return self._load_image(fl[idx])
 
 
 def partition_train_split(
@@ -106,8 +115,9 @@ def partition_train_split(
     bcls: List[str],
     heldout_per_class: int = 50,
     out_manifest: Optional[pathlib.Path] = None,
+    pools_path: Optional[pathlib.Path] = None,
 ) -> Tuple[List[str], List[str]]:
-    """Partitions data_root/train into disjoint (train_files, heldout_files)."""
+    """Partitions data_root/train into disjoint (train_files, heldout_files) and asserts disjointness from val."""
     train_dir = data_root / "train"
     all_classes = sorted(tcls + bcls)
     heldout_files: List[str] = []
@@ -127,6 +137,27 @@ def partition_train_split(
 
     heldout_files.sort()
     train_files.sort()
+
+    # Assert internal disjointness
+    disjoint = set(heldout_files).isdisjoint(set(train_files))
+    if not disjoint:
+        raise ValueError("heldout_files and train_files are not disjoint")
+
+    # Assert strict disjointness from validation pools if pools_path provided
+    if pools_path and pathlib.Path(pools_path).exists():
+        p_raw = json.loads(pathlib.Path(pools_path).read_text())
+        val_files = set()
+        for part_name in ("calibration_pool_part_0_of_2", "test_pool_part_1_of_2"):
+            if part_name in p_raw:
+                for c_name, fl in p_raw[part_name].items():
+                    for fn in fl:
+                        val_files.add(f"{c_name}/{fn}")
+        overlap_train = set(train_files) & val_files
+        overlap_held = set(heldout_files) & val_files
+        if overlap_train or overlap_held:
+            raise ValueError(
+                f"S3 partition leaks val images! {len(overlap_train)} train overlaps, {len(overlap_held)} held-out overlaps"
+            )
 
     if out_manifest:
         h_sha = hashlib.sha256("\n".join(heldout_files).encode("utf-8")).hexdigest()
@@ -164,16 +195,14 @@ def make_scene_batch(
     overlaps = []
 
     for _ in range(batch_size):
-        # sample bg
         bg_raw = bank.sample_bg(g)
-        # centre crop bg to canvas x canvas
         h, w = bg_raw.shape[1], bg_raw.shape[2]
         side = min(h, w)
         bg = TF.center_crop(bg_raw, [side, side])
         bg = F.interpolate(bg.unsqueeze(0), size=(lay.canvas, lay.canvas), mode="bilinear", align_corners=False).squeeze(0)
 
         is_null = torch.rand(1, generator=g).item() < p_null
-        overlap_map = torch.zeros((lay.canvas_units, lay.canvas_units), dtype=torch.float32)
+        overlap_map = torch.zeros((lay.g, lay.g), dtype=torch.float32)
 
         if is_null:
             canvases.append(bg)
@@ -190,9 +219,8 @@ def make_scene_batch(
             tgt_px = s * lay.patch
             tgt = F.interpolate(tgt.unsqueeze(0), size=(tgt_px, tgt_px), mode="bilinear", align_corners=False).squeeze(0)
 
-            # random unit placement
-            max_r = lay.canvas_units - s
-            max_c = lay.canvas_units - s
+            max_r = lay.g - s
+            max_c = lay.g - s
             r = int(torch.randint(0, max_r + 1, (1,), generator=g).item())
             col = int(torch.randint(0, max_c + 1, (1,), generator=g).item())
 
@@ -229,7 +257,6 @@ def sample_windows(
         lbl = scenes["label"][i].item()
         ov = scenes["overlap"][i]
         if lbl >= 0 and torch.rand(1, generator=g).item() < 0.7:
-            # find candidate windows covering target centre
             pos = torch.nonzero(ov)
             if len(pos) > 0:
                 ctr_r = pos[:, 0].float().mean().item()
@@ -237,7 +264,7 @@ def sample_windows(
                 good = []
                 for w_idx in range(candidate_windows.shape[0]):
                     wr, wc = candidate_windows[w_idx, 0].item(), candidate_windows[w_idx, 1].item()
-                    if wr <= ctr_r < wr + lay.window_units and wc <= ctr_c < wc + lay.window_units:
+                    if wr <= ctr_r < wr + lay.tok and wc <= ctr_c < wc + lay.tok:
                         good.append(w_idx)
                 if good:
                     pick = good[int(torch.randint(0, len(good), (1,), generator=g).item())]
@@ -248,11 +275,40 @@ def sample_windows(
     return out
 
 
+@torch.no_grad()
+def trunk_tokens(fn: Callable, canvas: torch.Tensor, tl_units: Optional[torch.Tensor], lay: UnitLayout, device: str, chunk: int = 64) -> torch.Tensor:
+    """Native look (tl_units given) or gist look (None): (n, T, D) patch tokens on CPU float32."""
+    outs = []
+    for i in range(0, canvas.shape[0], chunk):
+        c = canvas[i:i + chunk].to(device)
+        if tl_units is None:
+            x = F.interpolate(c, size=(lay.window, lay.window), mode="area")
+        else:
+            x = native_crop(c, (tl_units[i:i + chunk] * lay.patch).to(device), lay.window)
+        outs.append(fn(normalise(x))[1].float().cpu())
+    return torch.cat(outs)
+
+
+def set_trunk_train_mode(trunk: CompactViTGen2) -> None:
+    """Sets trunk to training mode while strictly isolating frozen blocks in eval mode.
+
+    Blocks 0..8 and patch_embed remain in eval mode (deterministic, no dropout/drop-path);
+    blocks 9..11 and norm are in train mode.
+    """
+    trunk.train()
+    trunk.patch_embed.eval()
+    for b in trunk.blocks[:9]:
+        b.eval()
+    if hasattr(trunk, "refinement"):
+        trunk.refinement.eval()
+
+
 def load_trunk_for_s3(
     ckpt_path: pathlib.Path,
     window: int = 112,
     device: str = "cuda",
 ) -> Tuple[CompactViTGen2, Dict[str, object]]:
+    """Loads CompactViTGen2 from checkpoint and unfreezes only blocks[9:12] and norm."""
     trunk = CompactViTGen2(img_size=window, num_refine_iters=2)
     raw = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     sd = raw.get("model", raw.get("model_state_dict", raw.get("state_dict", raw)))
@@ -267,8 +323,10 @@ def load_trunk_for_s3(
 
     # Unfreeze only blocks[9:12] and norm
     for b in trunk.blocks[9:12]:
-        b.train().requires_grad_(True)
-    trunk.norm.train().requires_grad_(True)
+        b.requires_grad_(True)
+    trunk.norm.requires_grad_(True)
+
+    set_trunk_train_mode(trunk)
 
     trainable_params = sum(p.numel() for p in trunk.parameters() if p.requires_grad)
     if trainable_params != EXPECTED_TRUNK_TRAINABLE_PARAMS:
@@ -288,109 +346,180 @@ def load_trunk_for_s3(
     return trunk, info
 
 
+def generate_fixed_eval_scenes(
+    bank_heldout: S3FolderBank,
+    lay: UnitLayout,
+    n_cal: int,
+    n_test: int,
+    seed: int,
+) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+    """Generates fixed calibration and test scenes from held-out train partition.
+
+    Canvases are stored in uint8 on CPU to bound memory (~380 MB for 2,500 scenes).
+    Fixed scenes are shared across baseline and all epochs for zero scene-sampling variance.
+    """
+    cand = lay.candidates(stride_units=2)
+    g_cal = torch.Generator().manual_seed(seed + 100)
+    g_tst = torch.Generator().manual_seed(seed + 200)
+
+    # Calibration scenes (size 4, alpha 1.0, 30% null)
+    sc_cal_raw = make_scene_batch(bank_heldout, lay, n_cal, sizes=[4], alphas=[1.0], p_null=0.3, g=g_cal)
+    tl_cal = sample_windows(sc_cal_raw, lay, cand, g_cal)
+    sc_cal = {
+        "canvas_uint8": (sc_cal_raw["canvas"] * 255.0).clamp(0, 255).to(torch.uint8),
+        "label": sc_cal_raw["label"],
+        "overlap": sc_cal_raw["overlap"],
+        "tl": tl_cal,
+        "cover_native": g1.window_token_overlap(sc_cal_raw["overlap"], tl_cal, lay) > 0,
+        "ov_gist": g1.gist_token_overlap(sc_cal_raw["overlap"], lay),
+        "cover_gist": g1.gist_token_overlap(sc_cal_raw["overlap"], lay) > 0,
+    }
+
+    # Test scenes (size 4, alpha 1.0, 30% null)
+    sc_tst_raw = make_scene_batch(bank_heldout, lay, n_test, sizes=[4], alphas=[1.0], p_null=0.3, g=g_tst)
+    tl_tst = sample_windows(sc_tst_raw, lay, cand, g_tst)
+    sc_tst = {
+        "canvas_uint8": (sc_tst_raw["canvas"] * 255.0).clamp(0, 255).to(torch.uint8),
+        "label": sc_tst_raw["label"],
+        "overlap": sc_tst_raw["overlap"],
+        "tl": tl_tst,
+        "cover_native": g1.window_token_overlap(sc_tst_raw["overlap"], tl_tst, lay) > 0,
+        "ov_gist": g1.gist_token_overlap(sc_tst_raw["overlap"], lay),
+        "cover_gist": g1.gist_token_overlap(sc_tst_raw["overlap"], lay) > 0,
+    }
+
+    return sc_cal, sc_tst
+
+
+@torch.no_grad()
+def extract_split_scores(
+    trunk: CompactViTGen2,
+    head: nn.Module,
+    sc: Dict[str, torch.Tensor],
+    lay: UnitLayout,
+    device: str,
+    chunk_size: int = 100,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Runs trunk and head on sc in chunks: returns (scores_native, scores_gist) on CPU float32."""
+    trunk.eval()
+    head.eval()
+    fn = ff_token_fn(trunk)
+    n = sc["canvas_uint8"].shape[0]
+
+    native_scores = []
+    gist_scores = []
+
+    for i in range(0, n, chunk_size):
+        c_chunk = (sc["canvas_uint8"][i:i + chunk_size].float() / 255.0).to(device)
+        tl_chunk = sc["tl"][i:i + chunk_size]
+
+        # Native crops
+        crop = native_crop(c_chunk, (tl_chunk * lay.patch).to(device), lay.window)
+        tn = fn(normalise(crop))[1]
+        sn = head(tn)
+        native_scores.append(sn.cpu().float())
+
+        # Gist view
+        gist = F.interpolate(c_chunk, size=(lay.window, lay.window), mode="area")
+        tg = fn(normalise(gist))[1]
+        sg = head(tg)
+        gist_scores.append(sg.cpu().float())
+
+    return torch.cat(native_scores, dim=0), torch.cat(gist_scores, dim=0)
+
+
 def evaluate_heldout_ratio(
     trunk: CompactViTGen2,
     head: nn.Module,
-    bank_heldout: S3FolderBank,
+    sc_cal: Dict[str, torch.Tensor],
+    sc_tst: Dict[str, torch.Tensor],
     lay: UnitLayout,
-    cand: torch.Tensor,
     device: str,
-    n_scenes: int = 600,
-    seed: int = 1000,
+    min_pos: int = 30,
 ) -> Dict[str, float]:
-    """Computes held-out d_native_centre, d_gist_full, and their ratio at size 4, alpha 1.0."""
+    """Computes held-out d_native_centre, d_gist, d_gist_full, and their ratio using Gate 1 estimators."""
     trunk.eval()
     head.eval()
-    g = torch.Generator().manual_seed(seed)
 
-    # Generate fixed evaluation scenes (size 4, alpha 1.0 only for ratio estimation)
-    sc = make_scene_batch(bank_heldout, lay, n_scenes, sizes=[4], alphas=[1.0], p_null=0.3, g=g)
-    tl = sample_windows(sc, lay, cand, g)
+    # 1. Extract scores for cal and tst splits
+    cal_native, cal_gist = extract_split_scores(trunk, head, sc_cal, lay, device)
+    tst_native, tst_gist = extract_split_scores(trunk, head, sc_tst, lay, device)
 
-    canvas = sc["canvas"]
-    labels = sc["label"]
-    overlaps = sc["overlap"]
+    C = cal_native.shape[-1]
 
-    # Extract native tokens and gist tokens
-    with torch.no_grad():
-        c_dev = canvas.to(device)
-        crops = native_crop(c_dev, (tl * lay.patch).to(device), lay.window)
-        gists = F.interpolate(c_dev, size=(lay.window, lay.window), mode="area")
+    # 2. Fit standardizer on calibration split
+    mu_n, sd_n = g1.fit_standardizer(cal_native, sc_cal["cover_native"])
+    mu_g, sd_g = g1.fit_standardizer(cal_gist, sc_cal["cover_gist"])
 
-        tn = trunk(normalise(crops))[1].float()
-        tg = trunk(normalise(gists))[1].float()
+    # 3. Measure tokens on test split (Gate 1 exact estimator functions)
+    lab = sc_tst["label"]
+    m_native = g1.measure_tokens(tst_native, sc_tst["cover_native"], lab, mu_n, sd_n, lay.tok, min_pos=min_pos)
+    d_native_centre = g1.region_means(m_native["d_shift"], m_native["n_pos"])["centre"]
 
-        # Score through head
-        # head: Linear(384, 51) -> score = logit_c - logit_bg
-        out_n = head(tn)  # (B, 64, 51)
-        out_g = head(tg)
+    m_gist = g1.measure_tokens(tst_gist, sc_tst["cover_gist"], lab, mu_g, sd_g, lay.tok, min_pos=min_pos)
+    d_gist = g1.region_means(m_gist["d_shift"], m_gist["n_pos"])["all"]
 
-        scores_n = out_n[:, :, :50] - out_n[:, :, 50:51]  # (B, 64, 50)
-        scores_g = out_g[:, :, :50] - out_g[:, :, 50:51]
+    # 4. Gist full on operating cell
+    zg = (tst_gist - mu_g) / sd_g
+    own = zg.gather(2, lab.clamp_min(0)[:, None, None].expand(-1, lay.n_coarse, 1)).squeeze(2)
+    has = (lab >= 0)[:, None]
+    full_m = (sc_tst["ov_gist"] >= 0.99) & has
+    nullg = g1.null_mask(sc_tst["cover_gist"], C)
+    null_mean = float(zg[nullg].mean()) if bool(nullg.any()) else 0.0
+    d_gist_full = float(own[full_m].mean() - null_mean) if int(full_m.sum()) >= min_pos else float("nan")
 
-    # Calculate overlaps
-    cn = g1.window_token_overlap(overlaps, tl, lay)  # (B, 64)
-    cg = g1.gist_token_overlap(overlaps, lay)  # (B, 64)
+    # 5. Native over gist ratio (Gate 1 exact comparator)
+    gists = [v for v in (d_gist, d_gist_full) if math.isfinite(v)]
+    dg = max(gists) if gists else float("nan")
+    ratio = d_native_centre / max(dg, 1e-6) if (gists and math.isfinite(d_native_centre)) else float("nan")
 
-    # Split into cal (first half) and test (second half)
-    half = n_scenes // 2
-    cal_scores_n, tst_scores_n = scores_n[:half], scores_n[half:]
-    cal_scores_g, tst_scores_g = scores_g[:half], scores_g[half:]
-    cal_labels, tst_labels = labels[:half], labels[half:]
-    cal_cn, tst_cn = cn[:half], cn[half:]
-    cal_cg, tst_cg = cg[:half], cg[half:]
-
-    # Compute null mean & sd on cal null scenes
-    null_mask_cal = cal_labels < 0
-    if null_mask_cal.sum() < 10:
-        return {"d_native_centre": 0.0, "d_gist_full": 0.0, "ratio": 0.0}
-
-    null_n = cal_scores_n[null_mask_cal]  # (N_null, 64, 50)
-    mu_n = null_n.mean(dim=0, keepdim=True)
-    sd_n = null_n.std(dim=0, keepdim=True).clamp(min=1e-4)
-
-    null_g = cal_scores_g[null_mask_cal]
-    mu_g = null_g.mean(dim=0, keepdim=True)
-    sd_g = null_g.std(dim=0, keepdim=True).clamp(min=1e-4)
-
-    # Standardise test scores
-    z_n = (tst_scores_n - mu_n) / sd_n  # (N_tst, 64, 50)
-    z_g = (tst_scores_g - mu_g) / sd_g
-
-    # Compute d_native_centre (tokens covering target centre)
-    tgt_mask_tst = tst_labels >= 0
-    d_native_centre = 0.0
-    if tgt_mask_tst.sum() > 0:
-        pos_z_n = []
-        for i in range(half):
-            if tst_labels[i] >= 0:
-                c = tst_labels[i].item()
-                # covered tokens >= 0.5
-                cov = tst_cn[i] >= 0.5
-                if cov.sum() > 0:
-                    pos_z_n.append(z_n[i, cov, c].mean().item())
-        if len(pos_z_n) > 0:
-            d_native_centre = float(sum(pos_z_n) / len(pos_z_n))
-
-    # Compute d_gist_full (fully covered gist tokens: cg == 1.0)
-    d_gist_full = 0.0
-    if tgt_mask_tst.sum() > 0:
-        pos_z_g = []
-        for i in range(half):
-            if tst_labels[i] >= 0:
-                c = tst_labels[i].item()
-                cov = tst_cg[i] >= 0.99
-                if cov.sum() > 0:
-                    pos_z_g.append(z_g[i, cov, c].mean().item())
-        if len(pos_z_g) > 0:
-            d_gist_full = float(sum(pos_z_g) / len(pos_z_g))
-
-    ratio = d_native_centre / max(d_gist_full, 1e-4)
     return {
-        "d_native_centre": d_native_centre,
-        "d_gist_full": d_gist_full,
-        "ratio": ratio,
+        "d_native_centre": float(d_native_centre),
+        "d_gist": float(d_gist),
+        "d_gist_full": float(d_gist_full),
+        "ratio": float(ratio),
     }
+
+
+def refit_eval_head(
+    trunk: CompactViTGen2,
+    bank_train: S3FolderBank,
+    lay: UnitLayout,
+    device: str,
+    steps: int = 600,
+    batch_size: int = 48,
+    lr: float = 2e-3,
+    head_seed: int = 17,
+) -> EvidenceHead:
+    """Fits an EvidenceHead on frozen features from current trunk, matching Gate 1 v1 procedure."""
+    trunk.eval()
+    cand = lay.candidates(stride_units=2)
+    fn = ff_token_fn(trunk)
+    gtr = torch.Generator().manual_seed(head_seed + 10)
+    sizes = [2, 4, 6]
+    alphas = [1.0, 0.6]
+
+    def train_batch(step: int):
+        sc = make_scene_batch(bank_train, lay, batch_size, sizes, alphas, p_null=0.3, g=gtr)
+        tl = sample_windows(sc, lay, cand, gtr)
+        tn = trunk_tokens(fn, sc["canvas"], tl, lay, device)
+        tg = trunk_tokens(fn, sc["canvas"], None, lay, device)
+        cn = g1.window_token_overlap(sc["overlap"], tl, lay)
+        cg = g1.gist_token_overlap(sc["overlap"], lay)
+        cover = torch.cat([cn >= 0.5, cg >= 0.5])
+        weight = torch.cat([torch.ones_like(cn), ((cg == 0) | (cg >= 0.5)).float()])
+        return torch.cat([tn, tg]), cover, torch.cat([sc["label"], sc["label"]]), weight
+
+    head, _ = g1.train_evidence_head(
+        train_batch,
+        d_model=384,
+        n_classes=bank_train.n_classes,
+        steps=steps,
+        lr=lr,
+        seed=head_seed,
+    )
+    head.eval()
+    return head
 
 
 def train_s3(
@@ -406,6 +535,9 @@ def train_s3(
     batch_size: int = 48,
     lr_trunk: float = 1e-5,
     lr_head: float = 1e-3,
+    eval_head_steps: int = 600,
+    n_eval_cal: int = 1000,
+    n_eval_test: int = 1500,
     heldout_per_class: int = 50,
     seed: int = 17,
 ) -> Dict[str, object]:
@@ -415,43 +547,50 @@ def train_s3(
 
     # 1. Read class split
     sp = g1.read_class_split(class_split_path)
-    tcls, bcls = sp["target_classes"], sp["background_classes"]
+    tcls, bcls = sp["targets"], sp["backgrounds"]
     C = len(tcls)
 
-    # Verify pools file exists and matches val listing
+    # Verify pools file exists and matches class split
     pl = g1.read_pools(pools_path, sp["class_split_sha256"])
 
-    # 2. Partition data_root/train into s3_train and s3_heldout
+    # 2. Partition data_root/train into s3_train and s3_heldout (asserting disjointness from val)
     train_files, heldout_files = partition_train_split(
-        data_root, tcls, bcls, heldout_per_class=heldout_per_class, out_manifest=out_manifest_path
+        data_root, tcls, bcls, heldout_per_class=heldout_per_class, out_manifest=out_manifest_path, pools_path=pools_path
     )
 
-    # 3. Create FolderBanks
+    # 3. Create FolderBanks (on-demand loading, no unbounded cache)
     bank_train = S3FolderBank(data_root, train_files, tcls, bcls)
     bank_heldout = S3FolderBank(data_root, heldout_files, tcls, bcls)
 
-    lay = UnitLayout(canvas=224, window=112, patch=14, stride_units=2)
-    cand = lay.candidate_window_toplefts()
+    lay = UnitLayout(canvas=224, window=112, patch=14, target_units=4)
+    cand = lay.candidates(stride_units=2)
     sizes = [2, 4, 6]
     alphas = [1.0, 0.6]
 
     # 4. Load trunk and set up trainable parameters
     trunk, trunk_info = load_trunk_for_s3(ckpt_path, window=lay.window, device=device)
 
-    # Temporary training head: Linear(384, 51)
-    head = nn.Linear(384, C + 1).to(device)
-    nn.init.normal_(head.weight, std=0.01)
-    nn.init.zeros_(head.bias)
+    # 5. Pre-generate fixed held-out evaluation scenes (uint8 on CPU, zero scene-sampling variance)
+    print(f"Pre-generating fixed held-out scenes ({n_eval_cal} cal, {n_eval_test} test) for early stopping...")
+    sc_cal, sc_tst = generate_fixed_eval_scenes(bank_heldout, lay, n_eval_cal, n_eval_test, seed=seed)
+
+    # Co-training head: Linear(384, C + 1)
+    head_train = nn.Linear(384, C + 1).to(device)
+    nn.init.normal_(head_train.weight, std=0.01)
+    nn.init.zeros_(head_train.bias)
 
     total_trainable = sum(p.numel() for p in trunk.parameters() if p.requires_grad) + sum(
-        p.numel() for p in head.parameters() if p.requires_grad
+        p.numel() for p in head_train.parameters() if p.requires_grad
     )
-    print(f"S3 setup: trunk blocks[9:12] + norm ({trunk_info['trainable_trunk_params']} params) + head ({sum(p.numel() for p in head.parameters())} params)")
+    print(
+        f"S3 setup: trunk blocks[9:12] + norm ({trunk_info['trainable_trunk_params']} params) + "
+        f"co-training head ({sum(p.numel() for p in head_train.parameters())} params)"
+    )
     print(f"Total trainable parameters: {total_trainable}")
 
     # Optimizer
     trunk_params = [p for p in trunk.parameters() if p.requires_grad]
-    head_params = list(head.parameters())
+    head_params = list(head_train.parameters())
     optimizer = torch.optim.AdamW(
         [
             {"params": trunk_params, "lr": lr_trunk, "weight_decay": 0.05},
@@ -461,12 +600,15 @@ def train_s3(
     total_steps = epochs * steps_per_epoch
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, total_steps))
 
-    # Evaluate baseline ratio on heldout before training
-    print("Evaluating initial heldout ratio before training...")
-    init_metrics = evaluate_heldout_ratio(trunk, head, bank_heldout, lay, cand, device, seed=seed)
+    # Evaluate baseline ratio on untuned trunk with a freshly fitted head (matching Gate 1 procedure)
+    print(f"Refitting baseline evaluation head ({eval_head_steps} steps) on untuned trunk...")
+    baseline_head = refit_eval_head(trunk, bank_train, lay, device, steps=eval_head_steps, head_seed=seed)
+    print("Evaluating initial held-out ratio on untuned trunk...")
+    init_metrics = evaluate_heldout_ratio(trunk, baseline_head, sc_cal, sc_tst, lay, device)
     print(
-        f"Initial heldout: d_native={init_metrics['d_native_centre']:.3f}, "
-        f"d_gist={init_metrics['d_gist_full']:.3f}, ratio={init_metrics['ratio']:.3f}"
+        f"Initial held-out: d_native={init_metrics['d_native_centre']:.3f}, "
+        f"d_gist={init_metrics['d_gist']:.3f}, d_gist_full={init_metrics['d_gist_full']:.3f}, "
+        f"ratio={init_metrics['ratio']:.3f}"
     )
 
     best_ratio = init_metrics["ratio"]
@@ -476,13 +618,12 @@ def train_s3(
     log: List[Dict[str, object]] = []
 
     for epoch in range(epochs):
-        trunk.train()
-        head.train()
+        set_trunk_train_mode(trunk)
+        head_train.train()
         epoch_losses = []
 
         t0 = time.time()
         for step in range(steps_per_epoch):
-            # Sample scenes
             sc = make_scene_batch(bank_train, lay, batch_size, sizes, alphas, p_null=0.3, g=g_train)
             tl = sample_windows(sc, lay, cand, g_train)
 
@@ -490,15 +631,13 @@ def train_s3(
             crops = native_crop(c_dev, (tl * lay.patch).to(device), lay.window)
             gists = F.interpolate(c_dev, size=(lay.window, lay.window), mode="area")
 
-            # Forward passes
             tn = trunk(normalise(crops))[1]  # (B, 64, 384)
             tg = trunk(normalise(gists))[1]  # (B, 64, 384)
 
             cn = g1.window_token_overlap(sc["overlap"], tl, lay).to(device)
             cg = g1.gist_token_overlap(sc["overlap"], lay).to(device)
 
-            # Targets & weights
-            # Native targets:
+            # Native targets and weights
             yn = torch.where(
                 (cn >= 0.5) & (sc["label"].to(device) >= 0)[:, None],
                 sc["label"].to(device)[:, None].expand_as(cn),
@@ -506,17 +645,16 @@ def train_s3(
             )
             wn = torch.where(yn == C, torch.full_like(cn, 0.25), torch.ones_like(cn))
 
-            # Gist targets:
+            # Gist targets and weights
             yg = torch.where(
                 (cg >= 0.5) & (sc["label"].to(device) >= 0)[:, None],
                 sc["label"].to(device)[:, None].expand_as(cg),
                 torch.full_like(cg, C, dtype=torch.long),
             )
-            # Skip ambiguous partial overlap tokens (0 < overlap < 0.5)
             wg = ((cg == 0) | (cg >= 0.5)).float() * torch.where(yg == C, torch.full_like(cg, 0.25), torch.ones_like(cg))
 
-            logits_n = head(tn)  # (B, 64, C+1)
-            logits_g = head(tg)
+            logits_n = head_train(tn)  # (B, 64, C+1)
+            logits_g = head_train(tg)
 
             loss_n = (F.cross_entropy(logits_n.flatten(0, 1), yn.flatten(), reduction="none") * wn.flatten()).sum() / wn.sum().clamp(min=1e-6)
             loss_g = (F.cross_entropy(logits_g.flatten(0, 1), yg.flatten(), reduction="none") * wg.flatten()).sum() / wg.sum().clamp(min=1e-6)
@@ -535,13 +673,15 @@ def train_s3(
         elapsed = time.time() - t0
         mean_loss = sum(epoch_losses) / len(epoch_losses)
 
-        # Heldout validation
-        metrics = evaluate_heldout_ratio(trunk, head, bank_heldout, lay, cand, device, seed=seed + epoch + 1)
+        # Held-out validation: refit fresh head on current trunk checkpoint, matching Gate 1
+        trunk.eval()
+        eval_head = refit_eval_head(trunk, bank_train, lay, device, steps=eval_head_steps, head_seed=seed)
+        metrics = evaluate_heldout_ratio(trunk, eval_head, sc_cal, sc_tst, lay, device)
         ratio = metrics["ratio"]
         print(
             f"Epoch {epoch + 1}/{epochs} ({elapsed:.1f}s): loss={mean_loss:.4f}, "
-            f"heldout d_native={metrics['d_native_centre']:.3f}, d_gist={metrics['d_gist_full']:.3f}, "
-            f"ratio={ratio:.3f}"
+            f"held-out d_native={metrics['d_native_centre']:.3f}, d_gist={metrics['d_gist']:.3f}, "
+            f"d_gist_full={metrics['d_gist_full']:.3f}, ratio={ratio:.3f}"
         )
 
         entry = {
@@ -556,13 +696,10 @@ def train_s3(
             best_ratio = ratio
             best_epoch = epoch + 1
             best_trunk_state = {k: v.cpu().clone() for k, v in trunk.state_dict().items()}
-            print(f" -> New best held-out ratio: {best_ratio:.3f} (saving trunk checkpoint)")
+            print(f" -> New best held-out ratio: {best_ratio:.3f} (checkpoint staged)")
 
     # Save the tuned trunk checkpoint (discarding head)
-    # The output checkpoint follows the standard format so load_trunk can read it cleanly.
     out_ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-    # Read original checkpoint metadata to preserve phase/arm/seeds
-    raw_orig = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     out_payload = {
         "phase": "ff_112_s3",
         "arm": "s3_tuned",
@@ -570,13 +707,14 @@ def train_s3(
         "base_checkpoint": ckpt_path.name,
         "base_checkpoint_sha256": trunk_info["sha256"],
         "best_heldout_ratio": best_ratio,
+        "initial_ratio": init_metrics["ratio"],
         "s3_log": log,
         "model": {f"backbone.{k}": v for k, v in best_trunk_state.items()},
     }
     torch.save(out_payload, out_ckpt_path)
     out_sha = sha256_file(out_ckpt_path)
-    print(f"Saved tuned trunk to {out_ckpt_path} (sha256: {out_sha})")
-    print(f"S3 completed: best_epoch={best_epoch}, best_ratio={best_ratio:.3f}")
+    print(f"Saved trunk to {out_ckpt_path} (sha256: {out_sha})")
+    print(f"S3 completed: best_epoch={best_epoch}, best_ratio={best_ratio:.3f} (baseline was {init_metrics['ratio']:.3f})")
 
     return {
         "output_checkpoint": str(out_ckpt_path),
@@ -585,12 +723,13 @@ def train_s3(
         "best_ratio": best_ratio,
         "initial_ratio": init_metrics["ratio"],
         "trainable_trunk_params": EXPECTED_TRUNK_TRAINABLE_PARAMS,
+        "total_steps": epochs * steps_per_epoch,
         "log": log,
     }
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Stage S3 dense window tuning")
+    ap = argparse.ArgumentParser(description="Stage S3 dense window tuning (1,500 total steps)")
     ap.add_argument("--ckpt", default="checkpoints/foundation_ff_112_seed17_final_d00fb750.pth")
     ap.add_argument("--data-root", default="data/imagenet100")
     ap.add_argument("--class-split", default="prereg/class_split.json")
@@ -598,11 +737,14 @@ def main():
     ap.add_argument("--out-ckpt", default="checkpoints/foundation_ff_112_s3_tuned.pth")
     ap.add_argument("--out-split", default="prereg/s3_split.json")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
-    ap.add_argument("--epochs", type=int, default=5)
-    ap.add_argument("--steps-per-epoch", type=int, default=300)
-    ap.add_argument("--batch", type=int, default=48)
+    ap.add_argument("--epochs", type=int, default=5, help="Number of epochs (default 5; 5 x 300 = 1500 steps)")
+    ap.add_argument("--steps-per-epoch", type=int, default=300, help="Steps per epoch (default 300)")
+    ap.add_argument("--batch", type=int, default=48, help="Batch size (default 48)")
     ap.add_argument("--lr-trunk", type=float, default=1e-5)
     ap.add_argument("--lr-head", type=float, default=1e-3)
+    ap.add_argument("--eval-head-steps", type=int, default=600, help="Steps to refit eval head at each epoch (default 600)")
+    ap.add_argument("--n-eval-cal", type=int, default=1000, help="Fixed held-out cal scenes (default 1000)")
+    ap.add_argument("--n-eval-test", type=int, default=1500, help="Fixed held-out test scenes (default 1500)")
     ap.add_argument("--heldout-per-class", type=int, default=50)
     ap.add_argument("--seed", type=int, default=17)
     args = ap.parse_args()
@@ -620,6 +762,9 @@ def main():
         batch_size=args.batch,
         lr_trunk=args.lr_trunk,
         lr_head=args.lr_head,
+        eval_head_steps=args.eval_head_steps,
+        n_eval_cal=args.n_eval_cal,
+        n_eval_test=args.n_eval_test,
         heldout_per_class=args.heldout_per_class,
         seed=args.seed,
     )
@@ -628,4 +773,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
