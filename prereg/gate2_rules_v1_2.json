@@ -1,0 +1,169 @@
+{
+  "protocol_id": "rhan-im-gate2/1.2",
+  "protocol_version": "rhan_im_gate2_rules_v1_2",
+  "status": "FROZEN_RULES",
+  "created_at_utc": "2026-11-17T13:35:22Z",
+  "supersedes": {
+    "file": "prereg/gate2_rules_v1_1.json",
+    "sha256": "d224aa837e5e3caa57840332e8801191834f54fb35dbc18ab7ba5f4df8dc65e1"
+  },
+  "erratum_02": {
+    "file": "docs/research/RHAN_IM_GATE2_ERRATUM_02.md",
+    "sha256": "a576bcbda3ad3bd4db7440a0b42a295c7261337b2fd41bd0be3412ea0a4c5dfd"
+  },
+  "changes_from_v1_1": [
+    "d' is measured on a deterministic image-disjoint train holdout instead of an unspecified or Gate-1-derived split. The head trains on the complement of the holdout.",
+    "The operating cell is fixed at target size 4 units, opacity 1.0. The fit pool remains null-only for standardisers, VIFs, and kappa.",
+    "E2/E5 scenes use a balanced size assignment (2, 4, 6) and a size-conditioned posterior. This is not a size-inference claim.",
+    "E2 primary ECE is fixed at K=8 on the full test pool; per-size and per-K values are diagnostics.",
+    "E5 primary risk is selective committed error P(decided AND wrong); forced-answer error is secondary. k_min is fixed at 1 before calibration.",
+    "The lambda grid is fixed. The plug-in conservative control is reported as a diagnostic, not used as a pass/fail criterion.",
+    "The v1.1 markdown draft is unchanged and remains pinned by the v1.1 file."
+  ],
+  "scope": "INTERNAL_QUALIFICATION_ONLY",
+  "trunk": {
+    "checkpoint": "foundation_ff_112_seed17_final_d00fb750.pth",
+    "sha256": "d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc"
+  },
+  "data_bindings": {
+    "class_split": {
+      "file": "prereg/class_split.json",
+      "file_sha256": "c2e05641bf10d4aaaa41d6dfa9dbc3571a5d3b95dc80f36dc6a4d7d86d481c25",
+      "class_split_sha256": "289f2818f0eae4dd7b654627d4bdf197cc11d43923300c52df7b4c0bdecc1241"
+    },
+    "val_split": {
+      "file": "prereg/gate2_val_split.json",
+      "sha256": "b8c4543f7b7272cae43ebfd1a9ad2095908b65b36c0ae2577c9e8e3b8f92bed0",
+      "fit_pool_part_0_of_3": 1700,
+      "calibration_pool_part_1_of_3": 1700,
+      "test_pool_part_2_of_3": 1600
+    },
+    "train_holdout": {
+      "file": "prereg/gate2_train_holdout.json",
+      "sha256": "9a66bc48d6bc1fe26390ec9bf3e7a69970e9c63ef1d8e3e2a00bbad73ae4874e",
+      "holdout_assignment_sha256": "f84663e9e0c48d9132e96d4043ce496fa53a0562134b6ec96c578fad9f6af459",
+      "target_holdout_images": 800,
+      "background_holdout_images": 1600,
+      "head_training_images": 124289,
+      "rule": "per class: sorted train file names; first 16 target-class images and first 32 background-class images are held out; the head trains on the complement"
+    }
+  },
+  "sensor_contract": {
+    "head_training": "the complement of prereg/gate2_train_holdout.json in data/imagenet100/train/; 600 steps, batch 48, AdamW, lr 2e-3, cosine decay, seed matching evaluation seed; no persistent head checkpoint required",
+    "d_prime_fit": "800 target scenes (size 4, opacity 1.0) and 800 null scenes built only from prereg/gate2_train_holdout.json; no image reused within this fit",
+    "fit_pool_role": "850 non-reused null scenes from fit_pool_part_0_of_3 for mu0, sigma0, vif_tok, vif_gist, and kappa",
+    "operating_cell": {
+      "target_size_units": 4,
+      "target_size_px": 56,
+      "opacity": 1.0
+    },
+    "d_prime": "d_tok is the measured 8x8 token map at the operating cell; d_gist is the positive-count-weighted mean of the measured gist map at the operating cell; both must be finite",
+    "vif": "vif_tok and vif_gist measured on fit-pool null scenes with operating-cell d' weights; each correction is applied only if finite and > 1.25, otherwise the factor is 1.0",
+    "kappa": "99.9th percentile of absolute VIF-corrected null scores (native and gist pooled); must be finite",
+    "combination_mode": "measured from rho_null on two independent native windows per d'-fit scene: sum if rho_null <= 0.2, otherwise best",
+    "unit_cap": null,
+    "no_fallback": "a missing or non-finite required sensor quantity refuses the run; Gate 1 values are never substituted"
+  },
+  "scene_plans": {
+    "unit": "one target/background image pair for a target scene, or one background image for a null scene; no within-pool image reuse",
+    "fit_pool": {
+      "null_scenes": 850,
+      "target_images": 0,
+      "background_images": 850
+    },
+    "calibration_pool": {
+      "scenes": 850,
+      "target_scenes": 425,
+      "null_scenes": 425,
+      "target_images": 425,
+      "background_images": 850,
+      "target_sizes_units": [2, 4, 6],
+      "target_size_assignment": "balanced round-robin",
+      "null_eval_sizes_units": [2, 4, 6],
+      "null_eval_size_assignment": "balanced round-robin",
+      "opacity": 1.0
+    },
+    "test_pool": {
+      "scenes": 800,
+      "target_scenes": 400,
+      "null_scenes": 400,
+      "target_images": 400,
+      "background_images": 800,
+      "target_sizes_units": [2, 4, 6],
+      "target_size_assignment": "balanced round-robin",
+      "null_eval_sizes_units": [2, 4, 6],
+      "null_eval_size_assignment": "balanced round-robin",
+      "opacity": 1.0
+    },
+    "size_conditioned_posterior": "each scene is evaluated with the footprint of its assigned evaluation size, including null scenes; no claim is made about inferring target size from pixels",
+    "disjoint_unit_contract": "zero cross-pool image reuse across fit, calibration, test, and train-holdout; no train image is used for both head training and d'"
+  },
+  "look_policy": {
+    "schedule": "fixed K=8 sequential looks",
+    "look_1": "resampled 112x112 gist view of the entire 224x224 canvas",
+    "looks_2_to_8": "seeded independent draws (with replacement) from the 25 native 112x112 window candidate locations; deterministic function of scene seed and look step",
+    "adaptive_spatial_claims": false
+  },
+  "rules": {
+    "E2_posterior_calibration": {
+      "primary": "ECE_15_equal_frequency_bins at K=8 on the full 800-scene test pool",
+      "per_size": "ECE at K=8 for the size-2, size-4, and size-6 subsets",
+      "secondary": ["NLL_at_K8", "Brier_at_K8", "ECE_at_each_K_1_to_8"],
+      "pass": "primary ECE <= 0.03",
+      "inconclusive": "0.03 < primary ECE <= 0.05",
+      "fail_or_diagnose": "primary ECE > 0.05"
+    },
+    "E5_risk_controlled_stopping": {
+      "framework": "Learn-Then-Test (fixed-sequence exact binomial tail)",
+      "primary_risk": "selective committed error P(decided AND wrong)",
+      "secondary_risk": "forced-answer error",
+      "target_error_alpha": 0.1,
+      "target_violation_delta": 0.1,
+      "calibration_pool_scenes": 850,
+      "calibration_subset_size": 300,
+      "bootstrap_resamples": 500,
+      "minimum_look_floor_k_min": 1,
+      "lambda_grid": [0.0, 0.001, 0.002, 0.005, 0.01, 0.02, 0.03, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5],
+      "risk_evaluation": "full independent 800-scene test pool (test_pool_part_2_of_3)",
+      "validity_criterion": "empirical violation rate <= delta = 0.10 across resamples",
+      "efficiency_criterion": "mean looks saved vs K=8 horizon >= 25% at matched or lower committed error",
+      "conservative_control_criterion": "reported as a diagnostic; fixed-threshold plug-in violation rate; not part of pass/fail",
+      "kill_condition": "aggregate empirical violation rate > delta = 0.10"
+    },
+    "aggregation": {
+      "evaluation_seeds": [17, 42, 99],
+      "E2": "PASS if at least 2 seeds PASS; INCONCLUSIVE if not PASS but at least 2 seeds are PASS or INCONCLUSIVE; otherwise FAIL",
+      "E5": "validity and efficiency each aggregated 2-of-3; E5 PASS requires both",
+      "decision_rule": "2-of-3 seeds must pass each criterion"
+    }
+  },
+  "code_locking": {
+    "status": "DEFERRED_TO_CODE_LOCK_STEP",
+    "target_files": [
+      "rhan_im/stopping.py",
+      "rhan_im/belief.py",
+      "rhan_im/window_head.py",
+      "rhan_im/gate1.py",
+      "rhan_im/gate2.py",
+      "rhan_im/layout.py",
+      "rhan_im/trunk_adapter.py",
+      "rhan_im/sdt.py",
+      "scripts/rhan_im/gate2_measure.py",
+      "scripts/rhan_im/gate2_aggregate.py",
+      "scripts/rhan_im/gate2_split.py",
+      "gen2_foundation/backbone.py",
+      "noesis_vision/models/recurrent_block.py",
+      "noesis_vision/models/foveation.py"
+    ],
+    "requirement": "all measurement code and execution scripts must be pinned by SHA-256 before any data execution",
+    "gate2_md_draft": {
+      "file": "docs/research/RHAN_IM_GATE2_PREREG_DRAFT.md",
+      "sha256": "26f74e7926fb387fb69da85a3ad6a3bf61594de5565661f30e3afe3efbb10713",
+      "unchanged_from_v1_1": true
+    },
+    "erratum_02": {
+      "file": "docs/research/RHAN_IM_GATE2_ERRATUM_02.md",
+      "sha256": "a576bcbda3ad3bd4db7440a0b42a295c7261337b2fd41bd0be3412ea0a4c5dfd"
+    }
+  }
+}
