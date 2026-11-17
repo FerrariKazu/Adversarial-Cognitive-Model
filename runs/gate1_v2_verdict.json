@@ -1,0 +1,139 @@
+{
+  "gate1": "FAIL",
+  "gate1_if_deviations_and_unmeasured_quantities_were_ignored": "FAIL",
+  "runs": 3,
+  "pass_counts": {
+    "sdt_adequate": 0,
+    "informative": 3,
+    "looking_closer_pays": 0,
+    "pass_all": 0
+  },
+  "failed_criteria": [
+    "sdt_adequate",
+    "looking_closer_pays"
+  ],
+  "unmeasured": {},
+  "combination_rule": "best",
+  "token_evidence": "correct z and d by 1/sqrt(VIF_null)",
+  "vif_null_median": 11.834893331230584,
+  "vif_to_apply": 11.834893331230584,
+  "shared_difficulty": false,
+  "shared_difficulty_runs": 0,
+  "shared_difficulty_assessed_runs": 3,
+  "difficulty_cv_estimate": NaN,
+  "next_step": [
+    "04 section 11 P1: unequal-variance (heteroscedastic) likelihood, or S3; if still outside the band, drop the exact-Bayes claim and keep the risk-control layer",
+    "S3 once as above; if native is no better than gist even then, looking closer does not pay on this trunk: switch conditions of 03 section 9 (temporal looks, fallback)"
+  ],
+  "per_run": [
+    {
+      "seed": 17,
+      "verdict": {
+        "sdt_adequate": false,
+        "informative": true,
+        "looking_closer_pays": false,
+        "native_over_gist": 1.2498496537536732,
+        "combination_rule": "best",
+        "token_evidence": "correct z and d by 1/sqrt(VIF_null)",
+        "vif_used": 11.834893331230584,
+        "vif_measured": true,
+        "shared_difficulty": false,
+        "shared_difficulty_assessed": true,
+        "d_block_effective": 4.658615239508265,
+        "unmeasured": [],
+        "pass_all": false
+      },
+      "summary": {
+        "operating_point": "size4_alpha1.0",
+        "d_native_centre": 4.006628036499023,
+        "d_native_edge_ring": 3.568129777908325,
+        "d_gist": 2.841667413711548,
+        "zroc_slope_median": 0.7611510157585144,
+        "null_sd_median": 0.9766509532928467,
+        "pos_sd_median": 1.257216453552246,
+        "leakage_max": 2.4797182083129883,
+        "rho_null": 0.8156793434748769,
+        "vif_null_op": 11.834893331230584,
+        "vif_pos_op": 13.255417053102878,
+        "vif_pos_scenes_op": 253.0,
+        "op_block_tokens": 16.0,
+        "d_gist_full": 3.205687999725342,
+        "spill_adjacent_op": 1.3414828777313232,
+        "spill_far_op": 0.17984339594841003
+      }
+    },
+    {
+      "seed": 42,
+      "verdict": {
+        "sdt_adequate": false,
+        "informative": true,
+        "looking_closer_pays": false,
+        "native_over_gist": 1.2534726631554247,
+        "combination_rule": "best",
+        "token_evidence": "correct z and d by 1/sqrt(VIF_null)",
+        "vif_used": 11.84140062726215,
+        "vif_measured": true,
+        "shared_difficulty": false,
+        "shared_difficulty_assessed": true,
+        "d_block_effective": 4.49180897481885,
+        "unmeasured": [],
+        "pass_all": false
+      },
+      "summary": {
+        "operating_point": "size4_alpha1.0",
+        "d_native_centre": 3.8642287254333496,
+        "d_native_edge_ring": 3.4784765243530273,
+        "d_gist": 2.8152554035186768,
+        "zroc_slope_median": 0.7828264832496643,
+        "null_sd_median": 0.9447888135910034,
+        "pos_sd_median": 1.250523328781128,
+        "leakage_max": 2.486924648284912,
+        "rho_null": 0.8321550633053499,
+        "vif_null_op": 11.84140062726215,
+        "vif_pos_op": 13.825583669226587,
+        "vif_pos_scenes_op": 267.0,
+        "op_block_tokens": 16.0,
+        "d_gist_full": 3.0828185081481934,
+        "spill_adjacent_op": 1.3544119596481323,
+        "spill_far_op": 0.2208392322063446
+      }
+    },
+    {
+      "seed": 99,
+      "verdict": {
+        "sdt_adequate": false,
+        "informative": true,
+        "looking_closer_pays": false,
+        "native_over_gist": 1.295917583889929,
+        "combination_rule": "best",
+        "token_evidence": "correct z and d by 1/sqrt(VIF_null)",
+        "vif_used": 11.689562498086628,
+        "vif_measured": true,
+        "shared_difficulty": false,
+        "shared_difficulty_assessed": true,
+        "d_block_effective": 4.764503024195782,
+        "unmeasured": [],
+        "pass_all": false
+      },
+      "summary": {
+        "operating_point": "size4_alpha1.0",
+        "d_native_centre": 4.0724592208862305,
+        "d_native_edge_ring": 3.564103364944458,
+        "d_gist": 2.800546884536743,
+        "zroc_slope_median": 0.704781174659729,
+        "null_sd_median": 0.9622848629951477,
+        "pos_sd_median": 1.3065030574798584,
+        "leakage_max": 2.507716655731201,
+        "rho_null": 0.8215818350525124,
+        "vif_null_op": 11.689562498086628,
+        "vif_pos_op": 13.74416354391027,
+        "vif_pos_scenes_op": 272.0,
+        "op_block_tokens": 16.0,
+        "d_gist_full": 3.1425294876098633,
+        "spill_adjacent_op": 1.4247938394546509,
+        "spill_far_op": 0.19819410145282745
+      }
+    }
+  ],
+  "deviations": []
+}

@@ -1,0 +1,43 @@
+# S3 attempt 1 crash record
+#
+# Date: 2026-11-17
+# Status: crashed before epoch 1. No training step ran and no result or checkpoint was produced.
+# Failure: RuntimeError: Expected all tensors to be on the same device, but got mat2 is on cpu,
+#          different from other tensors on cuda:0.
+# Fix: one line in scripts/rhan_im/train_s3_dense_window.py::extract_split_scores:
+#          head = head.to(device)
+#      Commit: ed1ceba (fix(rhan_im): move S3 eval head to runtime device).
+# Test gap: the existing S3/eval tests are CPU-only. They pass a CPU head and CPU tokens, so they
+#           could not exercise the CPU-head/CUDA-token mismatch that killed the real run. A post-fix
+#           GPU smoke check exercised extract_split_scores with a CPU head and CUDA tokens.
+#
+# Raw log follows.
+Pre-generating fixed held-out scenes (1000 cal, 1500 test) for early stopping...
+Refitting baseline evaluation head (600 steps) on untuned trunk...
+Evaluating initial held-out ratio on untuned trunk...
+Traceback (most recent call last):
+  File "/home/ferrarikazu/Adversarial Cognitive Model/scripts/rhan_im/train_s3_dense_window.py", line 861, in <module>
+    main()
+  File "/home/ferrarikazu/Adversarial Cognitive Model/scripts/rhan_im/train_s3_dense_window.py", line 834, in main
+    res = train_s3(
+  File "/home/ferrarikazu/Adversarial Cognitive Model/scripts/rhan_im/train_s3_dense_window.py", line 654, in train_s3
+    init_metrics = evaluate_heldout_ratio(trunk, baseline_head, sc_cal, sc_tst, lay, device, min_pos=min_pos)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/scripts/rhan_im/train_s3_dense_window.py", line 495, in evaluate_heldout_ratio
+    cal_native, cal_gist = extract_split_scores(trunk, head, sc_cal, lay, device)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/.venv/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/scripts/rhan_im/train_s3_dense_window.py", line 469, in extract_split_scores
+    sn = head(tn)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/rhan_im/window_head.py", line 26, in forward
+    return self.proj(tokens)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/ferrarikazu/Adversarial Cognitive Model/.venv/lib/python3.10/site-packages/torch/nn/modules/linear.py", line 134, in forward
+    return F.linear(input, self.weight, self.bias)
+RuntimeError: Expected all tensors to be on the same device, but got mat2 is on cpu, different from other tensors on cuda:0 (when checking argument in method wrapper_CUDA_mm)

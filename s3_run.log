@@ -1,0 +1,28 @@
+Pre-generating fixed held-out scenes (1000 cal, 1500 test) for early stopping...
+Refitting baseline evaluation head (600 steps) on untuned trunk...
+Evaluating initial held-out ratio on untuned trunk...
+Initial held-out: d_native=2.965, d_gist=2.230, d_gist_full=2.562, ratio=1.157
+S3 setup: trunk blocks[9:12] + norm (5326464 params) + co-training head (19635 params, warm-started from baseline)
+Total trainable parameters: 5346099
+Epoch 1/5 (78.4s): loss=1.1534, held-out d_native=3.732, d_gist=2.635, d_gist_full=2.966, ratio=1.258
+ -> New best held-out ratio: 1.258 (checkpoint staged)
+Epoch 2/5 (78.3s): loss=1.0428, held-out d_native=4.008, d_gist=2.740, d_gist_full=3.064, ratio=1.308
+ -> New best held-out ratio: 1.308 (checkpoint staged)
+Epoch 3/5 (76.5s): loss=0.9993, held-out d_native=4.126, d_gist=2.783, d_gist_full=3.110, ratio=1.327
+ -> New best held-out ratio: 1.327 (checkpoint staged)
+Epoch 4/5 (133.1s): loss=0.9668, held-out d_native=4.200, d_gist=2.814, d_gist_full=3.144, ratio=1.336
+ -> New best held-out ratio: 1.336 (checkpoint staged)
+Epoch 5/5 (164.5s): loss=0.9620, held-out d_native=4.209, d_gist=2.819, d_gist_full=3.150, ratio=1.336
+ -> New best held-out ratio: 1.336 (checkpoint staged)
+Saved trunk to checkpoints/foundation_ff_112_s3_tuned.pth (sha256: f77c6ae008408b217b459fec8706e3b759141d229120b0085d339769099ef1c6)
+S3 completed: best_epoch=5, best_ratio=1.336 (baseline was 1.157)
+Saved full training log to checkpoints/foundation_ff_112_s3_tuned.json
+{
+  "output_checkpoint": "checkpoints/foundation_ff_112_s3_tuned.pth",
+  "output_checkpoint_sha256": "f77c6ae008408b217b459fec8706e3b759141d229120b0085d339769099ef1c6",
+  "best_epoch": 5,
+  "best_ratio": 1.3363316727111074,
+  "initial_ratio": 1.1570014802287716,
+  "trainable_trunk_params": 5326464,
+  "total_steps": 1500
+}
