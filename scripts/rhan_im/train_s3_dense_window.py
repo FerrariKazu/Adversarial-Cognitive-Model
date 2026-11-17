@@ -453,6 +453,7 @@ def extract_split_scores(
     """Runs trunk and head on sc in chunks: returns (scores_native, scores_gist) on CPU float32."""
     trunk.eval()
     head.eval()
+    head = head.to(device)
     fn = ff_token_fn(trunk)
     n = sc["canvas_uint8"].shape[0]
 
