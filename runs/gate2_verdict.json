@@ -1,0 +1,113 @@
+{
+  "status": "FAIL",
+  "e2_status": "FAIL",
+  "e5_status": "FAIL",
+  "seeds": [
+    17,
+    42,
+    99
+  ],
+  "e2_pass_count": 0,
+  "e2_inconclusive_count": 0,
+  "e5_validity_pass_count": 3,
+  "e5_efficiency_pass_count": 0,
+  "conservative_control_count": 0,
+  "per_seed": [
+    {
+      "seed": 17,
+      "e2": "FAIL",
+      "e5_selective_pass": false,
+      "e5_forced_pass": false
+    },
+    {
+      "seed": 42,
+      "e2": "FAIL",
+      "e5_selective_pass": false,
+      "e5_forced_pass": false
+    },
+    {
+      "seed": 99,
+      "e2": "FAIL",
+      "e5_selective_pass": false,
+      "e5_forced_pass": false
+    }
+  ],
+  "protocol_id": "rhan-im-gate2/1.2",
+  "rules_sha256": "3a2632ca60f02972dc335ff38a47332eb727c1f00e591611b483e236f57bb011",
+  "aggregator_sha256": "17569c435411ee1e484a383baae4bffdf8dfd9386cb282be4b328f7bf267dc14",
+  "files": [
+    {
+      "file": "runs/gate2_seed17.json",
+      "sha256": "9b7aeb6458652d61ffb3c20102dce0f14bb2be30c59bf88b4313dc5db1582f9a"
+    },
+    {
+      "file": "runs/gate2_seed42.json",
+      "sha256": "6006570250d3196fe24e69ff11ec514e6dae9ebed9af2da89f12875e3e8d7f15"
+    },
+    {
+      "file": "runs/gate2_seed99.json",
+      "sha256": "2d925d589f59d64c7b4f43e22ecd142feda33276949c40c7a14fa70df39303a0"
+    }
+  ],
+  "sidecars": [
+    {
+      "ok": true,
+      "file": "gate2_seed17.provenance.json",
+      "sha256": "fbde2be5689ca5198667124cbf19bd43e99fc434fc39e9abeda5d610ac6fd124",
+      "link_sha256": "ab0a5b4d6323f05a5e366c331f2b65d05b2938dfb2a1d1dbc9f303be309cf025"
+    },
+    {
+      "ok": true,
+      "file": "gate2_seed42.provenance.json",
+      "sha256": "3b1e234902b26d46d0a54ceac0a19d64ddd4de96dae4917f970d920065f461a8",
+      "link_sha256": "b04df8b69c85f878af52412abcd0b3b53c7739d1aebbc27ffcac1b3c8cbe1ca0"
+    },
+    {
+      "ok": true,
+      "file": "gate2_seed99.provenance.json",
+      "sha256": "aa037a5bced1e95e5e4e2e33ca59483da6dccce1ea78413c4a4c772258bc1250",
+      "link_sha256": "d1818ebcd954e685d208a57b498aefaae8f37246efa002594e71b502b5ec3391"
+    }
+  ],
+  "code_sha256": {
+    "scripts/rhan_im/gate2_measure.py": "8dd413765961fe7ad168ff20ddccd533506b5fafc91e4d328e6c7d54f9fcfe16",
+    "scripts/rhan_im/gate2_split.py": "83a9ac8595911d91eea43f6784f769c8192fea66fd867628bbc6abc432d04c11",
+    "rhan_im/gate2.py": "a490192de37bd4f063becdc9fcbbb576b8e949b49ed84f6457eccc9dcfc5ad7a",
+    "rhan_im/gate1.py": "c20779c956871a5c959b782da53fd679a3502305ff846cb2600adc6718abb96d",
+    "rhan_im/layout.py": "706567f907b2a1b67febd7f0eee01f917147e41e101f4de9260044f9533df991",
+    "rhan_im/trunk_adapter.py": "a3e9c83c091ba8fd35728145e55b92de167f9de8ba4ab2585c48701427b78e72",
+    "rhan_im/window_head.py": "35a96251bcb2ae48bc8413e4dcf838b1321306785c3758bd4384383fafd252b7",
+    "rhan_im/sdt.py": "366577818b2718ba85661cd6d93ce8e692284816f34997166967d890de603754",
+    "rhan_im/belief.py": "fa3c1f16126b303db140de14082a0aeb3902f71f913c0223cb23a3d346deeec6",
+    "rhan_im/stopping.py": "5ecea120f9b8d81152fb509447138119529d4c1485bd23e6542fc48e469dac48",
+    "gen2_foundation/backbone.py": "b6f28d098d6d6746181da24c624a90c3baa2760cb41e145751a5b5945d73feb9",
+    "noesis_vision/models/recurrent_block.py": "2e3584fbd0be3cd79e01c7177f7f51b31dc4ff1724b3fb7aed46660f027da7e2",
+    "noesis_vision/models/foveation.py": "58eda6e02b6a22bd83d2903a043a6035c96bf9d6093c4a77b68f544a0e56f827"
+  },
+  "sensor_summary": [
+    {
+      "seed": 17,
+      "combination_mode": "best",
+      "kappa": 1.8644050359725952,
+      "rho_null": 0.40722940140103747,
+      "vif_tok_used": 11.595377143249802,
+      "vif_gist_used": 3.331050185693698
+    },
+    {
+      "seed": 42,
+      "combination_mode": "best",
+      "kappa": 1.8592268228530884,
+      "rho_null": 0.4165060569028289,
+      "vif_tok_used": 11.576784206234652,
+      "vif_gist_used": 3.330533666479
+    },
+    {
+      "seed": 99,
+      "combination_mode": "best",
+      "kappa": 1.859820008277893,
+      "rho_null": 0.41987325998211844,
+      "vif_tok_used": 11.67253113505493,
+      "vif_gist_used": 3.286879197174968
+    }
+  ]
+}

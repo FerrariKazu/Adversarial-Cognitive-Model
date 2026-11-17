@@ -1,0 +1,889 @@
+{
+  "seed": 42,
+  "protocol": {
+    "protocol_id": "rhan-im-gate2/1.2",
+    "rules_file": "prereg/gate2_rules_v1_2.json",
+    "rules_sha256": "3a2632ca60f02972dc335ff38a47332eb727c1f00e591611b483e236f57bb011",
+    "erratum_file": "docs/research/RHAN_IM_GATE2_ERRATUM_02.md",
+    "erratum_sha256": "a576bcbda3ad3bd4db7440a0b42a295c7261337b2fd41bd0be3412ea0a4c5dfd"
+  },
+  "config": {
+    "self_test": false,
+    "ckpt": "checkpoints/foundation_ff_112_seed17_final_d00fb750.pth",
+    "data_root": "data/imagenet100",
+    "device": "cuda",
+    "canvas": 224,
+    "window": 112,
+    "stride_units": 2,
+    "classes": 50,
+    "sizes": [
+      2,
+      4,
+      6
+    ],
+    "op_size": 4,
+    "head_sizes": [
+      2,
+      4,
+      6
+    ],
+    "head_alphas": [
+      1.0,
+      0.6
+    ],
+    "p_null": 0.3,
+    "steps": 600,
+    "batch": 48,
+    "lr": 0.002,
+    "fit_null": 850,
+    "n_cal_target": 425,
+    "n_cal_null": 425,
+    "n_test_target": 400,
+    "n_test_null": 400,
+    "n_dprime_target": 800,
+    "n_dprime_null": 800,
+    "min_pos": 30,
+    "n_cal_subset": 300,
+    "bootstrap": 500,
+    "alpha": 0.1,
+    "delta": 0.1,
+    "k_min": 1,
+    "lambdas": [
+      0.0,
+      0.001,
+      0.002,
+      0.005,
+      0.01,
+      0.02,
+      0.03,
+      0.05,
+      0.075,
+      0.1,
+      0.15,
+      0.2,
+      0.3,
+      0.5
+    ],
+    "chunk_scenes": 50,
+    "synth_files": 40,
+    "seed": 42,
+    "class_split": "prereg/class_split.json",
+    "val_split": "prereg/gate2_val_split.json",
+    "train_holdout": "prereg/gate2_train_holdout.json",
+    "out": "runs/gate2_seed42.json"
+  },
+  "trunk": {
+    "checkpoint": "foundation_ff_112_seed17_final_d00fb750.pth",
+    "sha256": "d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc",
+    "trunk_keys_loaded": 175,
+    "trunk_keys_needed": 175,
+    "phase": "ff_112",
+    "arm": "v1",
+    "epoch": 15,
+    "val_clean_acc": 0.743,
+    "val_rob_acc": 0.39453125
+  },
+  "data": {
+    "mode": "class_split_file",
+    "class_split": {
+      "file": "prereg/class_split.json",
+      "file_sha256": "c2e05641bf10d4aaaa41d6dfa9dbc3571a5d3b95dc80f36dc6a4d7d86d481c25",
+      "class_split_sha256": "289f2818f0eae4dd7b654627d4bdf197cc11d43923300c52df7b4c0bdecc1241",
+      "class_lists_sha256": "82db89c3f18825d83f132153a3f62bc0a3a6b114cd9e89def9560a86243c2ccf",
+      "seed": 20261113
+    },
+    "val_split": {
+      "file": "prereg/gate2_val_split.json",
+      "file_sha256": "b8c4543f7b7272cae43ebfd1a9ad2095908b65b36c0ae2577c9e8e3b8f92bed0",
+      "fit_pool_count": 850,
+      "calibration_pool_count": 1700,
+      "test_pool_count": 1600
+    },
+    "train_holdout": {
+      "file": "prereg/gate2_train_holdout.json",
+      "file_sha256": "9a66bc48d6bc1fe26390ec9bf3e7a69970e9c63ef1d8e3e2a00bbad73ae4874e",
+      "holdout_assignment_sha256": "f84663e9e0c48d9132e96d4043ce496fa53a0562134b6ec96c578fad9f6af459",
+      "counts": {
+        "train_files": 126689,
+        "target_holdout_images": 800,
+        "background_holdout_images": 1600,
+        "holdout_images": 2400,
+        "head_training_images": 124289,
+        "target_holdout_per_class": 16,
+        "background_holdout_per_class": 32,
+        "target_head_training_per_class": {
+          "American_Staffordshire_terrier_Staffordshire_terrier_American_pit_bull_terrier_p": 1284,
+          "American_lobster_Northern_lobster_Maine_lobster_Homarus_americanus": 1284,
+          "Chihuahua": 1284,
+          "Doberman_Doberman_pinscher": 1284,
+          "Great_Dane": 1284,
+          "Rottweiler": 1284,
+          "Saluki_gazelle_hound": 1284,
+          "Walker_hound_Walker_foxhound": 1009,
+          "ambulance": 1284,
+          "bassinet": 1284,
+          "boathouse": 1284,
+          "bonnet_poke_bonnet": 1284,
+          "bottlecap": 1284,
+          "boxer": 1284,
+          "carbonara": 1284,
+          "cauliflower": 1284,
+          "chocolate_sauce_chocolate_syrup": 1284,
+          "cocktail_shaker": 1138,
+          "coyote_prairie_wolf_brush_wolf_Canis_latrans": 1284,
+          "fiddler_crab": 1284,
+          "garden_spider_Aranea_diademata": 1284,
+          "gasmask_respirator_gas_helmet": 1284,
+          "gibbon_Hylobates_lar": 1284,
+          "goose": 1284,
+          "green_mamba": 1284,
+          "gyromitra": 1284,
+          "hard_disc_hard_disk_fixed_disk": 1284,
+          "harmonica_mouth_organ_harp_mouth_harp": 1284,
+          "head_cabbage": 1284,
+          "honeycomb": 1284,
+          "iron_smoothing_iron": 1284,
+          "lampshade_lamp_shade": 1284,
+          "lorikeet": 1284,
+          "mixing_bowl": 1284,
+          "modem": 1133,
+          "mortarboard": 1284,
+          "mousetrap": 1284,
+          "pedestal_plinth_footstall": 1140,
+          "pineapple_ananas": 1284,
+          "robin_American_robin_Turdus_migratorius": 1284,
+          "safety_pin": 1243,
+          "standard_poodle": 1284,
+          "throne": 960,
+          "toy_terrier": 844,
+          "tub_vat": 1284,
+          "vacuum_vacuum_cleaner": 1284,
+          "vizsla_Hungarian_pointer": 1284,
+          "walking_stick_walkingstick_stick_insect": 1284,
+          "wild_boar_boar_Sus_scrofa": 1284,
+          "window_screen": 1284
+        },
+        "background_head_training_per_class": {
+          "African_hunting_dog_hyena_dog_Cape_hunting_dog_Lycaon_pictus": 1268,
+          "American_coot_marsh_hen_mud_hen_water_hen_Fulica_americana": 1268,
+          "Chesapeake_Bay_retriever": 1268,
+          "Dutch_oven": 1268,
+          "English_foxhound": 722,
+          "Gila_monster_Heloderma_suspectum": 1268,
+          "Mexican_hairless": 723,
+          "Shih_Tzu": 1268,
+          "bannister_banister_balustrade_balusters_handrail": 1268,
+          "borzoi_Russian_wolfhound": 1268,
+          "car_wheel": 1268,
+          "chime_bell_gong": 1268,
+          "cinema_movie_theater_movie_theatre_movie_house_picture_palace": 1268,
+          "computer_keyboard_keypad": 1268,
+          "dung_beetle": 1268,
+          "football_helmet": 1268,
+          "garter_snake_grass_snake": 1268,
+          "hare": 1268,
+          "hognose_snake_puff_adder_sand_viper": 1268,
+          "jean_blue_jean_denim": 1268,
+          "komondor": 1268,
+          "kuvasz": 1268,
+          "langur": 1268,
+          "laptop_laptop_computer": 1268,
+          "leafhopper": 1268,
+          "little_blue_heron_Egretta_caerulea": 1268,
+          "meerkat_mierkat": 1268,
+          "milk_can": 1065,
+          "moped": 1268,
+          "obelisk": 1268,
+          "papillon": 1268,
+          "park_bench": 1268,
+          "pickup_pickup_truck": 1268,
+          "pirate_pirate_ship": 1086,
+          "purse": 1268,
+          "red_fox_Vulpes_vulpes": 1268,
+          "reel": 1268,
+          "rock_crab_Cancer_irroratus": 1268,
+          "rocking_chair_rocker": 1268,
+          "rotisserie": 1268,
+          "sarong": 1268,
+          "ski_mask": 1268,
+          "slide_rule_slipstick": 1130,
+          "stinkhorn_carrion_fungus": 1268,
+          "stretcher": 1268,
+          "tabby_tabby_cat": 1268,
+          "theater_curtain_theatre_curtain": 1232,
+          "tile_roof": 1268,
+          "tripod": 1128,
+          "wing": 1268
+        }
+      }
+    },
+    "data_listing": {
+      "train_path_listing": {
+        "sha256": "b3a7e817c23fa08e847aa28d75cb3fd46cd03e0b893dd0bc510115c784e849ff",
+        "n_files": 126689
+      },
+      "val_path_listing": {
+        "sha256": "d7ff0a98599e5b2138aaa56e903c2c0b5ad0a69f4449cca68468b301897541e2",
+        "n_files": 5000
+      }
+    },
+    "head_training_images": 124289
+  },
+  "head": {
+    "head_init_seed": 42,
+    "final_weights_sha256": "7a4ede6bb7b8a204039d447884d7c34f3456a2608591d0c7db9437bf56727f6b",
+    "training_log": [
+      [
+        0,
+        3.9384617805480957
+      ],
+      [
+        30,
+        1.3899551630020142
+      ],
+      [
+        60,
+        1.5419209003448486
+      ],
+      [
+        90,
+        1.3343403339385986
+      ],
+      [
+        120,
+        1.5013256072998047
+      ],
+      [
+        150,
+        1.3874282836914062
+      ],
+      [
+        180,
+        1.292130470275879
+      ],
+      [
+        210,
+        1.4111124277114868
+      ],
+      [
+        240,
+        1.0861692428588867
+      ],
+      [
+        270,
+        1.1671656370162964
+      ],
+      [
+        300,
+        1.5710996389389038
+      ],
+      [
+        330,
+        1.23244047164917
+      ],
+      [
+        360,
+        1.4100620746612549
+      ],
+      [
+        390,
+        0.8927381038665771
+      ],
+      [
+        420,
+        1.435838222503662
+      ],
+      [
+        450,
+        1.1148933172225952
+      ],
+      [
+        480,
+        1.1706429719924927
+      ],
+      [
+        510,
+        1.0719332695007324
+      ],
+      [
+        540,
+        1.2928928136825562
+      ],
+      [
+        570,
+        1.3964223861694336
+      ],
+      [
+        599,
+        1.5144104957580566
+      ]
+    ]
+  },
+  "sensor": {
+    "n_fit_scenes": 850,
+    "n_dprime_target_scenes": 800,
+    "n_dprime_null_scenes": 800,
+    "op_size_units": 4,
+    "op_alpha": 1.0,
+    "d_tok": [
+      [
+        2.1053919792175293,
+        2.165869951248169,
+        2.324773073196411,
+        2.3667521476745605,
+        2.338677167892456,
+        2.3136348724365234,
+        2.2841432094573975,
+        2.0740957260131836
+      ],
+      [
+        2.3464667797088623,
+        2.295659303665161,
+        2.357151985168457,
+        2.522181987762451,
+        2.536508560180664,
+        2.5863893032073975,
+        2.5872960090637207,
+        2.3892717361450195
+      ],
+      [
+        2.67910099029541,
+        2.6002495288848877,
+        2.807746410369873,
+        2.796780824661255,
+        2.7720394134521484,
+        2.8164451122283936,
+        2.7530624866485596,
+        2.5468645095825195
+      ],
+      [
+        2.6794562339782715,
+        2.6471643447875977,
+        2.799076795578003,
+        2.9442801475524902,
+        2.910112142562866,
+        2.8727293014526367,
+        2.8437559604644775,
+        2.7220466136932373
+      ],
+      [
+        2.7849981784820557,
+        2.808553695678711,
+        2.946042060852051,
+        3.058610439300537,
+        2.974395751953125,
+        3.0514447689056396,
+        2.9665191173553467,
+        2.7721498012542725
+      ],
+      [
+        2.6447319984436035,
+        2.8527615070343018,
+        2.906214475631714,
+        2.966127634048462,
+        2.9736406803131104,
+        3.02407169342041,
+        2.9387624263763428,
+        2.7536957263946533
+      ],
+      [
+        2.6083614826202393,
+        2.7463464736938477,
+        2.884563446044922,
+        2.9681341648101807,
+        2.9092230796813965,
+        3.0554566383361816,
+        3.004385471343994,
+        2.7434089183807373
+      ],
+      [
+        2.430199146270752,
+        2.5551371574401855,
+        2.6461734771728516,
+        2.7770705223083496,
+        2.7728374004364014,
+        2.7528696060180664,
+        2.951763868331909,
+        2.5814602375030518
+      ]
+    ],
+    "d_tok_regions": {
+      "centre": 2.918905735015869,
+      "edge_ring": 2.5458996295928955,
+      "all": 2.7408652305603027
+    },
+    "d_tok_n_pos": [
+      [
+        80.0,
+        105.0,
+        107.0,
+        110.0,
+        122.0,
+        116.0,
+        87.0,
+        68.0
+      ],
+      [
+        101.0,
+        132.0,
+        138.0,
+        153.0,
+        164.0,
+        155.0,
+        115.0,
+        79.0
+      ],
+      [
+        99.0,
+        139.0,
+        144.0,
+        162.0,
+        183.0,
+        168.0,
+        130.0,
+        89.0
+      ],
+      [
+        117.0,
+        159.0,
+        165.0,
+        179.0,
+        206.0,
+        191.0,
+        150.0,
+        101.0
+      ],
+      [
+        115.0,
+        161.0,
+        173.0,
+        190.0,
+        210.0,
+        194.0,
+        150.0,
+        98.0
+      ],
+      [
+        111.0,
+        160.0,
+        170.0,
+        177.0,
+        204.0,
+        188.0,
+        149.0,
+        110.0
+      ],
+      [
+        89.0,
+        119.0,
+        125.0,
+        133.0,
+        152.0,
+        145.0,
+        114.0,
+        85.0
+      ],
+      [
+        64.0,
+        84.0,
+        89.0,
+        98.0,
+        109.0,
+        103.0,
+        80.0,
+        59.0
+      ]
+    ],
+    "d_gist": 2.1845452785491943,
+    "d_gist_raw": 2.1845452785491943,
+    "d_tok_negative_positions": 0,
+    "d_gist_negative": false,
+    "d_gist_map": [
+      [
+        null,
+        2.3528943061828613,
+        2.2182421684265137,
+        2.0924835205078125,
+        2.2525651454925537,
+        2.335315227508545,
+        2.51430606842041,
+        null
+      ],
+      [
+        2.152867555618286,
+        2.237395763397217,
+        2.2514679431915283,
+        2.3861405849456787,
+        2.466085433959961,
+        2.239259719848633,
+        2.4896230697631836,
+        2.17203688621521
+      ],
+      [
+        1.8235371112823486,
+        1.9878334999084473,
+        1.9350024461746216,
+        2.0721206665039062,
+        2.216825008392334,
+        2.125361204147339,
+        2.4201271533966064,
+        2.503509998321533
+      ],
+      [
+        1.8167695999145508,
+        2.0448861122131348,
+        1.9865227937698364,
+        1.9200224876403809,
+        1.9912933111190796,
+        2.2228939533233643,
+        2.3691792488098145,
+        2.280665397644043
+      ],
+      [
+        2.2314956188201904,
+        1.8996118307113647,
+        1.9221080541610718,
+        1.9006823301315308,
+        2.043972969055176,
+        2.0496444702148438,
+        2.3592886924743652,
+        2.1908481121063232
+      ],
+      [
+        2.175591230392456,
+        2.0400538444519043,
+        1.8765453100204468,
+        1.969702959060669,
+        2.065965414047241,
+        2.1011645793914795,
+        2.4120726585388184,
+        2.121734380722046
+      ],
+      [
+        2.1343421936035156,
+        2.356933355331421,
+        2.392432451248169,
+        2.377352714538574,
+        2.426384925842285,
+        2.4611403942108154,
+        2.7751171588897705,
+        2.5443475246429443
+      ],
+      [
+        null,
+        2.116485357284546,
+        2.3675715923309326,
+        2.45058536529541,
+        2.5307211875915527,
+        2.5002353191375732,
+        2.602386236190796,
+        null
+      ]
+    ],
+    "d_gist_n_pos": [
+      [
+        17.0,
+        33.0,
+        45.0,
+        45.0,
+        48.0,
+        49.0,
+        30.0,
+        17.0
+      ],
+      [
+        36.0,
+        65.0,
+        90.0,
+        86.0,
+        91.0,
+        92.0,
+        70.0,
+        39.0
+      ],
+      [
+        49.0,
+        94.0,
+        120.0,
+        123.0,
+        115.0,
+        108.0,
+        77.0,
+        38.0
+      ],
+      [
+        44.0,
+        95.0,
+        124.0,
+        139.0,
+        132.0,
+        125.0,
+        82.0,
+        35.0
+      ],
+      [
+        40.0,
+        89.0,
+        120.0,
+        138.0,
+        134.0,
+        131.0,
+        93.0,
+        45.0
+      ],
+      [
+        38.0,
+        77.0,
+        104.0,
+        118.0,
+        127.0,
+        125.0,
+        106.0,
+        53.0
+      ],
+      [
+        37.0,
+        68.0,
+        77.0,
+        82.0,
+        93.0,
+        104.0,
+        94.0,
+        47.0
+      ],
+      [
+        19.0,
+        40.0,
+        41.0,
+        41.0,
+        45.0,
+        51.0,
+        47.0,
+        25.0
+      ]
+    ],
+    "vif_tok_raw": 11.576784206234652,
+    "vif_gist_raw": 3.330533666479,
+    "vif_tok_used": 11.576784206234652,
+    "vif_gist_used": 3.330533666479,
+    "vif_correction_min": 1.25,
+    "kappa": 1.8592268228530884,
+    "kappa_quantile": 0.999,
+    "rho_null": 0.4165060569028289,
+    "combination_mode": "best",
+    "min_pos": 30,
+    "unit_cap": null
+  },
+  "e2": {
+    "ece_15_K8": 0.2891614655405283,
+    "nll_K8": 3.6976637840270996,
+    "brier_K8": 0.8773767948150635,
+    "accuracy_K8": 0.4300000071525574,
+    "mean_confidence_K8": 0.7191615104675293,
+    "ece_by_K": [
+      0.4699999959766865,
+      0.2155887285806239,
+      0.2514325202815235,
+      0.2617710135132074,
+      0.2680851643159986,
+      0.26923514723777775,
+      0.27610890146344896,
+      0.28328750845044853,
+      0.2891614655405283
+    ],
+    "ece_by_size": {
+      "2": 0.2052851471660742,
+      "4": 0.2567433085768743,
+      "6": 0.430594145355368
+    },
+    "n_by_size": {
+      "2": 268,
+      "4": 266,
+      "6": 266
+    },
+    "n_scenes": 800,
+    "status": "FAIL",
+    "thresholds": {
+      "pass_max": 0.03,
+      "inconclusive_max": 0.05
+    }
+  },
+  "e5": {
+    "selective": {
+      "kind": "selective",
+      "n_cal_pool": 850,
+      "n_cal_subset": 300,
+      "bootstrap": 500,
+      "alpha": 0.1,
+      "delta": 0.1,
+      "k_min": 1,
+      "lambda_grid": [
+        0.0,
+        0.001,
+        0.002,
+        0.005,
+        0.01,
+        0.02,
+        0.03,
+        0.05,
+        0.075,
+        0.1,
+        0.15,
+        0.2,
+        0.3,
+        0.5
+      ],
+      "fixed_horizon_risk": 0.5699999928474426,
+      "violation_rate": 0.0,
+      "violation_count": 0,
+      "no_choice_count": 0,
+      "mean_test_risk": 0.06147249989211559,
+      "mean_test_coverage": 0.11836750164814293,
+      "mean_looks": 7.463662509918213,
+      "mean_looks_saved": 0.5363374900817872,
+      "mean_efficiency": 0.06704218626022339,
+      "chosen_lambda_counts": [
+        1,
+        0,
+        53,
+        100,
+        219,
+        111,
+        16,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "pass_validity": true,
+      "pass_efficiency": false,
+      "pass_all": false,
+      "plugin_violation_rate": 0.054,
+      "plugin_mean_test_risk": 0.08627250080555678,
+      "conservative_control_met": false,
+      "efficiency_min": 0.25
+    },
+    "forced_answer": {
+      "kind": "forced_answer",
+      "n_cal_pool": 850,
+      "n_cal_subset": 300,
+      "bootstrap": 500,
+      "alpha": 0.1,
+      "delta": 0.1,
+      "k_min": 1,
+      "lambda_grid": [
+        0.0,
+        0.001,
+        0.002,
+        0.005,
+        0.01,
+        0.02,
+        0.03,
+        0.05,
+        0.075,
+        0.1,
+        0.15,
+        0.2,
+        0.3,
+        0.5
+      ],
+      "fixed_horizon_risk": 0.5699999928474426,
+      "violation_rate": 1.0,
+      "violation_count": 500,
+      "no_choice_count": 500,
+      "mean_test_risk": 1.0,
+      "mean_test_coverage": 0.0,
+      "mean_looks": 8.0,
+      "mean_looks_saved": 0.0,
+      "mean_efficiency": 0.0,
+      "chosen_lambda_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "pass_validity": false,
+      "pass_efficiency": false,
+      "pass_all": false,
+      "plugin_violation_rate": 0.0,
+      "plugin_mean_test_risk": null,
+      "conservative_control_met": false,
+      "efficiency_min": 0.25
+    },
+    "primary": "selective"
+  },
+  "counts": {
+    "fit": {
+      "n_scenes": 850,
+      "n_target": 0,
+      "n_null": 850,
+      "plan_sha256": "09bb1161eca1413013f0142cf1e16f32c904d1162881e0d0bc05989d427c3293"
+    },
+    "cal": {
+      "n_scenes": 850,
+      "n_target": 425,
+      "n_null": 425,
+      "plan_sha256": "07033e9a2af01ebcd28b937e79b55abe5f1bc4dbc1024ace6738842de286748b"
+    },
+    "test": {
+      "n_scenes": 800,
+      "n_target": 400,
+      "n_null": 400,
+      "plan_sha256": "d18544b8fd8c35aedca52b1d8c214d486bdcd1eead66f671a1517250c33100a2"
+    },
+    "dprime": {
+      "n_scenes": 1600,
+      "n_target": 800,
+      "n_null": 800,
+      "plan_sha256": "f71122e0322081968ef4123fdd92d252d6c5366bfff03fbfb6b1355b8d6a8773"
+    }
+  },
+  "code_sha256": {
+    "scripts/rhan_im/gate2_measure.py": "8dd413765961fe7ad168ff20ddccd533506b5fafc91e4d328e6c7d54f9fcfe16",
+    "scripts/rhan_im/gate2_split.py": "83a9ac8595911d91eea43f6784f769c8192fea66fd867628bbc6abc432d04c11",
+    "rhan_im/gate2.py": "a490192de37bd4f063becdc9fcbbb576b8e949b49ed84f6457eccc9dcfc5ad7a",
+    "rhan_im/gate1.py": "c20779c956871a5c959b782da53fd679a3502305ff846cb2600adc6718abb96d",
+    "rhan_im/layout.py": "706567f907b2a1b67febd7f0eee01f917147e41e101f4de9260044f9533df991",
+    "rhan_im/trunk_adapter.py": "a3e9c83c091ba8fd35728145e55b92de167f9de8ba4ab2585c48701427b78e72",
+    "rhan_im/window_head.py": "35a96251bcb2ae48bc8413e4dcf838b1321306785c3758bd4384383fafd252b7",
+    "rhan_im/sdt.py": "366577818b2718ba85661cd6d93ce8e692284816f34997166967d890de603754",
+    "rhan_im/belief.py": "fa3c1f16126b303db140de14082a0aeb3902f71f913c0223cb23a3d346deeec6",
+    "rhan_im/stopping.py": "5ecea120f9b8d81152fb509447138119529d4c1485bd23e6542fc48e469dac48",
+    "gen2_foundation/backbone.py": "b6f28d098d6d6746181da24c624a90c3baa2760cb41e145751a5b5945d73feb9",
+    "noesis_vision/models/recurrent_block.py": "2e3584fbd0be3cd79e01c7177f7f51b31dc4ff1724b3fb7aed46660f027da7e2",
+    "noesis_vision/models/foveation.py": "58eda6e02b6a22bd83d2903a043a6035c96bf9d6093c4a77b68f544a0e56f827"
+  },
+  "environment": {
+    "python": "3.10.12",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "torch": "2.11.0+cu130",
+    "cuda_build": "13.0",
+    "cudnn": 91900,
+    "device": "cuda",
+    "num_threads": 2,
+    "deterministic_algorithms": false,
+    "gpu": "NVIDIA GeForce RTX 4060",
+    "numpy": "2.2.6",
+    "PIL": "12.2.0"
+  },
+  "provenance": {
+    "sidecar_sha256": "3b1e234902b26d46d0a54ceac0a19d64ddd4de96dae4917f970d920065f461a8",
+    "link_sha256": "b04df8b69c85f878af52412abcd0b3b53c7739d1aebbc27ffcac1b3c8cbe1ca0",
+    "file": "gate2_seed42.provenance.json",
+    "sidecar_bytes": 642306
+  },
+  "seconds": 168.6
+}
