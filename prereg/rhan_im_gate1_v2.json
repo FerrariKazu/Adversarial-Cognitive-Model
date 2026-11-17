@@ -1,0 +1,129 @@
+{
+  "protocol_id": "rhan-im-gate1/1",
+  "protocol_version": "rhan_im_gate1_v2",
+  "status": "FROZEN",
+  "created_at_utc": "2026-11-17T12:00:51Z",
+  "branch": "redesign/rhan-im",
+  "git_head": "ed1ceba7e875da74f1332224a5d9624dd452fdb8",
+  "code_dirty_at_freeze": false,
+  "protocol": {
+    "primary_checkpoint": "foundation_ff_112_s3_tuned.pth",
+    "primary_is_the_documented_checkpoint": false,
+    "secondary_checkpoints": [],
+    "primary_seeds": [
+      17,
+      42,
+      99
+    ],
+    "config": {
+      "canvas": 224,
+      "window": 112,
+      "stride_units": 2,
+      "classes": 50,
+      "sizes": [
+        2,
+        4,
+        6
+      ],
+      "alphas": [
+        1.0,
+        0.6
+      ],
+      "op_size": 4,
+      "p_null": 0.3,
+      "steps": 600,
+      "batch": 48,
+      "lr": 0.002,
+      "n_cal": 3000,
+      "n_test": 6000,
+      "n_pairs": 2000,
+      "chunk_scenes": 200
+    },
+    "class_split": {
+      "file": "class_split.json",
+      "file_sha256": "c2e05641bf10d4aaaa41d6dfa9dbc3571a5d3b95dc80f36dc6a4d7d86d481c25",
+      "class_split_sha256": "289f2818f0eae4dd7b654627d4bdf197cc11d43923300c52df7b4c0bdecc1241",
+      "class_lists_sha256": "82db89c3f18825d83f132153a3f62bc0a3a6b114cd9e89def9560a86243c2ccf",
+      "seed": 20261113
+    },
+    "pools": {
+      "file": "pools.json",
+      "file_sha256": "723314ed1841827fd478d684ddfabafe96798d3cb213a7abc966ac6044ef0308",
+      "pool_assignment_sha256": "095d5e9975e6bdbe82d4ba2720e66e6e7f8122bc4105d09605aa7f18299b729d"
+    },
+    "secondary_seed": 17,
+    "head_init_seed_rule": "config.head_init_seed equals config.seed in every run (explicit, recorded)",
+    "original_split_run": "not part of Gate 1 (decision OI-06, 15 Nov 2026): no run on the original sorted-name split is preregistered, measured or aggregated",
+    "target_background_split": "the FINAL class-split file pinned in protocol.class_split; every run must report its class_split_sha256 and class_lists_sha256",
+    "calibration_test_split": "the pools file pinned in protocol.pools: disjoint halves of the val images (every second file of each class's sorted list); each run checks that its banks draw from exactly those files"
+  },
+  "rules": {
+    "thresholds": {
+      "zroc_slope": [
+        0.8,
+        1.25
+      ],
+      "null_sd": [
+        0.85,
+        1.2
+      ],
+      "d_centre_min": 1.5,
+      "native_over_gist_min": 1.5,
+      "rho_sum_max": 0.2,
+      "rho_best_min": 0.6,
+      "vif_independent_max": 1.25,
+      "d_block_min": 2.0
+    },
+    "aggregation": {
+      "n_primary_runs": 3,
+      "min_runs_pass_all": 2,
+      "min_runs_shared_difficulty": 2,
+      "combination_rule": "'sum' only if every primary run says 'sum'; otherwise 'best'",
+      "token_evidence": "median over primary runs of vif_null_op (the H_0 block VIF); corrected (z and d divided by sqrt(VIF_null)) iff above vif_independent_max",
+      "shared_difficulty": "flagged iff at least min_runs_shared_difficulty primary runs have vif_pos_op / max(vif_null_op, 1) above vif_independent_max; never corrected by shrinkage, the remedy is the scale-mixture likelihood with the spread estimated from the VIFs; the median spread is reported; a run whose VIFs could not be measured has not assessed it (not the same as absent)",
+      "secondary_trunks": "reported only; a secondary trunk that fails marks the result 'trunk-dependent' and restricts the claim to the primary trunk; a secondary run that deviates from the frozen protocol is reported as invalid and ignored",
+      "invalid_if": "any deviation in the primary runs: self-test, a checkpoint other than the frozen primary, a configuration value other than the frozen one or a missing key, code or data listing other than the frozen ones (hashes recorded by each run), a class split or pools file other than the frozen ones, a head-initialisation seed other than the run's measurement seed, a missing provenance-sidecar hash, file or runtime record, a provenance linkage hash that is not the hash of the run's own protocol fields, a set of seeds other than the frozen one, the analysis-time code differing from the frozen hashes; the verdict the rule would have given is reported separately and decides nothing",
+      "inconclusive_if": "a primary run could not measure a required quantity (vif_null_op, op_block_tokens, d_native_centre, d_gist and d_gist_full both, null_sd_median, zroc_slope_median together with its sd-ratio fallback); one such run is enough, it is not out-voted by the others; re-run, or freeze a new version"
+    },
+    "pass_all_means": "sdt_adequate AND informative AND looking_closer_pays at the operating point (size op_size, alpha 1.0)",
+    "deviation_policy": "any difference between a run and this file is listed as a deviation; a deviation in the primary runs makes the aggregate verdict INVALID (reported, not decided); thresholds may not change after the first run on the real checkpoint"
+  },
+  "code_and_data_hashes": {
+    "scripts/rhan_im/gate1_measure_dprime.py": "78dbb99d3b9b24303524a2eee9e725eee3dd92e9a9a259401632a2d83778ea98",
+    "rhan_im/gate1.py": "c20779c956871a5c959b782da53fd679a3502305ff846cb2600adc6718abb96d",
+    "rhan_im/layout.py": "cd042048b5ee77286ddd0a37e2ef70c9220ea127d7150a46ff85060537d54b4c",
+    "rhan_im/trunk_adapter.py": "a3e9c83c091ba8fd35728145e55b92de167f9de8ba4ab2585c48701427b78e72",
+    "rhan_im/window_head.py": "35a96251bcb2ae48bc8413e4dcf838b1321306785c3758bd4384383fafd252b7",
+    "rhan_im/sdt.py": "366577818b2718ba85661cd6d93ce8e692284816f34997166967d890de603754",
+    "gen2_foundation/backbone.py": "b6f28d098d6d6746181da24c624a90c3baa2760cb41e145751a5b5945d73feb9",
+    "noesis_vision/models/recurrent_block.py": "2e3584fbd0be3cd79e01c7177f7f51b31dc4ff1724b3fb7aed46660f027da7e2",
+    "noesis_vision/models/foveation.py": "58eda6e02b6a22bd83d2903a043a6035c96bf9d6093c4a77b68f544a0e56f827",
+    "scripts/rhan_im/gate1_prereg.py": "b717aefa330e9d0ac8e31ee7b26231e4216341443271e98dacb7218e41eb7f34",
+    "scripts/rhan_im/gate1_slope_heterogeneity.py": "43aa5749b99766828651246bfd42a3a810f9a6b430183c6129b8b55eaece4a3d",
+    "train_path_listing": {
+      "sha256": "b3a7e817c23fa08e847aa28d75cb3fd46cd03e0b893dd0bc510115c784e849ff",
+      "n_files": 126689
+    },
+    "val_path_listing": {
+      "sha256": "d7ff0a98599e5b2138aaa56e903c2c0b5ad0a69f4449cca68468b301897541e2",
+      "n_files": 5000
+    }
+  },
+  "checkpoint_hashes": {
+    "foundation_ff_112_s3_tuned.pth": "f77c6ae008408b217b459fec8706e3b759141d229120b0085d339769099ef1c6"
+  },
+  "s3_provenance": {
+    "s3_script": {
+      "file": "scripts/rhan_im/train_s3_dense_window.py",
+      "sha256": "3b01fdc376e745d92ddd4bc7ffbe61deac380a43d1346028a535928122571045"
+    },
+    "s3_split": {
+      "file": "prereg/s3_split.json",
+      "sha256": "021623a6ea4ddd0eb34ab9515b6100d50ba3b4eb3f7a03dc96fa1fb448c27051"
+    },
+    "s3_base_checkpoint": {
+      "file": "foundation_ff_112_seed17_final_d00fb750.pth",
+      "sha256": "d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc"
+    }
+  }
+}
