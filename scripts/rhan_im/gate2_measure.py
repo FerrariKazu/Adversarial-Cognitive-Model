@@ -140,7 +140,7 @@ def _head_training_files(train_root: pathlib.Path, classes: Sequence[str], holdo
     for c in classes:
         hold = set(holdout.get(c, []))
         files = sorted(p for p in (train_root / c).iterdir() if p.is_file() and p.suffix.lower() in (".jpg", ".jpeg", ".png"))
-        out[c] = [str(p) for p in files if p.name not in hold]
+        out[c] = [str(p.relative_to(train_root.parent)) for p in files if p.name not in hold]
         if not out[c]:
             raise SystemExit(f"no head-training images left for class {c!r}")
     return out
@@ -236,6 +236,34 @@ def _synthetic_setup(args) -> Dict[str, object]:
     }
 
 
+def _protocol_guard(args, info: Dict[str, object], setup: Dict[str, object]) -> None:
+    """Refuse a non-self-test run that deviates from the frozen v1.2 execution contract."""
+    if args.self_test:
+        return
+    if not args.out:
+        raise SystemExit("--out is required for a protocol run (the provenance sidecar must be written)")
+    if info.get("sha256") != g2.TRUNK_SHA256:
+        raise SystemExit(f"wrong trunk checkpoint: expected sha256 {g2.TRUNK_SHA256}, got {info.get('sha256')}")
+    if setup["data"].get("mode") != "class_split_file":
+        raise SystemExit("protocol run must use the class-split data path")
+    checks = {
+        "canvas": 224, "window": 112, "stride_units": 2, "op_size": 4,
+        "sizes": [2, 4, 6], "fit_null": 850,
+        "n_cal_target": 425, "n_cal_null": 425, "n_test_target": 400, "n_test_null": 400,
+        "n_dprime_target": 800, "n_dprime_null": 800,
+        "n_cal_subset": 300, "bootstrap": 500, "alpha": 0.10, "delta": 0.10, "k_min": 1, "min_pos": 30,
+        "lambdas": list(g2.LTT_LAMBDAS),
+        "steps": 600, "batch": 48, "lr": 2e-3,
+        "head_sizes": [2, 4, 6], "head_alphas": [1.0, 0.6], "p_null": 0.3,
+    }
+    for key, expected in checks.items():
+        got = getattr(args, key)
+        if got != expected:
+            raise SystemExit(f"protocol run refuses --{key.replace('_', '-')}={got!r}; expected {expected!r}")
+    if int(args.seed) not in (17, 42, 99):
+        raise SystemExit(f"protocol run seed must be 17, 42, or 99; got {args.seed}")
+
+
 def _scores(fn, head, canvas: torch.Tensor, tl: Optional[torch.Tensor], lay: UnitLayout, device: str, chunk: int) -> torch.Tensor:
     tokens = G1S.trunk_tokens(fn, canvas, tl, lay, device, chunk=chunk)
     return head(tokens.to(device)).cpu()
@@ -328,6 +356,7 @@ def run(args) -> Dict[str, object]:
     lay, C = setup["lay"], setup["n_classes"]
     cand = lay.candidates(args.stride_units)
     trunk, info = G1S.load_trunk(args.ckpt, args.window, args.device)
+    _protocol_guard(args, info, setup)
     fn = ff_token_fn(trunk)
     plans = setup["plans"]
     for name, plan in plans.items():

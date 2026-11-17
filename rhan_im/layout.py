@@ -83,7 +83,7 @@ class UnitLayout:
     def window_units(self, topleft: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """For windows with top-left `topleft` (B, 2) in fine units: the fine unit index of each of
         the tok*tok tokens (row-major) and whether it lies inside the canvas."""
-        i = torch.arange(self.tok)
+        i = torch.arange(self.tok, device=topleft.device)
         rr = topleft[:, 0, None, None] + i[None, :, None]
         cc = topleft[:, 1, None, None] + i[None, None, :]
         valid = (rr >= 0) & (rr < self.g) & (cc >= 0) & (cc < self.g)

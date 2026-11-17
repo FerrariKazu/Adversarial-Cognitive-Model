@@ -29,6 +29,8 @@ from rhan_im.window_head import EvidenceCalibration
 
 K_LOOKS = 8
 P_NULL = 0.5
+PROTOCOL_ID = "rhan-im-gate2/1.2"
+TRUNK_SHA256 = "d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc"
 TARGET_SIZES = (2, 4, 6)
 OP_SIZE = 4
 OP_ALPHA = 1.0

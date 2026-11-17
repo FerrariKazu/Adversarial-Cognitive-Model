@@ -1,0 +1,55 @@
+{
+  "protocol_id": "rhan-im-gate2/1.2",
+  "status": "LOCKED",
+  "locked_at_utc": "2026-11-17T18:10:53Z",
+  "rules_file": "prereg/gate2_rules_v1_2.json",
+  "rules_sha256": "3a2632ca60f02972dc335ff38a47332eb727c1f00e591611b483e236f57bb011",
+  "erratum_02": {
+    "file": "docs/research/RHAN_IM_GATE2_ERRATUM_02.md",
+    "sha256": "a576bcbda3ad3bd4db7440a0b42a295c7261337b2fd41bd0be3412ea0a4c5dfd"
+  },
+  "gate2_md_draft": {
+    "file": "docs/research/RHAN_IM_GATE2_PREREG_DRAFT.md",
+    "sha256": "26f74e7926fb387fb69da85a3ad6a3bf61594de5565661f30e3afe3efbb10713"
+  },
+  "trunk": {
+    "checkpoint": "foundation_ff_112_seed17_final_d00fb750.pth",
+    "file": "checkpoints/foundation_ff_112_seed17_final_d00fb750.pth",
+    "sha256": "d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc"
+  },
+  "data_bindings": {
+    "class_split": {
+      "file": "prereg/class_split.json",
+      "sha256": "c2e05641bf10d4aaaa41d6dfa9dbc3571a5d3b95dc80f36dc6a4d7d86d481c25"
+    },
+    "val_split": {
+      "file": "prereg/gate2_val_split.json",
+      "sha256": "b8c4543f7b7272cae43ebfd1a9ad2095908b65b36c0ae2577c9e8e3b8f92bed0"
+    },
+    "train_holdout": {
+      "file": "prereg/gate2_train_holdout.json",
+      "sha256": "9a66bc48d6bc1fe26390ec9bf3e7a69970e9c63ef1d8e3e2a00bbad73ae4874e"
+    }
+  },
+  "target_files": {
+    "gen2_foundation/backbone.py": "b6f28d098d6d6746181da24c624a90c3baa2760cb41e145751a5b5945d73feb9",
+    "noesis_vision/models/foveation.py": "58eda6e02b6a22bd83d2903a043a6035c96bf9d6093c4a77b68f544a0e56f827",
+    "noesis_vision/models/recurrent_block.py": "2e3584fbd0be3cd79e01c7177f7f51b31dc4ff1724b3fb7aed46660f027da7e2",
+    "rhan_im/belief.py": "fa3c1f16126b303db140de14082a0aeb3902f71f913c0223cb23a3d346deeec6",
+    "rhan_im/gate1.py": "c20779c956871a5c959b782da53fd679a3502305ff846cb2600adc6718abb96d",
+    "rhan_im/gate2.py": "a490192de37bd4f063becdc9fcbbb576b8e949b49ed84f6457eccc9dcfc5ad7a",
+    "rhan_im/layout.py": "706567f907b2a1b67febd7f0eee01f917147e41e101f4de9260044f9533df991",
+    "rhan_im/sdt.py": "366577818b2718ba85661cd6d93ce8e692284816f34997166967d890de603754",
+    "rhan_im/stopping.py": "5ecea120f9b8d81152fb509447138119529d4c1485bd23e6542fc48e469dac48",
+    "rhan_im/trunk_adapter.py": "a3e9c83c091ba8fd35728145e55b92de167f9de8ba4ab2585c48701427b78e72",
+    "rhan_im/window_head.py": "35a96251bcb2ae48bc8413e4dcf838b1321306785c3758bd4384383fafd252b7",
+    "scripts/rhan_im/gate2_aggregate.py": "17569c435411ee1e484a383baae4bffdf8dfd9386cb282be4b328f7bf267dc14",
+    "scripts/rhan_im/gate2_measure.py": "8dd413765961fe7ad168ff20ddccd533506b5fafc91e4d328e6c7d54f9fcfe16",
+    "scripts/rhan_im/gate2_split.py": "83a9ac8595911d91eea43f6784f769c8192fea66fd867628bbc6abc432d04c11"
+  },
+  "test_file": {
+    "file": "tests/rhan_im/test_gate2.py",
+    "sha256": "2c70679f1aae8850eb9ad23ca02ae7157888206424edc6259e2e75423f0700e6"
+  },
+  "requirement": "all measurement code and execution scripts must be pinned by SHA-256 before any data execution"
+}

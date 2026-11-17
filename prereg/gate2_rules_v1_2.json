@@ -138,7 +138,8 @@
     }
   },
   "code_locking": {
-    "status": "DEFERRED_TO_CODE_LOCK_STEP",
+    "status": "LOCKED",
+    "code_lock_file": "prereg/gate2_code_lock_v1_2.json",
     "target_files": [
       "rhan_im/stopping.py",
       "rhan_im/belief.py",

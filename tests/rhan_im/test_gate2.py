@@ -1,7 +1,9 @@
 """Gate-2 v1.2 rules, train holdout, pure planning/sensor/metric functions, and 2-of-3 aggregation."""
 import hashlib
+import importlib.util
 import json
 import pathlib
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -37,7 +39,8 @@ def test_v1_2_pins_v1_1_erratum_02_and_train_holdout():
         "train_files": 126_689, "target_holdout_images": 800, "background_holdout_images": 1_600,
         "holdout_images": 2_400, "head_training_images": 124_289}
     assert v1_1["protocol_id"] == "rhan-im-gate2/1.1"
-    assert v1_2["code_locking"]["status"] == "DEFERRED_TO_CODE_LOCK_STEP"
+    assert v1_2["code_locking"]["status"] == "LOCKED"
+    assert v1_2["code_locking"]["code_lock_file"] == "prereg/gate2_code_lock_v1_2.json"
     assert set(v1_2["code_locking"]["target_files"]) == set(g2.GATE2_CODE_FILES) | {"scripts/rhan_im/gate2_aggregate.py"}
 
 
@@ -199,3 +202,95 @@ def test_aggregate_runs_uses_the_2_of_3_rule():
     runs[0]["e2"]["status"] = "FAIL"
     assert g2.aggregate_runs(runs)["e2_status"] == "FAIL"
     assert g2.aggregate_runs([run(1, "PASS", True, True)])["status"] == "INVALID"
+
+
+def _load_script(name: str):
+    spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / "rhan_im" / f"{name}.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _frozen_args(**overrides):
+    vals = dict(
+        self_test=False, ckpt="checkpoints/foundation_ff_112_seed17_final_d00fb750.pth", out="/tmp/gate2.json",
+        canvas=224, window=112, stride_units=2, op_size=4, sizes=[2, 4, 6], fit_null=850,
+        n_cal_target=425, n_cal_null=425, n_test_target=400, n_test_null=400,
+        n_dprime_target=800, n_dprime_null=800, n_cal_subset=300, bootstrap=500, min_pos=30,
+        alpha=0.10, delta=0.10, k_min=1, lambdas=list(g2.LTT_LAMBDAS),
+        steps=600, batch=48, lr=2e-3, head_sizes=[2, 4, 6], head_alphas=[1.0, 0.6], p_null=0.3,
+        seed=17,
+    )
+    vals.update(overrides)
+    return SimpleNamespace(**vals)
+
+
+def test_protocol_guard_accepts_frozen_run_and_refuses_deviations():
+    m = _load_script("gate2_measure")
+    info = {"sha256": g2.TRUNK_SHA256}
+    setup = {"data": {"mode": "class_split_file"}}
+    m._protocol_guard(_frozen_args(), info, setup)
+    with pytest.raises(SystemExit, match="wrong trunk"):
+        m._protocol_guard(_frozen_args(), {"sha256": "0" * 64}, setup)
+    with pytest.raises(SystemExit, match="steps"):
+        m._protocol_guard(_frozen_args(steps=1), info, setup)
+    with pytest.raises(SystemExit, match="out"):
+        m._protocol_guard(_frozen_args(out=None), info, setup)
+    m._protocol_guard(_frozen_args(self_test=True, steps=1, out=None), {"sha256": None}, {"data": {"mode": "self_test"}})
+
+
+def test_aggregator_validates_protocol_run_before_aggregation():
+    m = _load_script("gate2_aggregate")
+    rules = _load("prereg/gate2_rules_v1_2.json")
+    run = {
+        "protocol": {"protocol_id": g2.PROTOCOL_ID},
+        "data": {"mode": "class_split_file",
+                 "class_split": {"class_split_sha256": rules["data_bindings"]["class_split"]["class_split_sha256"]},
+                 "val_split": {"file_sha256": rules["data_bindings"]["val_split"]["sha256"]},
+                 "train_holdout": {"file_sha256": rules["data_bindings"]["train_holdout"]["sha256"],
+                                   "holdout_assignment_sha256": rules["data_bindings"]["train_holdout"]["holdout_assignment_sha256"]},
+                 "head_training_images": rules["data_bindings"]["train_holdout"]["head_training_images"]},
+        "trunk": {"sha256": g2.TRUNK_SHA256},
+        "config": vars(_frozen_args()),
+        "seed": 17,
+        "counts": {"fit": {"n_scenes": 850, "n_target": 0, "n_null": 850},
+                   "cal": {"n_scenes": 850, "n_target": 425, "n_null": 425},
+                   "test": {"n_scenes": 800, "n_target": 400, "n_null": 400},
+                   "dprime": {"n_scenes": 1600, "n_target": 800, "n_null": 800}},
+        "sensor": {"op_size_units": 4, "op_alpha": 1.0, "unit_cap": None, "combination_mode": "sum",
+                   "d_gist": 1.0, "kappa": 3.0, "rho_null": 0.1, "vif_tok_used": 1.0, "vif_gist_used": 1.0},
+        "e2": {"n_scenes": 800, "ece_15_K8": 0.01, "status": "PASS"},
+        "e5": {"selective": {"n_cal_pool": 850, "n_cal_subset": 300, "bootstrap": 500, "k_min": 1,
+                             "alpha": 0.10, "delta": 0.10, "lambda_grid": list(g2.LTT_LAMBDAS)}},
+    }
+    assert m._validate_run(run, rules) == []
+    for mutate, token in (
+        (lambda r: r["config"].__setitem__("self_test", True), "config.self_test"),
+        (lambda r: r["trunk"].__setitem__("sha256", "0" * 64), "trunk.sha256"),
+        (lambda r: r["config"].__setitem__("steps", 1), "config.steps"),
+        (lambda r: r["data"].__setitem__("mode", "self_test"), "data.mode"),
+        (lambda r: r.__setitem__("seed", 1), "seed"),
+    ):
+        r = json.loads(json.dumps(run))
+        mutate(r)
+        assert token in m._validate_run(r, rules)
+
+
+def test_head_training_paths_are_data_root_relative(tmp_path):
+    m = _load_script("gate2_measure")
+    d = tmp_path / "train" / "c"
+    d.mkdir(parents=True)
+    for name in ("a.jpg", "b.jpg", "c.jpg"):
+        (d / name).write_bytes(b"x")
+    got = m._head_training_files(tmp_path / "train", ["c"], {"c": ["b.jpg"]})
+    assert got == {"c": [str(pathlib.Path("train/c/a.jpg")), str(pathlib.Path("train/c/c.jpg"))]}
+
+
+def test_window_units_is_device_safe():
+    lay = UnitLayout(canvas=112, patch=14, window=56, target_units=4)
+    tl = lay.candidates(2)[:4]
+    idx, valid = lay.window_units(tl)
+    if torch.cuda.is_available():
+        idx_g, valid_g = lay.window_units(tl.cuda())
+        assert torch.equal(idx_g.cpu(), idx)
+        assert torch.equal(valid_g.cpu(), valid)
