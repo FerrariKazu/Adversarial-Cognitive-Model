@@ -1,6 +1,6 @@
 # Gate-2 Pre-Registration: Selective Classification, Calibration, and Learn-Then-Test Risk Control (Rules & Protocol Freeze)
 
-Status: **RULES & PROTOCOL FROZEN on 17 Nov 2026 prior to Stage S3 execution.**
+Status: **RULES & PROTOCOL FROZEN on 17 Nov 2026 prior to Stage S3 execution; amended by v1.1 on 17 Nov 2026.** v1.1 caps scene generation at the non-reused image-pair capacity and records the v1.0 timestamp erratum. The v1.0 rules remain in git history and are not rewritten.
 Scope: **INTERNAL QUALIFICATION ONLY.**
 Trunk Target: Frozen baseline trunk `foundation_ff_112_seed17_final_d00fb750.pth` (SHA-256 `d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc`).
 Freeze Phase: **Rules and Protocol Freeze.** (Measurement code hashes will be pinned in a second step prior to executing on data; no full code freeze is claimed yet).
@@ -33,16 +33,17 @@ Freeze Phase: **Rules and Protocol Freeze.** (Measurement code hashes will be pi
 
 ### 2.2 Three-Way Disjoint Split (`prereg/gate2_val_split.json`)
 Doc 05 line 34 requires that LTT calibration items must be strictly disjoint from everything fitted upstream. Gate 2 cannot reuse Gate 1's 2-way pools file. Instead, the 5,000 ImageNet-100 `val/` images (50 per class × 100 classes) are partitioned into three strictly disjoint sets:
-1. **Fit Pool (`fit_pool_part_0_of_3`):** 17 images/class (1,700 images total). Used exclusively to measure Gate-2-specific noise parameters ($VIF_{\text{null}}$, null mean, null variance, and $\kappa$). The readout head is trained upstream on `data/imagenet100/train/` per §3.1.
-2. **Calibration Pool (`calibration_pool_part_1_of_3`):** 17 images/class (1,700 images total). Used exclusively to calibrate the LTT risk-controlling thresholds $\hat{\lambda}$ and minimum look floor $k_{\min}$.
-3. **Test Pool (`test_pool_part_2_of_3`):** 16 images/class (1,600 images total). Used exclusively to evaluate empirical risk violation rates, coverage, and look-saving efficiency.
+1. **Fit Pool (`fit_pool_part_0_of_3`):** 17 images/class (1,700 images total). Used exclusively to measure Gate-2-specific noise parameters ($VIF_{\text{null}}$, null mean, null variance, and $\kappa$) on at most 850 non-reused null scenes. The readout head is trained upstream on `data/imagenet100/train/` per §3.1.
+2. **Calibration Pool (`calibration_pool_part_1_of_3`):** 17 images/class (1,700 images total). Used exclusively to calibrate the LTT risk-controlling thresholds $\hat{\lambda}$ and minimum look floor $k_{\min}$ on at most 850 non-reused scenes.
+3. **Test Pool (`test_pool_part_2_of_3`):** 16 images/class (1,600 images total). Used exclusively to evaluate empirical risk violation rates, coverage, and look-saving efficiency on at most 800 non-reused scenes.
 
 ### 2.3 Scene Generation and Disjoint Unit Contract
-Per the 13 Nov decision, one image pair is the strict unit:
-- **Fit Pool:** Generates 1,700 null calibration scenes (for noise standardisation, $VIF_{\text{null}}$, and $\kappa$).
-- **Calibration Pool:** Generates 1,700 composited scenes (50% null, 50% target). In each bootstrap resample, a sub-sample of $n_{\text{cal}} = 300$ scenes is drawn.
-- **Test Pool:** Generates 1,600 composited scenes (50% null, 50% target).
+Per the 13 Nov decision, one image pair is the strict unit. A target scene consumes one target image and one background image; a null scene consumes one background image. No image is reused within a pool, because reuse would make scenes dependent and break LTT exchangeability:
+- **Fit Pool:** Generates at most 850 null calibration scenes from the 850 background images (for noise standardisation, $VIF_{\text{null}}$, and $\kappa$). The remaining pool images are unused.
+- **Calibration Pool:** Generates at most 850 composited scenes (50% null, 50% target): 425 target scenes use 425 target and 425 background images; 425 null scenes use the remaining 425 background images. In each bootstrap resample, a sub-sample of $n_{\text{cal}} = 300$ scenes is drawn.
+- **Test Pool:** Generates at most 800 composited scenes (50% null, 50% target): 400 target scenes use 400 target and 400 background images; 400 null scenes use the remaining 400 background images.
 - **Zero Cross-Pool Reuse:** No background or target image in `calibration_pool_part_1_of_3` appears in `test_pool_part_2_of_3` or `fit_pool_part_0_of_3`.
+- **Zero Within-Pool Reuse:** Each image is used in at most one scene, so the scene count is capped by the smaller role pool (850 for fit/calibration, 800 for test).
 
 ---
 
@@ -58,7 +59,7 @@ Gate 1 did not export a persistent head checkpoint. Gate 2 fits its own readout 
 
 ### 3.2 Noise and Dependence Parameters
 Gate 2 does **not** copy Gate 1's $VIF_{\text{null}} = 11.605$. That value was measured on pasted squares on Gate 1's scene configuration; Gate 2 must measure its own.
-- $VIF_{\text{null}}$, token standardizers ($\mu_0, \sigma_0$), and noise-calibration parameter $\kappa$ are measured directly on `fit_pool_part_0_of_3` (1,700 images) null scenes.
+- $VIF_{\text{null}}$, token standardizers ($\mu_0, \sigma_0$), and noise-calibration parameter $\kappa$ are measured directly on the 850 non-reused null scenes generated from `fit_pool_part_0_of_3` (1,700 images).
 - If $VIF_{\text{null}} > 1.25$, token scores and detectabilities are scaled by $1 / \sqrt{VIF_{\text{null}}}$ (equicorrelated correction).
 
 ### 3.3 Look Policy Sequence
@@ -88,10 +89,10 @@ Gate 2 evaluates the **fixed look budget** policy with up to $K = 8$ sequential 
 - **Primary Criterion (Doc 05 E5):**
   - Target error rate: $\alpha = 0.10$.
   - Target violation probability: $\delta = 0.10$.
-  - Resampling scheme: Subset $n_{\text{cal}} = 300$ from the 1,700-image calibration pool over $B \ge 500$ overlapping bootstrap resamples.
+  - Resampling scheme: Subset $n_{\text{cal}} = 300$ from the 850-scene calibration pool (built without reuse from 1,700 images) over $B \ge 500$ overlapping bootstrap resamples.
 - **Risk Evaluation on Test Pool:**
   - In each resample $b \in \{1, \dots, B\}$, the calibration subset identifies stopping threshold $\hat{\lambda}_b$ and floor $k_{\min, b}$.
-  - The empirical risk of $(\hat{\lambda}_b, k_{\min, b})$ is evaluated on the full independent 1,600-scene test pool (`test_pool_part_2_of_3`).
+  - The empirical risk of $(\hat{\lambda}_b, k_{\min, b})$ is evaluated on the full independent 800-scene test pool (`test_pool_part_2_of_3`).
   - An empirical violation occurs if $\text{Risk}_{\text{test}}(\hat{\lambda}_b, k_{\min, b}) > \alpha$.
   - The empirical violation rate across all $B$ resamples is $\frac{1}{B} \sum_{b=1}^B \mathbb{I}(\text{Risk}_{\text{test}}(\hat{\lambda}_b, k_{\min, b}) > \alpha)$.
 - **Exploratory Additions (explicitly labeled exploratory):**
@@ -109,7 +110,7 @@ Gate 2 evaluates the **fixed look budget** policy with up to $K = 8$ sequential 
 - **Seeds:** Three primary evaluation seeds (17, 42, 99) governing head initialisation, scene generation, and bootstrap resampling.
 - **Aggregation Rule:** 2-of-3 seeds must pass each criterion for the criterion to pass.
 - **Provenance:** Every run writes `<run>.json` and `<run>.provenance.json` side by side, recording the exact source images and scene parameters.
-- **Code Locking:** All measurement scripts and libraries to be pinned by SHA-256 hash in the final code-lock JSON prior to evaluation runs on data.
+- **Code Locking:** All measurement scripts and libraries to be pinned by SHA-256 hash in the final code-lock JSON prior to evaluation runs on data. The code-lock step also pins this Gate 2 markdown draft by SHA-256 in `prereg/gate2_rules_v1_1.json`.
 
 ## 6. Tuned-Trunk Gate 2
 

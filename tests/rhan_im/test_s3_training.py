@@ -12,6 +12,7 @@ Verifies:
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import pathlib
 import sys
@@ -52,6 +53,48 @@ def _make_dummy_checkpoint(path: pathlib.Path, img_size: int = 112) -> None:
         "model": {f"backbone.{k}": v for k, v in trunk.state_dict().items()},
     }
     torch.save(payload, path)
+
+
+def _write_pinned_manifest(
+    root: pathlib.Path,
+    tcls: list[str],
+    bcls: list[str],
+    *,
+    files_per_class: int = 4,
+    heldout_per_class: int = 1,
+    heldout_override: list[str] | None = None,
+) -> tuple[pathlib.Path, list[str], list[str]]:
+    all_classes = tcls + bcls
+    all_files = sorted(
+        f"{c}/im_{i:02d}.JPEG"
+        for c in all_classes
+        for i in range(files_per_class)
+    )
+    heldout = heldout_override
+    if heldout is None:
+        heldout = sorted(f"{c}/im_00.JPEG" for c in all_classes)
+    heldout = sorted(heldout)
+    train = sorted(set(all_files) - set(heldout))
+
+    for c in all_classes:
+        cdir = root / "train" / c
+        cdir.mkdir(parents=True)
+        for i in range(files_per_class):
+            (cdir / f"im_{i:02d}.JPEG").write_bytes(b"x")
+
+    manifest = {
+        "status": "FINAL",
+        "heldout_per_class": heldout_per_class,
+        "heldout_count": len(heldout),
+        "train_count": len(train),
+        "heldout_listing_sha256": hashlib.sha256("\n".join(heldout).encode()).hexdigest(),
+        "train_listing_sha256": hashlib.sha256("\n".join(train).encode()).hexdigest(),
+        "heldout_files": heldout,
+        "train_files": train,
+    }
+    path = root / "pinned_manifest.json"
+    path.write_text(json.dumps(manifest))
+    return path, heldout, train
 
 
 def test_load_trunk_for_s3_directly():
@@ -179,6 +222,44 @@ def test_partition_train_split_and_val_leak_rejection():
 
         with pytest.raises(ValueError, match="S3 partition leaks val images"):
             partition_train_split(root, tcls, bcls, heldout_per_class=5, pools_path=pools_leaky)
+
+
+def test_partition_train_split_loads_pinned_manifest(tmp_path):
+    tcls, bcls = ["t_0", "t_1"], ["b_0", "b_1"]
+    manifest, heldout, train = _write_pinned_manifest(tmp_path, tcls, bcls)
+
+    got_train, got_heldout = partition_train_split(
+        tmp_path, tcls, bcls, heldout_per_class=1, out_manifest=manifest
+    )
+
+    assert got_train == train
+    assert got_heldout == heldout
+
+
+def test_partition_train_split_rejects_manifest_with_missing_file(tmp_path):
+    tcls, bcls = ["t_0", "t_1"], ["b_0", "b_1"]
+    manifest, heldout, _ = _write_pinned_manifest(tmp_path, tcls, bcls)
+    (tmp_path / "train" / heldout[0]).unlink()
+
+    with pytest.raises(FileNotFoundError, match="Manifest held-out file missing on disk"):
+        partition_train_split(tmp_path, tcls, bcls, heldout_per_class=1, out_manifest=manifest)
+
+
+def test_partition_train_split_rejects_manifest_with_wrong_per_class_count(tmp_path):
+    tcls, bcls = ["t_0", "t_1"], ["b_0", "b_1"]
+    wrong_heldout = [
+        f"{tcls[0]}/im_00.JPEG",
+        f"{tcls[0]}/im_01.JPEG",
+        f"{tcls[1]}/im_00.JPEG",
+        f"{bcls[0]}/im_00.JPEG",
+        f"{bcls[1]}/im_00.JPEG",
+    ]
+    manifest, _, _ = _write_pinned_manifest(
+        tmp_path, tcls, bcls, heldout_override=wrong_heldout
+    )
+
+    with pytest.raises(ValueError, match="expected 1"):
+        partition_train_split(tmp_path, tcls, bcls, heldout_per_class=1, out_manifest=manifest)
 
 
 def test_evaluate_heldout_ratio_computes_gate1_metrics():
