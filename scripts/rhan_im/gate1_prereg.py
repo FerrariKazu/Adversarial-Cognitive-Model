@@ -34,6 +34,8 @@ import subprocess
 import sys
 from typing import Dict, List, Optional
 
+import torch
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -107,7 +109,7 @@ def freeze(primary: pathlib.Path, secondary: List[pathlib.Path], data_root: Opti
     if data_root is None:
         raise SystemExit("--data-root is required: the freeze pins the sorted file listing of the train and val splits")
     p_sha = sha256_file(primary)
-    if p_sha != DOCUMENTED_PRIMARY_SHA256 and not allow_other_primary:
+    if protocol_version == "rhan_im_gate1_v1" and p_sha != DOCUMENTED_PRIMARY_SHA256 and not allow_other_primary:
         raise SystemExit(f"refusing to freeze: the primary checkpoint's sha256 {p_sha[:12]}… is not the documented ff_112 seed-17 file "
                          f"({DOCUMENTED_PRIMARY_SHA256[:12]}…); pass --allow-other-primary if that is deliberate")
     names = [primary.name] + [p.name for p in secondary]
@@ -127,13 +129,27 @@ def freeze(primary: pathlib.Path, secondary: List[pathlib.Path], data_root: Opti
         raise SystemExit("refusing to freeze: the pools file was made from a different val listing than the one in --data-root")
     s3_provenance = None
     if protocol_version == "rhan_im_gate1_v2":
-        s3_provenance = {}
-        if s3_script is not None:
-            s3_provenance["s3_script"] = {"file": str(s3_script), "sha256": sha256_file(s3_script)}
-        if s3_split is not None:
-            s3_provenance["s3_split"] = {"file": str(s3_split), "sha256": sha256_file(s3_split)}
-        if s3_base_ckpt is not None:
-            s3_provenance["s3_base_checkpoint"] = {"file": s3_base_ckpt.name, "sha256": sha256_file(s3_base_ckpt)}
+        if s3_script is None or s3_split is None or s3_base_ckpt is None:
+            raise SystemExit("refusing to freeze v2: --s3-script, --s3-split, and --s3-base-ckpt are all required for rhan_im_gate1_v2")
+        if not s3_script.is_file():
+            raise SystemExit(f"refusing to freeze v2: --s3-script file does not exist: {s3_script}")
+        if not s3_split.is_file():
+            raise SystemExit(f"refusing to freeze v2: --s3-split file does not exist: {s3_split}")
+        if not s3_base_ckpt.is_file():
+            raise SystemExit(f"refusing to freeze v2: --s3-base-ckpt file does not exist: {s3_base_ckpt}")
+        base_sha = sha256_file(s3_base_ckpt)
+        raw_primary = torch.load(primary, map_location="cpu", weights_only=False)
+        embedded_base_sha = raw_primary.get("base_checkpoint_sha256") if isinstance(raw_primary, dict) else None
+        if embedded_base_sha != base_sha:
+            raise SystemExit(
+                f"refusing to freeze v2: primary checkpoint's embedded base_checkpoint_sha256 ({embedded_base_sha}) "
+                f"does not match --s3-base-ckpt sha256 ({base_sha})"
+            )
+        s3_provenance = {
+            "s3_script": {"file": str(s3_script), "sha256": sha256_file(s3_script)},
+            "s3_split": {"file": str(s3_split), "sha256": sha256_file(s3_split)},
+            "s3_base_checkpoint": {"file": s3_base_ckpt.name, "sha256": base_sha},
+        }
     return {
         "protocol_id": "rhan-im-gate1/1",
         "protocol_version": protocol_version,

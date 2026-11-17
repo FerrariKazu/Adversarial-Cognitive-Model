@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 import pytest
+import torch
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -595,16 +596,37 @@ def test_aggregate_main_reads_the_sidecar_files_from_disk(tmp_path, frozen, monk
 
 
 def test_freeze_v2_with_s3_provenance(tmp_path):
-    ck = tmp_path / "tuned_s3.pth"
-    ck.write_bytes(b"tuned trunk bytes")
     base_ck = tmp_path / "base.pth"
     base_ck.write_bytes(PRIMARY)
+    base_sha = hashlib.sha256(PRIMARY).hexdigest()
+
+    ck = tmp_path / "tuned_s3.pth"
+    torch.save({"base_checkpoint_sha256": base_sha, "phase": "ff_112_s3", "arm": "s3_tuned"}, ck)
+
     s3_script = tmp_path / "train_s3.py"
     s3_script.write_bytes(b"s3 script content")
     s3_split = tmp_path / "s3_split.json"
     s3_split.write_bytes(b'{"train": [], "heldout": []}')
     data = make_data(tmp_path)
     cs, pl = write_class_files(tmp_path)
+
+    # Missing any of the 3 S3 components must fail
+    with pytest.raises(SystemExit, match="required for rhan_im_gate1_v2"):
+        P.freeze(primary=ck, secondary=[], data_root=data, allow_dirty=True, class_split=cs, pools=pl,
+                 protocol_version="rhan_im_gate1_v2", s3_script=None, s3_split=s3_split, s3_base_ckpt=base_ck)
+    with pytest.raises(SystemExit, match="required for rhan_im_gate1_v2"):
+        P.freeze(primary=ck, secondary=[], data_root=data, allow_dirty=True, class_split=cs, pools=pl,
+                 protocol_version="rhan_im_gate1_v2", s3_script=s3_script, s3_split=None, s3_base_ckpt=base_ck)
+    with pytest.raises(SystemExit, match="required for rhan_im_gate1_v2"):
+        P.freeze(primary=ck, secondary=[], data_root=data, allow_dirty=True, class_split=cs, pools=pl,
+                 protocol_version="rhan_im_gate1_v2", s3_script=s3_script, s3_split=s3_split, s3_base_ckpt=None)
+
+    # Mismatched embedded base_checkpoint_sha256 must fail
+    bad_ck = tmp_path / "bad_tuned.pth"
+    torch.save({"base_checkpoint_sha256": "0" * 64}, bad_ck)
+    with pytest.raises(SystemExit, match="does not match --s3-base-ckpt sha256"):
+        P.freeze(primary=bad_ck, secondary=[], data_root=data, allow_dirty=True, class_split=cs, pools=pl,
+                 protocol_version="rhan_im_gate1_v2", s3_script=s3_script, s3_split=s3_split, s3_base_ckpt=base_ck)
 
     res = P.freeze(
         primary=ck,
@@ -627,5 +649,69 @@ def test_freeze_v2_with_s3_provenance(tmp_path):
     assert res["s3_provenance"]["s3_script"]["sha256"] == hashlib.sha256(b"s3 script content").hexdigest()
     assert res["s3_provenance"]["s3_split"]["sha256"] == hashlib.sha256(b'{"train": [], "heldout": []}').hexdigest()
     assert res["s3_provenance"]["s3_base_checkpoint"]["file"] == "base.pth"
-    assert res["s3_provenance"]["s3_base_checkpoint"]["sha256"] == hashlib.sha256(PRIMARY).hexdigest()
+    assert res["s3_provenance"]["s3_base_checkpoint"]["sha256"] == base_sha
+
+
+def test_v2_end_to_end_freeze_self_test_and_aggregate(tmp_path):
+    """Dry-run of the v2 path end to end: freeze v2 with empty secondary, run self-test, aggregate."""
+    import types
+    import scripts.rhan_im.gate1_measure_dprime as m
+
+    base_ck = tmp_path / "base.pth"
+    base_ck.write_bytes(PRIMARY)
+    base_sha = hashlib.sha256(PRIMARY).hexdigest()
+
+    ck = tmp_path / "foundation_ff_112_s3_tuned.pth"
+    torch.save({"base_checkpoint_sha256": base_sha, "phase": "ff_112_s3", "arm": "s3_tuned"}, ck)
+    ck_sha = hashlib.sha256(ck.read_bytes()).hexdigest()
+
+    s3_script = tmp_path / "train_s3.py"
+    s3_script.write_bytes(b"print('s3')")
+    s3_split = tmp_path / "s3_split.json"
+    s3_split.write_bytes(b'{"train": [], "heldout": []}')
+    data = make_data(tmp_path)
+    cs, pl = write_class_files(tmp_path)
+
+    # 1. Freeze v2
+    pre_v2 = P.freeze(
+        primary=ck,
+        secondary=[],
+        data_root=data,
+        allow_dirty=True,
+        class_split=cs,
+        pools=pl,
+        protocol_version="rhan_im_gate1_v2",
+        s3_script=s3_script,
+        s3_split=s3_split,
+        s3_base_ckpt=base_ck,
+    )
+    assert pre_v2["protocol"]["secondary_checkpoints"] == []
+
+    # 2. Run self-test runs
+    self_runs = []
+    for s in (17, 42, 99):
+        args = types.SimpleNamespace(
+            self_test=True, ckpt=None, data_root=None, device="cpu", canvas=112, window=56,
+            stride_units=2, classes=4, sizes=[2, 3], alphas=[1.0], op_size=2, p_null=0.3,
+            steps=2, batch=4, lr=2e-3, n_cal=10, n_test=10, n_pairs=5, seed=s, out=None,
+            class_split=None, pools=None, chunk_scenes=10,
+        )
+        r = m.run(args)
+        self_runs.append(r)
+
+    # Aggregate self-test runs -> must be INVALID due to self-test, but aggregate completes cleanly
+    agg_self = P.aggregate(pre_v2, self_runs, secondary=None, repo_root=ROOT)
+    assert agg_self["gate1"].startswith("INVALID")
+    assert any("self-test" in d for d in agg_self["deviations"])
+    assert agg_self["runs"] == 3
+
+    # 3. Clean mock runs matching the v2 freeze
+    mock_runs = [run(s, ck_sha, name="foundation_ff_112_s3_tuned.pth") for s in (17, 42, 99)]
+    # Write matching sidecar files so sidecar check passes
+    sidecar_probs = {}
+    agg_clean = P.aggregate(pre_v2, mock_runs, secondary=None, repo_root=ROOT, sidecar_problems=sidecar_probs)
+    assert agg_clean["gate1"] == "PASS"
+    assert agg_clean["deviations"] == []
+    assert "secondary_trunks" not in agg_clean
+
 

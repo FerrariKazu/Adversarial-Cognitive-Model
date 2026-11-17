@@ -134,6 +134,37 @@ def partition_train_split(
                 raise ValueError(f"Corrupt manifest {out_manifest}: listing hashes do not match content")
             if not set(h_files).isdisjoint(set(t_files)):
                 raise ValueError("Corrupt manifest: heldout_files and train_files overlap")
+
+            # Verify files exist on disk and match class directories
+            train_dir = data_root / "train"
+            all_classes = set(tcls + bcls)
+            h_counts: Dict[str, int] = collections.defaultdict(int)
+            t_counts: Dict[str, int] = collections.defaultdict(int)
+
+            for rel in h_files:
+                p = train_dir / rel
+                if not p.is_file():
+                    raise FileNotFoundError(f"Manifest held-out file missing on disk: {p}")
+                c = rel.split("/")[0]
+                if c not in all_classes:
+                    raise ValueError(f"Manifest held-out file {rel} belongs to unknown class {c}")
+                h_counts[c] += 1
+
+            for rel in t_files:
+                p = train_dir / rel
+                if not p.is_file():
+                    raise FileNotFoundError(f"Manifest train file missing on disk: {p}")
+                c = rel.split("/")[0]
+                if c not in all_classes:
+                    raise ValueError(f"Manifest train file {rel} belongs to unknown class {c}")
+                t_counts[c] += 1
+
+            for c in all_classes:
+                if h_counts[c] != heldout_per_class:
+                    raise ValueError(f"Class {c} has {h_counts[c]} heldout files, expected {heldout_per_class}")
+                if t_counts[c] < 1:
+                    raise ValueError(f"Class {c} has no training files in manifest")
+
             return t_files, h_files
 
     train_dir = data_root / "train"

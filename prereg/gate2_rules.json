@@ -1,0 +1,74 @@
+{
+  "protocol_id": "rhan-im-gate2/1",
+  "protocol_version": "rhan_im_gate2_rules_v1",
+  "status": "FROZEN_RULES",
+  "created_at_utc": "2026-11-17T01:57:00Z",
+  "scope": "INTERNAL_QUALIFICATION_ONLY",
+  "freeze_phase": "rules_and_protocol_frozen_before_s3",
+  "trunk": {
+    "checkpoint": "foundation_ff_112_seed17_final_d00fb750.pth",
+    "sha256": "d00fb750766b214f69c5f7690772a3373e58b983c6c0cb2420dfd9e558d132bc"
+  },
+  "data_bindings": {
+    "class_split": {
+      "file": "prereg/class_split.json",
+      "sha256": "289f2818f0eae4dd7b654627d4bdf197cc11d43923300c52df7b4c0bdecc1241"
+    },
+    "val_split": {
+      "file": "prereg/gate2_val_split.json",
+      "sha256": "b8c4543f7b7272cae43ebfd1a9ad2095908b65b36c0ae2577c9e8e3b8f92bed0",
+      "fit_pool_part_0_of_3": 1700,
+      "calibration_pool_part_1_of_3": 1700,
+      "test_pool_part_2_of_3": 1600
+    }
+  },
+  "sensor_and_pools_contract": {
+    "head_training": "data/imagenet100/train/ (~126,000 images, 600 steps, batch 48, seed matching evaluation seed)",
+    "fit_pool_role": "fit_pool_part_0_of_3 (1,700 images) used strictly for noise standardisers (mu0, sigma0), VIF_null, and kappa",
+    "disjoint_unit_contract": "one image pair is the strict unit; zero cross-pool image reuse across fit, calibration, and test"
+  },
+  "look_policy": {
+    "schedule": "fixed K=8 sequential looks",
+    "look_1": "resampled 112x112 gist view of entire 224x224 canvas",
+    "looks_2_to_8": "pseudo-random seeded draws from 25 candidate native 112x112 window locations",
+    "adaptive_spatial_claims": false
+  },
+  "rules": {
+    "E2_posterior_calibration": {
+      "metrics": ["ECE_15_bins", "NLL", "Brier_score"],
+      "pass": "ECE <= 0.03",
+      "inconclusive": "0.03 < ECE <= 0.05",
+      "fail_or_diagnose": "ECE > 0.05"
+    },
+    "E5_risk_controlled_stopping": {
+      "framework": "Learn-Then-Test (monotonic risk bound)",
+      "target_error_alpha": 0.10,
+      "target_violation_delta": 0.10,
+      "calibration_subset_size": 300,
+      "bootstrap_resamples": 500,
+      "risk_evaluation": "evaluated on full independent 1,600-scene test pool (test_pool_part_2_of_3)",
+      "validity_criterion": "empirical violation rate <= delta = 0.10 across resamples",
+      "efficiency_criterion": "mean looks saved vs K=8 horizon >= 25% at matched or lower error",
+      "conservative_control_criterion": "fixed-threshold plug-in rule violates target error by >= 2*delta at low sample counts",
+      "kill_condition": "empirical violation rate > delta = 0.10"
+    },
+    "exploratory_additions": {
+      "alphas": [0.01, 0.05],
+      "status": "EXPLICITLY_EXPLORATORY"
+    },
+    "aggregation": {
+      "evaluation_seeds": [17, 42, 99],
+      "decision_rule": "2-of-3 seeds must pass each criterion"
+    }
+  },
+  "code_locking": {
+    "status": "DEFERRED_TO_CODE_LOCK_STEP",
+    "target_files": [
+      "rhan_im/stopping.py",
+      "rhan_im/belief.py",
+      "rhan_im/window_head.py",
+      "rhan_im/gate1.py"
+    ],
+    "requirement": "all measurement code and execution scripts must be pinned by SHA-256 before any data execution"
+  }
+}
