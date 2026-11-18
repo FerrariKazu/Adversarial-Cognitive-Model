@@ -1,0 +1,12 @@
+# Demo configuration: feasible on CPU in about a minute. Feasibility, not confirmation.
+run:
+  seed: 7
+  n_train: 240
+  n_cal: 120
+  n_dev: 120
+  n_test: 120
+  n_gate_e: 120
+  budget: 3
+  results_dir: results
+  tag: demo
+  bootstrap: 2000
