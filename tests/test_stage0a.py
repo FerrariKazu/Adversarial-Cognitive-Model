@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from PIL import Image
 
 from stage0a.checkpointing import (
     epoch_seed,
@@ -14,7 +15,7 @@ from stage0a.checkpointing import (
     validate_resume,
 )
 from stage0a.config import Stage0AConfig
-from stage0a.data import split_fingerprint, stratified_holdout
+from stage0a.data import build_index, find_imagenet1k, split_fingerprint, stratified_holdout
 from stage0a.pipeline import run_resume_drill
 from stage0a.training import LinearHead
 from stage0a.utils import capture_rng_state
@@ -36,6 +37,37 @@ def test_split_is_deterministic_and_stratified():
     assert len(tr1) == 1000 and len(ho1) == 1000
     assert len(np.intersect1d(tr1, ho1)) == 0
     assert split_fingerprint("d", tr1, ho1, 17) != split_fingerprint("d", tr1, ho1, 42)
+
+
+def test_find_and_index_localization_challenge_layout(tmp_path):
+    input_root = tmp_path / "input"
+    dataset = input_root / "imagenet-object-localization-challenge"
+    train = dataset / "ILSVRC" / "Data" / "CLS-LOC" / "train"
+    val = dataset / "ILSVRC" / "Data" / "CLS-LOC" / "val"
+    for i in range(1000):
+        (train / f"n{i:08d}").mkdir(parents=True)
+    val.mkdir(parents=True)
+    Image.new("RGB", (8, 8)).save(val / "ILSVRC2012_val_00000001.JPEG")
+    (dataset / "LOC_val_solution.csv").write_text(
+        "ImageId,PredictionString\nILSVRC2012_val_00000001,n00000000 0 0 0 0\n", encoding="utf-8"
+    )
+
+    found = find_imagenet1k(input_root)
+    assert found == dataset
+    index = build_index(found, "val", expected_val_count=None)
+    assert len(index) == 1
+    assert index.labels.tolist() == [0]
+    assert index.absolute(0).is_file()
+
+
+def test_find_rejects_imagenet100(tmp_path):
+    input_root = tmp_path / "input"
+    train = input_root / "imagenet-100" / "train"
+    val = input_root / "imagenet-100" / "val"
+    for i in range(100):
+        (train / f"n{i:08d}").mkdir(parents=True)
+    val.mkdir(parents=True)
+    assert find_imagenet1k(input_root) is None
 
 
 def test_atomic_rolling_checkpoint_roundtrip(tmp_path):

@@ -109,11 +109,11 @@ The Stage 0A loader **refuses** to build an index from ImageNet-100: `ImageNet-1
 
 ### 4.2 Kaggle requirement
 
-Attach an ImageNet-1k dataset whose root resolves to one of:
+Attach an ImageNet-1k dataset anywhere under `/kaggle/input/<dataset-slug>`; the notebook scans that mount instead of requiring one fixed slug. A root resolves when it contains one of:
 
 - `<root>/train` + `<root>/val` (class-foldered), or
 - `<root>/ILSVRC/Data/CLS-LOC/train` + `val`, or
-- flat `val/` plus `LOC_val_solution.csv`.
+- flat `val/` plus `LOC_val_solution.csv` at the root or an ancestor.
 
 The notebook checks:
 

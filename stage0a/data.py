@@ -70,9 +70,9 @@ def _discover_candidates(root: Path) -> List[Tuple[Path, Path]]:
     candidates = [
         (root / "train", root / "val"),
         (root / "imagenet1k" / "train", root / "imagenet1k" / "val"),
+        (root / "imagenet-1k" / "train", root / "imagenet-1k" / "val"),
         (root / "ILSVRC" / "Data" / "CLS-LOC" / "train", root / "ILSVRC" / "Data" / "CLS-LOC" / "val"),
         (root / "Data" / "CLS-LOC" / "train", root / "Data" / "CLS-LOC" / "val"),
-        (root / "imagenet-1k" / "train", root / "imagenet-1k" / "val"),
     ]
     return candidates
 
@@ -83,21 +83,92 @@ def discover_imagenet1k(root: str | Path) -> Tuple[Path, Path]:
         if train.is_dir() and val.is_dir():
             return train, val
     raise FileNotFoundError(
-        "Could not find ImageNet-1k train/val. Expected one of: "
+        "Could not find ImageNet-1k train/val under "
+        f"{root}. Expected one of: "
         f"{[str(a) + ' + ' + str(b) for a, b in _discover_candidates(root)]}. "
         "Attach the official ImageNet-1k Kaggle dataset and set STAGE0A_DATA_ROOT."
     )
 
 
+def _has_1000_train_classes(train: Path) -> bool:
+    try:
+        return len(_sorted_classes(train)) == 1000
+    except OSError:
+        return False
+
+
+def find_imagenet1k(
+    search_roots: str | Path | Sequence[str | Path],
+    *,
+    max_depth: int = 2,
+) -> Optional[Path]:
+    """Find a plausible ImageNet-1k root without requiring a fixed slug.
+
+    Kaggle datasets are mounted as ``/kaggle/input/<dataset-slug>`` and the
+    useful root may be that slug, a child of it, or the competition root.  BFS
+    to ``max_depth`` avoids hard-coding every slug while keeping the scan small.
+    A candidate must contain train/val directories and 1000 train class folders;
+    this deliberately rejects ImageNet-100.  The 50,000-image validation check
+    still happens in ``build_index``.
+    """
+    if isinstance(search_roots, (str, Path)):
+        search_roots = [search_roots]
+    queue: List[Tuple[Path, int]] = []
+    for root in search_roots:
+        root = Path(root).expanduser()
+        if root.is_dir():
+            queue.append((root, 0))
+    seen: set[Path] = set()
+    while queue:
+        root, depth = queue.pop(0)
+        try:
+            root = root.resolve()
+        except OSError:
+            continue
+        if root in seen or not root.is_dir():
+            continue
+        seen.add(root)
+        try:
+            train, val = discover_imagenet1k(root)
+        except (FileNotFoundError, OSError):
+            pass
+        else:
+            if _has_1000_train_classes(train):
+                return root
+        if depth >= max_depth:
+            continue
+        try:
+            children = sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith("."))
+        except OSError:
+            continue
+        for child in children:
+            # These are split directories, not roots to scan further.
+            if child.name.lower() in {"train", "val"}:
+                continue
+            queue.append((child, depth + 1))
+    return None
+
+
+def describe_search_root(root: str | Path) -> str:
+    """Return a short, safe directory listing for a data-attachment error."""
+    root = Path(root).expanduser()
+    if not root.is_dir():
+        return f"{root} does not exist"
+    try:
+        entries = sorted(p.name for p in root.iterdir())[:30]
+    except OSError as e:
+        return f"{root} is not readable: {e}"
+    return f"{root} contains: {entries if entries else '[empty]'}"
+
+
 def _csv_val_labels(val_dir: Path, class_names: Sequence[str]) -> Tuple[List[Path], np.ndarray, str]:
     """Read flat validation images + official LOC_val_solution.csv."""
     name_to_idx = {name: i for i, name in enumerate(class_names)}
-    csv_candidates = [
-        val_dir / "LOC_val_solution.csv",
-        val_dir.parent / "LOC_val_solution.csv",
-        val_dir.parent.parent / "LOC_val_solution.csv",
-        val_dir / "val_labels.csv",
-    ]
+    # The localization-challenge CSV sits at the competition root, several
+    # levels above ILSVRC/Data/CLS-LOC/val; check every ancestor, not just two.
+    csv_candidates: List[Path] = []
+    for ancestor in [val_dir, *list(val_dir.parents)[:6]]:
+        csv_candidates.extend([ancestor / "LOC_val_solution.csv", ancestor / "val_labels.csv"])
     csv_path = next((p for p in csv_candidates if p.exists()), None)
     if csv_path is None:
         raise FileNotFoundError(
@@ -144,7 +215,14 @@ def build_index(root: str | Path, split: str, *, expected_val_count: Optional[in
     It is a *split provenance* fingerprint, not a claim that every pixel byte was
     hashed.  Image bytes are hashed separately by the feature cache manifest.
     """
-    train_dir, val_dir = discover_imagenet1k(root)
+    root = Path(root).expanduser().resolve()
+    try:
+        train_dir, val_dir = discover_imagenet1k(root)
+    except FileNotFoundError:
+        found = find_imagenet1k([root])
+        if found is None:
+            raise
+        train_dir, val_dir = discover_imagenet1k(found)
     class_names = _sorted_classes(train_dir)
     if len(class_names) != 1000:
         raise ValueError(
@@ -329,7 +407,14 @@ def audit_dataset(root: str | Path) -> Dict[str, Any]:
     root = Path(root).expanduser().resolve()
     out: Dict[str, Any] = {"requested_root": str(root)}
     try:
-        train, val = discover_imagenet1k(root)
+        try:
+            train, val = discover_imagenet1k(root)
+        except FileNotFoundError:
+            found = find_imagenet1k([root])
+            if found is None:
+                raise
+            out["resolved_root"] = str(found)
+            train, val = discover_imagenet1k(found)
         out["train_dir"] = str(train)
         out["val_dir"] = str(val)
         train_classes = _sorted_classes(train)

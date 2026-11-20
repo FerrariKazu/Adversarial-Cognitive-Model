@@ -36,8 +36,8 @@ USAGE
 -----
   1. Kaggle Notebook, accelerator = GPU T4 x2, Internet ON.
   2. Add-ons > Secrets > add HF_TOKEN (HuggingFace write token).
-  3. Attach an ImageNet-1k dataset at /kaggle/input/imagenet-1k (or set
-     STAGE0A_DATA_ROOT to its root).
+  3. Attach an ImageNet-1k dataset under /kaggle/input (or set
+     STAGE0A_DATA_ROOT to its root). The notebook scans /kaggle/input.
   4. Run all cells in order.
 """
 
@@ -120,37 +120,30 @@ subprocess.run("df -h /kaggle/working /kaggle/input 2>/dev/null || df -h /kaggle
 # %% [markdown]
 # ## Step 4: Locate ImageNet-1k
 # %%
-from stage0a.data import audit_dataset, discover_imagenet1k
+from stage0a.data import audit_dataset, describe_search_root, find_imagenet1k
 
-candidates = [
-    os.environ.get("STAGE0A_DATA_ROOT"),
-    "/kaggle/input/imagenet-1k",
-    "/kaggle/input/imagenet1k",
-    "/kaggle/input/imagenet-1k/imagenet1k",
-    "/kaggle/input/imagenet-object-localization-challenge",
-    "/kaggle/input/imagenet-object-localization-challenge/ILSVRC",
+search_roots = [
+    p for p in [os.environ.get("STAGE0A_DATA_ROOT"), "/kaggle/input"] if p
 ]
-DATA_ROOT = None
-for c in candidates:
-    if not c:
-        continue
-    try:
-        discover_imagenet1k(c)
-        DATA_ROOT = c
-        break
-    except Exception:
-        continue
+DATA_ROOT = find_imagenet1k(search_roots, max_depth=2)
 if DATA_ROOT is None:
+    details = "\n".join(describe_search_root(p) for p in search_roots)
     raise RuntimeError(
-        "ImageNet-1k not found. Attach a dataset with train/ and val/ at "
-        "/kaggle/input/imagenet-1k, or set STAGE0A_DATA_ROOT. The pipeline "
-        "refuses to substitute ImageNet-100."
+        "ImageNet-1k not found. Kaggle mounts datasets under "
+        "/kaggle/input/<dataset-slug>; attach an ImageNet-1k dataset in "
+        "Add-ons > Datasets, or set STAGE0A_DATA_ROOT to its root.\n\n"
+        f"{details}\n\n"
+        "The pipeline refuses to substitute ImageNet-100. If /kaggle/input "
+        "contains only a few hundred MB, the dataset is not attached."
     )
-os.environ["STAGE0A_DATA_ROOT"] = DATA_ROOT
+os.environ["STAGE0A_DATA_ROOT"] = str(DATA_ROOT)
 WORK_ROOT = Path(os.environ.get("STAGE0A_WORK_ROOT", "/kaggle/working"))
 print("DATA_ROOT:", DATA_ROOT)
 print("WORK_ROOT:", WORK_ROOT)
-print(json.dumps(audit_dataset(DATA_ROOT), indent=2)[:4000])
+dataset_audit = audit_dataset(DATA_ROOT)
+print(json.dumps(dataset_audit, indent=2)[:4000])
+if dataset_audit.get("status") != "ok":
+    raise RuntimeError(f"ImageNet-1k dataset gate failed: {dataset_audit}")
 
 # %% [markdown]
 # ## Step 5: Dedicated Hugging Face repositories

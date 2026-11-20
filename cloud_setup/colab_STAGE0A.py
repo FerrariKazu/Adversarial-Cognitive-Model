@@ -91,30 +91,33 @@ subprocess.run("df -h /content", shell=True)
 # %% [markdown]
 # ## Step 4: Locate ImageNet-1k
 # %%
-from stage0a.data import audit_dataset, discover_imagenet1k
+from stage0a.data import audit_dataset, describe_search_root, find_imagenet1k
 
-candidates = [
-    os.environ.get("STAGE0A_DATA_ROOT"),
-    "/content/imagenet-1k",
-    "/content/imagenet1k",
-    "/content/drive/MyDrive/imagenet-1k",
+search_roots = [
+    p for p in [
+        os.environ.get("STAGE0A_DATA_ROOT"),
+        "/content/imagenet-1k",
+        "/content/imagenet1k",
+        "/content/drive/MyDrive/imagenet-1k",
+        "/content",
+    ] if p
 ]
-DATA_ROOT = None
-for c in candidates:
-    if not c:
-        continue
-    try:
-        discover_imagenet1k(c)
-        DATA_ROOT = c
-        break
-    except Exception:
-        continue
+DATA_ROOT = find_imagenet1k(search_roots, max_depth=2)
 if DATA_ROOT is None:
-    raise RuntimeError("ImageNet-1k not found; attach it at /content/imagenet-1k or set STAGE0A_DATA_ROOT.")
-os.environ["STAGE0A_DATA_ROOT"] = DATA_ROOT
+    details = "\n".join(describe_search_root(p) for p in search_roots)
+    raise RuntimeError(
+        "ImageNet-1k not found. Attach it under /content or Drive, or set "
+        "STAGE0A_DATA_ROOT. The pipeline refuses to substitute ImageNet-100.\n\n"
+        f"{details}"
+    )
+os.environ["STAGE0A_DATA_ROOT"] = str(DATA_ROOT)
 WORK_ROOT = Path(os.environ.get("STAGE0A_WORK_ROOT", "/content"))
 print("DATA_ROOT:", DATA_ROOT)
-print(json.dumps(audit_dataset(DATA_ROOT), indent=2)[:4000])
+print("WORK_ROOT:", WORK_ROOT)
+dataset_audit = audit_dataset(DATA_ROOT)
+print(json.dumps(dataset_audit, indent=2)[:4000])
+if dataset_audit.get("status") != "ok":
+    raise RuntimeError(f"ImageNet-1k dataset gate failed: {dataset_audit}")
 
 # %% [markdown]
 # ## Step 5: HF repositories (same namespaces and format as Kaggle)
