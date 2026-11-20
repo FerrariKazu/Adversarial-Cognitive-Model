@@ -1,0 +1,79 @@
+{
+  "protocol_id": "rhan-stage0a-dinov2/1",
+  "protocol_version": "1.0.0",
+  "created_utc": "2026-11-20T00:00:00Z",
+  "scope": "Single-observation visual baseline only. Frozen DINOv2-S/14 and DINOv2-B/14; independently trained linear heads. No backbone training, no integrator, no CEE.",
+  "backbones": {
+    "vit-s14": {
+      "timm_name": "vit_small_patch14_dinov2.lvd142m",
+      "embed_dim": 384,
+      "reference_linear_top1": 0.811
+    },
+    "vit-b14": {
+      "timm_name": "vit_base_patch14_dinov2.lvd142m",
+      "embed_dim": 768,
+      "reference_linear_top1": 0.845
+    }
+  },
+  "dataset": {
+    "name": "ImageNet-1k",
+    "train_images_expected": 1281167,
+    "official_val_images_expected": 50000,
+    "classes": 1000,
+    "official_val_used_for_selection": false,
+    "selection_split": "50 per class held out from train, stratified, seed 17",
+    "fingerprint": "relative path + file size + label manifest hash"
+  },
+  "seeds": [17, 42, 99],
+  "resolved_config": {
+    "img_size": 224,
+    "feature_representation": "pooled CLS token, fp16 cache",
+    "feature_batch_size_per_gpu": 64,
+    "head_batch_size": 1024,
+    "optimizer": "SGD",
+    "lr": 0.001,
+    "momentum": 0.9,
+    "nesterov": true,
+    "weight_decay": 0.0,
+    "max_steps": 12500,
+    "warmup_steps": 500,
+    "schedule": "cosine",
+    "precision": "AMP float16",
+    "checkpoint_every_steps": 500,
+    "eval_every_steps": 500
+  },
+  "acceptance": {
+    "primary": "mean official-val top-1 across the three seeds >= 0.80 for each backbone",
+    "seed_floor": "no seed below 0.79",
+    "secondary": [
+      "top-5 accuracy",
+      "NLL",
+      "ECE (15 equal-width bins)",
+      "per-class accuracy CSV",
+      "reproducible final checkpoint and prediction artifact"
+    ],
+    "failure_rule": "If either backbone fails the primary or seed-floor rule, report FAIL; do not tune on official validation."
+  },
+  "durability": {
+    "best_repo": "FerrariKazu/rhan-stage0a-dinov2-checkpoints",
+    "rolling_repo": "FerrariKazu/rhan-stage0a-dinov2-checkpoints-rolling",
+    "rolling_state": [
+      "model",
+      "optimizer",
+      "scheduler",
+      "AMP GradScaler",
+      "epoch",
+      "batch_in_epoch",
+      "global_step",
+      "Python/NumPy/torch CPU/all CUDA RNG",
+      "deterministic epoch permutation seed and next-batch index",
+      "resolved config and canonical hash",
+      "seed",
+      "backbone identity and weight hash",
+      "dataset and split fingerprints",
+      "training-code fingerprint",
+      "hardware and precision metadata"
+    ],
+    "resume_rule": "Never restart from epoch zero when a verified rolling checkpoint exists; abort on inaccessible or inconsistent remote state."
+  }
+}
