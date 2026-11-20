@@ -70,6 +70,28 @@ def test_find_rejects_imagenet100(tmp_path):
     assert find_imagenet1k(input_root) is None
 
 
+def test_find_nested_in_datasets_folder_with_validation_and_hidden_dirs(tmp_path):
+    # Tests nesting under input/datasets/<slug>/... with validation and .ipynb_checkpoints
+    input_root = tmp_path / "input"
+    dataset = input_root / "datasets" / "user-imagenet-slug" / "subfolder"
+    train = dataset / "train"
+    val = dataset / "validation"
+    for i in range(1000):
+        (train / f"n{i:08d}").mkdir(parents=True)
+    # Add hidden folder that shouldn't disrupt class count
+    (train / ".ipynb_checkpoints").mkdir(parents=True)
+    for i in range(1000):
+        (val / f"n{i:08d}").mkdir(parents=True)
+    Image.new("RGB", (8, 8)).save(val / "n00000000" / "val_0.jpg")
+
+    found = find_imagenet1k(input_root, max_depth=5)
+    assert found == dataset
+    from stage0a.data import describe_search_root
+    desc = describe_search_root(input_root)
+    assert "datasets" in desc
+    assert "user-imagenet-slug" in desc
+
+
 def test_atomic_rolling_checkpoint_roundtrip(tmp_path):
     cfg = Stage0AConfig(
         backbone="vit-s14",

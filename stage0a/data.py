@@ -31,7 +31,7 @@ def _is_image(p: Path) -> bool:
 def _sorted_classes(root: Path) -> List[str]:
     if not root.is_dir():
         raise FileNotFoundError(f"missing directory: {root}")
-    return sorted([d.name for d in root.iterdir() if d.is_dir()])
+    return sorted([d.name for d in root.iterdir() if d.is_dir() and not d.name.startswith(".")])
 
 
 @dataclass
@@ -68,17 +68,41 @@ class ImageNetIndex:
 def _discover_candidates(root: Path) -> List[Tuple[Path, Path]]:
     """Return (train_dir, val_dir) candidates in priority order."""
     candidates = [
+        # Standard layouts
         (root / "train", root / "val"),
+        (root / "train", root / "validation"),
         (root / "imagenet1k" / "train", root / "imagenet1k" / "val"),
+        (root / "imagenet1k" / "train", root / "imagenet1k" / "validation"),
         (root / "imagenet-1k" / "train", root / "imagenet-1k" / "val"),
+        (root / "imagenet-1k" / "train", root / "imagenet-1k" / "validation"),
+        # Kaggle competition / ILSVRC layouts
         (root / "ILSVRC" / "Data" / "CLS-LOC" / "train", root / "ILSVRC" / "Data" / "CLS-LOC" / "val"),
         (root / "Data" / "CLS-LOC" / "train", root / "Data" / "CLS-LOC" / "val"),
+        (root / "CLS-LOC" / "train", root / "CLS-LOC" / "val"),
+        (root / "ILSVRC2012" / "train", root / "ILSVRC2012" / "val"),
+        (root / "ILSVRC2012" / "train", root / "ILSVRC2012" / "validation"),
+        (root / "ILSVRC2012_img_train", root / "ILSVRC2012_img_val"),
+        (root / "ILSVRC" / "train", root / "ILSVRC" / "val"),
+        (root / "ILSVRC" / "train", root / "ILSVRC" / "validation"),
+        # images/ subfolder
+        (root / "images" / "train", root / "images" / "val"),
+        (root / "images" / "train", root / "images" / "validation"),
+        # Nested val/val or val/train
+        (root / "val" / "train", root / "val" / "val"),
+        (root / "train", root / "val" / "val"),
     ]
     return candidates
 
 
 def discover_imagenet1k(root: str | Path) -> Tuple[Path, Path]:
     root = Path(root).expanduser().resolve()
+    # If root is itself the train directory
+    if root.name.lower() in {"train", "ilsvrc2012_img_train"} and root.is_dir():
+        parent = root.parent
+        for val_name in ["val", "validation", "val/val", "ILSVRC2012_img_val"]:
+            v = parent / val_name
+            if v.is_dir():
+                return root, v
     for train, val in _discover_candidates(root):
         if train.is_dir() and val.is_dir():
             return train, val
@@ -92,7 +116,14 @@ def discover_imagenet1k(root: str | Path) -> Tuple[Path, Path]:
 
 def _has_1000_train_classes(train: Path) -> bool:
     try:
-        return len(_sorted_classes(train)) == 1000
+        classes = _sorted_classes(train)
+        if len(classes) == 1000:
+            return True
+        # Check for 1000 WordNet synset folders starting with 'n'
+        synsets = [c for c in classes if len(c) == 9 and c.startswith("n") and c[1:].isdigit()]
+        if len(synsets) == 1000:
+            return True
+        return False
     except OSError:
         return False
 
@@ -100,7 +131,7 @@ def _has_1000_train_classes(train: Path) -> bool:
 def find_imagenet1k(
     search_roots: str | Path | Sequence[str | Path],
     *,
-    max_depth: int = 2,
+    max_depth: int = 5,
 ) -> Optional[Path]:
     """Find a plausible ImageNet-1k root without requiring a fixed slug.
 
@@ -143,22 +174,60 @@ def find_imagenet1k(
             continue
         for child in children:
             # These are split directories, not roots to scan further.
-            if child.name.lower() in {"train", "val"}:
+            if child.name.lower() in {"train", "val", "validation", "test"}:
                 continue
             queue.append((child, depth + 1))
     return None
 
 
-def describe_search_root(root: str | Path) -> str:
-    """Return a short, safe directory listing for a data-attachment error."""
+def describe_search_root(root: str | Path, max_depth: int = 3) -> str:
+    """Return a detailed, safe directory listing for data-attachment errors."""
     root = Path(root).expanduser()
     if not root.is_dir():
         return f"{root} does not exist"
-    try:
-        entries = sorted(p.name for p in root.iterdir())[:30]
-    except OSError as e:
-        return f"{root} is not readable: {e}"
-    return f"{root} contains: {entries if entries else '[empty]'}"
+
+    lines = [f"{root}:"]
+
+    def _walk(curr: Path, depth: int, prefix: str = "  "):
+        if depth > max_depth:
+            return
+        try:
+            items = sorted(curr.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+        except OSError as e:
+            lines.append(f"{prefix}[cannot read: {e}]")
+            return
+        if not items:
+            lines.append(f"{prefix}[empty directory]")
+            return
+        dir_count = sum(1 for p in items if p.is_dir() and not p.name.startswith("."))
+        file_count = sum(1 for p in items if p.is_file() and not p.name.startswith("."))
+        if dir_count > 50:
+            lines.append(f"{prefix}[{dir_count} directories (e.g. {items[0].name}...{items[-1].name}), {file_count} files]")
+            return
+        for p in items[:25]:
+            if p.name.startswith("."):
+                continue
+            if p.is_dir():
+                try:
+                    subdirs = [s for s in p.iterdir() if s.is_dir() and not s.name.startswith(".")]
+                    subdir_str = f" ({len(subdirs)} subdirs)"
+                except OSError:
+                    subdir_str = ""
+                lines.append(f"{prefix}📁 {p.name}/{subdir_str}")
+                if depth < max_depth and p.name.lower() not in {"train", "val", "validation", "test"}:
+                    _walk(p, depth + 1, prefix + "  ")
+            else:
+                try:
+                    sz = p.stat().st_size
+                    sz_str = f" ({sz / 1e6:.1f} MB)" if sz >= 1e5 else f" ({sz} bytes)"
+                except OSError:
+                    sz_str = ""
+                lines.append(f"{prefix}📄 {p.name}{sz_str}")
+        if len(items) > 25:
+            lines.append(f"{prefix}... and {len(items) - 25} more entries")
+
+    _walk(root, 1)
+    return "\n".join(lines)
 
 
 def _csv_val_labels(val_dir: Path, class_names: Sequence[str]) -> Tuple[List[Path], np.ndarray, str]:

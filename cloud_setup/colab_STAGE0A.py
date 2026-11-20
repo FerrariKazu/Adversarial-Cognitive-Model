@@ -102,13 +102,13 @@ search_roots = [
         "/content",
     ] if p
 ]
-DATA_ROOT = find_imagenet1k(search_roots, max_depth=2)
+DATA_ROOT = find_imagenet1k(search_roots, max_depth=5)
 if DATA_ROOT is None:
-    details = "\n".join(describe_search_root(p) for p in search_roots)
+    details = "\n\n".join(describe_search_root(p, max_depth=3) for p in search_roots[:10])
     raise RuntimeError(
         "ImageNet-1k not found. Attach it under /content or Drive, or set "
         "STAGE0A_DATA_ROOT. The pipeline refuses to substitute ImageNet-100.\n\n"
-        f"{details}"
+        f"--- Inspected Paths ---\n{details}\n------------------------"
     )
 os.environ["STAGE0A_DATA_ROOT"] = str(DATA_ROOT)
 WORK_ROOT = Path(os.environ.get("STAGE0A_WORK_ROOT", "/content"))

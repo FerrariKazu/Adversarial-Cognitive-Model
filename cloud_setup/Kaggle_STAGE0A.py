@@ -122,19 +122,45 @@ subprocess.run("df -h /kaggle/working /kaggle/input 2>/dev/null || df -h /kaggle
 # %%
 from stage0a.data import audit_dataset, describe_search_root, find_imagenet1k
 
-search_roots = [
-    p for p in [os.environ.get("STAGE0A_DATA_ROOT"), "/kaggle/input"] if p
-]
-DATA_ROOT = find_imagenet1k(search_roots, max_depth=2)
+search_roots = []
+if os.environ.get("STAGE0A_DATA_ROOT"):
+    search_roots.append(os.environ["STAGE0A_DATA_ROOT"])
+if Path("/kaggle/input").exists():
+    search_roots.append("/kaggle/input")
+    try:
+        for child in sorted(Path("/kaggle/input").iterdir()):
+            if child.is_dir() and not child.name.startswith("."):
+                c_str = str(child)
+                if c_str not in search_roots:
+                    search_roots.append(c_str)
+                # If child is /kaggle/input/datasets or similar container, add its subdirectories too
+                try:
+                    for grandchild in sorted(child.iterdir()):
+                        if grandchild.is_dir() and not grandchild.name.startswith("."):
+                            gc_str = str(grandchild)
+                            if gc_str not in search_roots:
+                                search_roots.append(gc_str)
+                except OSError:
+                    pass
+    except OSError:
+        pass
+
+DATA_ROOT = find_imagenet1k(search_roots, max_depth=5)
 if DATA_ROOT is None:
-    details = "\n".join(describe_search_root(p) for p in search_roots)
+    details = "\n\n".join(describe_search_root(p, max_depth=3) for p in search_roots[:10])
     raise RuntimeError(
         "ImageNet-1k not found. Kaggle mounts datasets under "
         "/kaggle/input/<dataset-slug>; attach an ImageNet-1k dataset in "
         "Add-ons > Datasets, or set STAGE0A_DATA_ROOT to its root.\n\n"
-        f"{details}\n\n"
+        f"--- Inspected Paths ---\n{details}\n------------------------\n\n"
+        "HOW TO ATTACH IMAGENET-1K ON KAGGLE:\n"
+        "  1. In the Kaggle notebook right sidebar, click '+ Add Input' (or 'Add-ons' > 'Datasets').\n"
+        "  2. Search for: 'imagenet-object-localization-challenge' or 'imagenet-1k'.\n"
+        "  3. Click 'Add' next to the dataset.\n"
+        "  4. If mounted at a custom path, specify it before Step 4:\n"
+        "     os.environ['STAGE0A_DATA_ROOT'] = '/kaggle/input/your-dataset-name'\n\n"
         "The pipeline refuses to substitute ImageNet-100. If /kaggle/input "
-        "contains only a few hundred MB, the dataset is not attached."
+        "contains only a few hundred MB or is empty, the dataset is not attached."
     )
 os.environ["STAGE0A_DATA_ROOT"] = str(DATA_ROOT)
 WORK_ROOT = Path(os.environ.get("STAGE0A_WORK_ROOT", "/kaggle/working"))
