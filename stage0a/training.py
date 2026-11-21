@@ -155,7 +155,15 @@ def train_run(
     if final_path.exists():
         final = load_checkpoint(final_path)
         if final.get("config_canonical_hash") == cfg.canonical_hash() and final.get("model"):
-            hf_store.sync_final(cfg.run_id, final_path)
+            extra = []
+            completion_path = run_dir / "completion.json"
+            if completion_path.exists():
+                extra.append((completion_path, hf_store.remote_name(cfg.run_id, "completion.json")))
+            for fname in ("official_val_metrics.json", "official_val_per_class.csv", "official_val_predictions.npz"):
+                p = run_dir / fname
+                if p.exists():
+                    extra.append((p, hf_store.remote_name(cfg.run_id, fname)))
+            hf_store.sync_final(cfg.run_id, final_path, extra_files=extra, required=False)
             return {"status": "already_complete", "run_id": cfg.run_id, "final": str(final_path), "metric": final.get("metric")}
 
     remote_name = hf_store.remote_name(cfg.run_id, "rolling.pt")
@@ -397,10 +405,6 @@ def train_run(
         backbone_weights_sha256=backbone_weights_sha256,
         extra={"best_holdout": best_metric, "official_val": official, "artifacts": artifacts, "global_step": global_step},
     )
-    hf_store.sync_final(cfg.run_id, final_path)
-    hf_store.sync_json(cfg.run_id, Path(artifacts["metrics"]), "official_val_metrics.json")
-    hf_store.sync_json(cfg.run_id, Path(artifacts["per_class"]), "official_val_per_class.csv")
-    hf_store.sync_json(cfg.run_id, Path(artifacts["predictions"]), "official_val_predictions.npz")
     completion = {
         "run_id": cfg.run_id,
         "status": "complete",
@@ -409,8 +413,16 @@ def train_run(
         "final_sha256": sha256_file(final_path),
         "completed_at_utc": utc_now(),
     }
-    atomic_write_json(run_dir / "completion.json", completion)
-    hf_store.sync_json(cfg.run_id, run_dir / "completion.json", "completion.json")
+    completion_path = run_dir / "completion.json"
+    atomic_write_json(completion_path, completion)
+
+    extra = [
+        (completion_path, hf_store.remote_name(cfg.run_id, "completion.json")),
+        (Path(artifacts["metrics"]), hf_store.remote_name(cfg.run_id, "official_val_metrics.json")),
+        (Path(artifacts["per_class"]), hf_store.remote_name(cfg.run_id, "official_val_per_class.csv")),
+        (Path(artifacts["predictions"]), hf_store.remote_name(cfg.run_id, "official_val_predictions.npz")),
+    ]
+    hf_store.sync_final(cfg.run_id, final_path, extra_files=extra, required=False)
     return {"status": "complete", "run_id": cfg.run_id, "final": str(final_path), "metric": official}
 
 

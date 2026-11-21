@@ -179,6 +179,12 @@ class HFStore:
                 ep = Path(extra_p)
                 if ep.exists():
                     operations.append(CommitOperationAdd(path_in_repo=extra_rem, path_or_fileobj=str(ep)))
+                    extra_sidecar = ep.with_name(ep.name + ".sha256")
+                    if not extra_sidecar.exists():
+                        extra_sha = sha256_file(ep)
+                        atomic_write_text(extra_sidecar, f"{extra_sha}  {ep.name}\n")
+                    if extra_sidecar.exists():
+                        operations.append(CommitOperationAdd(path_in_repo=extra_rem + ".sha256", path_or_fileobj=str(extra_sidecar)))
 
         max_retries = 3
         committed = False
@@ -305,8 +311,21 @@ class HFStore:
     def sync_best(self, run_id: str, local_path: str | Path, *, required: bool = False) -> None:
         self.upload_verified(local_path, self.best_repo, self.remote_name(run_id, "best.pt"), required=required)
 
-    def sync_final(self, run_id: str, local_path: str | Path) -> None:
-        self.upload_verified(local_path, self.best_repo, self.remote_name(run_id, "final.pt"), required=True)
+    def sync_final(
+        self,
+        run_id: str,
+        local_path: str | Path,
+        extra_files: Optional[List[Tuple[str | Path, str]]] = None,
+        *,
+        required: bool = False,
+    ) -> None:
+        self.upload_verified(
+            local_path,
+            self.best_repo,
+            self.remote_name(run_id, "final.pt"),
+            required=required,
+            extra_files=extra_files,
+        )
 
     def sync_json(self, run_id: str, local_path: str | Path, filename: str, *, rolling: bool = False) -> None:
         repo = self.rolling_repo if rolling else self.best_repo
