@@ -71,6 +71,8 @@ RUNTIME_FIELDS = {
     "require_dual_gpu",
     "allow_single_gpu",
     "hf_token",
+    "checkpoint_every_steps",
+    "eval_every_steps",
 }
 
 #: Fixed recipe.  DINOv2's published linear-probe protocol is SGD for 12,500
@@ -87,8 +89,8 @@ DEFAULTS: Dict[str, Any] = {
     "momentum": 0.9,
     "weight_decay": 0.0,
     "warmup_steps": 500,
-    "eval_every_steps": 500,
-    "checkpoint_every_steps": 500,
+    "eval_every_steps": 1250,
+    "checkpoint_every_steps": 1250,
     "holdout_per_class": 50,
     "amp_dtype": "float16",
     "num_workers": 4,

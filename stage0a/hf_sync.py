@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import os
 import shutil
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from stage0a.config import HF_BEST_REPO, HF_FEATURE_REPOS, HF_ROLLING_REPO, hf_feature_repo
 from stage0a.utils import atomic_write_text, resolve_hf_token, sha256_file
@@ -153,8 +154,9 @@ class HFStore:
         remote_name: str,
         *,
         required: bool = True,
+        extra_files: Optional[List[Tuple[str | Path, str]]] = None,
     ) -> Optional[DownloadedArtifact]:
-        """Upload artifact + sidecar and verify remote size/hash metadata."""
+        """Upload artifact + sidecar (plus optional extra files) in a single atomic commit."""
         local_path = Path(local_path)
         if not local_path.exists():
             raise FileNotFoundError(local_path)
@@ -165,23 +167,49 @@ class HFStore:
             if required:
                 raise HFUnavailable("HF upload required but synchronization is disabled")
             return None
-        try:
-            self.api.upload_file(
-                path_or_fileobj=str(local_path),
-                path_in_repo=remote_name,
-                repo_id=repo_id,
-                repo_type="dataset",
-                token=self.token,
-            )
-            self.api.upload_file(
-                path_or_fileobj=str(sidecar),
-                path_in_repo=remote_name + ".sha256",
-                repo_id=repo_id,
-                repo_type="dataset",
-                token=self.token,
-            )
-        except Exception as e:
-            raise HFUnavailable(f"upload failed for {repo_id}/{remote_name}: {e}") from e
+
+        from huggingface_hub import CommitOperationAdd
+
+        operations = [
+            CommitOperationAdd(path_in_repo=remote_name, path_or_fileobj=str(local_path)),
+            CommitOperationAdd(path_in_repo=remote_name + ".sha256", path_or_fileobj=str(sidecar)),
+        ]
+        if extra_files:
+            for extra_p, extra_rem in extra_files:
+                ep = Path(extra_p)
+                if ep.exists():
+                    operations.append(CommitOperationAdd(path_in_repo=extra_rem, path_or_fileobj=str(ep)))
+
+        max_retries = 3
+        committed = False
+        for attempt in range(max_retries):
+            try:
+                self.api.create_commit(
+                    repo_id=repo_id,
+                    repo_type="dataset",
+                    operations=operations,
+                    commit_message=f"Sync {remote_name}",
+                    token=self.token,
+                )
+                committed = True
+                break
+            except Exception as e:
+                err_str = str(e)
+                is_429 = "429" in err_str or "rate limit" in err_str.lower() or getattr(getattr(e, "response", None), "status_code", None) == 429
+                if is_429 and attempt < max_retries - 1:
+                    wait_s = min(30, 5 * (2 ** attempt))
+                    print(f"[HFStore] 429 rate limit, waiting {wait_s}s before retry (attempt {attempt+1}/{max_retries})...", flush=True)
+                    time.sleep(wait_s)
+                    continue
+                if not required:
+                    print(f"[HFStore] Warning: upload failed for {repo_id}/{remote_name}: {e}; continuing with local durable copy", flush=True)
+                    return None
+                raise HFUnavailable(f"upload failed for {repo_id}/{remote_name}: {e}") from e
+
+        if not committed:
+            if not required:
+                return None
+            raise HFUnavailable(f"upload failed for {repo_id}/{remote_name}")
 
         # Verify size and, when the hub exposes a sha256 ETag (LFS), the digest.
         try:
@@ -206,6 +234,9 @@ class HFStore:
         except HFProvenanceError:
             raise
         except Exception as e:
+            if not required:
+                print(f"[HFStore] Warning: remote verification failed for {repo_id}/{remote_name}: {e}", flush=True)
+                return DownloadedArtifact(local_path=local_path, remote_name=remote_name, sha256=local_sha, source=repo_id)
             raise HFUnavailable(f"cannot verify upload {repo_id}/{remote_name}: {e}") from e
         return DownloadedArtifact(local_path=local_path, remote_name=remote_name, sha256=local_sha, source=repo_id)
 
@@ -252,14 +283,30 @@ class HFStore:
             return local_path, "local"
         return None, "fresh"
 
-    def sync_rolling(self, run_id: str, local_path: str | Path) -> None:
-        self.upload_verified(local_path, self.rolling_repo, self.remote_name(run_id, "rolling.pt"))
+    def sync_rolling(
+        self,
+        run_id: str,
+        local_path: str | Path,
+        log_path: Optional[str | Path] = None,
+        *,
+        required: bool = False,
+    ) -> None:
+        extra = []
+        if log_path is not None and Path(log_path).exists():
+            extra.append((log_path, self.remote_name(run_id, "metrics.jsonl")))
+        self.upload_verified(
+            local_path,
+            self.rolling_repo,
+            self.remote_name(run_id, "rolling.pt"),
+            required=required,
+            extra_files=extra,
+        )
 
-    def sync_best(self, run_id: str, local_path: str | Path) -> None:
-        self.upload_verified(local_path, self.best_repo, self.remote_name(run_id, "best.pt"))
+    def sync_best(self, run_id: str, local_path: str | Path, *, required: bool = False) -> None:
+        self.upload_verified(local_path, self.best_repo, self.remote_name(run_id, "best.pt"), required=required)
 
     def sync_final(self, run_id: str, local_path: str | Path) -> None:
-        self.upload_verified(local_path, self.best_repo, self.remote_name(run_id, "final.pt"))
+        self.upload_verified(local_path, self.best_repo, self.remote_name(run_id, "final.pt"), required=True)
 
     def sync_json(self, run_id: str, local_path: str | Path, filename: str, *, rolling: bool = False) -> None:
         repo = self.rolling_repo if rolling else self.best_repo

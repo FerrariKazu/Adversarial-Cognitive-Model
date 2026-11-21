@@ -223,10 +223,8 @@ def train_run(
             metrics_path,
             {"event": "resume", "source": source, "epoch": start_epoch, "batch_in_epoch": start_batch, "global_step": global_step, "at_utc": utc_now()},
         )
-        hf_store.sync_log(cfg.run_id, metrics_path)
     else:
         append_jsonl(metrics_path, {"event": "fresh_start", "epoch": 0, "global_step": 0, "at_utc": utc_now()})
-        hf_store.sync_log(cfg.run_id, metrics_path)
 
     # The best file is authoritative if the rolling checkpoint was written
     # immediately before an evaluation that then improved the best metric.
@@ -262,8 +260,7 @@ def train_run(
             backbone_weights_sha256=backbone_weights_sha256,
             hardware=hardware,
         )
-        hf_store.sync_rolling(cfg.run_id, rolling_path)
-        hf_store.sync_log(cfg.run_id, metrics_path)
+        hf_store.sync_rolling(cfg.run_id, rolling_path, log_path=metrics_path, required=False)
 
     def eval_and_maybe_best(step: int, epoch: int, batch_in_epoch: int) -> None:
         nonlocal best_metric
@@ -285,9 +282,8 @@ def train_run(
                 backbone_weights_sha256=backbone_weights_sha256,
                 extra={"global_step": step, "epoch": epoch, "batch_in_epoch": batch_in_epoch},
             )
-            hf_store.sync_best(cfg.run_id, best_path)
+            hf_store.sync_best(cfg.run_id, best_path, required=False)
             append_jsonl(metrics_path, {"event": "best_saved", **best_metric})
-        hf_store.sync_log(cfg.run_id, metrics_path)
 
     cur_epoch = start_epoch
     cur_batch = start_batch
@@ -320,10 +316,10 @@ def train_run(
                 batch_in_epoch = batch_idx + 1
                 cur_batch = batch_in_epoch
 
-                if global_step % cfg.checkpoint_every_steps == 0:
-                    save_and_sync(epoch, batch_in_epoch, global_step)
                 if global_step % cfg.eval_every_steps == 0:
                     eval_and_maybe_best(global_step, epoch, batch_in_epoch)
+                if global_step % cfg.checkpoint_every_steps == 0:
+                    save_and_sync(epoch, batch_in_epoch, global_step)
                 if global_step >= stop_step:
                     save_and_sync(epoch, batch_in_epoch, global_step)
                     break
@@ -337,7 +333,7 @@ def train_run(
 
     if global_step < cfg.max_steps:
         append_jsonl(metrics_path, {"event": "partial_stop", "global_step": global_step, "max_steps": cfg.max_steps, "at_utc": utc_now()})
-        hf_store.sync_log(cfg.run_id, metrics_path)
+        hf_store.sync_rolling(cfg.run_id, rolling_path, log_path=metrics_path, required=False)
         return {
             "status": "partial",
             "run_id": cfg.run_id,
