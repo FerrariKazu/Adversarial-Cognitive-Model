@@ -270,9 +270,30 @@ if agg_path.exists():
 # %% [markdown]
 # ## Step 13: Final remote verification
 # Every final artifact and SHA-256 sidecar must be visible remotely before the
-# run is declared complete.
+# run is declared complete. Any locally complete runs that were deferred due
+# to HF commit rate limits are finalized here.
 # %%
 from stage0a.config import BACKBONES, SEEDS
+from stage0a.pipeline import sync_provenance_artifacts
+
+print("Ensuring provenance artifacts are synced to HF...")
+sync_provenance_artifacts(str(WORK_ROOT), store, required=False)
+
+print("Finalizing any pending runs to HF...")
+for backbone in BACKBONES:
+    for seed in SEEDS:
+        run_id = f"stage0a/{backbone}/seed{seed}"
+        run_dir = WORK_ROOT / "stage0a" / "runs" / backbone / f"seed{seed}"
+        final_p = run_dir / "final.pt"
+        if final_p.exists():
+            extra = []
+            for fname in ("completion.json", "official_val_metrics.json", "official_val_per_class.csv", "official_val_predictions.npz"):
+                p = run_dir / fname
+                if p.exists():
+                    extra.append((p, store.remote_name(run_id, fname)))
+            if store.status(store.best_repo, store.remote_name(run_id, "final.pt")) != "present":
+                print(f"Syncing final artifacts for {run_id} to {store.best_repo}...")
+                store.sync_final(run_id, final_p, extra_files=extra, required=True)
 
 missing = []
 

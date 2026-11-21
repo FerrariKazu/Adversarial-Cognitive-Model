@@ -186,7 +186,7 @@ class HFStore:
                     if extra_sidecar.exists():
                         operations.append(CommitOperationAdd(path_in_repo=extra_rem + ".sha256", path_or_fileobj=str(extra_sidecar)))
 
-        max_retries = 3
+        max_retries = 5
         committed = False
         for attempt in range(max_retries):
             try:
@@ -203,7 +203,12 @@ class HFStore:
                 err_str = str(e)
                 is_429 = "429" in err_str or "rate limit" in err_str.lower() or getattr(getattr(e, "response", None), "status_code", None) == 429
                 if is_429 and attempt < max_retries - 1:
-                    wait_s = min(30, 5 * (2 ** attempt))
+                    import re
+                    match = re.search(r"Retry after (\d+) seconds", err_str)
+                    if match:
+                        wait_s = int(match.group(1)) + 2
+                    else:
+                        wait_s = min(60, 5 * (2 ** attempt))
                     print(f"[HFStore] 429 rate limit, waiting {wait_s}s before retry (attempt {attempt+1}/{max_retries})...", flush=True)
                     time.sleep(wait_s)
                     continue
