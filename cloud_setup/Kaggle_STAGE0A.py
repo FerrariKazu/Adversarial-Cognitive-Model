@@ -166,8 +166,9 @@ os.environ["STAGE0A_DATA_ROOT"] = str(DATA_ROOT)
 WORK_ROOT = Path(os.environ.get("STAGE0A_WORK_ROOT", "/kaggle/working"))
 print("DATA_ROOT:", DATA_ROOT)
 print("WORK_ROOT:", WORK_ROOT)
+print("Auditing ImageNet-1k dataset structure (fast multithreaded scan)...", flush=True)
 dataset_audit = audit_dataset(DATA_ROOT)
-print(json.dumps(dataset_audit, indent=2)[:4000])
+print(json.dumps(dataset_audit, indent=2)[:4000], flush=True)
 if dataset_audit.get("status") != "ok":
     raise RuntimeError(f"ImageNet-1k dataset gate failed: {dataset_audit}")
 

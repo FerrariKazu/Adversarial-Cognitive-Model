@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -22,10 +23,27 @@ from stage0a.config import IMAGENET_MEAN, IMAGENET_STD
 from stage0a.utils import atomic_write_json, atomic_write_text, sha256_text
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
+IMG_EXTS_TUPLE = tuple(IMG_EXTS)
+
+
+def _is_image_name(name: str) -> bool:
+    return name.lower().endswith(IMG_EXTS_TUPLE)
 
 
 def _is_image(p: Path) -> bool:
     return p.suffix.lower() in IMG_EXTS
+
+
+def _count_images_in_dir(d: Path | str) -> int:
+    try:
+        cnt = 0
+        with os.scandir(d) as it:
+            for entry in it:
+                if _is_image_name(entry.name) and entry.is_file():
+                    cnt += 1
+        return cnt
+    except OSError:
+        return 0
 
 
 def _sorted_classes(root: Path) -> List[str]:
@@ -299,15 +317,37 @@ def build_index(root: str | Path, split: str, *, expected_val_count: Optional[in
             "This pipeline refuses to silently substitute ImageNet-100."
         )
 
+    sizes: Optional[List[int]] = None
     if split == "train":
         split_dir = train_dir
+
+        def _scan_train_class(item: Tuple[int, str]) -> Tuple[List[str], List[int], List[int]]:
+            ci, cname = item
+            c_paths: List[str] = []
+            c_labels: List[int] = []
+            c_sizes: List[int] = []
+            try:
+                with os.scandir(train_dir / cname) as it:
+                    entries = sorted(it, key=lambda e: e.name)
+                    for entry in entries:
+                        if _is_image_name(entry.name) and entry.is_file():
+                            c_paths.append(f"{cname}/{entry.name}")
+                            c_labels.append(ci)
+                            c_sizes.append(entry.stat().st_size)
+            except OSError:
+                pass
+            return c_paths, c_labels, c_sizes
+
+        with ThreadPoolExecutor(max_workers=32) as pool:
+            results = list(pool.map(_scan_train_class, enumerate(class_names)))
+
         paths = []
         labels = []
-        for ci, cname in enumerate(class_names):
-            for p in sorted((train_dir / cname).iterdir()):
-                if p.is_file() and _is_image(p):
-                    paths.append(str(p.relative_to(train_dir)))
-                    labels.append(ci)
+        sizes = []
+        for cp, cl, cs in results:
+            paths.extend(cp)
+            labels.extend(cl)
+            sizes.extend(cs)
         labels_arr = np.asarray(labels, dtype=np.int64)
         source_kind = "class_folders"
         base = train_dir
@@ -324,19 +364,40 @@ def build_index(root: str | Path, split: str, *, expected_val_count: Optional[in
                         f"Validation classes ({len(val_classes)}) do not match train classes "
                         f"({len(class_names)}); official evaluation requires 1000 classes."
                     )
+
+            def _scan_val_class(cname: str) -> Tuple[List[str], List[int], List[int]]:
+                c_paths: List[str] = []
+                c_labels: List[int] = []
+                c_sizes: List[int] = []
+                try:
+                    with os.scandir(val_dir / cname) as it:
+                        entries = sorted(it, key=lambda e: e.name)
+                        for entry in entries:
+                            if _is_image_name(entry.name) and entry.is_file():
+                                c_paths.append(f"{cname}/{entry.name}")
+                                c_labels.append(val_map[cname])
+                                c_sizes.append(entry.stat().st_size)
+                except OSError:
+                    pass
+                return c_paths, c_labels, c_sizes
+
+            with ThreadPoolExecutor(max_workers=32) as pool:
+                results = list(pool.map(_scan_val_class, val_classes))
+
             paths = []
             labels = []
-            for cname in val_classes:
-                for p in sorted((val_dir / cname).iterdir()):
-                    if p.is_file() and _is_image(p):
-                        paths.append(str(p.relative_to(val_dir)))
-                        labels.append(val_map[cname])
+            sizes = []
+            for cp, cl, cs in results:
+                paths.extend(cp)
+                labels.extend(cl)
+                sizes.extend(cs)
             labels_arr = np.asarray(labels, dtype=np.int64)
             source_kind = "class_folders"
             base = val_dir
         else:
             paths, labels_arr, source_kind = _csv_val_labels(val_dir, class_names)
             base = val_dir.parent
+            sizes = None
         if expected_val_count is not None and len(paths) != expected_val_count:
             raise ValueError(
                 f"Official ImageNet-1k validation must have {expected_val_count} images; "
@@ -346,9 +407,13 @@ def build_index(root: str | Path, split: str, *, expected_val_count: Optional[in
         raise ValueError(f"unknown split {split!r}")
 
     h = sha256_text("\n".join(class_names))
-    for rel, y in sorted(zip(paths, labels_arr.tolist())):
-        size = (base / rel).stat().st_size
-        h = sha256_text(h + f"\0{rel}\0{size}\0{y}\n")
+    if sizes is not None and len(sizes) == len(paths):
+        for rel, y, sz in sorted(zip(paths, labels_arr.tolist(), sizes)):
+            h = sha256_text(h + f"\0{rel}\0{sz}\0{y}\n")
+    else:
+        for rel, y in sorted(zip(paths, labels_arr.tolist())):
+            size = (base / rel).stat().st_size
+            h = sha256_text(h + f"\0{rel}\0{size}\0{y}\n")
     return ImageNetIndex(
         root=str(base),
         split=split,
@@ -490,12 +555,18 @@ def audit_dataset(root: str | Path) -> Dict[str, Any]:
         val_classes = _sorted_classes(val)
         out["train_class_dirs"] = len(train_classes)
         out["val_class_dirs"] = len(val_classes)
-        out["train_images"] = sum(1 for c in train_classes for p in (train / c).iterdir() if p.is_file() and _is_image(p))
+
+        with ThreadPoolExecutor(max_workers=32) as pool:
+            train_counts = list(pool.map(_count_images_in_dir, [train / c for c in train_classes]))
+        out["train_images"] = sum(train_counts)
+
         if val_classes:
-            out["val_images"] = sum(1 for c in val_classes for p in (val / c).iterdir() if p.is_file() and _is_image(p))
+            with ThreadPoolExecutor(max_workers=32) as pool:
+                val_counts = list(pool.map(_count_images_in_dir, [val / c for c in val_classes]))
+            out["val_images"] = sum(val_counts)
             out["val_layout"] = "class_folders"
         else:
-            out["val_images"] = sum(1 for p in val.iterdir() if p.is_file() and _is_image(p))
+            out["val_images"] = _count_images_in_dir(val)
             out["val_layout"] = "flat"
         out["official_val_ready"] = out.get("val_images") == 50_000 and (
             len(val_classes) == 1000 or out.get("val_layout") == "flat"
