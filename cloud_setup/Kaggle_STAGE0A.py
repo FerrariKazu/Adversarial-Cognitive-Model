@@ -291,8 +291,12 @@ for backbone in BACKBONES:
                 p = run_dir / fname
                 if p.exists():
                     extra.append((p, store.remote_name(run_id, fname)))
-            if store.status(store.best_repo, store.remote_name(run_id, "final.pt")) != "present":
-                print(f"Syncing final artifacts for {run_id} to {store.best_repo}...")
+            final_remote = store.remote_name(run_id, "final.pt")
+            completion_remote = store.remote_name(run_id, "completion.json")
+            final_absent = store.status(store.best_repo, final_remote) != "present"
+            completion_absent = store.status(store.best_repo, completion_remote) != "present"
+            if final_absent or completion_absent:
+                print(f"Syncing final artifacts for {run_id} (final_absent={final_absent}, completion_absent={completion_absent})...")
                 store.sync_final(run_id, final_p, extra_files=extra, required=True)
 
 missing = []
