@@ -1,0 +1,170 @@
+{
+  "schema": "rhan-stage0b-static-validation/v1",
+  "status": "PASS",
+  "checks_passed": 32,
+  "checks_total": 32,
+  "no_real_temperature_fitted": true,
+  "no_evaluation_outcomes_loaded": true,
+  "checks": [
+    {
+      "name": "required:STAGE0B_FINAL_PREREGISTRATION.md",
+      "passed": true,
+      "detail": "audit/stage0b_final_freeze_v1/STAGE0B_FINAL_PREREGISTRATION.md"
+    },
+    {
+      "name": "required:STAGE0B_PROTOCOL_MANIFEST.json",
+      "passed": true,
+      "detail": "audit/stage0b_final_freeze_v1/STAGE0B_PROTOCOL_MANIFEST.json"
+    },
+    {
+      "name": "required:STAGE0B_INFERENCE_PIPELINE_AUDIT.md",
+      "passed": true,
+      "detail": "audit/stage0b_final_freeze_v1/STAGE0B_INFERENCE_PIPELINE_AUDIT.md"
+    },
+    {
+      "name": "required:STAGE0B_INFERENCE_CONFIG.json",
+      "passed": true,
+      "detail": "audit/stage0b_final_freeze_v1/STAGE0B_INFERENCE_CONFIG.json"
+    },
+    {
+      "name": "required:STAGE0B_DATA_PROVENANCE.md",
+      "passed": true,
+      "detail": "audit/stage0b_final_freeze_v1/STAGE0B_DATA_PROVENANCE.md"
+    },
+    {
+      "name": "required:STAGE0B_STATISTICAL_ANALYSIS_PLAN.md",
+      "passed": true,
+      "detail": "audit/stage0b_final_freeze_v1/STAGE0B_STATISTICAL_ANALYSIS_PLAN.md"
+    },
+    {
+      "name": "required:STAGE0B_EXECUTION_PLAN.md",
+      "passed": true,
+      "detail": "audit/stage0b_final_freeze_v1/STAGE0B_EXECUTION_PLAN.md"
+    },
+    {
+      "name": "required:STAGE0B_LAUNCH_CHECKLIST.md",
+      "passed": true,
+      "detail": "audit/stage0b_final_freeze_v1/STAGE0B_LAUNCH_CHECKLIST.md"
+    },
+    {
+      "name": "required:STAGE0B_UNRESOLVED_BLOCKERS.md",
+      "passed": true,
+      "detail": "audit/stage0b_final_freeze_v1/STAGE0B_UNRESOLVED_BLOCKERS.md"
+    },
+    {
+      "name": "required:STAGE0B_FREEZE_VERDICT.md",
+      "passed": true,
+      "detail": "audit/stage0b_final_freeze_v1/STAGE0B_FREEZE_VERDICT.md"
+    },
+    {
+      "name": "all JSON parses",
+      "passed": true,
+      "detail": "8 files; errors=[]"
+    },
+    {
+      "name": "manifest payload hash",
+      "passed": true,
+      "detail": "0bcf8bf8e37e3d8929bdf778bd443f41517e54597afb15a31d8e869367959672 vs 0bcf8bf8e37e3d8929bdf778bd443f41517e54597afb15a31d8e869367959672"
+    },
+    {
+      "name": "manifest artifact hashes",
+      "passed": true,
+      "detail": "32 artifacts; bad=[]"
+    },
+    {
+      "name": "partition PASS and counts",
+      "passed": true,
+      "detail": "status=PASS counts={'images': 10000, 'classes': 1000, 'calibration': 5000, 'evaluation': 5000, 'per_class_calibration': [5], 'per_class_evaluation': [5]}"
+    },
+    {
+      "name": "partition canonical hash bound",
+      "passed": true,
+      "detail": "557e10f1b94c161bc5e57926c137faaa27208410743a0a039b5b43be6da52578"
+    },
+    {
+      "name": "partition file hash bound",
+      "passed": true,
+      "detail": "fa7f23032d6b953664bc573a53d7d90b4d84be3d46fe7faed445e288168135e6"
+    },
+    {
+      "name": "inference config partition binding",
+      "passed": true,
+      "detail": "557e10f1b94c161bc5e57926c137faaa27208410743a0a039b5b43be6da52578"
+    },
+    {
+      "name": "inference config head count",
+      "passed": true,
+      "detail": "3"
+    },
+    {
+      "name": "three head hashes",
+      "passed": true,
+      "detail": "bad=[]"
+    },
+    {
+      "name": "backbone file hash",
+      "passed": true,
+      "detail": "55cbb5d887b336d430e649c277b85a1429e724871f9d02ac16203235886d8c7b"
+    },
+    {
+      "name": "backbone state hash",
+      "passed": true,
+      "detail": "375b4c89151489e61df6f1f3b3fe1f9fa8b815c52ae0f7117b23e2e201fbb4fe"
+    },
+    {
+      "name": "inference test PASS and no evaluation",
+      "passed": true,
+      "detail": "status=PASS guards={'evaluation_images_used': 0, 'temperature_fitted': False, 'calibration_metrics_computed': False, 'aggregate_outcomes_inspected': False, 'stage0b_launch_authorized': False}"
+    },
+    {
+      "name": "inference transform equality",
+      "passed": true,
+      "detail": "documented transform equals Stage 0A make_transform"
+    },
+    {
+      "name": "three finite head outputs",
+      "passed": true,
+      "detail": "3 heads, 8x1000 finite float32"
+    },
+    {
+      "name": "synthetic calibration 17/17",
+      "passed": true,
+      "detail": "17/17"
+    },
+    {
+      "name": "synthetic evaluation 7/7",
+      "passed": true,
+      "detail": "7/7"
+    },
+    {
+      "name": "primary endpoint frozen",
+      "passed": true,
+      "detail": "mean_15bin_ECE_reduction"
+    },
+    {
+      "name": "nine-part decision rule frozen",
+      "passed": true,
+      "detail": "9"
+    },
+    {
+      "name": "no-launch statements present",
+      "passed": true,
+      "detail": "all primary docs state a non-launch status"
+    },
+    {
+      "name": "class-stratified bootstrap documented",
+      "passed": true,
+      "detail": "prereg and stats use class-stratified language"
+    },
+    {
+      "name": "evaluation leakage guard documented",
+      "passed": true,
+      "detail": "fit-before-score order present"
+    },
+    {
+      "name": "no Stage 0B run output",
+      "passed": true,
+      "detail": "forbidden=[]"
+    }
+  ]
+}

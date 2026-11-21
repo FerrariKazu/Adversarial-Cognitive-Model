@@ -1,0 +1,160 @@
+{
+  "schema": "rhan-stage0b-inference-config/v1",
+  "protocol_id": "rhan-stage0b-dinov2-b14-temperature/1",
+  "protocol_version": "1.0.0",
+  "status": "FROZEN_CANDIDATE_FOR_HUMAN_REVIEW",
+  "scope": "ImageNetV2 MatchedFrequency raw-image inference for three frozen ViT-B/14 linear heads; no temperature fitting and no evaluation-outcome inspection.",
+  "parent_protocol": {
+    "protocol_id": "rhan-stage0a-dinov2/1",
+    "protocol_version": "1.0.0",
+    "closeout_verdict": "CONDITIONAL PASS",
+    "training_code_commit": "a23dc0f76f5ba2514a3c6a42035d28b44a4ae17e",
+    "artifact_finalization_commit": "d610dd4d8bdbf4b51f34f1175e57902de64687af"
+  },
+  "historical_software_note": "The Stage 0A training-time timm and torchvision versions were not recorded. This configuration therefore defines Stage 0B as a separately pinned inference configuration. It is code- and weight-consistent with Stage 0A, but it does not claim byte-identical software reconstruction of the historical training environment.",
+  "image_loading": {
+    "library": "Pillow",
+    "open_mode": "Image.open(path) inside a context manager",
+    "color_conversion": "convert('RGB') before transformation",
+    "source_code": "stage0a/data.py::IndexedImageDataset.__getitem__",
+    "source_sha256": "63cb07b52ccc4429231443d1e63180ec8812d88cdc350c358f7b624ae10533a6",
+    "source_matches_training_commit": true
+  },
+  "preprocessing": {
+    "implementation": "stage0a.data.make_transform(img_size=224)",
+    "implementation_sha256": "63cb07b52ccc4429231443d1e63180ec8812d88cdc350c358f7b624ae10533a6",
+    "input_resolution": 224,
+    "resize_short_side": 256,
+    "resize_policy": "Resize the shorter image side to 256 while preserving aspect ratio; do not stretch to a square.",
+    "resize_interpolation": "bicubic",
+    "resize_antialias": true,
+    "center_crop": 224,
+    "center_crop_policy": "torchvision CenterCrop; centered crop after resize; no padding, no random crop, no flip, no augmentation.",
+    "tensor_conversion": "ToTensor; uint8 RGB scaled to float32 in [0,1]",
+    "normalization_mean": [0.485, 0.456, 0.406],
+    "normalization_std": [0.229, 0.224, 0.225],
+    "normalized_tensor_dtype": "float32",
+    "train_augmentation": false
+  },
+  "backbone": {
+    "timm_name": "vit_base_patch14_dinov2.lvd142m",
+    "architecture_family": "DINOv2 ViT-B/14",
+    "hf_repo": "timm/vit_base_patch14_dinov2.lvd142m",
+    "hf_revision": "4685c99dabffe5affac90bd99dbffd25801ae58d",
+    "weights_filename": "model.safetensors",
+    "weights_file_sha256": "55cbb5d887b336d430e649c277b85a1429e724871f9d02ac16203235886d8c7b",
+    "state_dict_sha256": "375b4c89151489e61df6f1f3b3fe1f9fa8b815c52ae0f7117b23e2e201fbb4fe",
+    "state_dict_hash_algorithm": "SHA-256 over sorted keys, dtype, shape, and contiguous tensor bytes; stage0a.utils.state_dict_sha256",
+    "create_model": {
+      "pretrained": true,
+      "pretrained_cfg_overlay_file": "audit/stage0b_final_freeze_v1/work/backbone_cache/vit_base_patch14_dinov2.lvd142m/model.safetensors",
+      "num_classes": 0,
+      "img_size": 224,
+      "dynamic_img_size": true
+    },
+    "architecture": {
+      "patch_size": 14,
+      "embed_dim": 768,
+      "depth": 12,
+      "num_heads": 12,
+      "mlp_ratio": 4.0,
+      "global_pool": "token",
+      "num_classes": 0,
+      "positional_embedding_runtime_shape": [1, 257, 768]
+    },
+    "feature_layer": "VisionTransformer.forward_features output after the final LayerNorm",
+    "pooling": "CLS token only; model(x) with num_classes=0 and global_pool='token'",
+    "feature_dimension": 768,
+    "feature_cache_dtype": "float16",
+    "feature_cache_upcast_for_head": "float32",
+    "backbone_trainable": false,
+    "backbone_eval_mode": true
+  },
+  "classification_heads": {
+    "module": "one torch.nn.Linear(768, 1000) per seed, wrapped as LinearHead.fc",
+    "checkpoint_payload": "final.pt['model'] with keys fc.weight and fc.bias only",
+    "weight_shape": [1000, 768],
+    "bias_shape": [1000],
+    "parameters_dtype": "float32",
+    "logit_computation": "logits = features_float32 @ fc.weight.T + fc.bias",
+    "logits_dtype": "float32",
+    "logits_shape": [null, 1000],
+    "checkpoint_selection": "final.pt only; best.pt is not used",
+    "seeds": [
+      {
+        "seed": 17,
+        "path": "audit/stage0a_closeout_v1/artifacts/best/stage0a/vit-b14/seed17/final.pt",
+        "sha256": "320f79a79b7110c7f8120eaedaa122049f8e2b12ba2fe765e867f1e1f3af308e",
+        "sidecar_matches": true
+      },
+      {
+        "seed": 42,
+        "path": "audit/stage0a_closeout_v1/artifacts/best/stage0a/vit-b14/seed42/final.pt",
+        "sha256": "f5e7d42d3a901b93b0fb0d67d2cf3d25a0fa34f8dc5d59b9530c2ff40b23c357",
+        "sidecar_matches": true
+      },
+      {
+        "seed": 99,
+        "path": "audit/stage0a_closeout_v1/artifacts/best/stage0a/vit-b14/seed99/final.pt",
+        "sha256": "cb91a2b14c96b514c977e2c09a87deb7002ea3d87450f1a04d2de45a7aac452d",
+        "sidecar_matches": true
+      }
+    ]
+  },
+  "runtime": {
+    "device": "cuda:0",
+    "device_name": "NVIDIA GeForce RTX 4060",
+    "compute_capability": "8.9",
+    "cuda_runtime": "12.8",
+    "cudnn_version": 91002,
+    "nvidia_driver": "621.01",
+    "amp_autocast": true,
+    "amp_dtype": "float16",
+    "channels_last": true,
+    "batch_size": 8,
+    "num_workers": 0,
+    "cudnn_benchmark": false,
+    "cudnn_deterministic": true,
+    "inference_mode": true,
+    "manual_seed": 0,
+    "shared_backbone_features_once_per_split": true,
+    "three_heads_reuse_same_features": true,
+    "feature_extraction_order": "manifest relative_path order within each split",
+    "feature_cache_location": "local only; never uploaded while image-derived-artifact rights are unresolved"
+  },
+  "software": {
+    "python": "3.10.12",
+    "python_executable": "/usr/bin/python3",
+    "torch": "2.9.1+cu128",
+    "torchvision": "0.24.1+cu128",
+    "timm": "1.0.27",
+    "numpy": "2.2.6",
+    "scipy": "1.15.3",
+    "pillow": "12.2.0",
+    "huggingface_hub": "1.1.7"
+  },
+  "class_order": {
+    "source": "audit/stage0b_data_gate_v1/work/meta/imagenet_class_index.json",
+    "source_sha256": "b090d218c425be1c056c8cb9dae307b70e349714712013b5b11265bd2cb9d80a",
+    "class_names_sha256": "385e0240499426c022b773be1ae4da780f057b89c9694c7f47199f62746b6edd",
+    "mapping_rule": "numeric ImageNetV2 folder name parsed as integer; no alphabetical ImageFolder mapping",
+    "classes": 1000
+  },
+  "data_binding": {
+    "dataset": "ImageNetV2 MatchedFrequency",
+    "source_revision": "d626240be2538720e83103a0e1178d24aca8b12c",
+    "archive_sha256": "f0c37fdf925916b19ea1323cd9a2208cdb6959ba2c32eef2a7fc393835c9ca7c",
+    "partition_manifest": "audit/stage0b_data_gate_v1/PARTITION_MANIFEST.json",
+    "partition_canonical_sha256": "557e10f1b94c161bc5e57926c137faaa27208410743a0a039b5b43be6da52578",
+    "partition_file_sha256": "fa7f23032d6b953664bc573a53d7d90b4d84be3d46fe7faed445e288168135e6",
+    "calibration_images": 5000,
+    "evaluation_images": 5000,
+    "per_class_per_split": 5
+  },
+  "scope_guards": {
+    "temperature_fitted": false,
+    "evaluation_outcomes_inspected": false,
+    "evaluation_labels_used_for_fitting": false,
+    "stage0b_launch_authorized": false
+  }
+}

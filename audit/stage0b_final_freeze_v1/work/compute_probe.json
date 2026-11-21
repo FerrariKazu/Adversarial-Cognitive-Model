@@ -1,0 +1,20 @@
+{
+  "schema": "rhan-stage0b-compute-probe/v1",
+  "status": "PASS",
+  "scope": "calibration images only; backbone inference only; zero logits, temperatures, labels, or evaluation images",
+  "device": "NVIDIA GeForce RTX 4060",
+  "batch_size": 8,
+  "images_timed": 56,
+  "timed_seconds": 0.2097,
+  "images_per_second": 267.048175,
+  "seconds_per_batch": 0.029957,
+  "peak_cuda_allocated_bytes": 583789568,
+  "peak_cuda_allocated_gib": 0.543696,
+  "extrapolated_10000_images_seconds": 37.446,
+  "feature_dtype": "float16",
+  "feature_dim": 768,
+  "shared_backbone": true,
+  "three_heads_reuse_same_features": true,
+  "feature_cache_bytes_for_10000x768_float16": 15360000,
+  "logit_cache_bytes_for_10000x1000_float32_per_seed": 40000000
+}

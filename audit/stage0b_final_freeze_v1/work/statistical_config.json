@@ -1,0 +1,143 @@
+{
+  "schema": "rhan-stage0b-statistical-config/v1",
+  "status": "FROZEN_CANDIDATE_FOR_HUMAN_REVIEW",
+  "protocol_id": "rhan-stage0b-dinov2-b14-temperature/1",
+  "protocol_version": "1.0.0",
+  "design": {
+    "design": "Design A",
+    "fit_set": "ImageNetV2 MatchedFrequency calibration split, 5,000 images, 5 per class",
+    "primary_assessment_set": "ImageNetV2 MatchedFrequency evaluation split, 5,000 images, 5 per class",
+    "fit_and_assessment_disjoint": true,
+    "seeds": [17, 42, 99],
+    "per_seed_temperature": true,
+    "seed_selection": "none; all three seeds reported individually and as an equal-weight mean",
+    "secondary_benchmark": "official ImageNet-1k validation, if pre-existing verified Stage 0A features are available; labelled non-independent and excluded from the primary decision",
+    "optional_stopping": false,
+    "repartitioning": false
+  },
+  "temperature": {
+    "formula": "p_T(y=c|x) = softmax(z(x) / T), T > 0",
+    "parameterization": "theta = log(T); T = exp(theta)",
+    "bounds": {"lower": 0.05, "upper": 20.0, "applied_to": "T"},
+    "initialization": 1.0,
+    "objective": "mean negative log-likelihood on the 5,000-image calibration split only",
+    "compute_dtype": "float64 for fitting; original logits retained as float32",
+    "optimizer": {
+      "library": "scipy.optimize.minimize_scalar",
+      "method": "bounded",
+      "search_variable": "log(T)",
+      "bounds": {"lower": -2.995732273553991, "upper": 2.995732273553991},
+      "xatol": 1e-10,
+      "maxiter": 1000,
+      "deterministic": true
+    },
+    "convergence_rule": "success must be true for every seed; otherwise report a technical failure and do not compute a confirmatory result",
+    "boundary_policy": "report the constrained optimum and boundary flag; a boundary fit prevents confirmatory acceptance but is never silently clipped or widened",
+    "nll_at_one_recorded": true,
+    "iterations_and_tolerance_recorded": true,
+    "no_per_class_temperature": true,
+    "no_vector_matrix_ensemble_or_neural_calibration": true
+  },
+  "metrics": {
+    "primary": {
+      "name": "mean_15bin_ECE_reduction",
+      "definition": "mean over seeds of ECE_15(raw) - ECE_15(calibrated) on the evaluation split",
+      "binning": "15 equal-width confidence bins on [0,1]; membership lo < confidence <= hi; count-weighted",
+      "per_seed_values_reported": true,
+      "absolute_and_relative_reduction_reported": true
+    },
+    "proper_scores": {
+      "nll": "mean negative log-likelihood",
+      "brier": "multi-class sum of squared probability errors",
+      "guard_margin": 0.005
+    },
+    "classification": {
+      "top1": "accuracy",
+      "top5": "accuracy",
+      "macro_top1": "unweighted mean of available per-class accuracies",
+      "prediction_agreement": "exact Top-1 and Top-5 index-array agreement; zero mismatches required"
+    },
+    "secondary_calibration": {
+      "adaptive_ece": "15 equal-frequency bins; bin counts reported",
+      "reliability_diagram": "15 fixed bins with counts and Wilson 95% intervals",
+      "mean_confidence": "reported raw and calibrated"
+    },
+    "selective_prediction": {
+      "coverage_grid": [0.05, 1.0],
+      "aurc": true,
+      "selective_risk_at": [0.5, 0.8, 0.9, 0.95],
+      "abstention_fraction": true,
+      "correct_but_abstained_fraction": true,
+      "tie_count": true,
+      "interpretation": "single-scalar temperature scaling is rank-preserving; raw and calibrated curves should coincide except for numerical ties"
+    },
+    "class_conditional": {
+      "status": "descriptive only",
+      "primary_set_n_per_class": 5,
+      "per_class_ece": true,
+      "confidence_accuracy_gap": true,
+      "multiplicity_control": "none because no per-class confirmatory claims are permitted",
+      "class_level_bootstrap": "descriptive summary only; no 1,000-class significance claims"
+    }
+  },
+  "bootstrap": {
+    "method": "class-stratified paired percentile bootstrap",
+    "unit": "image within class",
+    "stratification": "resample five images with replacement within each of the 1,000 classes",
+    "pairing": "same resampled image indices for raw and calibrated predictions and for all three seeds",
+    "n_boot": 10000,
+    "seed": 20261121,
+    "interval": "95% percentile interval",
+    "percentiles": [2.5, 97.5],
+    "statistic": "three-seed mean ECE reduction",
+    "class_counts_preserved": true,
+    "no_pooling_seeds_as_independent": true,
+    "no_best_seed_selection": true
+  },
+  "decision_rule": {
+    "accept_h1_only_if_all": [
+      "mean ECE reduction > 0",
+      "95% class-stratified paired bootstrap interval excludes zero",
+      "no seed has an ECE increase greater than 0.005",
+      "every raw and calibrated Top-1 prediction is identical; zero mismatches",
+      "every raw and calibrated Top-5 index set is identical; zero mismatches",
+      "no seed has an NLL increase greater than 0.005",
+      "no seed has a Brier-score increase greater than 0.005",
+      "all three temperature fits report convergence success",
+      "no temperature fit is at a bound"
+    ],
+    "thresholds_frozen_before_outcomes": true,
+    "thresholds_are_engineering_tolerances": true,
+    "interval_includes_zero_interpretation": "calibration improvement not established; not proof of no effect",
+    "positive_but_small_interpretation": "report effect size and interval; do not call statistical detectability practical importance",
+    "secondary_cannot_override_primary": true
+  },
+  "ties_and_invalid_values": {
+    "tie_break": "descending logit, then ascending class index (numpy lexsort)",
+    "top1_top5_agreement": "exact index-array equality after the frozen tie-break",
+    "new_tie_or_order_change": "treat as implementation failure and stop; do not report a calibration result",
+    "missing_or_duplicate_image": "abort; no imputation",
+    "non_finite_logit_or_probability": "abort; no clipping",
+    "label_out_of_range_or_shape_mismatch": "abort",
+    "nonzero_exit_or_failed_hash": "abort"
+  },
+  "multiplicity": {
+    "confirmatory_endpoint_families": 3,
+    "families": ["mean ECE reduction", "accuracy invariance", "proper-score non-degradation"],
+    "primary_endpoint_count": 1,
+    "guard_family_count": 2,
+    "bin_count_sensitivity": "not performed; 15 bins frozen",
+    "secondary_metrics": "descriptive"
+  },
+  "reporting": {
+    "per_seed": ["T", "NLL at T=1", "NLL at optimum", "iterations", "convergence", "boundary", "raw/calibrated ECE", "delta", "NLL", "Brier", "Top-1", "Top-5"],
+    "aggregate": ["mean ECE reduction", "95% CI", "per-seed direction", "acceptance decision"],
+    "mandatory_limitations": [
+      "five images per class in the primary assessment split",
+      "ImageNetV2 distribution shift relative to ImageNet-1k training data",
+      "no class-conditional confirmatory claims",
+      "Stage 0A image-level replay remains separately blocked",
+      "Stage 0B inference uses a separately pinned software environment because Stage 0A training-time timm/torchvision versions were not recorded"
+    ]
+  }
+}

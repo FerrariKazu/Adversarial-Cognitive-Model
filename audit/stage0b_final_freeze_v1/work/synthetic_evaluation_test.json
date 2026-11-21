@@ -1,0 +1,45 @@
+{
+  "schema": "rhan-stage0b-synthetic-evaluation-test/v1",
+  "status": "PASS",
+  "tests_passed": 7,
+  "tests_total": 7,
+  "real_model_predictions_used": false,
+  "real_temperature_fitted": false,
+  "tests": [
+    {
+      "name": "metric shapes and ranges",
+      "passed": true,
+      "detail": "three seeds score cleanly with 15 reliability bins"
+    },
+    {
+      "name": "accuracy invariance",
+      "passed": true,
+      "detail": "Top-1 and Top-5 mismatch counts are zero for all seeds"
+    },
+    {
+      "name": "synthetic ECE improvement",
+      "passed": true,
+      "detail": "per-seed ECE reductions: [0.015126, 0.06249, 0.041572]"
+    },
+    {
+      "name": "bootstrap reproducibility",
+      "passed": true,
+      "detail": "point=0.039729 CI=[0.010586,0.059771]"
+    },
+    {
+      "name": "class-stratified resampling",
+      "passed": true,
+      "detail": "every synthetic resample preserves five images per class"
+    },
+    {
+      "name": "acceptance rule including boundary rejection",
+      "passed": true,
+      "detail": "all checks pass; a boundary fit is rejected"
+    },
+    {
+      "name": "per-class descriptive rows",
+      "passed": true,
+      "detail": "100 descriptive per-class rows with n=5 each"
+    }
+  ]
+}

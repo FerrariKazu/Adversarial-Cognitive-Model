@@ -1,0 +1,75 @@
+{
+  "schema": "rhan-stage0b-protocol-freeze-record/v1",
+  "protocol_id": "rhan-stage0b-dinov2-b14-temperature/1",
+  "protocol_version": "1.0.0",
+  "freeze_status": "FORMAL_PROTOCOL_FREEZE_APPROVED",
+  "execution_authorized": false,
+  "temperature_fitting_authorized": false,
+  "evaluation_outcome_inspection_authorized": false,
+  "approval": {
+    "approved_by_role": "human protocol reviewer",
+    "approval_date": "2026-11-21",
+    "recorded_at_utc": "2026-11-21T21:09:22Z",
+    "approval_source": "human direction in the Stage 0B formal freeze and execution-readiness request",
+    "scope": [
+      "formal protocol freeze",
+      "version-controlled preservation",
+      "final execution preflight",
+      "experiment-runner preparation"
+    ],
+    "exclusions": [
+      "temperature fitting",
+      "evaluation outcome inspection",
+      "publication",
+      "upload of image-derived artifacts",
+      "protocol amendment without a new version"
+    ]
+  },
+  "approved_artifact_hashes": {
+    "protocol_manifest_payload_sha256": "0bcf8bf8e37e3d8929bdf778bd443f41517e54597afb15a31d8e869367959672",
+    "preparation_bundle_manifest_sha256": "47374b8f232868e95697fdecad7442ae6077b41f02063ccb8356e853cd8564e3",
+    "partition_canonical_sha256": "557e10f1b94c161bc5e57926c137faaa27208410743a0a039b5b43be6da52578",
+    "partition_json_file_sha256": "fa7f23032d6b953664bc573a53d7d90b4d84be3d46fe7faed445e288168135e6",
+    "inference_config_sha256": "d678558dbc5a53505f688e6411c43536fd3f7f5dbd8166decc31ce96c5bdda67"
+  },
+  "verification": {
+    "manifest_entries_expected": 27,
+    "manifest_entries_verified": 27,
+    "manifest_checksum_command": "sha256sum -c MANIFEST.sha256",
+    "manifest_checksum_status": "PASS",
+    "protocol_manifest_payload_recomputed": true,
+    "protocol_manifest_payload_matches": true,
+    "partition_canonical_matches": true,
+    "partition_json_file_matches": true,
+    "inference_config_matches": true,
+    "all_three_head_hashes_match": true,
+    "frozen_text_artifacts_modified_by_freeze_record": false,
+    "working_tree_diff_in_frozen_bundle": false
+  },
+  "frozen_bundle": {
+    "directory": "audit/stage0b_final_freeze_v1",
+    "manifest_file": "audit/stage0b_final_freeze_v1/MANIFEST.sha256",
+    "manifest_sha256": "47374b8f232868e95697fdecad7442ae6077b41f02063ccb8356e853cd8564e3",
+    "entry_count": 27,
+    "protocol_manifest_sha256": "28c95502d8e650bf8f2a1d4bbb54260d52653d38fcd749d27cd2310a4be451d1",
+    "freeze_verdict_sha256": "49a0f3568c27183e7696285742f925118cc045e13933842440d8db0ea73cfd58"
+  },
+  "external_artifacts": {
+    "note": "Large external data, cached features, and the downloaded backbone weights are bound by SHA-256 in the protocol manifest. They remain local and are not committed to Git by the freeze commit.",
+    "backbone_weights_file_sha256": "55cbb5d887b336d430e649c277b85a1429e724871f9d02ac16203235886d8c7b",
+    "backbone_state_dict_sha256": "375b4c89151489e61df6f1f3b3fe1f9fa8b815c52ae0f7117b23e2e201fbb4fe",
+    "image_archive_sha256": "f0c37fdf925916b19ea1323cd9a2208cdb6959ba2c32eef2a7fc393835c9ca7c",
+    "head_sha256_by_seed": {
+      "17": "320f79a79b7110c7f8120eaedaa122049f8e2b12ba2fe765e867f1e1f3af308e",
+      "42": "f5e7d42d3a901b93b0fb0d67d2cf3d25a0fa34f8dc5d59b9530c2ff40b23c357",
+      "99": "cb91a2b14c96b514c977e2c09a87deb7002ea3d87450f1a04d2de45a7aac452d"
+    }
+  },
+  "launch_blockers": [
+    "separate execution approval not recorded",
+    "supervisor/institutional data-use confirmation not recorded where required",
+    "execution-host preflight and sign-off not yet completed",
+    "publication/upload rights for image-derived artifacts unresolved"
+  ],
+  "immutability_rule": "Any amendment requires a new protocol version and explicit human review. The frozen directory must not be edited in place."
+}

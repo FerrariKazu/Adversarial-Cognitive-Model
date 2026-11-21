@@ -1,0 +1,646 @@
+{
+  "schema": "rhan-stage0b-protocol-manifest/v1",
+  "protocol_id": "rhan-stage0b-dinov2-b14-temperature/1",
+  "protocol_version": "1.0.0",
+  "freeze_status": "READY_FOR_HUMAN_PROTOCOL_FREEZE",
+  "execution_authorized": false,
+  "real_temperature_fitted": false,
+  "evaluation_outcomes_inspected": false,
+  "created_at_utc": "2026-11-21T20:50:10.443169+00:00",
+  "scope_note": "Binds the frozen Stage 0B design, data partition, model artifacts, implementation, environment, and statistics. It does not authorize execution.",
+  "supersedes_for_stage0b": {
+    "path": "audit/stage0b_preparation_v1/STAGE0B_FINAL_PREREGISTRATION_PROPOSAL.md",
+    "sha256": "16507b9ec6987d380620aab2c3fb76ba9f1110f2168ea22f1135957f0fc170de",
+    "reason": "The historical proposal uses the obsolete path-based split and unstratified image bootstrap. The frozen Stage 0B protocol uses the verified content-hash partition and class-stratified paired bootstrap."
+  },
+  "parent_stage0a": {
+    "protocol_id": "rhan-stage0a-dinov2/1",
+    "protocol_version": "1.0.0",
+    "closeout_verdict": "CONDITIONAL PASS",
+    "training_code_commit": "a23dc0f76f5ba2514a3c6a42035d28b44a4ae17e",
+    "artifact_finalization_commit": "d610dd4d8bdbf4b51f34f1175e57902de64687af",
+    "closeout_report": {
+      "path": "audit/stage0a_closeout_v1/STAGE0A_CLOSEOUT_REPORT.md",
+      "sha256": "936a1b7dcb6c7361f8f0bf957d3ba51e63383de4b365bf01216eeea913d4c2e5",
+      "size_bytes": 11217
+    },
+    "independent_audit": {
+      "path": "audit/stage0a_closeout_v1/STAGE0A_INDEPENDENT_AUDIT.json",
+      "sha256": "44646eab0f16983c66ac538e1d0b66a7ff913fa2edc069541e7bec28c75ce756",
+      "size_bytes": 56232
+    },
+    "image_level_replay": "BLOCKED \u2014 not completed; not claimed by Stage 0B"
+  },
+  "backbone": {
+    "timm_name": "vit_base_patch14_dinov2.lvd142m",
+    "hf_repo": "timm/vit_base_patch14_dinov2.lvd142m",
+    "hf_revision": "4685c99dabffe5affac90bd99dbffd25801ae58d",
+    "weights_file": "audit/stage0b_final_freeze_v1/work/backbone_cache/vit_base_patch14_dinov2.lvd142m/model.safetensors",
+    "weights_file_sha256": "55cbb5d887b336d430e649c277b85a1429e724871f9d02ac16203235886d8c7b",
+    "hf_config_sha256": "01050c8ec1abcd2fb980c33cae05468bde6aa6768dc1f8c8ba38f2e5f828f1a7",
+    "state_dict_sha256": "375b4c89151489e61df6f1f3b3fe1f9fa8b815c52ae0f7117b23e2e201fbb4fe",
+    "architecture": {
+      "patch_size": 14,
+      "embed_dim": 768,
+      "depth": 12,
+      "num_heads": 12,
+      "mlp_ratio": 4.0,
+      "global_pool": "token",
+      "num_classes": 0,
+      "positional_embedding_runtime_shape": [
+        1,
+        257,
+        768
+      ]
+    },
+    "feature_layer": "VisionTransformer.forward_features output after the final LayerNorm",
+    "pooling": "CLS token only; model(x) with num_classes=0 and global_pool='token'",
+    "feature_dimension": 768
+  },
+  "classification_heads": [
+    {
+      "seed": 17,
+      "artifact": "audit/stage0a_closeout_v1/artifacts/best/stage0a/vit-b14/seed17/final.pt",
+      "sha256": "320f79a79b7110c7f8120eaedaa122049f8e2b12ba2fe765e867f1e1f3af308e",
+      "sidecar_sha256": "320f79a79b7110c7f8120eaedaa122049f8e2b12ba2fe765e867f1e1f3af308e",
+      "sidecar_matches": true,
+      "model_keys": [
+        "fc.bias",
+        "fc.weight"
+      ],
+      "fc_weight_shape": [
+        1000,
+        768
+      ],
+      "fc_bias_shape": [
+        1000
+      ],
+      "checkpoint_role": "final.pt; reported model",
+      "best_pt_used": false
+    },
+    {
+      "seed": 42,
+      "artifact": "audit/stage0a_closeout_v1/artifacts/best/stage0a/vit-b14/seed42/final.pt",
+      "sha256": "f5e7d42d3a901b93b0fb0d67d2cf3d25a0fa34f8dc5d59b9530c2ff40b23c357",
+      "sidecar_sha256": "f5e7d42d3a901b93b0fb0d67d2cf3d25a0fa34f8dc5d59b9530c2ff40b23c357",
+      "sidecar_matches": true,
+      "model_keys": [
+        "fc.bias",
+        "fc.weight"
+      ],
+      "fc_weight_shape": [
+        1000,
+        768
+      ],
+      "fc_bias_shape": [
+        1000
+      ],
+      "checkpoint_role": "final.pt; reported model",
+      "best_pt_used": false
+    },
+    {
+      "seed": 99,
+      "artifact": "audit/stage0a_closeout_v1/artifacts/best/stage0a/vit-b14/seed99/final.pt",
+      "sha256": "cb91a2b14c96b514c977e2c09a87deb7002ea3d87450f1a04d2de45a7aac452d",
+      "sidecar_sha256": "cb91a2b14c96b514c977e2c09a87deb7002ea3d87450f1a04d2de45a7aac452d",
+      "sidecar_matches": true,
+      "model_keys": [
+        "fc.bias",
+        "fc.weight"
+      ],
+      "fc_weight_shape": [
+        1000,
+        768
+      ],
+      "fc_bias_shape": [
+        1000
+      ],
+      "checkpoint_role": "final.pt; reported model",
+      "best_pt_used": false
+    }
+  ],
+  "data_binding": {
+    "dataset": "ImageNetV2 MatchedFrequency",
+    "source_revision": "d626240be2538720e83103a0e1178d24aca8b12c",
+    "archive_sha256": "f0c37fdf925916b19ea1323cd9a2208cdb6959ba2c32eef2a7fc393835c9ca7c",
+    "archive_size_bytes": 1264079360,
+    "archive_container_detected": "uncompressed POSIX tar",
+    "archive_extension_matches_container": false,
+    "real_dataset_audit": {
+      "path": "audit/stage0b_data_gate_v1/REAL_DATASET_AUDIT.json",
+      "sha256": "c957ebd2f8fec03d3430fb0a363a24ae32bae4feadb5f70298f058cf55bd2d1b",
+      "size_bytes": 3991656
+    },
+    "class_mapping_verification": {
+      "path": "audit/stage0b_data_gate_v1/CLASS_MAPPING_VERIFICATION.json",
+      "sha256": "271776826d4d797bb01ec11a35400bbeb313bda5503502d658ebbf901248cd5a",
+      "size_bytes": 186489
+    },
+    "download_verification": {
+      "path": "audit/stage0b_data_gate_v1/DATASET_DOWNLOAD_VERIFICATION.json",
+      "sha256": "bdfe14d3deb100e6afa270c9a13a8314be06af06940e3642b516f77b88c44637",
+      "size_bytes": 2614
+    },
+    "partition": {
+      "manifest_file": "audit/stage0b_data_gate_v1/PARTITION_MANIFEST.json",
+      "manifest_file_sha256": "fa7f23032d6b953664bc573a53d7d90b4d84be3d46fe7faed445e288168135e6",
+      "canonical_sha256": "557e10f1b94c161bc5e57926c137faaa27208410743a0a039b5b43be6da52578",
+      "repeat_canonical_sha256": "557e10f1b94c161bc5e57926c137faaa27208410743a0a039b5b43be6da52578",
+      "seed": "20261121",
+      "calibration": 5000,
+      "evaluation": 5000,
+      "per_class_calibration": [
+        5
+      ],
+      "per_class_evaluation": [
+        5
+      ],
+      "overlap_count": 0,
+      "disjoint": true,
+      "algorithm": {
+        "rank_input": "SHA256(ASCII(seed) || ASCII(WNID) || raw_32_byte_image_content_SHA256)",
+        "rank_input_encoding": "seed and WNID are ASCII; image SHA-256 is decoded from hex to 32 raw bytes",
+        "selection": "sort each class's 10 images by rank_sha256 ascending; first 5 = calibration, remaining 5 = evaluation",
+        "tie_break": "relative_path ascending (did not trigger; rank values are unique)",
+        "per_class": {
+          "calibration": 5,
+          "evaluation": 5
+        },
+        "source": "ImageNetV2 MatchedFrequency local materialization only"
+      }
+    }
+  },
+  "implementations": {
+    "inference": {
+      "config": {
+        "path": "audit/stage0b_final_freeze_v1/STAGE0B_INFERENCE_CONFIG.json",
+        "sha256": "d678558dbc5a53505f688e6411c43536fd3f7f5dbd8166decc31ce96c5bdda67",
+        "size_bytes": 7203
+      },
+      "script": {
+        "path": "audit/stage0b_final_freeze_v1/scripts/verify_inference_pipeline.py",
+        "sha256": "98aa9c669b4b48acbd2f94a5ed082a08cab491c36dc1f13a97d590adae22d03e",
+        "size_bytes": 14075
+      },
+      "transform_source": {
+        "path": "stage0a/data.py",
+        "sha256": "63cb07b52ccc4429231443d1e63180ec8812d88cdc350c358f7b624ae10533a6",
+        "size_bytes": 23596
+      },
+      "feature_source": {
+        "path": "stage0a/features.py",
+        "sha256": "8b30ade5f4c16b787a0ac7d16b593517a92e2600fac8c79a766e5b2492a85b20",
+        "size_bytes": 22203
+      },
+      "head_source": {
+        "path": "stage0a/config.py",
+        "sha256": "df6744450604746b03eae4708dc4015f262724199c89dfe5b4e1baa97d079a5c",
+        "size_bytes": 7872
+      },
+      "evaluation_source": {
+        "path": "stage0a/evaluation.py",
+        "sha256": "ece3ca9bed242867c4334952b2fbe1f71ae508a1d931b1f5beec95cea6f1414d",
+        "size_bytes": 5611
+      }
+    },
+    "calibration": {
+      "path": "audit/stage0b_data_gate_v1/scripts/calibration_core.py",
+      "sha256": "e665cb83394405632b620a9bb95f61207b60262d18e1a8bcb7db6e82d6192c54",
+      "scope": "temperature fitting and metric primitives; synthetic-tested; no real temperature fitted"
+    },
+    "evaluation": {
+      "path": "audit/stage0b_final_freeze_v1/scripts/stage0b_evaluation_core.py",
+      "sha256": "e39b1857c3e2734e2fa91b5c580783d7a6b92bf8d037c5a23e387b50d6103061",
+      "scope": "frozen metric and class-stratified paired-bootstrap implementation; synthetic-tested"
+    },
+    "statistics": {
+      "path": "audit/stage0b_final_freeze_v1/work/statistical_config.json",
+      "sha256": "68bd2293f9132e01aa57e77094a233932f9bedd9bc8e7fb17ba0a052e0d63714",
+      "config": {
+        "schema": "rhan-stage0b-statistical-config/v1",
+        "status": "FROZEN_CANDIDATE_FOR_HUMAN_REVIEW",
+        "protocol_id": "rhan-stage0b-dinov2-b14-temperature/1",
+        "protocol_version": "1.0.0",
+        "design": {
+          "design": "Design A",
+          "fit_set": "ImageNetV2 MatchedFrequency calibration split, 5,000 images, 5 per class",
+          "primary_assessment_set": "ImageNetV2 MatchedFrequency evaluation split, 5,000 images, 5 per class",
+          "fit_and_assessment_disjoint": true,
+          "seeds": [
+            17,
+            42,
+            99
+          ],
+          "per_seed_temperature": true,
+          "seed_selection": "none; all three seeds reported individually and as an equal-weight mean",
+          "secondary_benchmark": "official ImageNet-1k validation, if pre-existing verified Stage 0A features are available; labelled non-independent and excluded from the primary decision",
+          "optional_stopping": false,
+          "repartitioning": false
+        },
+        "temperature": {
+          "formula": "p_T(y=c|x) = softmax(z(x) / T), T > 0",
+          "parameterization": "theta = log(T); T = exp(theta)",
+          "bounds": {
+            "lower": 0.05,
+            "upper": 20.0,
+            "applied_to": "T"
+          },
+          "initialization": 1.0,
+          "objective": "mean negative log-likelihood on the 5,000-image calibration split only",
+          "compute_dtype": "float64 for fitting; original logits retained as float32",
+          "optimizer": {
+            "library": "scipy.optimize.minimize_scalar",
+            "method": "bounded",
+            "search_variable": "log(T)",
+            "bounds": {
+              "lower": -2.995732273553991,
+              "upper": 2.995732273553991
+            },
+            "xatol": 1e-10,
+            "maxiter": 1000,
+            "deterministic": true
+          },
+          "convergence_rule": "success must be true for every seed; otherwise report a technical failure and do not compute a confirmatory result",
+          "boundary_policy": "report the constrained optimum and boundary flag; a boundary fit prevents confirmatory acceptance but is never silently clipped or widened",
+          "nll_at_one_recorded": true,
+          "iterations_and_tolerance_recorded": true,
+          "no_per_class_temperature": true,
+          "no_vector_matrix_ensemble_or_neural_calibration": true
+        },
+        "metrics": {
+          "primary": {
+            "name": "mean_15bin_ECE_reduction",
+            "definition": "mean over seeds of ECE_15(raw) - ECE_15(calibrated) on the evaluation split",
+            "binning": "15 equal-width confidence bins on [0,1]; membership lo < confidence <= hi; count-weighted",
+            "per_seed_values_reported": true,
+            "absolute_and_relative_reduction_reported": true
+          },
+          "proper_scores": {
+            "nll": "mean negative log-likelihood",
+            "brier": "multi-class sum of squared probability errors",
+            "guard_margin": 0.005
+          },
+          "classification": {
+            "top1": "accuracy",
+            "top5": "accuracy",
+            "macro_top1": "unweighted mean of available per-class accuracies",
+            "prediction_agreement": "exact Top-1 and Top-5 index-array agreement; zero mismatches required"
+          },
+          "secondary_calibration": {
+            "adaptive_ece": "15 equal-frequency bins; bin counts reported",
+            "reliability_diagram": "15 fixed bins with counts and Wilson 95% intervals",
+            "mean_confidence": "reported raw and calibrated"
+          },
+          "selective_prediction": {
+            "coverage_grid": [
+              0.05,
+              1.0
+            ],
+            "aurc": true,
+            "selective_risk_at": [
+              0.5,
+              0.8,
+              0.9,
+              0.95
+            ],
+            "abstention_fraction": true,
+            "correct_but_abstained_fraction": true,
+            "tie_count": true,
+            "interpretation": "single-scalar temperature scaling is rank-preserving; raw and calibrated curves should coincide except for numerical ties"
+          },
+          "class_conditional": {
+            "status": "descriptive only",
+            "primary_set_n_per_class": 5,
+            "per_class_ece": true,
+            "confidence_accuracy_gap": true,
+            "multiplicity_control": "none because no per-class confirmatory claims are permitted",
+            "class_level_bootstrap": "descriptive summary only; no 1,000-class significance claims"
+          }
+        },
+        "bootstrap": {
+          "method": "class-stratified paired percentile bootstrap",
+          "unit": "image within class",
+          "stratification": "resample five images with replacement within each of the 1,000 classes",
+          "pairing": "same resampled image indices for raw and calibrated predictions and for all three seeds",
+          "n_boot": 10000,
+          "seed": 20261121,
+          "interval": "95% percentile interval",
+          "percentiles": [
+            2.5,
+            97.5
+          ],
+          "statistic": "three-seed mean ECE reduction",
+          "class_counts_preserved": true,
+          "no_pooling_seeds_as_independent": true,
+          "no_best_seed_selection": true
+        },
+        "decision_rule": {
+          "accept_h1_only_if_all": [
+            "mean ECE reduction > 0",
+            "95% class-stratified paired bootstrap interval excludes zero",
+            "no seed has an ECE increase greater than 0.005",
+            "every raw and calibrated Top-1 prediction is identical; zero mismatches",
+            "every raw and calibrated Top-5 index set is identical; zero mismatches",
+            "no seed has an NLL increase greater than 0.005",
+            "no seed has a Brier-score increase greater than 0.005",
+            "all three temperature fits report convergence success",
+            "no temperature fit is at a bound"
+          ],
+          "thresholds_frozen_before_outcomes": true,
+          "thresholds_are_engineering_tolerances": true,
+          "interval_includes_zero_interpretation": "calibration improvement not established; not proof of no effect",
+          "positive_but_small_interpretation": "report effect size and interval; do not call statistical detectability practical importance",
+          "secondary_cannot_override_primary": true
+        },
+        "ties_and_invalid_values": {
+          "tie_break": "descending logit, then ascending class index (numpy lexsort)",
+          "top1_top5_agreement": "exact index-array equality after the frozen tie-break",
+          "new_tie_or_order_change": "treat as implementation failure and stop; do not report a calibration result",
+          "missing_or_duplicate_image": "abort; no imputation",
+          "non_finite_logit_or_probability": "abort; no clipping",
+          "label_out_of_range_or_shape_mismatch": "abort",
+          "nonzero_exit_or_failed_hash": "abort"
+        },
+        "multiplicity": {
+          "confirmatory_endpoint_families": 3,
+          "families": [
+            "mean ECE reduction",
+            "accuracy invariance",
+            "proper-score non-degradation"
+          ],
+          "primary_endpoint_count": 1,
+          "guard_family_count": 2,
+          "bin_count_sensitivity": "not performed; 15 bins frozen",
+          "secondary_metrics": "descriptive"
+        },
+        "reporting": {
+          "per_seed": [
+            "T",
+            "NLL at T=1",
+            "NLL at optimum",
+            "iterations",
+            "convergence",
+            "boundary",
+            "raw/calibrated ECE",
+            "delta",
+            "NLL",
+            "Brier",
+            "Top-1",
+            "Top-5"
+          ],
+          "aggregate": [
+            "mean ECE reduction",
+            "95% CI",
+            "per-seed direction",
+            "acceptance decision"
+          ],
+          "mandatory_limitations": [
+            "five images per class in the primary assessment split",
+            "ImageNetV2 distribution shift relative to ImageNet-1k training data",
+            "no class-conditional confirmatory claims",
+            "Stage 0A image-level replay remains separately blocked",
+            "Stage 0B inference uses a separately pinned software environment because Stage 0A training-time timm/torchvision versions were not recorded"
+          ]
+        }
+      }
+    },
+    "environment": {
+      "path": "audit/stage0b_final_freeze_v1/work/environment.json",
+      "sha256": "d60d34b082366d8074a22dc586dd1ec22538001ba7ebe79e985947218594054b",
+      "fingerprint_sha256": "893427754f21fbe0e2a4c3b0ec31f74dd0ca620f77b5b8f3292bdc78d1ac9e29",
+      "software": {
+        "python": "3.10.12",
+        "python_executable": "/usr/bin/python3",
+        "torch": "2.9.1+cu128",
+        "torchvision": "0.24.1+cu128",
+        "timm": "1.0.27",
+        "numpy": "2.2.6",
+        "scipy": "1.15.3",
+        "pillow": "12.2.0",
+        "huggingface_hub": "1.1.7"
+      },
+      "gpu": {
+        "name": "NVIDIA GeForce RTX 4060",
+        "total_memory_bytes": 8585216000,
+        "compute_capability": "8.9",
+        "cuda_runtime": "12.8",
+        "cudnn": 91002,
+        "nvidia_driver": "621.01"
+      },
+      "platform": {
+        "system": "Linux",
+        "release": "6.6.87.2-microsoft-standard-WSL2",
+        "version": "#1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025",
+        "machine": "x86_64",
+        "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+        "is_wsl": true
+      },
+      "git_commit": "d610dd4d8bdbf4b51f34f1175e57902de64687af"
+    }
+  },
+  "validation": {
+    "inference_pipeline_test": {
+      "path": "audit/stage0b_final_freeze_v1/work/inference_pipeline_test.json",
+      "sha256": "ba293efd835991f966face9b3d1483b5f1ee88ad722546ba942634a8f9c52127",
+      "status": "PASS"
+    },
+    "compute_probe": {
+      "path": "audit/stage0b_final_freeze_v1/work/compute_probe.json",
+      "sha256": "4c957b556a2547cbbd3093dc88d89aa5d31325b46a63f1cb7d20d9371eec8c50",
+      "status": "PASS"
+    },
+    "synthetic_evaluation_test": {
+      "path": "audit/stage0b_final_freeze_v1/work/synthetic_evaluation_test.json",
+      "sha256": "dfc7a61005e277c1feedb410e53d0dc7f1949bcaf4129700239855df52b49168",
+      "status": "PASS"
+    },
+    "synthetic_calibration_test": {
+      "path": "audit/stage0b_data_gate_v1/work/synthetic_calibration_test.json",
+      "sha256": "bf91384da1a9673e795256b0ad732c3112915b2811142e011a4de22df503223d",
+      "status": "PASS"
+    }
+  },
+  "deliverables": [
+    "STAGE0B_FINAL_PREREGISTRATION.md",
+    "STAGE0B_PROTOCOL_MANIFEST.json",
+    "STAGE0B_INFERENCE_PIPELINE_AUDIT.md",
+    "STAGE0B_INFERENCE_CONFIG.json",
+    "STAGE0B_DATA_PROVENANCE.md",
+    "STAGE0B_STATISTICAL_ANALYSIS_PLAN.md",
+    "STAGE0B_EXECUTION_PLAN.md",
+    "STAGE0B_LAUNCH_CHECKLIST.md",
+    "STAGE0B_UNRESOLVED_BLOCKERS.md",
+    "STAGE0B_FREEZE_VERDICT.md",
+    "MANIFEST.sha256"
+  ],
+  "launch_blockers": [
+    "human protocol-freeze approval not recorded",
+    "separate execution approval not recorded",
+    "supervisor/institutional data-use confirmation not recorded",
+    "no upload/publication rights for image-derived artifacts",
+    "runtime must be re-verified on the execution host"
+  ],
+  "artifacts": {
+    "stage0a_closeout_report": {
+      "path": "audit/stage0a_closeout_v1/STAGE0A_CLOSEOUT_REPORT.md",
+      "sha256": "936a1b7dcb6c7361f8f0bf957d3ba51e63383de4b365bf01216eeea913d4c2e5",
+      "size_bytes": 11217
+    },
+    "stage0a_independent_audit": {
+      "path": "audit/stage0a_closeout_v1/STAGE0A_INDEPENDENT_AUDIT.json",
+      "sha256": "44646eab0f16983c66ac538e1d0b66a7ff913fa2edc069541e7bec28c75ce756",
+      "size_bytes": 56232
+    },
+    "stage0a_protocol_compliance": {
+      "path": "audit/stage0a_closeout_v1/STAGE0A_PROTOCOL_COMPLIANCE.md",
+      "sha256": "679e4f03164eaa7e85ad4fdb382cf12e80324a80b7ad16d269c86e29b729e7c0",
+      "size_bytes": 9582
+    },
+    "stage0a_unresolved_blockers": {
+      "path": "audit/stage0a_closeout_v1/UNRESOLVED_BLOCKERS.md",
+      "sha256": "5cca8e10cd03042234f042b7a267a4efb2e251e3925cbb16b5d207eae2f2537a",
+      "size_bytes": 8084
+    },
+    "stage0b_historical_proposal": {
+      "path": "audit/stage0b_preparation_v1/STAGE0B_FINAL_PREREGISTRATION_PROPOSAL.md",
+      "sha256": "16507b9ec6987d380620aab2c3fb76ba9f1110f2168ea22f1135957f0fc170de",
+      "size_bytes": 20769
+    },
+    "data_license_review": {
+      "path": "audit/stage0b_data_gate_v1/DATA_LICENSE_AND_USAGE_REVIEW.md",
+      "sha256": "451b26e7fa4fc22b7e638248440ae35928a3bdd1f373085232e6a48249b63404",
+      "size_bytes": 6827
+    },
+    "dataset_download_verification": {
+      "path": "audit/stage0b_data_gate_v1/DATASET_DOWNLOAD_VERIFICATION.json",
+      "sha256": "bdfe14d3deb100e6afa270c9a13a8314be06af06940e3642b516f77b88c44637",
+      "size_bytes": 2614
+    },
+    "real_dataset_audit": {
+      "path": "audit/stage0b_data_gate_v1/REAL_DATASET_AUDIT.json",
+      "sha256": "c957ebd2f8fec03d3430fb0a363a24ae32bae4feadb5f70298f058cf55bd2d1b",
+      "size_bytes": 3991656
+    },
+    "real_dataset_audit_md": {
+      "path": "audit/stage0b_data_gate_v1/REAL_DATASET_AUDIT.md",
+      "sha256": "2f4e9d44a4e42ac0a5e6215a85d51f499c1707a21fac91a6a0a09bf35f32fdde",
+      "size_bytes": 1049
+    },
+    "class_mapping_verification": {
+      "path": "audit/stage0b_data_gate_v1/CLASS_MAPPING_VERIFICATION.json",
+      "sha256": "271776826d4d797bb01ec11a35400bbeb313bda5503502d658ebbf901248cd5a",
+      "size_bytes": 186489
+    },
+    "partition_manifest": {
+      "path": "audit/stage0b_data_gate_v1/PARTITION_MANIFEST.json",
+      "sha256": "fa7f23032d6b953664bc573a53d7d90b4d84be3d46fe7faed445e288168135e6",
+      "size_bytes": 3814545
+    },
+    "partition_verification": {
+      "path": "audit/stage0b_data_gate_v1/PARTITION_VERIFICATION.md",
+      "sha256": "5eb121765208791ccf31935b6c30a119af3e00289144f394bd98ca6444f6d2e3",
+      "size_bytes": 1251
+    },
+    "data_gate_verdict": {
+      "path": "audit/stage0b_data_gate_v1/STAGE0B_DATA_GATE_VERDICT.md",
+      "sha256": "217bf0f2a0e9e11318858ef68164349c1479e68f338db75996170ff9b755306f",
+      "size_bytes": 5177
+    },
+    "data_gate_environment": {
+      "path": "audit/stage0b_data_gate_v1/ENVIRONMENT_RECORD.json",
+      "sha256": "3f7a6e6c6f73ade6234cdc983f608090c13e764dc006f95777f20460ea61491c",
+      "size_bytes": 3058
+    },
+    "stage0a_data_source": {
+      "path": "stage0a/data.py",
+      "sha256": "63cb07b52ccc4429231443d1e63180ec8812d88cdc350c358f7b624ae10533a6",
+      "size_bytes": 23596
+    },
+    "stage0a_features_source": {
+      "path": "stage0a/features.py",
+      "sha256": "8b30ade5f4c16b787a0ac7d16b593517a92e2600fac8c79a766e5b2492a85b20",
+      "size_bytes": 22203
+    },
+    "stage0a_config_source": {
+      "path": "stage0a/config.py",
+      "sha256": "df6744450604746b03eae4708dc4015f262724199c89dfe5b4e1baa97d079a5c",
+      "size_bytes": 7872
+    },
+    "stage0a_evaluation_source": {
+      "path": "stage0a/evaluation.py",
+      "sha256": "ece3ca9bed242867c4334952b2fbe1f71ae508a1d931b1f5beec95cea6f1414d",
+      "size_bytes": 5611
+    },
+    "stage0b_inference_config": {
+      "path": "audit/stage0b_final_freeze_v1/STAGE0B_INFERENCE_CONFIG.json",
+      "sha256": "d678558dbc5a53505f688e6411c43536fd3f7f5dbd8166decc31ce96c5bdda67",
+      "size_bytes": 7203
+    },
+    "stage0b_inference_script": {
+      "path": "audit/stage0b_final_freeze_v1/scripts/verify_inference_pipeline.py",
+      "sha256": "98aa9c669b4b48acbd2f94a5ed082a08cab491c36dc1f13a97d590adae22d03e",
+      "size_bytes": 14075
+    },
+    "stage0b_calibration_core": {
+      "path": "audit/stage0b_data_gate_v1/scripts/calibration_core.py",
+      "sha256": "e665cb83394405632b620a9bb95f61207b60262d18e1a8bcb7db6e82d6192c54",
+      "size_bytes": 11417
+    },
+    "stage0b_evaluation_core": {
+      "path": "audit/stage0b_final_freeze_v1/scripts/stage0b_evaluation_core.py",
+      "sha256": "e39b1857c3e2734e2fa91b5c580783d7a6b92bf8d037c5a23e387b50d6103061",
+      "size_bytes": 8384
+    },
+    "stage0b_statistical_config": {
+      "path": "audit/stage0b_final_freeze_v1/work/statistical_config.json",
+      "sha256": "68bd2293f9132e01aa57e77094a233932f9bedd9bc8e7fb17ba0a052e0d63714",
+      "size_bytes": 7039
+    },
+    "stage0b_environment": {
+      "path": "audit/stage0b_final_freeze_v1/work/environment.json",
+      "sha256": "d60d34b082366d8074a22dc586dd1ec22538001ba7ebe79e985947218594054b",
+      "size_bytes": 1646
+    },
+    "stage0b_preregistration": {
+      "path": "audit/stage0b_final_freeze_v1/STAGE0B_FINAL_PREREGISTRATION.md",
+      "sha256": "98c8fb6abbbf96bedc92be2f955429bfd68a158f13e235bdcd27ba46fd5750d0",
+      "size_bytes": 18537
+    },
+    "stage0b_inference_audit": {
+      "path": "audit/stage0b_final_freeze_v1/STAGE0B_INFERENCE_PIPELINE_AUDIT.md",
+      "sha256": "8e829f10b49fe4224f5e734380738b1dbe758de8cf9c7be5be1a9a6cbeccadf1",
+      "size_bytes": 8308
+    },
+    "stage0b_data_provenance": {
+      "path": "audit/stage0b_final_freeze_v1/STAGE0B_DATA_PROVENANCE.md",
+      "sha256": "9fd7d7a44d971b0be11efa830df0ed5a07bb320d9e5c296d981a425c103e7eca",
+      "size_bytes": 7503
+    },
+    "stage0b_statistical_plan": {
+      "path": "audit/stage0b_final_freeze_v1/STAGE0B_STATISTICAL_ANALYSIS_PLAN.md",
+      "sha256": "99764c4f9813a49a4a73e5df770e74f27723dc61a1549d565985271c08e2f02a",
+      "size_bytes": 10401
+    },
+    "stage0b_execution_plan": {
+      "path": "audit/stage0b_final_freeze_v1/STAGE0B_EXECUTION_PLAN.md",
+      "sha256": "e6001830fe2e5ccbde67fc123a5483631e9cbd024ede4eb4013702022009df1f",
+      "size_bytes": 9436
+    },
+    "stage0b_launch_checklist": {
+      "path": "audit/stage0b_final_freeze_v1/STAGE0B_LAUNCH_CHECKLIST.md",
+      "sha256": "c35f30a3485531ed603d44d1d83565eabb358a863a49ef38b78b3fdd0529b392",
+      "size_bytes": 6044
+    },
+    "stage0b_unresolved_blockers": {
+      "path": "audit/stage0b_final_freeze_v1/STAGE0B_UNRESOLVED_BLOCKERS.md",
+      "sha256": "dc74fcaebc0f6b2912835cc9a87ca2f0f638e3dbb0f2a208bba8f1d106bf9ff1",
+      "size_bytes": 4610
+    },
+    "stage0b_freeze_verdict": {
+      "path": "audit/stage0b_final_freeze_v1/STAGE0B_FREEZE_VERDICT.md",
+      "sha256": "49a0f3568c27183e7696285742f925118cc045e13933842440d8db0ea73cfd58",
+      "size_bytes": 5150
+    }
+  },
+  "manifest_payload_sha256": "0bcf8bf8e37e3d8929bdf778bd443f41517e54597afb15a31d8e869367959672"
+}

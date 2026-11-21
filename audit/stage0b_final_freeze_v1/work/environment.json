@@ -1,0 +1,53 @@
+{
+  "schema": "rhan-stage0b-runtime-environment/v1",
+  "captured_at_utc": "2026-11-21T20:33:53.992123+00:00",
+  "platform": {
+    "system": "Linux",
+    "release": "6.6.87.2-microsoft-standard-WSL2",
+    "version": "#1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025",
+    "machine": "x86_64",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "is_wsl": true
+  },
+  "cpu": {
+    "model": "x86_64",
+    "logical_cores": 8
+  },
+  "memory": {
+    "total_bytes": 8328015872,
+    "available_bytes_at_capture": 6348468224
+  },
+  "gpu": {
+    "name": "NVIDIA GeForce RTX 4060",
+    "total_memory_bytes": 8585216000,
+    "compute_capability": "8.9",
+    "cuda_runtime": "12.8",
+    "cudnn": 91002,
+    "nvidia_driver": "621.01"
+  },
+  "filesystem": {
+    "project_root": "/home/ferrarikazu/Adversarial Cognitive Model",
+    "total_bytes": 1081101176832,
+    "free_bytes_at_capture": 737623359488
+  },
+  "software": {
+    "python": "3.10.12",
+    "python_executable": "/usr/bin/python3",
+    "torch": "2.9.1+cu128",
+    "torchvision": "0.24.1+cu128",
+    "timm": "1.0.27",
+    "numpy": "2.2.6",
+    "scipy": "1.15.3",
+    "pillow": "12.2.0",
+    "huggingface_hub": "1.1.7"
+  },
+  "git_commit": "d610dd4d8bdbf4b51f34f1175e57902de64687af",
+  "credentials": {
+    "hf_token_present": false,
+    "hugging_face_login": false,
+    "kaggle_mount_present": false,
+    "note": "Presence flags only; no credential value is recorded."
+  },
+  "scope_note": "Stage 0B freeze-preparation runtime. This record does not authorize execution.",
+  "fingerprint_sha256": "893427754f21fbe0e2a4c3b0ec31f74dd0ca620f77b5b8f3292bdc78d1ac9e29"
+}
