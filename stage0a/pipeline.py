@@ -42,6 +42,7 @@ from stage0a.features import (
     load_complete_cache,
     prepare_cache,
     restore_cache,
+    restore_shard,
     upload_cache,
 )
 from stage0a.hf_sync import NoopHFStore, HFStore
@@ -188,34 +189,78 @@ def extract_split(
         cached = restore_cache(cfg, split, index.fingerprint, hf_store)
         if cached is not None:
             return cached
-    cache = prepare_cache(cfg, index, split, n_shards=max(1, min(2, _gpu_count() or 1)))
     n_shards = max(1, min(2, _gpu_count() or 1))
+    cache = prepare_cache(cfg, index, split, n_shards=n_shards)
     out_dir = cache.directory
-    procs: List[tuple[int, subprocess.Popen]] = []
+
+    missing_ranks = []
     for rank in range(n_shards):
-        gpu = rank % max(1, _gpu_count())
-        out = out_dir / f"worker_{rank:02d}.log"
-        procs.append((rank, _launch_extract_worker(
+        restored = restore_shard(
             cfg,
-            index_dir=index_dir,
             split=split,
             dataset_fingerprint=index.fingerprint,
             rank=rank,
             n_shards=n_shards,
-            gpu=gpu,
-            out=out,
-        )))
-    for rank, p in procs:
-        rc = p.wait()
-        if rc != 0:
-            raise RuntimeError(
-                f"feature extraction shard {rank} failed rc={rc}; see {out_dir}/worker_{rank:02d}.log"
-            )
+            total_count=len(index),
+            hf_store=hf_store if reuse_remote else None,
+        )
+        if restored is None:
+            missing_ranks.append(rank)
+
+    if missing_ranks:
+        procs: List[tuple[int, subprocess.Popen]] = []
+        for rank in missing_ranks:
+            gpu = rank % max(1, _gpu_count())
+            out = out_dir / f"worker_{rank:02d}.log"
+            procs.append((rank, _launch_extract_worker(
+                cfg,
+                index_dir=index_dir,
+                split=split,
+                dataset_fingerprint=index.fingerprint,
+                rank=rank,
+                n_shards=n_shards,
+                gpu=gpu,
+                out=out,
+            )))
+        for rank, p in procs:
+            rc = p.wait()
+            if rc != 0:
+                raise RuntimeError(
+                    f"feature extraction shard {rank} failed rc={rc}; see {out_dir}/worker_{rank:02d}.log"
+                )
+
     finalize_cache(cfg, index, split, n_shards)
     cache = load_complete_cache(cfg, split, index.fingerprint)
     if getattr(hf_store, "enabled", False):
         upload_cache(cache, hf_store)
     return cache
+
+
+def sync_provenance_artifacts(
+    work_root: str,
+    hf_store: Any,
+    *,
+    required: bool = False,
+) -> Dict[str, str]:
+    """Upload index_audit.json, split.json, stage0a_audit.json, stage0a_audit.md
+    with SHA-256 sidecars to store.best_repo under stage0a/provenance/.
+    """
+    if not getattr(hf_store, "enabled", False):
+        return {}
+    layout = _path_layout("", work_root)
+    artifacts = [
+        ("index_audit.json", Path(layout["index_root"]) / "index_audit.json"),
+        ("split.json", Path(layout["output_root"]) / "split" / "split.json"),
+        ("stage0a_audit.json", Path(layout["output_root"]) / "stage0a_audit.json"),
+        ("stage0a_audit.md", Path(layout["output_root"]) / "stage0a_audit.md"),
+    ]
+    synced = {}
+    for name, local_path in artifacts:
+        if local_path.exists():
+            remote = f"stage0a/provenance/{name}"
+            hf_store.upload_verified(local_path, hf_store.best_repo, remote, required=required)
+            synced[name] = remote
+    return synced
 
 
 def _training_fingerprint() -> str:

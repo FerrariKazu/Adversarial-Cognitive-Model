@@ -174,12 +174,15 @@ if dataset_audit.get("status") != "ok":
 # %% [markdown]
 # ## Step 5: Dedicated Hugging Face repositories
 # %%
+from stage0a.config import BACKBONES
 from stage0a.hf_sync import HFStore
 
 store = HFStore(token=os.environ["HF_TOKEN"])
 store.ensure_repos()
 print("best repo:   ", store.best_repo)
 print("rolling repo:", store.rolling_repo)
+for b in BACKBONES:
+    print(f"feature repo ({b}): {store.feature_repo(b)}")
 
 # %% [markdown]
 # ## Step 6: Build deterministic indices and the train/holdout split
@@ -268,6 +271,17 @@ if agg_path.exists():
 from stage0a.config import BACKBONES, SEEDS
 
 missing = []
+
+# 1. Verify provenance artifacts in best_repo
+for prov in ["index_audit.json", "split.json", "stage0a_audit.json", "stage0a_audit.md"]:
+    remote = f"stage0a/provenance/{prov}"
+    status = store.status(store.best_repo, remote)
+    sidecar = store.status(store.best_repo, remote + ".sha256")
+    print(f"{store.best_repo}/{remote}: {status}, sidecar={sidecar}")
+    if status != "present" or sidecar != "present":
+        missing.append(f"{store.best_repo}/{remote}")
+
+# 2. Verify run checkpoints in best and rolling repos
 for backbone in BACKBONES:
     for seed in SEEDS:
         run_id = f"stage0a/{backbone}/seed{seed}"

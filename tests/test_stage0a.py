@@ -150,3 +150,148 @@ def test_resume_drill_passes(tmp_path):
     assert report["phase1"]["global_step"] == 7
     assert report["phase2"]["status"] == "complete"
     assert report["resume_event_present"] is True
+
+
+def test_feature_repos_separated_by_backbone():
+    from stage0a.config import hf_feature_repo, HF_FEATURE_REPOS
+    from stage0a.hf_sync import NoopHFStore
+
+    repo_s = hf_feature_repo("vit-s14")
+    repo_b = hf_feature_repo("vit-b14")
+    assert repo_s == "FerrariKazu/rhan-stage0a-dinov2-features-vits14"
+    assert repo_b == "FerrariKazu/rhan-stage0a-dinov2-features-vitb14"
+    assert repo_s != repo_b
+
+    cfg_s = Stage0AConfig(backbone="vit-s14", seed=17, data_root="/a", cache_root="/b", output_root="/c")
+    cfg_b = Stage0AConfig(backbone="vit-b14", seed=17, data_root="/a", cache_root="/b", output_root="/c")
+    assert cfg_s.hf_feature_repo == repo_s
+    assert cfg_b.hf_feature_repo == repo_b
+
+    import pytest
+    with pytest.raises(ValueError):
+        hf_feature_repo("vit-large")
+
+    noop = NoopHFStore()
+    assert "vit-s14" in noop.feature_repo("vit-s14")
+    assert "vit-b14" in noop.feature_repo("vit-b14")
+
+
+def test_shard_save_restore_and_hash_verification(tmp_path):
+    from stage0a.features import cache_dir, restore_shard, shard_bounds
+    from stage0a.utils import atomic_write_json, atomic_write_text, sha256_file
+
+    cfg = Stage0AConfig(
+        backbone="vit-s14",
+        seed=17,
+        data_root="/nonexistent",
+        cache_root=str(tmp_path / "cache"),
+        output_root=str(tmp_path / "out"),
+    )
+    dataset_fp = "testfp123456"
+    cdir = cache_dir(cfg, "train", dataset_fp)
+    cdir.mkdir(parents=True, exist_ok=True)
+
+    n_total = 100
+    n_shards = 2
+    dim = cfg.embed_dim
+
+    # Pre-allocate target memmaps
+    feats_mmap = np.lib.format.open_memmap(cdir / "features.npy", mode="w+", dtype=np.float16, shape=(n_total, dim))
+    labels_mmap = np.lib.format.open_memmap(cdir / "labels.npy", mode="w+", dtype=np.int64, shape=(n_total,))
+    feats_mmap.flush()
+    labels_mmap.flush()
+
+    start, end = shard_bounds(n_total, 0, n_shards)
+    count = end - start
+    assert count == 50
+
+    shard_feats = np.ones((count, dim), dtype=np.float16) * 3.5
+    shard_labels = np.arange(count, dtype=np.int64) + 10
+    shard_feats_p = cdir / "shard_00_features.npy"
+    shard_labels_p = cdir / "shard_00_labels.npy"
+    np.save(shard_feats_p, shard_feats)
+    np.save(shard_labels_p, shard_labels)
+
+    f_sha = sha256_file(shard_feats_p)
+    l_sha = sha256_file(shard_labels_p)
+    atomic_write_text(str(shard_feats_p) + ".sha256", f_sha + "\n")
+    atomic_write_text(str(shard_labels_p) + ".sha256", l_sha + "\n")
+
+    info = {
+        "rank": 0,
+        "start": start,
+        "end": end,
+        "count": count,
+        "features_sha256": f_sha,
+        "labels_sha256": l_sha,
+    }
+    shard_json_p = cdir / "shard_00.json"
+    atomic_write_json(shard_json_p, info)
+    atomic_write_text(str(shard_json_p) + ".sha256", sha256_file(shard_json_p) + "\n")
+
+    # Test clean restore
+    restored = restore_shard(
+        cfg,
+        split="train",
+        dataset_fingerprint=dataset_fp,
+        rank=0,
+        n_shards=n_shards,
+        total_count=n_total,
+    )
+    assert restored is not None
+    assert restored.get("restored") is True
+
+    # Verify memmap was populated
+    cur_feats = np.load(cdir / "features.npy", mmap_mode="r")
+    assert np.allclose(cur_feats[0:50], 3.5)
+    assert np.allclose(cur_feats[50:100], 0.0)
+
+    # Test tampering detection: corrupting the sidecar or file causes restore to fail
+    atomic_write_text(str(shard_feats_p) + ".sha256", "corruptedhash\n")
+    failed = restore_shard(
+        cfg,
+        split="train",
+        dataset_fingerprint=dataset_fp,
+        rank=0,
+        n_shards=n_shards,
+        total_count=n_total,
+    )
+    assert failed is None
+
+
+def test_sync_provenance_artifacts(tmp_path):
+    from stage0a.pipeline import _path_layout, sync_provenance_artifacts
+    from stage0a.utils import atomic_write_json, atomic_write_text
+
+    layout = _path_layout("", str(tmp_path))
+    Path(layout["index_root"]).mkdir(parents=True, exist_ok=True)
+    Path(layout["output_root"]).mkdir(parents=True, exist_ok=True)
+    (Path(layout["output_root"]) / "split").mkdir(parents=True, exist_ok=True)
+
+    atomic_write_json(Path(layout["index_root"]) / "index_audit.json", {"test": "index"})
+    atomic_write_json(Path(layout["output_root"]) / "split" / "split.json", {"test": "split"})
+    atomic_write_json(Path(layout["output_root"]) / "stage0a_audit.json", {"test": "audit"})
+    atomic_write_text(Path(layout["output_root"]) / "stage0a_audit.md", "# Audit Report")
+
+    class MockHFStore:
+        best_repo = "test/best-repo"
+        rolling_repo = "test/rolling-repo"
+        enabled = True
+        uploads = []
+
+        def upload_verified(self, local_path, repo_id, remote_name, required=False):
+            self.uploads.append((str(local_path), repo_id, remote_name))
+
+    store = MockHFStore()
+    synced = sync_provenance_artifacts(str(tmp_path), store)
+    assert len(synced) == 4
+    assert "index_audit.json" in synced
+    assert "split.json" in synced
+    assert "stage0a_audit.json" in synced
+    assert "stage0a_audit.md" in synced
+
+    remote_names = [u[2] for u in store.uploads]
+    assert "stage0a/provenance/index_audit.json" in remote_names
+    assert "stage0a/provenance/split.json" in remote_names
+    assert "stage0a/provenance/stage0a_audit.json" in remote_names
+    assert "stage0a/provenance/stage0a_audit.md" in remote_names

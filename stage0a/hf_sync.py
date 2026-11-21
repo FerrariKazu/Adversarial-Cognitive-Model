@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from stage0a.config import HF_BEST_REPO, HF_ROLLING_REPO
+from stage0a.config import HF_BEST_REPO, HF_FEATURE_REPOS, HF_ROLLING_REPO, hf_feature_repo
 from stage0a.utils import atomic_write_text, resolve_hf_token, sha256_file
 
 
@@ -58,14 +58,26 @@ class HFStore:
             self.api = HfApi(token=self.token)
 
     # ── repositories ───────────────────────────────────────────────────────
+    def feature_repo(self, backbone: str) -> str:
+        return hf_feature_repo(backbone)
+
+    def ensure_repo(self, repo_id: str) -> None:
+        if not self.enabled:
+            return
+        try:
+            self.api.create_repo(repo_id=repo_id, repo_type="dataset", private=True, exist_ok=True)
+        except Exception as e:
+            raise HFUnavailable(f"cannot create/verify HF repo {repo_id}: {e}") from e
+
     def ensure_repos(self) -> None:
         if not self.enabled:
             return
-        for repo in (self.best_repo, self.rolling_repo):
-            try:
-                self.api.create_repo(repo_id=repo, repo_type="dataset", private=True, exist_ok=True)
-            except Exception as e:
-                raise HFUnavailable(f"cannot create/verify HF repo {repo}: {e}") from e
+        repos = [self.best_repo, self.rolling_repo]
+        for repo in HF_FEATURE_REPOS.values():
+            if repo not in repos:
+                repos.append(repo)
+        for repo in repos:
+            self.ensure_repo(repo)
 
     def remote_name(self, run_id: str, filename: str) -> str:
         return f"{run_id.strip('/')}/{filename}"
@@ -268,6 +280,15 @@ class NoopHFStore:
     best_repo = "local/test-best"
     rolling_repo = "local/test-rolling"
     enabled = False
+
+    def feature_repo(self, backbone: str) -> str:
+        return f"local/test-features-{backbone}"
+
+    def ensure_repo(self, repo_id: str) -> None:
+        pass
+
+    def ensure_repos(self) -> None:
+        pass
 
     def remote_name(self, run_id: str, filename: str) -> str:
         return f"{run_id.strip('/')}/{filename}"

@@ -24,8 +24,10 @@ from stage0a.config import Stage0AConfig
 from stage0a.data import ImageNetIndex, IndexedImageDataset, load_index, make_transform
 from stage0a.utils import (
     atomic_write_json,
+    atomic_write_text,
     human_bytes,
     json_load,
+    resolve_hf_token,
     sha256_file,
     state_dict_sha256,
     utc_now,
@@ -211,6 +213,96 @@ def shard_bounds(n: int, rank: int, n_shards: int) -> Tuple[int, int]:
     return start, end
 
 
+def restore_shard(
+    cfg: Stage0AConfig,
+    *,
+    split: str,
+    dataset_fingerprint: str,
+    rank: int,
+    n_shards: int,
+    total_count: int,
+    hf_store: Any = None,
+) -> Optional[Dict[str, Any]]:
+    """Check if a shard is available locally or on Hugging Face and verified.
+
+    If found and verified:
+      - Ensures shard files (features, labels, json, and .sha256 sidecars) are valid.
+      - Populates the pre-allocated memmaps in cache_dir at [start:end].
+      - Returns the shard metadata dict.
+    If absent or unverified, returns None.
+    """
+    directory = cache_dir(cfg, split, dataset_fingerprint)
+    start, end = shard_bounds(total_count, rank, n_shards)
+    count = end - start
+    if count <= 0:
+        return {"rank": rank, "count": 0, "skipped": True}
+
+    shard_json_path = directory / f"shard_{rank:02d}.json"
+    shard_feats_path = directory / f"shard_{rank:02d}_features.npy"
+    shard_labels_path = directory / f"shard_{rank:02d}_labels.npy"
+    features_path = directory / "features.npy"
+    labels_path = directory / "labels.npy"
+
+    def _verify_local() -> Optional[Dict[str, Any]]:
+        if not (shard_json_path.exists() and shard_feats_path.exists() and shard_labels_path.exists()):
+            return None
+        info = json_load(shard_json_path)
+        if int(info.get("start", -1)) != start or int(info.get("end", -1)) != end or int(info.get("count", -1)) != count:
+            return None
+        # Check SHA-256 sidecars
+        feats_sidecar = shard_feats_path.with_suffix(shard_feats_path.suffix + ".sha256")
+        labels_sidecar = shard_labels_path.with_suffix(shard_labels_path.suffix + ".sha256")
+        if not feats_sidecar.exists() or not labels_sidecar.exists():
+            return None
+        feats_sha = feats_sidecar.read_text(encoding="utf-8").strip().split()[0]
+        labels_sha = labels_sidecar.read_text(encoding="utf-8").strip().split()[0]
+        if sha256_file(shard_feats_path) != feats_sha or sha256_file(shard_labels_path) != labels_sha:
+            return None
+        if info.get("features_sha256") and info["features_sha256"] != feats_sha:
+            return None
+        if info.get("labels_sha256") and info["labels_sha256"] != labels_sha:
+            return None
+        return info
+
+    info = _verify_local()
+    if info is None and getattr(hf_store, "enabled", False):
+        repo = hf_store.feature_repo(cfg.backbone) if hasattr(hf_store, "feature_repo") else getattr(hf_store, "best_repo", "")
+        prefix = f"stage0a/cache/{cache_name(cfg, split, dataset_fingerprint)}"
+        remote_json = f"{prefix}/shard_{rank:02d}.json"
+        remote_feats = f"{prefix}/shard_{rank:02d}_features.npy"
+        remote_labels = f"{prefix}/shard_{rank:02d}_labels.npy"
+        try:
+            if (
+                hf_store.status(repo, remote_json) == "present"
+                and hf_store.status(repo, remote_feats) == "present"
+                and hf_store.status(repo, remote_labels) == "present"
+            ):
+                directory.mkdir(parents=True, exist_ok=True)
+                hf_store.download_verified(repo, remote_json, shard_json_path)
+                hf_store.download_verified(repo, remote_feats, shard_feats_path)
+                hf_store.download_verified(repo, remote_labels, shard_labels_path)
+                info = _verify_local()
+        except Exception:
+            info = None
+
+    if info is not None:
+        if features_path.exists() and labels_path.exists():
+            feats_data = np.load(shard_feats_path)
+            labels_data = np.load(shard_labels_path)
+            out = np.load(features_path, mmap_mode="r+")
+            labels_out = np.load(labels_path, mmap_mode="r+")
+            out[start:end] = feats_data
+            labels_out[start:end] = labels_data
+            out.flush()
+            labels_out.flush()
+            del out, labels_out
+        res = dict(info)
+        res["restored"] = True
+        return res
+
+    return None
+
+
 def extract_shard(
     cfg: Stage0AConfig,
     *,
@@ -220,21 +312,45 @@ def extract_shard(
     rank: int,
     n_shards: int,
     physical_gpu: int,
+    hf_store: Any = None,
 ) -> Dict[str, Any]:
     """Extract one contiguous shard. Intended to run in its own subprocess."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if device.type == "cuda":
-        torch.cuda.set_device(0)  # one physical GPU per process via CUDA_VISIBLE_DEVICES
-        torch.backends.cudnn.benchmark = True
     index = load_index(index_dir)
     directory = cache_dir(cfg, split, dataset_fingerprint)
-    features_path = directory / "features.npy"
-    labels_path = directory / "labels.npy"
-    meta = json_load(directory / "meta.json")
     start, end = shard_bounds(len(index), rank, n_shards)
     count = end - start
     if count <= 0:
         return {"rank": rank, "count": 0, "skipped": True}
+
+    if hf_store is None:
+        tok = resolve_hf_token()
+        if tok:
+            try:
+                from stage0a.hf_sync import HFStore
+
+                hf_store = HFStore(token=tok)
+            except Exception:
+                hf_store = None
+
+    restored = restore_shard(
+        cfg,
+        split=split,
+        dataset_fingerprint=dataset_fingerprint,
+        rank=rank,
+        n_shards=n_shards,
+        total_count=len(index),
+        hf_store=hf_store,
+    )
+    if restored is not None:
+        return restored
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if device.type == "cuda":
+        torch.cuda.set_device(0)  # one physical GPU per process via CUDA_VISIBLE_DEVICES
+        torch.backends.cudnn.benchmark = True
+
+    features_path = directory / "features.npy"
+    labels_path = directory / "labels.npy"
 
     ds = IndexedImageDataset(index, make_transform(cfg.img_size), np.arange(start, end))
     loader = DataLoader(
@@ -268,9 +384,23 @@ def extract_shard(
                 n_done += len(rows)
         out.flush()
         labels_out.flush()
-        del out, labels_out
     finally:
         monitor_stats = monitor.stop()
+
+    # Save standalone shard arrays and SHA-256 sidecars
+    shard_feats = np.array(out[start:end])
+    shard_labels = np.array(labels_out[start:end])
+    del out, labels_out
+
+    shard_feats_path = directory / f"shard_{rank:02d}_features.npy"
+    shard_labels_path = directory / f"shard_{rank:02d}_labels.npy"
+    np.save(shard_feats_path, shard_feats)
+    np.save(shard_labels_path, shard_labels)
+
+    feats_sha = sha256_file(shard_feats_path)
+    labels_sha = sha256_file(shard_labels_path)
+    atomic_write_text(str(shard_feats_path) + ".sha256", feats_sha + "\n")
+    atomic_write_text(str(shard_labels_path) + ".sha256", labels_sha + "\n")
 
     elapsed = time.time() - t0
     result = {
@@ -286,9 +416,23 @@ def extract_shard(
         "gpu": monitor_stats,
         "peak_vram_gb": round(torch.cuda.max_memory_allocated() / 1e9, 3) if device.type == "cuda" else 0.0,
         "backbone_weights_sha256": weights_sha,
+        "features_sha256": feats_sha,
+        "labels_sha256": labels_sha,
+        "features_bytes": shard_feats_path.stat().st_size,
+        "labels_bytes": shard_labels_path.stat().st_size,
         "completed_at_utc": utc_now(),
     }
-    atomic_write_json(directory / f"shard_{rank:02d}.json", result)
+    shard_json_path = directory / f"shard_{rank:02d}.json"
+    atomic_write_json(shard_json_path, result)
+    atomic_write_text(str(shard_json_path) + ".sha256", sha256_file(shard_json_path) + "\n")
+
+    if getattr(hf_store, "enabled", False):
+        repo = hf_store.feature_repo(cfg.backbone) if hasattr(hf_store, "feature_repo") else getattr(hf_store, "best_repo", "")
+        prefix = f"stage0a/cache/{cache_name(cfg, split, dataset_fingerprint)}"
+        hf_store.upload_verified(shard_feats_path, repo, f"{prefix}/shard_{rank:02d}_features.npy")
+        hf_store.upload_verified(shard_labels_path, repo, f"{prefix}/shard_{rank:02d}_labels.npy")
+        hf_store.upload_verified(shard_json_path, repo, f"{prefix}/shard_{rank:02d}.json")
+
     return result
 
 
@@ -319,9 +463,15 @@ def finalize_cache(cfg: Stage0AConfig, index: ImageNetIndex, split: str, n_shard
             "shards": shards,
         }
     )
-    atomic_write_json(directory / "complete.json", meta)
+    meta_json_path = directory / "meta.json"
+    complete_json_path = directory / "complete.json"
+    atomic_write_json(complete_json_path, meta)
     # Keep meta.json aligned for readers that only inspect it.
-    atomic_write_json(directory / "meta.json", meta)
+    atomic_write_json(meta_json_path, meta)
+    atomic_write_text(str(features) + ".sha256", meta["features_sha256"] + "\n")
+    atomic_write_text(str(labels) + ".sha256", meta["labels_sha256"] + "\n")
+    atomic_write_text(str(complete_json_path) + ".sha256", sha256_file(complete_json_path) + "\n")
+    atomic_write_text(str(meta_json_path) + ".sha256", sha256_file(meta_json_path) + "\n")
     return meta
 
 
@@ -360,10 +510,19 @@ def cache_summary(cache: FeatureCache) -> Dict[str, Any]:
 
 def upload_cache(cache: FeatureCache, hf_store: Any, run_id: str = "stage0a/cache") -> None:
     """Push the pooled-feature cache so a new session can skip extraction."""
+    backbone = cache.meta.get("backbone", "")
+    repo = hf_store.feature_repo(backbone) if hasattr(hf_store, "feature_repo") else getattr(hf_store, "best_repo", "")
     for filename in ("meta.json", "complete.json", "labels.npy", "features.npy"):
         local = cache.directory / filename
-        remote = f"{run_id}/{cache.directory.name}/{filename}"
-        hf_store.upload_verified(local, hf_store.best_repo, remote)
+        if local.exists():
+            remote = f"{run_id}/{cache.directory.name}/{filename}"
+            hf_store.upload_verified(local, repo, remote)
+    for shard_file in sorted(cache.directory.glob("shard_*.json")):
+        rank_str = shard_file.stem
+        for sf in (shard_file, cache.directory / f"{rank_str}_features.npy", cache.directory / f"{rank_str}_labels.npy"):
+            if sf.exists():
+                remote = f"{run_id}/{cache.directory.name}/{sf.name}"
+                hf_store.upload_verified(sf, repo, remote)
 
 
 def restore_cache(cfg: Stage0AConfig, split: str, dataset_fingerprint: str, hf_store: Any) -> Optional[FeatureCache]:
@@ -371,14 +530,15 @@ def restore_cache(cfg: Stage0AConfig, split: str, dataset_fingerprint: str, hf_s
     name = cache_name(cfg, split, dataset_fingerprint)
     remote_prefix = f"stage0a/cache/{name}"
     complete_remote = f"{remote_prefix}/complete.json"
-    status = hf_store.status(hf_store.best_repo, complete_remote)
+    repo = hf_store.feature_repo(cfg.backbone) if hasattr(hf_store, "feature_repo") else getattr(hf_store, "best_repo", "")
+    status = hf_store.status(repo, complete_remote)
     if status == "absent":
         return None
     directory = cache_dir(cfg, split, dataset_fingerprint)
     directory.mkdir(parents=True, exist_ok=True)
     for filename in ("meta.json", "complete.json", "labels.npy", "features.npy"):
         local = directory / filename
-        hf_store.download_verified(hf_store.best_repo, f"{remote_prefix}/{filename}", local)
+        hf_store.download_verified(repo, f"{remote_prefix}/{filename}", local)
     meta = json_load(directory / "complete.json")
     if meta.get("dataset_fingerprint") != dataset_fingerprint:
         raise RuntimeError("downloaded feature cache has a different dataset fingerprint")

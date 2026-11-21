@@ -45,6 +45,18 @@ IMAGENET_CLASSES = 1_000
 
 HF_BEST_REPO = "FerrariKazu/rhan-stage0a-dinov2-checkpoints"
 HF_ROLLING_REPO = "FerrariKazu/rhan-stage0a-dinov2-checkpoints-rolling"
+HF_FEATURE_REPOS: Dict[str, str] = {
+    "vit-s14": "FerrariKazu/rhan-stage0a-dinov2-features-vits14",
+    "vit-b14": "FerrariKazu/rhan-stage0a-dinov2-features-vitb14",
+}
+
+
+def hf_feature_repo(backbone: str) -> str:
+    """Return the dedicated Hugging Face feature cache repository for a backbone."""
+    if backbone not in HF_FEATURE_REPOS:
+        raise ValueError(f"unknown backbone {backbone!r}; expected {sorted(HF_FEATURE_REPOS)}")
+    return HF_FEATURE_REPOS[backbone]
+
 
 #: Runtime/deployment fields.  They are deliberately excluded from the
 #: canonical experiment hash: Kaggle, Colab, and local paths must produce the
@@ -154,6 +166,10 @@ class Stage0AConfig:
     @property
     def experiment_slug(self) -> str:
         return f"stage0a_{self.backbone}_seed{self.seed}_{self.img_size}"
+
+    @property
+    def hf_feature_repo(self) -> str:
+        return hf_feature_repo(self.backbone)
 
     def to_dict(self, *, include_runtime: bool = True) -> Dict[str, Any]:
         d = asdict(self)

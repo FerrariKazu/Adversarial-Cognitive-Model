@@ -30,6 +30,7 @@ from stage0a.pipeline import (
     run_resume_drill,
     run_seed_grid,
     run_smoke,
+    sync_provenance_artifacts,
     write_audit_report,
 )
 from stage0a.utils import atomic_write_json, json_load, resolve_hf_token
@@ -59,6 +60,11 @@ def _cfg(args: argparse.Namespace) -> Stage0AConfig:
 
 def cmd_prepare(args: argparse.Namespace) -> int:
     out = prepare_indices(args.data_root, args.work_root)
+    store = _hf(args.no_hf)
+    if getattr(store, "enabled", False):
+        synced = sync_provenance_artifacts(args.work_root, store)
+        if synced:
+            print(f"synced provenance to HF: {list(synced.keys())}")
     print(json.dumps(out, indent=2, sort_keys=True))
     return 0
 
@@ -78,6 +84,11 @@ def cmd_audit(args: argparse.Namespace) -> int:
         smoke_report=smoke,
         resume_report=resume,
     )
+    store = _hf(args.no_hf)
+    if getattr(store, "enabled", False):
+        synced = sync_provenance_artifacts(args.work_root, store)
+        if synced:
+            print(f"synced provenance to HF: {list(synced.keys())}")
     print(f"wrote {path}")
     return 0
 
