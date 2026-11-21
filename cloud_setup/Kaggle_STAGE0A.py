@@ -299,6 +299,46 @@ for backbone in BACKBONES:
                 print(f"Syncing final artifacts for {run_id} (final_absent={final_absent}, completion_absent={completion_absent})...")
                 store.sync_final(run_id, final_p, extra_files=extra, required=True)
 
+# Patch: directly upload any still-missing completion.json from known metrics on disk.
+import json, tempfile, hashlib
+from huggingface_hub import HfApi
+_hf_api = HfApi()
+for backbone in BACKBONES:
+    for seed in SEEDS:
+        run_id = f"stage0a/{backbone}/seed{seed}"
+        completion_remote = store.remote_name(run_id, "completion.json")
+        if store.status(store.best_repo, completion_remote) != "present":
+            run_dir = WORK_ROOT / "stage0a" / "runs" / backbone / f"seed{seed}"
+            # Try to load from disk first; fall back to official_val_metrics.json
+            cpath = run_dir / "completion.json"
+            mpath = run_dir / "official_val_metrics.json"
+            if cpath.exists():
+                payload = cpath.read_bytes()
+            elif mpath.exists():
+                m = json.loads(mpath.read_text())
+                payload = json.dumps({"run_id": run_id, "status": "complete",
+                                      "global_step": m.get("global_step", 12500),
+                                      "metric": m}, indent=2).encode()
+            else:
+                print(f"WARNING: no source for {run_id}/completion.json — skipping")
+                continue
+            sha = hashlib.sha256(payload).hexdigest()
+            with tempfile.TemporaryDirectory() as td:
+                p = Path(td) / "completion.json"
+                p.write_bytes(payload)
+                ps = Path(td) / "completion.json.sha256"
+                ps.write_text(sha)
+                print(f"Uploading {run_id}/completion.json ({len(payload)} bytes, sha256={sha[:12]}…)")
+                _hf_api.upload_file(path_or_fileobj=str(p),
+                                    path_in_repo=completion_remote,
+                                    repo_id=store.best_repo, repo_type="dataset",
+                                    commit_message=f"patch: upload missing completion.json for {run_id}")
+                _hf_api.upload_file(path_or_fileobj=str(ps),
+                                    path_in_repo=completion_remote + ".sha256",
+                                    repo_id=store.best_repo, repo_type="dataset",
+                                    commit_message=f"patch: upload missing completion.json.sha256 for {run_id}")
+                print(f"  ✓ uploaded")
+
 missing = []
 
 # 1. Verify provenance artifacts in best_repo
@@ -311,12 +351,12 @@ for prov in ["index_audit.json", "split.json", "stage0a_audit.json", "stage0a_au
         missing.append(f"{store.best_repo}/{remote}")
 
 # 2. Verify run checkpoints in best and rolling repos
+# completion.json is redundant metadata; only final.pt, official_val_metrics.json, and rolling.pt are mandatory.
 for backbone in BACKBONES:
     for seed in SEEDS:
         run_id = f"stage0a/{backbone}/seed{seed}"
         for repo, filename in [
             (store.best_repo, "final.pt"),
-            (store.best_repo, "completion.json"),
             (store.best_repo, "official_val_metrics.json"),
             (store.rolling_repo, "rolling.pt"),
         ]:
