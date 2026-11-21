@@ -254,7 +254,10 @@ run(stage_cmd("extract", "--backbone", "all"))
 RUN_FULL = os.environ.get("STAGE0A_RUN_FULL", "1") == "1"
 if not RUN_FULL:
     raise SystemExit("Gates passed. Set STAGE0A_RUN_FULL=1 to start head training.")
-run(stage_cmd("heads", "--backbone", "all", "--gpus", "2"))
+extra_head_args = []
+if os.environ.get("STAGE0A_FRESH", "0") == "1":
+    extra_head_args = ["--fresh", "--confirm-overwrite-remote"]
+run(stage_cmd("heads", "--backbone", "all", "--gpus", "2", *extra_head_args))
 
 # %% [markdown]
 # ## Step 12: Aggregate the three seeds and apply the 80% rule

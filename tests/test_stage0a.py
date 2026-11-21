@@ -295,3 +295,91 @@ def test_sync_provenance_artifacts(tmp_path):
     assert "stage0a/provenance/split.json" in remote_names
     assert "stage0a/provenance/stage0a_audit.json" in remote_names
     assert "stage0a/provenance/stage0a_audit.md" in remote_names
+
+
+def test_validate_resume_legacy_config_hash(tmp_path):
+    import hashlib
+    from stage0a.checkpointing import validate_resume, CHECKPOINT_FORMAT_VERSION, epoch_seed
+
+    cfg = Stage0AConfig(
+        backbone="vit-s14",
+        seed=17,
+        data_root=str(tmp_path / "data"),
+        cache_root=str(tmp_path / "cache"),
+        output_root=str(tmp_path / "out"),
+    )
+    # Construct legacy hash where checkpoint_every_steps / eval_every_steps were included
+    d = cfg.to_dict(include_runtime=False)
+    d["checkpoint_every_steps"] = 500
+    d["eval_every_steps"] = 500
+    legacy_hash = hashlib.sha256(json.dumps(d, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+    saved_config = dict(cfg.to_dict(include_runtime=True))
+    saved_config["checkpoint_every_steps"] = 500
+    saved_config["eval_every_steps"] = 500
+
+    state = {
+        "format_version": CHECKPOINT_FORMAT_VERSION,
+        "run_id": cfg.run_id,
+        "config_canonical_hash": legacy_hash,
+        "config": saved_config,
+        "training_fingerprint": "fake_trainfp",
+        "dataset_fingerprint": "fake_datafp",
+        "split_fingerprint": "fake_splitfp",
+        "backbone": cfg.backbone,
+        "backbone_weights_sha256": "fake_weightsfp",
+        "seed": cfg.seed,
+        "epoch": 1,
+        "batch_in_epoch": 10,
+        "global_step": 500,
+        "epoch_seed": epoch_seed(cfg.seed, 1),
+    }
+
+    # Should succeed without raising ResumeValidationError on config_canonical_hash
+    validate_resume(
+        state,
+        cfg=cfg,
+        training_fingerprint="fake_trainfp",
+        dataset_fingerprint="fake_datafp",
+        split_fingerprint="fake_splitfp",
+        backbone_weights_sha256="fake_weightsfp",
+    )
+
+
+def test_validate_resume_raises_on_actual_mismatch(tmp_path):
+    from stage0a.checkpointing import validate_resume, ResumeValidationError, CHECKPOINT_FORMAT_VERSION, epoch_seed
+    import pytest
+
+    cfg = Stage0AConfig(
+        backbone="vit-s14",
+        seed=17,
+        data_root=str(tmp_path / "data"),
+        cache_root=str(tmp_path / "cache"),
+        output_root=str(tmp_path / "out"),
+    )
+    state = {
+        "format_version": CHECKPOINT_FORMAT_VERSION,
+        "run_id": cfg.run_id,
+        "config_canonical_hash": "completely_wrong_hash",
+        "config": cfg.to_dict(include_runtime=True),
+        "training_fingerprint": "fake_trainfp",
+        "dataset_fingerprint": "fake_datafp",
+        "split_fingerprint": "fake_splitfp",
+        "backbone": cfg.backbone,
+        "backbone_weights_sha256": "fake_weightsfp",
+        "seed": cfg.seed,
+        "epoch": 1,
+        "batch_in_epoch": 10,
+        "global_step": 500,
+        "epoch_seed": epoch_seed(cfg.seed, 1),
+    }
+
+    with pytest.raises(ResumeValidationError, match="resolved experiment config hash changed"):
+        validate_resume(
+            state,
+            cfg=cfg,
+            training_fingerprint="fake_trainfp",
+            dataset_fingerprint="fake_datafp",
+            split_fingerprint="fake_splitfp",
+            backbone_weights_sha256="fake_weightsfp",
+        )

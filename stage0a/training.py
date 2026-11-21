@@ -174,14 +174,42 @@ def train_run(
     state: Optional[Dict[str, Any]] = None
     if restored_path is not None:
         state = load_checkpoint(restored_path)
-        validate_resume(
-            state,
-            cfg=cfg,
-            training_fingerprint=training_fingerprint,
-            dataset_fingerprint=dataset_fp,
-            split_fingerprint=split_fp,
-            backbone_weights_sha256=backbone_weights_sha256,
-        )
+        try:
+            validate_resume(
+                state,
+                cfg=cfg,
+                training_fingerprint=training_fingerprint,
+                dataset_fingerprint=dataset_fp,
+                split_fingerprint=split_fp,
+                backbone_weights_sha256=backbone_weights_sha256,
+            )
+        except ResumeValidationError as err:
+            if os.environ.get("STAGE0A_STRICT_RESUME", "0") == "1":
+                raise
+            print(
+                f"[train_run] Incompatible rolling checkpoint for {cfg.run_id} at {restored_path}: {err}. "
+                "Archiving and starting fresh run to preserve provenance.",
+                flush=True,
+            )
+            archive = run_dir / "archive" / f"incompatible_{utc_now().replace(':', '').replace('-', '')}"
+            archive.mkdir(parents=True, exist_ok=True)
+            for p in (rolling_path, best_path):
+                if p.exists():
+                    try:
+                        p.rename(archive / p.name)
+                    except OSError:
+                        pass
+                sidecar = p.with_name(p.name + ".sha256")
+                if sidecar.exists():
+                    try:
+                        sidecar.rename(archive / sidecar.name)
+                    except OSError:
+                        pass
+            append_jsonl(
+                metrics_path,
+                {"event": "incompatible_checkpoint_fresh_start", "reason": str(err), "archive": str(archive), "at_utc": utc_now()},
+            )
+            state = None
     elif best_path.exists():
         raise HFProvenanceError(
             f"best checkpoint exists at {best_path} but no rolling checkpoint exists; "

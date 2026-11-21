@@ -11,6 +11,8 @@ resume state.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -169,8 +171,26 @@ def validate_resume(
         )
     if state.get("run_id") != cfg.run_id:
         raise ResumeValidationError(f"run id mismatch: {state.get('run_id')} != {cfg.run_id}")
-    if state.get("config_canonical_hash") != cfg.canonical_hash():
-        raise ResumeValidationError("resolved experiment config hash changed; refusing resume")
+
+    # Check canonical config hash, allowing legacy hash before checkpoint/eval frequencies became runtime fields.
+    ckpt_cfg_hash = state.get("config_canonical_hash")
+    if ckpt_cfg_hash != cfg.canonical_hash():
+        legacy_matched = False
+        saved_cfg = state.get("config") or {}
+        math_keys = (
+            "backbone", "seed", "max_steps", "lr", "momentum", "weight_decay",
+            "warmup_steps", "holdout_per_class", "img_size", "num_classes",
+        )
+        if all(saved_cfg.get(k) == getattr(cfg, k, None) for k in math_keys):
+            d = cfg.to_dict(include_runtime=False)
+            d["checkpoint_every_steps"] = saved_cfg.get("checkpoint_every_steps", 500)
+            d["eval_every_steps"] = saved_cfg.get("eval_every_steps", 500)
+            payload = json.dumps(d, sort_keys=True, separators=(",", ":"))
+            if ckpt_cfg_hash == hashlib.sha256(payload.encode()).hexdigest():
+                legacy_matched = True
+        if not legacy_matched:
+            raise ResumeValidationError("resolved experiment config hash changed; refusing resume")
+
     if state.get("training_fingerprint") != training_fingerprint:
         raise ResumeValidationError("training-code fingerprint changed; refusing resume")
     if state.get("dataset_fingerprint") != dataset_fingerprint:
