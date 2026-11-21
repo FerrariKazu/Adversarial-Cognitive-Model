@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from stage0a.checkpointing import (
+    ResumeValidationError,
     epoch_seed,
     load_checkpoint,
     restore_training_state,
