@@ -1,0 +1,10 @@
+{
+  "schema": "rhan-stage0b-execution-approval/v1",
+  "approved": false,
+  "execution_approved": false,
+  "approved_by": "human protocol owner",
+  "approved_at_utc": "2026-11-21T00:00:00Z",
+  "protocol_manifest_payload_sha256": "0bcf8bf8e37e3d8929bdf778bd443f41517e54597afb15a31d8e869367959672",
+  "scope": ["temperature_fitting", "one_shot_evaluation"],
+  "notes": "Set both approval flags to true only after separate execution authorization."
+}

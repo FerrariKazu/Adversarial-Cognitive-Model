@@ -1,0 +1,201 @@
+{
+  "schema": "rhan-stage0b-preflight/v1",
+  "created_at_utc": "2026-11-22T00:46:06Z",
+  "protocol": {
+    "protocol_id": "rhan-stage0b-dinov2-b14-temperature/1",
+    "protocol_version": "1.0.0",
+    "payload_sha256": "0bcf8bf8e37e3d8929bdf778bd443f41517e54597afb15a31d8e869367959672",
+    "manifest_sha256": "47374b8f232868e95697fdecad7442ae6077b41f02063ccb8356e853cd8564e3",
+    "inference_config_sha256": "d678558dbc5a53505f688e6411c43536fd3f7f5dbd8166decc31ce96c5bdda67",
+    "partition_canonical_sha256": "557e10f1b94c161bc5e57926c137faaa27208410743a0a039b5b43be6da52578",
+    "partition_json_sha256": "fa7f23032d6b953664bc573a53d7d90b4d84be3d46fe7faed445e288168135e6"
+  },
+  "archive": {
+    "path": "/home/ferrarikazu/Adversarial Cognitive Model/audit/stage0b_data_gate_v1/work/source/imagenetv2-matched-frequency.tar.gz",
+    "size_bytes": 1264079360,
+    "sha256": "f0c37fdf925916b19ea1323cd9a2208cdb6959ba2c32eef2a7fc393835c9ca7c",
+    "status": "PASS"
+  },
+  "dataset": {
+    "root": "/home/ferrarikazu/Adversarial Cognitive Model/audit/stage0b_data_gate_v1/work/extracted/imagenetv2-matched-frequency-format-val",
+    "file_count": 10000,
+    "class_dir_count": 1000,
+    "images_per_class": 10,
+    "calibration_assignments": 5000,
+    "evaluation_assignments": 5000,
+    "split_overlap": 0,
+    "calibration_content_hashes_checked": 5000,
+    "calibration_content_hash_mismatches": 0,
+    "evaluation_images_opened_for_integrity": 0,
+    "status": "PASS"
+  },
+  "class_mapping": {
+    "status": "PASS",
+    "class_count": null,
+    "canonical_classes": null,
+    "stage0a_classes": null,
+    "class_order_matches_canonical": null,
+    "folder_equals_class_index": true,
+    "rows_checked": 10000
+  },
+  "heads": {
+    "17": {
+      "path": "audit/stage0a_closeout_v1/artifacts/best/stage0a/vit-b14/seed17/final.pt",
+      "sha256": "320f79a79b7110c7f8120eaedaa122049f8e2b12ba2fe765e867f1e1f3af308e",
+      "sidecar_matches": true,
+      "keys": [
+        "fc.bias",
+        "fc.weight"
+      ],
+      "weight_shape": [
+        1000,
+        768
+      ],
+      "bias_shape": [
+        1000
+      ],
+      "status": "PASS"
+    },
+    "42": {
+      "path": "audit/stage0a_closeout_v1/artifacts/best/stage0a/vit-b14/seed42/final.pt",
+      "sha256": "f5e7d42d3a901b93b0fb0d67d2cf3d25a0fa34f8dc5d59b9530c2ff40b23c357",
+      "sidecar_matches": true,
+      "keys": [
+        "fc.bias",
+        "fc.weight"
+      ],
+      "weight_shape": [
+        1000,
+        768
+      ],
+      "bias_shape": [
+        1000
+      ],
+      "status": "PASS"
+    },
+    "99": {
+      "path": "audit/stage0a_closeout_v1/artifacts/best/stage0a/vit-b14/seed99/final.pt",
+      "sha256": "cb91a2b14c96b514c977e2c09a87deb7002ea3d87450f1a04d2de45a7aac452d",
+      "sidecar_matches": true,
+      "keys": [
+        "fc.bias",
+        "fc.weight"
+      ],
+      "weight_shape": [
+        1000,
+        768
+      ],
+      "bias_shape": [
+        1000
+      ],
+      "status": "PASS"
+    }
+  },
+  "backbone": {
+    "path": "audit/stage0b_final_freeze_v1/work/backbone_cache/vit_base_patch14_dinov2.lvd142m/model.safetensors",
+    "file_sha256": "55cbb5d887b336d430e649c277b85a1429e724871f9d02ac16203235886d8c7b",
+    "state_dict_sha256": "375b4c89151489e61df6f1f3b3fe1f9fa8b815c52ae0f7117b23e2e201fbb4fe",
+    "status": "PASS"
+  },
+  "pipeline_smoke": {
+    "image_count": 8,
+    "feature_shape": [
+      8,
+      768
+    ],
+    "feature_dtype": "torch.float32",
+    "logits": {
+      "17": {
+        "shape": [
+          8,
+          1000
+        ],
+        "finite": true
+      },
+      "42": {
+        "shape": [
+          8,
+          1000
+        ],
+        "finite": true
+      },
+      "99": {
+        "shape": [
+          8,
+          1000
+        ],
+        "finite": true
+      }
+    },
+    "status": "PASS"
+  },
+  "runtime": {
+    "captured_at_utc": "2026-11-22T00:46:06Z",
+    "host": {
+      "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+      "python": "3.10.12",
+      "logical_cpu_count": 8
+    },
+    "gpu": {
+      "available": true,
+      "name": "NVIDIA GeForce RTX 4060",
+      "total_memory_bytes": 8585216000,
+      "compute_capability": "8.9",
+      "driver_version": "12.8"
+    },
+    "software": {
+      "torch": "2.9.1+cu128",
+      "torchvision": "0.24.1+cu128",
+      "timm": "1.0.27",
+      "numpy": "2.2.6",
+      "scipy": "1.15.3",
+      "pillow": "12.2.0",
+      "cuda_runtime": "12.8",
+      "cudnn_version": 91002
+    },
+    "disk": {
+      "path": "/home/ferrarikazu/Adversarial Cognitive Model",
+      "total_bytes": 1081101176832,
+      "free_bytes": 737319288832
+    },
+    "memory": {
+      "mem_total_bytes": 8328015872,
+      "mem_available_bytes": 5893750784
+    }
+  },
+  "runtime_comparison": {
+    "frozen_environment_fingerprint": "893427754f21fbe0e2a4c3b0ec31f74dd0ca620f77b5b8f3292bdc78d1ac9e29",
+    "note": "Frozen environment fingerprint includes capture-time volatile fields and is not recomputed identically. Static software/GPU fields are recorded for manual comparison.",
+    "software_matches_frozen": true,
+    "gpu_matches_frozen": true
+  },
+  "execution_approval": {
+    "path": "/home/ferrarikazu/Adversarial Cognitive Model/audit/stage0b_execution_v1/execution_approval.json",
+    "present": false,
+    "valid": false,
+    "errors": [
+      "execution_approval.json not found"
+    ]
+  },
+  "data_use_confirmation": {
+    "path": "/home/ferrarikazu/Adversarial Cognitive Model/audit/stage0b_execution_v1/data_use_confirmation.json",
+    "present": false,
+    "valid": false,
+    "errors": [
+      "data_use_confirmation.json not found"
+    ]
+  },
+  "evaluation_images_opened_for_outcomes": 0,
+  "evaluation_images_opened_for_integrity": 0,
+  "calibration_images_opened_for_smoke": 8,
+  "technical_status": "PASS",
+  "local_execution_ready": false,
+  "publication_ready": false,
+  "execution_blockers": [
+    "separate execution approval not recorded or invalid",
+    "supervisor/institutional data-use confirmation not recorded or invalid"
+  ],
+  "publication_blockers": [
+    "publication/upload rights for image-derived artifacts unresolved"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "schema": "rhan-stage0b-execution-implementation/v1",
+  "runner_path": "audit/stage0b_execution_v1/scripts/stage0b_runner.py",
+  "runner_sha256": "16a1c136ebf5da883cb9d40ce2ea1b4f87fb9578ce23d4fd15f94caef1a43077",
+  "authorization_gate_test_path": "tests/test_stage0b_authorization_gate.py",
+  "authorization_gate_test_sha256": "b07ed7fb0424d6c77e68dae4a17dd29ea00eba462423dfd4239606b047cf7c39",
+  "frozen_protocol_payload_sha256": "0bcf8bf8e37e3d8929bdf778bd443f41517e54597afb15a31d8e869367959672",
+  "freeze_commit": "a1fc47c996b5a6c31446d108f14499626c8254ea",
+  "publication_ready": false,
+  "notes": "Operational authorization-gate correction; frozen protocol unchanged."
+}

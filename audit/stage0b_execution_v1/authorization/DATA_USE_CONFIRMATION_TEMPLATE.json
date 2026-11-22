@@ -1,0 +1,21 @@
+{
+  "schema": "rhan-stage0b-data-use-confirmation/v1",
+  "confirmation_status": "not_confirmed",
+  "data_use_confirmed": false,
+  "confirmer_name": null,
+  "confirmer_role": null,
+  "confirmation_date_utc": null,
+  "approved_scope": [],
+  "dataset_identity": {
+    "dataset_name": "ImageNetV2 matched-frequency validation",
+    "dataset_root": "audit/stage0b_data_gate_v1/work/extracted/imagenetv2-matched-frequency-format-val",
+    "partition_canonical_sha256": "557e10f1b94c161bc5e57926c137faaa27208410743a0a039b5b43be6da52578",
+    "partition_json_sha256": "fa7f23032d6b953664bc573a53d7d90b4d84be3d46fe7faed445e288168135e6"
+  },
+  "protocol_manifest_payload_sha256": "0bcf8bf8e37e3d8929bdf778bd443f41517e54597afb15a31d8e869367959672",
+  "restrictions": [],
+  "publication_rights_granted": false,
+  "evidence_reference": null,
+  "copy_to": "audit/stage0b_execution_v1/data_use_confirmation.json",
+  "notes": "Template only. Complete all null/false/empty fields through separate supervisor or institutional confirmation. Do not create or populate an approval record on behalf of the user or supervisor."
+}

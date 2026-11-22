@@ -1,0 +1,92 @@
+{
+  "schema": "rhan-stage0b-execution-approval/v1",
+  "approval_status": "NOT_APPROVED",
+  "approved": false,
+  "execution_approved": false,
+  "approved_by": null,
+  "approver_role": null,
+  "approved_at_utc": null,
+  "authorization_date": null,
+  "protocol": {
+    "protocol_id": "rhan-stage0b-dinov2-b14-temperature/1",
+    "protocol_version": "1.0.0",
+    "protocol_manifest_payload_sha256": "0bcf8bf8e37e3d8929bdf778bd443f41517e54597afb15a31d8e869367959672",
+    "protocol_manifest_sha256": "47374b8f232868e95697fdecad7442ae6077b41f02063ccb8356e853cd8564e3",
+    "stage0b_freeze_commit": "a1fc47c996b5a6c31446d108f14499626c8254ea",
+    "stage0b_freeze_dir": "audit/stage0b_final_freeze_v1"
+  },
+  "execution_runner": {
+    "path": "audit/stage0b_execution_v1/scripts/stage0b_runner.py",
+    "sha256": "16a1c136ebf5da883cb9d40ce2ea1b4f87fb9578ce23d4fd15f94caef1a43077",
+    "commands_in_scope": ["preflight", "fit", "score"]
+  },
+  "approved_checkpoints": [
+    {
+      "seed": 17,
+      "role": "final.pt; reported model",
+      "path": "audit/stage0a_closeout_v1/artifacts/best/stage0a/vit-b14/seed17/final.pt",
+      "sha256": "320f79a79b7110c7f8120eaedaa122049f8e2b12ba2fe765e867f1e1f3af308e"
+    },
+    {
+      "seed": 42,
+      "role": "final.pt; reported model",
+      "path": "audit/stage0a_closeout_v1/artifacts/best/stage0a/vit-b14/seed42/final.pt",
+      "sha256": "f5e7d42d3a901b93b0fb0d67d2cf3d25a0fa34f8dc5d59b9530c2ff40b23c357"
+    },
+    {
+      "seed": 99,
+      "role": "final.pt; reported model",
+      "path": "audit/stage0a_closeout_v1/artifacts/best/stage0a/vit-b14/seed99/final.pt",
+      "sha256": "cb91a2b14c96b514c977e2c09a87deb7002ea3d87450f1a04d2de45a7aac452d"
+    }
+  ],
+  "partition": {
+    "path": "audit/stage0b_data_gate_v1/PARTITION_MANIFEST.json",
+    "json_sha256": "fa7f23032d6b953664bc573a53d7d90b4d84be3d46fe7faed445e288168135e6",
+    "canonical_sha256": "557e10f1b94c161bc5e57926c137faaa27208410743a0a039b5b43be6da52578",
+    "dataset_root": "audit/stage0b_data_gate_v1/work/extracted/imagenetv2-matched-frequency-format-val",
+    "calibration_images": 5000,
+    "evaluation_images": 5000
+  },
+  "environment": {
+    "frozen_environment_file": "audit/stage0b_final_freeze_v1/work/environment.json",
+    "environment_fingerprint_sha256": "893427754f21fbe0e2a4c3b0ec31f74dd0ca620f77b5b8f3292bdc78d1ac9e29",
+    "python": "3.10.12",
+    "gpu": "NVIDIA GeForce RTX 4060, compute capability 8.9",
+    "software": {
+      "torch": "2.9.1+cu128",
+      "torchvision": "0.24.1+cu128",
+      "timm": "1.0.27",
+      "numpy": "2.2.6",
+      "scipy": "1.15.3",
+      "pillow": "12.2.0"
+    }
+  },
+  "scope": {
+    "permitted": [
+      "temperature fitting on the calibration split only",
+      "one-shot evaluation on the evaluation split only after fit_complete verification",
+      "local artifact creation under audit/stage0b_execution_v1/"
+    ],
+    "prohibited": [
+      "modification of the frozen protocol, manifest, partition, or inference configuration",
+      "evaluation before all three temperatures and calibration artifacts are frozen",
+      "rerunning or overwriting completed fit or score outputs",
+      "opening evaluation images for outcomes before the authorized score phase",
+      "upload or publication of raw images or image-derived artifacts",
+      "use of best.pt checkpoints in place of final.pt"
+    ]
+  },
+  "publication_and_storage": {
+    "local_only": true,
+    "upload_allowed": false,
+    "publication_allowed": false,
+    "reference": "audit/stage0b_execution_v1/authorization/PUBLICATION_AND_STORAGE_RESTRICTIONS.md"
+  },
+  "data_use_confirmation": {
+    "status": "NOT_RECORDED",
+    "reference": "audit/stage0b_execution_v1/authorization/DATA_USE_CONFIRMATION_TEMPLATE.md"
+  },
+  "copy_to": "audit/stage0b_execution_v1/execution_approval.json",
+  "notes": "Template only. Complete all null/false fields and obtain separate human authorization before copying. Do not set approved or execution_approved to true without authorization."
+}
